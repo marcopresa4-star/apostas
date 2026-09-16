@@ -3,7 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import PickCard from "@/components/PickCard";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
+import TicketImage from "@/components/TicketImage";
 import type { BetStatus } from "@/lib/database.types";
+
+const IMAGE_BUCKET = "game-images";
 
 interface Pick {
   id: string;
@@ -16,6 +19,7 @@ interface TicketRow {
   id: string;
   match_date: string;
   match_time: string;
+  image_path: string | null;
   competition: { id: string; name: string; country: { name: string } | null } | null;
   home_team: { id: string; name: string } | null;
   away_team: { id: string; name: string } | null;
@@ -93,7 +97,7 @@ export default async function DashboardPage({
   const { data: tickets, error } = await supabase
     .from("tickets")
     .select(
-      `id, match_date, match_time,
+      `id, match_date, match_time, image_path,
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
@@ -264,6 +268,17 @@ export default async function DashboardPage({
                       <PickCard key={pick.id} pick={pick} />
                     ))}
                   </div>
+
+                  <TicketImage
+                    ticketId={ticket.id}
+                    imagePath={ticket.image_path}
+                    imageUrl={
+                      ticket.image_path
+                        ? supabase.storage.from(IMAGE_BUCKET).getPublicUrl(ticket.image_path)
+                            .data.publicUrl
+                        : null
+                    }
+                  />
 
                   <div className="mt-3">
                     <AddPickForm ticketId={ticket.id} />

@@ -190,6 +190,16 @@ export async function deletePick(pickId: string) {
   revalidatePath("/");
 }
 
+export async function setTicketImage(ticketId: string, imagePath: string | null) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tickets")
+    .update({ image_path: imagePath })
+    .eq("id", ticketId);
+  if (error) throw error;
+  revalidatePath("/");
+}
+
 export async function deleteTicket(ticketId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
