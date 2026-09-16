@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from "react";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
-import { createBet, createTeam, createCompetition } from "@/app/(app)/actions";
+import DatePicker from "./DatePicker";
+import TimePicker from "./TimePicker";
+import { createTicket, createTeam, createCompetition } from "@/app/(app)/actions";
 
-export default function BetForm({
+export default function TicketForm({
   initialCompetitions,
   initialTeams,
   countries,
@@ -21,6 +23,7 @@ export default function BetForm({
   const [awayTeam, setAwayTeam] = useState<ComboItem | null>(null);
   const [matchDate, setMatchDate] = useState("");
   const [matchTime, setMatchTime] = useState("");
+  const [selection, setSelection] = useState("");
   const [reason, setReason] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +49,17 @@ export default function BetForm({
       return setError("A equipa da casa e a equipa de fora têm de ser diferentes.");
     if (!matchDate) return setError("Indica o dia do jogo.");
     if (!matchTime) return setError("Indica a hora do jogo.");
+    if (!selection.trim()) return setError("Indica a aposta.");
 
     startTransition(async () => {
       try {
-        await createBet({
+        await createTicket({
           competitionId: competition.id,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
           matchDate,
           matchTime,
+          selection,
           reason,
         });
       } catch (err) {
@@ -104,24 +109,19 @@ export default function BetForm({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm text-neutral-300">Dia do jogo</label>
-          <input
-            type="date"
-            value={matchDate}
-            onChange={(e) => setMatchDate(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-neutral-300">Hora</label>
-          <input
-            type="time"
-            value={matchTime}
-            onChange={(e) => setMatchTime(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
-          />
-        </div>
+        <DatePicker label="Dia do jogo" value={matchDate} onChange={setMatchDate} />
+        <TimePicker label="Hora" value={matchTime} onChange={setMatchTime} />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm text-neutral-300">Aposta</label>
+        <input
+          type="text"
+          value={selection}
+          onChange={(e) => setSelection(e.target.value)}
+          placeholder="Ex: Benfica vence, Mais de 2.5 golos..."
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+        />
       </div>
 
       <div>
@@ -134,6 +134,11 @@ export default function BetForm({
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
         />
       </div>
+
+      <p className="text-xs text-neutral-500">
+        Depois de guardares, podes adicionar mais apostas a este mesmo jogo diretamente na
+        lista de apostas.
+      </p>
 
       {error && (
         <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>

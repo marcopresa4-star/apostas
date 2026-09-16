@@ -57,12 +57,13 @@ export async function createCompetition(name: string, countryId: string) {
   return createCountryLinkedEntity("competitions", name, countryId);
 }
 
-export async function createBet(input: {
+export async function createTicket(input: {
   competitionId: string;
   homeTeamId: string;
   awayTeamId: string;
   matchDate: string;
   matchTime: string;
+  selection: string;
   reason: string;
 }) {
   const supabase = await createClient();
@@ -75,32 +76,74 @@ export async function createBet(input: {
     throw new Error("A equipa da casa e a equipa de fora têm de ser diferentes.");
   }
 
-  const { error } = await supabase.from("bets").insert({
-    user_id: user.id,
-    competition_id: input.competitionId,
-    home_team_id: input.homeTeamId,
-    away_team_id: input.awayTeamId,
-    match_date: input.matchDate,
-    match_time: input.matchTime,
+  if (!input.selection.trim()) {
+    throw new Error("Indica a aposta.");
+  }
+
+  const { data: ticket, error: ticketError } = await supabase
+    .from("tickets")
+    .insert({
+      user_id: user.id,
+      competition_id: input.competitionId,
+      home_team_id: input.homeTeamId,
+      away_team_id: input.awayTeamId,
+      match_date: input.matchDate,
+      match_time: input.matchTime,
+    })
+    .select("id")
+    .single();
+
+  if (ticketError) throw ticketError;
+
+  const { error: pickError } = await supabase.from("picks").insert({
+    ticket_id: ticket.id,
+    selection: input.selection.trim(),
     reason: input.reason.trim() || null,
   });
 
-  if (error) throw error;
+  if (pickError) throw pickError;
 
   revalidatePath("/");
   redirect("/");
 }
 
-export async function updateBetStatus(betId: string, status: BetStatus) {
+export async function addPick(input: {
+  ticketId: string;
+  selection: string;
+  reason: string;
+}) {
+  if (!input.selection.trim()) {
+    throw new Error("Indica a aposta.");
+  }
+
   const supabase = await createClient();
-  const { error } = await supabase.from("bets").update({ status }).eq("id", betId);
+  const { error } = await supabase.from("picks").insert({
+    ticket_id: input.ticketId,
+    selection: input.selection.trim(),
+    reason: input.reason.trim() || null,
+  });
+
   if (error) throw error;
   revalidatePath("/");
 }
 
-export async function deleteBet(betId: string) {
+export async function updatePickStatus(pickId: string, status: BetStatus) {
   const supabase = await createClient();
-  const { error } = await supabase.from("bets").delete().eq("id", betId);
+  const { error } = await supabase.from("picks").update({ status }).eq("id", pickId);
+  if (error) throw error;
+  revalidatePath("/");
+}
+
+export async function deletePick(pickId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("picks").delete().eq("id", pickId);
+  if (error) throw error;
+  revalidatePath("/");
+}
+
+export async function deleteTicket(ticketId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
   if (error) throw error;
   revalidatePath("/");
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type ComboItem = { id: string; name: string; countryName: string };
 export type ComboCountry = { id: string; name: string };
@@ -37,6 +37,19 @@ export default function EntityCombobox({
   const [newCountryId, setNewCountryId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setCreating(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -89,7 +102,7 @@ export default function EntityCombobox({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <label className="mb-1 block text-sm text-neutral-300">{label}</label>
       <input
         type="text"
@@ -102,7 +115,6 @@ export default function EntityCombobox({
           if (value) onSelect({ id: "", name: "", countryName: "" });
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
         className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
       />
 

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import type { BetStatus } from "@/lib/database.types";
-import { updateBetStatus, deleteBet } from "@/app/(app)/actions";
+import { updatePickStatus, deletePick } from "@/app/(app)/actions";
 
 const OPTIONS: { status: BetStatus; label: string; className: string }[] = [
   { status: "green", label: "Green", className: "bg-emerald-600 hover:bg-emerald-500" },
@@ -11,10 +11,10 @@ const OPTIONS: { status: BetStatus; label: string; className: string }[] = [
 ];
 
 export default function StatusButtons({
-  betId,
+  pickId,
   status,
 }: {
-  betId: string;
+  pickId: string;
   status: BetStatus;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -25,7 +25,7 @@ export default function StatusButtons({
         <button
           key={opt.status}
           disabled={isPending}
-          onClick={() => startTransition(() => updateBetStatus(betId, opt.status))}
+          onClick={() => startTransition(() => updatePickStatus(pickId, opt.status))}
           className={`rounded-lg px-2.5 py-1 text-xs font-medium text-white transition disabled:opacity-50 ${
             status === opt.status ? opt.className : "bg-neutral-800 hover:bg-neutral-700"
           }`}
@@ -36,7 +36,7 @@ export default function StatusButtons({
       {status !== "pending" && (
         <button
           disabled={isPending}
-          onClick={() => startTransition(() => updateBetStatus(betId, "pending"))}
+          onClick={() => startTransition(() => updatePickStatus(pickId, "pending"))}
           className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-400 hover:text-white disabled:opacity-50"
         >
           Repor pendente
@@ -46,7 +46,7 @@ export default function StatusButtons({
         disabled={isPending}
         onClick={() => {
           if (confirm("Apagar esta aposta?")) {
-            startTransition(() => deleteBet(betId));
+            startTransition(() => deletePick(pickId));
           }
         }}
         className="ml-auto rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-red-400 disabled:opacity-50"

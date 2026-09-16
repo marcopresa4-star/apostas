@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import BetForm from "@/components/BetForm";
+import TicketForm from "@/components/TicketForm";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
 
 interface NamedEntityRow {
@@ -45,7 +45,7 @@ export default async function NovaApostaPage() {
   return (
     <div>
       <h1 className="mb-6 text-xl font-semibold">Nova aposta</h1>
-      <BetForm
+      <TicketForm
         initialCompetitions={comboCompetitions}
         initialTeams={comboTeams}
         countries={comboCountries}
