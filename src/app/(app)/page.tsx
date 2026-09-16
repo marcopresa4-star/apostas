@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import StatusBadge from "@/components/StatusBadge";
+import StatusBadge, { STATUS_BORDER } from "@/components/StatusBadge";
 import StatusButtons from "@/components/StatusButtons";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
@@ -23,12 +23,12 @@ interface TicketRow {
   picks: Pick[];
 }
 
-const FILTERS: { value: string; label: string }[] = [
+const FILTERS: { value: string; label: string; dot?: string }[] = [
   { value: "all", label: "Todas" },
-  { value: "pending", label: "Pendentes" },
-  { value: "green", label: "Green" },
-  { value: "red", label: "Red" },
-  { value: "void", label: "Devolvidas" },
+  { value: "pending", label: "Pendentes", dot: "bg-neutral-500" },
+  { value: "green", label: "Green", dot: "bg-emerald-400" },
+  { value: "red", label: "Red", dot: "bg-red-400" },
+  { value: "void", label: "Devolvidas", dot: "bg-amber-400" },
 ];
 
 function sameDay(a: Date, b: Date) {
@@ -100,23 +100,53 @@ export default async function DashboardPage({
     }
   }
 
+  const allPicks = (tickets ?? []).flatMap((t) => t.picks);
+  const stats = {
+    total: allPicks.length,
+    green: allPicks.filter((p) => p.status === "green").length,
+    red: allPicks.filter((p) => p.status === "red").length,
+    pending: allPicks.filter((p) => p.status === "pending").length,
+  };
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">As minhas apostas</h1>
       </div>
 
+      {stats.total > 0 && (
+        <div className="mb-5 grid grid-cols-4 gap-2">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-emerald-400">{stats.green}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Green</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-red-400">{stats.red}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Red</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-neutral-300">{stats.pending}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Pendentes</p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.value}
             href={f.value === "all" ? "/" : `/?status=${f.value}`}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
               activeFilter === f.value
                 ? "bg-emerald-600 text-white"
                 : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
             }`}
           >
+            {f.dot && <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${f.dot}`} />}
             {f.label}
           </Link>
         ))}
@@ -129,7 +159,10 @@ export default async function DashboardPage({
       )}
 
       {!error && displayTickets.length === 0 && (
-        <div className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
+        <div className="rounded-2xl border border-dashed border-neutral-800 px-4 py-12 text-center text-neutral-500">
+          <p aria-hidden className="mb-2 text-3xl">
+            🎟️
+          </p>
           Ainda não tens apostas registadas.{" "}
           <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
             Regista a primeira aposta
@@ -141,14 +174,17 @@ export default async function DashboardPage({
       <div className="space-y-6">
         {groups.map((group) => (
           <div key={group.date}>
-            <h2 className="mb-3 text-sm font-semibold text-neutral-400">
-              {formatDateHeader(group.date)}
-            </h2>
+            <div className="mb-3 flex items-center gap-3">
+              <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">
+                {formatDateHeader(group.date)}
+              </h2>
+              <div aria-hidden className="h-px flex-1 bg-neutral-800" />
+            </div>
             <div className="space-y-3">
               {group.tickets.map((ticket) => (
                 <div
                   key={ticket.id}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                  className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-colors hover:border-neutral-700"
                 >
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -159,7 +195,8 @@ export default async function DashboardPage({
                           : ""}
                       </p>
                       <p className="break-words text-base font-medium text-neutral-100">
-                        {ticket.home_team?.name} vs {ticket.away_team?.name}
+                        {ticket.home_team?.name} <span className="text-neutral-500">vs</span>{" "}
+                        {ticket.away_team?.name}
                       </p>
                       <p className="text-sm text-neutral-400">
                         às {ticket.match_time?.slice(0, 5)}
@@ -172,7 +209,10 @@ export default async function DashboardPage({
 
                   <div className="space-y-2">
                     {ticket.picks.map((pick) => (
-                      <div key={pick.id} className="rounded-lg bg-neutral-950 p-3">
+                      <div
+                        key={pick.id}
+                        className={`rounded-lg border-l-4 bg-neutral-950 p-3 ${STATUS_BORDER[pick.status]}`}
+                      >
                         <div className="mb-2 flex items-start justify-between gap-2">
                           <p className="min-w-0 break-words text-sm font-medium text-emerald-300">
                             {pick.selection}

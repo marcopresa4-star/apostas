@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
 import DatePicker from "./DatePicker";
 import TimePicker from "./TimePicker";
@@ -70,7 +71,7 @@ export default function TicketForm({
   }
 
   return (
-    <div className="space-y-4 rounded-xl border border-neutral-800 bg-neutral-900 p-5">
+    <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
       <EntityCombobox
         label="Competição / Liga"
         placeholder="Ex: Primeira Liga"
@@ -120,7 +121,7 @@ export default function TicketForm({
           value={selection}
           onChange={(e) => setSelection(e.target.value)}
           placeholder="Ex: Benfica vence, Mais de 2.5 golos..."
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
       </div>
 
@@ -131,7 +132,7 @@ export default function TicketForm({
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           placeholder="Porque estás a fazer esta aposta..."
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
       </div>
 
@@ -144,14 +145,22 @@ export default function TicketForm({
         <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>
       )}
 
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={isPending}
-        className="w-full rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60 sm:w-auto"
-      >
-        {isPending ? "A guardar..." : "Registar aposta"}
-      </button>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row">
+        <Link
+          href="/"
+          className="rounded-lg px-3 py-2 text-center font-medium text-neutral-400 transition hover:text-white sm:w-auto"
+        >
+          Cancelar
+        </Link>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={isPending}
+          className="w-full rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-60 sm:w-auto"
+        >
+          {isPending ? "A guardar..." : "Registar aposta"}
+        </button>
+      </div>
     </div>
   );
 }

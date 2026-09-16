@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import TicketForm from "@/components/TicketForm";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
@@ -44,6 +45,12 @@ export default async function NovaApostaPage() {
 
   return (
     <div>
+      <Link
+        href="/"
+        className="mb-2 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-300"
+      >
+        ← Voltar
+      </Link>
       <h1 className="mb-6 text-xl font-semibold">Nova aposta</h1>
       <TicketForm
         initialCompetitions={comboCompetitions}
