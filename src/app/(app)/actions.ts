@@ -64,7 +64,7 @@ async function deleteCountryLinkedEntity(
   id: string
 ): Promise<DeleteResult> {
   const supabase = await createClient();
-  const { error } = await supabase.from(table).delete().eq("id", id);
+  const { data, error } = await supabase.from(table).delete().eq("id", id).select("id");
 
   if (error) {
     // Foreign key violation -> still referenced by an existing bet.
@@ -78,6 +78,12 @@ async function deleteCountryLinkedEntity(
       };
     }
     return { ok: false, error: "Não foi possível remover. Tenta novamente." };
+  }
+
+  // RLS can silently block a delete (0 rows affected, no error) instead of
+  // raising one, so verify a row actually came back before reporting success.
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Não foi possível remover (sem permissão)." };
   }
 
   revalidatePath("/apostas/nova");
