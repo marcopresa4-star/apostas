@@ -81,9 +81,11 @@ export default function AnaliseForm() {
           awayTeamId: awayTeam.id,
         });
         setResult(data);
-      } catch {
+      } catch (err) {
         setError(
-          "Não foi possível obter a análise. Verifica a chave da API ou tenta novamente mais tarde."
+          err instanceof Error
+            ? err.message
+            : "Não foi possível obter a análise. Tenta novamente mais tarde."
         );
       }
     });
@@ -169,6 +171,13 @@ export default function AnaliseForm() {
 
           <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-neutral-400">Classificação</h2>
+            {result.standings.length === 0 && (
+              <p className="text-sm text-neutral-500">
+                Sem classificação disponível para esta competição (a época pode ainda não ter
+                começado, ou a API não cobre este dado para esta liga).
+              </p>
+            )}
+            {result.standings.length > 0 && (
             <table className="w-full min-w-[420px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-neutral-500">
@@ -208,6 +217,7 @@ export default function AnaliseForm() {
                 })}
               </tbody>
             </table>
+            )}
           </div>
         </div>
       )}

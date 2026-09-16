@@ -59,6 +59,9 @@ async function apiFootballFetch<T>(path: string, params: Record<string, string |
     next: { revalidate: 3600 },
   });
 
+  if (res.status === 429) {
+    throw new Error("Limite diário/por minuto da API-Football atingido. Tenta mais tarde.");
+  }
   if (!res.ok) {
     throw new Error(`API-Football devolveu ${res.status}.`);
   }
@@ -72,7 +75,7 @@ async function apiFootballFetch<T>(path: string, params: Record<string, string |
 }
 
 export async function searchLeagues(query: string): Promise<AFLeague[]> {
-  if (query.trim().length < 2) return [];
+  if (query.trim().length < 3) return [];
   type Raw = { league: { id: number; name: string; logo: string }; country: { name: string } };
   const data = await apiFootballFetch<Raw[]>("/leagues", { search: query.trim() });
   return data
@@ -87,7 +90,7 @@ export async function searchLeagues(query: string): Promise<AFLeague[]> {
 }
 
 export async function searchTeams(query: string): Promise<AFTeam[]> {
-  if (query.trim().length < 2) return [];
+  if (query.trim().length < 3) return [];
   type Raw = { team: { id: number; name: string; logo: string; country?: string } };
   const data = await apiFootballFetch<Raw[]>("/teams", { search: query.trim() });
   return data.slice(0, 20).map((r) => ({
