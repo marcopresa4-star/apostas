@@ -15,6 +15,8 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0005_ticket_images.sql` (cria o bucket de Storage `game-images` e o campo para anexar um print a cada jogo)
    - `0006_add_pick_odd.sql` (adiciona o campo "Odd" a cada aposta)
    - `0007_multiple_pick_images.sql` (permite anexar mais do que um print a cada aposta)
+   - `0008_allow_delete_teams_competitions.sql` (corrige a remoção de equipas/competições, que estava a ser bloqueada em silêncio)
+   - `0009_cleanup_orphaned_tickets.sql` (limpeza única de jogos sem apostas associadas)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`

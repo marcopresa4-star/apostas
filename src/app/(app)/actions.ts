@@ -273,8 +273,28 @@ export async function updatePickStatus(pickId: string, status: BetStatus) {
 
 export async function deletePick(pickId: string) {
   const supabase = await createClient();
+
+  const { data: pick } = await supabase
+    .from("picks")
+    .select("ticket_id")
+    .eq("id", pickId)
+    .single();
+
   const { error } = await supabase.from("picks").delete().eq("id", pickId);
   if (error) throw error;
+
+  // A ticket with no picks left is orphaned (invisible in the dashboard,
+  // but still holding onto its team/competition rows) — remove it too.
+  if (pick?.ticket_id) {
+    const { count } = await supabase
+      .from("picks")
+      .select("id", { count: "exact", head: true })
+      .eq("ticket_id", pick.ticket_id);
+    if (count === 0) {
+      await supabase.from("tickets").delete().eq("id", pick.ticket_id);
+    }
+  }
+
   revalidatePath("/");
 }
 
