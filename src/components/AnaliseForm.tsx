@@ -75,18 +75,15 @@ export default function AnaliseForm() {
 
     startTransition(async () => {
       try {
-        const data = await analiseJogo({
+        const res = await analiseJogo({
           leagueId: league.id,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
         });
-        setResult(data);
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Não foi possível obter a análise. Tenta novamente mais tarde."
-        );
+        if (res.ok) setResult(res.data);
+        else setError(res.error);
+      } catch {
+        setError("Não foi possível obter a análise. Tenta novamente mais tarde.");
       }
     });
   }

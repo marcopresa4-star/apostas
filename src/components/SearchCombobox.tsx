@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ActionResult } from "@/app/(app)/analise/actions";
 
 interface SearchItem {
   id: number;
@@ -19,7 +20,7 @@ export default function SearchCombobox<T extends SearchItem>({
   placeholder: string;
   value: T | null;
   onSelect: (item: T | null) => void;
-  searchAction: (query: string) => Promise<T[]>;
+  searchAction: (query: string) => Promise<ActionResult<T[]>>;
   renderSubtitle?: (item: T) => string;
 }) {
   const [query, setQuery] = useState(value?.name ?? "");
@@ -49,7 +50,10 @@ export default function SearchCombobox<T extends SearchItem>({
       setLoading(true);
       setError(null);
       searchAction(q)
-        .then((r) => setResults(r))
+        .then((r) => {
+          if (r.ok) setResults(r.data);
+          else setError(r.error);
+        })
         .catch(() => setError("Pesquisa falhou."))
         .finally(() => setLoading(false));
     }, 400);
