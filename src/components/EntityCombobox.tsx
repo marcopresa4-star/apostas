@@ -18,6 +18,8 @@ interface EntityComboboxProps {
     countryId: string
   ) => Promise<{ id: string; name: string; country_id: string }>;
   onCreated: (item: ComboItem) => void;
+  deleteAction?: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onDeleted?: (id: string) => void;
 }
 
 export default function EntityCombobox({
@@ -30,6 +32,8 @@ export default function EntityCombobox({
   onSelect,
   createAction,
   onCreated,
+  deleteAction,
+  onDeleted,
 }: EntityComboboxProps) {
   const [query, setQuery] = useState(value?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -37,6 +41,7 @@ export default function EntityCombobox({
   const [newCountryId, setNewCountryId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,6 +74,29 @@ export default function EntityCombobox({
     setOpen(false);
     setCreating(false);
     setError(null);
+  }
+
+  async function handleDelete(item: ComboItem) {
+    if (!deleteAction) return;
+    if (!confirm(`Remover "${item.name}" da base de dados?`)) return;
+    setDeletingId(item.id);
+    setError(null);
+    try {
+      const res = await deleteAction(item.id);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      onDeleted?.(item.id);
+      if (value?.id === item.id) {
+        onSelect({ id: "", name: "", countryName: "" });
+        setQuery("");
+      }
+    } catch {
+      setError("Não foi possível remover. Tenta novamente.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleCreate() {
@@ -124,18 +152,30 @@ export default function EntityCombobox({
             <>
               <ul className="max-h-56 overflow-y-auto">
                 {filtered.map((item) => (
-                  <li key={item.id}>
+                  <li key={item.id} className="flex items-center">
                     <button
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => selectItem(item)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
+                      className="flex min-w-0 flex-1 items-center justify-between px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
                     >
-                      <span>{item.name}</span>
-                      <span className="text-xs text-neutral-500">
+                      <span className="truncate">{item.name}</span>
+                      <span className="ml-2 shrink-0 text-xs text-neutral-500">
                         {item.countryName}
                       </span>
                     </button>
+                    {deleteAction && (
+                      <button
+                        type="button"
+                        title={`Remover ${item.name}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleDelete(item)}
+                        disabled={deletingId !== null}
+                        className="shrink-0 px-2 py-2 text-neutral-600 hover:text-red-400 disabled:opacity-50"
+                      >
+                        {deletingId === item.id ? "…" : "✕"}
+                      </button>
+                    )}
                   </li>
                 ))}
                 {filtered.length === 0 && (
@@ -144,11 +184,19 @@ export default function EntityCombobox({
                   </li>
                 )}
               </ul>
+              {error && (
+                <p className="border-t border-neutral-800 px-3 py-2 text-xs text-red-400">
+                  {error}
+                </p>
+              )}
               {query.trim() && !exactMatch && (
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setCreating(true)}
+                  onClick={() => {
+                    setCreating(true);
+                    setError(null);
+                  }}
                   className="w-full border-t border-neutral-800 px-3 py-2 text-left text-sm font-medium text-emerald-400 hover:bg-neutral-800"
                 >
                   + {createLabel} &ldquo;{query.trim()}&rdquo;
@@ -187,7 +235,10 @@ export default function EntityCombobox({
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => setCreating(false)}
+                  onClick={() => {
+                    setCreating(false);
+                    setError(null);
+                  }}
                   className="rounded-lg px-3 py-1.5 text-sm text-neutral-400 hover:text-white"
                 >
                   Cancelar

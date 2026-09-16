@@ -5,7 +5,13 @@ import Link from "next/link";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
 import DatePicker from "./DatePicker";
 import TimePicker from "./TimePicker";
-import { updateTicket, createTeam, createCompetition } from "@/app/(app)/actions";
+import {
+  updateTicket,
+  createTeam,
+  createCompetition,
+  deleteTeam,
+  deleteCompetition,
+} from "@/app/(app)/actions";
 
 export default function EditTicketForm({
   ticketId,
@@ -50,6 +56,17 @@ export default function EditTicketForm({
     );
   }
 
+  function removeTeam(id: string) {
+    setTeams((prev) => prev.filter((t) => t.id !== id));
+    if (homeTeam?.id === id) setHomeTeam(null);
+    if (awayTeam?.id === id) setAwayTeam(null);
+  }
+
+  function removeCompetition(id: string) {
+    setCompetitions((prev) => prev.filter((c) => c.id !== id));
+    if (competition?.id === id) setCompetition(null);
+  }
+
   function handleSubmit() {
     setError(null);
 
@@ -90,6 +107,8 @@ export default function EditTicketForm({
         onSelect={setCompetition}
         createAction={createCompetition}
         onCreated={addCompetition}
+        deleteAction={deleteCompetition}
+        onDeleted={removeCompetition}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -103,6 +122,8 @@ export default function EditTicketForm({
           onSelect={setHomeTeam}
           createAction={createTeam}
           onCreated={addTeam}
+          deleteAction={deleteTeam}
+          onDeleted={removeTeam}
         />
         <EntityCombobox
           label="Equipa de fora"
@@ -114,6 +135,8 @@ export default function EditTicketForm({
           onSelect={setAwayTeam}
           createAction={createTeam}
           onCreated={addTeam}
+          deleteAction={deleteTeam}
+          onDeleted={removeTeam}
         />
       </div>
 

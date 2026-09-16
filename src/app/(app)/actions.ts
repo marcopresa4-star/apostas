@@ -57,6 +57,41 @@ export async function createCompetition(name: string, countryId: string) {
   return createCountryLinkedEntity("competitions", name, countryId);
 }
 
+type DeleteResult = { ok: true } | { ok: false; error: string };
+
+async function deleteCountryLinkedEntity(
+  table: "teams" | "competitions",
+  id: string
+): Promise<DeleteResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from(table).delete().eq("id", id);
+
+  if (error) {
+    // Foreign key violation -> still referenced by an existing bet.
+    if (error.code === "23503") {
+      return {
+        ok: false,
+        error:
+          table === "teams"
+            ? "Não é possível remover: esta equipa está associada a uma ou mais apostas."
+            : "Não é possível remover: esta competição está associada a uma ou mais apostas.",
+      };
+    }
+    return { ok: false, error: "Não foi possível remover. Tenta novamente." };
+  }
+
+  revalidatePath("/apostas/nova");
+  return { ok: true };
+}
+
+export async function deleteTeam(id: string): Promise<DeleteResult> {
+  return deleteCountryLinkedEntity("teams", id);
+}
+
+export async function deleteCompetition(id: string): Promise<DeleteResult> {
+  return deleteCountryLinkedEntity("competitions", id);
+}
+
 export async function createTicket(input: {
   competitionId: string;
   homeTeamId: string;
