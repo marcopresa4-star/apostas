@@ -59,6 +59,42 @@ export async function createCompetition(name: string, countryId: string) {
 
 type DeleteResult = { ok: true } | { ok: false; error: string };
 
+interface BlockingTicketRow {
+  match_date: string;
+  home_team: { name: string } | null;
+  away_team: { name: string } | null;
+}
+
+async function describeBlockingTickets(
+  table: "teams" | "competitions",
+  id: string
+): Promise<string> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("tickets")
+    .select(
+      `match_date,
+       home_team:teams!tickets_home_team_id_fkey(name),
+       away_team:teams!tickets_away_team_id_fkey(name)`
+    );
+
+  query =
+    table === "teams"
+      ? query.or(`home_team_id.eq.${id},away_team_id.eq.${id}`)
+      : query.eq("competition_id", id);
+
+  const { data } = await query.limit(5).returns<BlockingTicketRow[]>();
+
+  if (!data || data.length === 0) return "";
+
+  return data
+    .map((t) => {
+      const date = new Date(`${t.match_date}T00:00:00`).toLocaleDateString("pt-PT");
+      return `${t.home_team?.name ?? "?"} vs ${t.away_team?.name ?? "?"} (${date})`;
+    })
+    .join(", ");
+}
+
 async function deleteCountryLinkedEntity(
   table: "teams" | "competitions",
   id: string
@@ -69,12 +105,13 @@ async function deleteCountryLinkedEntity(
   if (error) {
     // Foreign key violation -> still referenced by an existing bet.
     if (error.code === "23503") {
+      const blocking = await describeBlockingTickets(table, id);
+      const what = table === "teams" ? "esta equipa" : "esta competição";
       return {
         ok: false,
-        error:
-          table === "teams"
-            ? "Não é possível remover: esta equipa está associada a uma ou mais apostas."
-            : "Não é possível remover: esta competição está associada a uma ou mais apostas.",
+        error: blocking
+          ? `Não é possível remover: ${what} está associada ao(s) jogo(s): ${blocking}.`
+          : `Não é possível remover: ${what} está associada a uma ou mais apostas.`,
       };
     }
     return { ok: false, error: "Não foi possível remover. Tenta novamente." };
