@@ -107,6 +107,55 @@ export async function createTicket(input: {
   redirect("/");
 }
 
+export async function updateTicket(input: {
+  ticketId: string;
+  competitionId: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  matchDate: string;
+  matchTime: string;
+}) {
+  const supabase = await createClient();
+
+  if (input.homeTeamId === input.awayTeamId) {
+    throw new Error("A equipa da casa e a equipa de fora têm de ser diferentes.");
+  }
+
+  const { error } = await supabase
+    .from("tickets")
+    .update({
+      competition_id: input.competitionId,
+      home_team_id: input.homeTeamId,
+      away_team_id: input.awayTeamId,
+      match_date: input.matchDate,
+      match_time: input.matchTime,
+    })
+    .eq("id", input.ticketId);
+
+  if (error) throw error;
+
+  revalidatePath("/");
+  redirect("/");
+}
+
+export async function updatePick(input: { pickId: string; selection: string; reason: string }) {
+  if (!input.selection.trim()) {
+    throw new Error("Indica a aposta.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("picks")
+    .update({
+      selection: input.selection.trim(),
+      reason: input.reason.trim() || null,
+    })
+    .eq("id", input.pickId);
+
+  if (error) throw error;
+  revalidatePath("/");
+}
+
 export async function addPick(input: {
   ticketId: string;
   selection: string;

@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import StatusBadge, { STATUS_BORDER } from "@/components/StatusBadge";
-import StatusButtons from "@/components/StatusButtons";
+import PickCard from "@/components/PickCard";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
 import type { BetStatus } from "@/lib/database.types";
@@ -31,8 +30,21 @@ const FILTERS: { value: string; label: string; dot?: string }[] = [
   { value: "void", label: "Devolvidas", dot: "bg-amber-400" },
 ];
 
+const SCOPES: { value: string; label: string }[] = [
+  { value: "hoje", label: "Hoje" },
+  { value: "historico", label: "Histórico" },
+];
+
 function sameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
+}
+
+function todayISODate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function formatDateHeader(dateStr: string) {
@@ -60,10 +72,21 @@ function formatDateHeader(dateStr: string) {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; scope?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, scope } = await searchParams;
   const activeFilter = FILTERS.some((f) => f.value === status) ? status! : "all";
+  const activeScope = SCOPES.some((s) => s.value === scope) ? scope! : "hoje";
+
+  function buildHref(overrides: { status?: string; scope?: string }) {
+    const nextStatus = overrides.status ?? activeFilter;
+    const nextScope = overrides.scope ?? activeScope;
+    const params = new URLSearchParams();
+    if (nextStatus !== "all") params.set("status", nextStatus);
+    if (nextScope !== "hoje") params.set("scope", nextScope);
+    const qs = params.toString();
+    return qs ? `/?${qs}` : "/";
+  }
 
   const supabase = await createClient();
 
@@ -80,7 +103,12 @@ export default async function DashboardPage({
     .order("match_time", { ascending: false })
     .returns<TicketRow[]>();
 
+  const todayISO = todayISODate();
+
   const displayTickets = (tickets ?? [])
+    .filter((ticket) =>
+      activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
+    )
     .map((ticket) => ({
       ...ticket,
       picks:
@@ -135,11 +163,27 @@ export default async function DashboardPage({
         </div>
       )}
 
+      <div className="mb-4 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
+        {SCOPES.map((s) => (
+          <Link
+            key={s.value}
+            href={buildHref({ scope: s.value })}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+              activeScope === s.value
+                ? "bg-emerald-600 text-white"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            {s.label}
+          </Link>
+        ))}
+      </div>
+
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
             key={f.value}
-            href={f.value === "all" ? "/" : `/?status=${f.value}`}
+            href={buildHref({ status: f.value })}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
               activeFilter === f.value
                 ? "bg-emerald-600 text-white"
@@ -163,9 +207,11 @@ export default async function DashboardPage({
           <p aria-hidden className="mb-2 text-3xl">
             🎟️
           </p>
-          Ainda não tens apostas registadas.{" "}
+          {activeScope === "hoje"
+            ? "Sem apostas para hoje ou próximos dias."
+            : "Ainda não tens apostas no histórico."}{" "}
           <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
-            Regista a primeira aposta
+            Regista uma aposta
           </Link>
           .
         </div>
@@ -202,30 +248,20 @@ export default async function DashboardPage({
                         às {ticket.match_time?.slice(0, 5)}
                       </p>
                     </div>
-                    <div className="shrink-0">
+                    <div className="flex shrink-0 items-center gap-3">
+                      <Link
+                        href={`/apostas/${ticket.id}/editar`}
+                        className="text-xs font-medium text-neutral-500 hover:text-neutral-300"
+                      >
+                        Editar jogo
+                      </Link>
                       <DeleteTicketButton ticketId={ticket.id} />
                     </div>
                   </div>
 
                   <div className="space-y-2">
                     {ticket.picks.map((pick) => (
-                      <div
-                        key={pick.id}
-                        className={`rounded-lg border-l-4 bg-neutral-950 p-3 ${STATUS_BORDER[pick.status]}`}
-                      >
-                        <div className="mb-2 flex items-start justify-between gap-2">
-                          <p className="min-w-0 break-words text-sm font-medium text-emerald-300">
-                            {pick.selection}
-                          </p>
-                          <div className="shrink-0">
-                            <StatusBadge status={pick.status} />
-                          </div>
-                        </div>
-                        {pick.reason && (
-                          <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>
-                        )}
-                        <StatusButtons pickId={pick.id} status={pick.status} />
-                      </div>
+                      <PickCard key={pick.id} pick={pick} />
                     ))}
                   </div>
 
