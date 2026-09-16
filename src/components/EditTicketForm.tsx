@@ -5,15 +5,7 @@ import Link from "next/link";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
 import DatePicker from "./DatePicker";
 import TimePicker from "./TimePicker";
-import {
-  updateTicket,
-  createTeam,
-  createCompetition,
-  searchApiTeams,
-  searchApiLeagues,
-  resolveApiTeam,
-  resolveApiCompetition,
-} from "@/app/(app)/actions";
+import { updateTicket, createTeam, createCompetition } from "@/app/(app)/actions";
 
 export default function EditTicketForm({
   ticketId,
@@ -98,8 +90,6 @@ export default function EditTicketForm({
         onSelect={setCompetition}
         createAction={createCompetition}
         onCreated={addCompetition}
-        remoteSearch={searchApiLeagues}
-        resolveRemote={resolveApiCompetition}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -113,8 +103,6 @@ export default function EditTicketForm({
           onSelect={setHomeTeam}
           createAction={createTeam}
           onCreated={addTeam}
-          remoteSearch={searchApiTeams}
-          resolveRemote={resolveApiTeam}
         />
         <EntityCombobox
           label="Equipa de fora"
@@ -126,8 +114,6 @@ export default function EditTicketForm({
           onSelect={setAwayTeam}
           createAction={createTeam}
           onCreated={addTeam}
-          remoteSearch={searchApiTeams}
-          resolveRemote={resolveApiTeam}
         />
       </div>
 

@@ -4,14 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { BetStatus } from "@/lib/database.types";
-import {
-  searchTeams as apiSearchTeams,
-  searchLeagues as apiSearchLeagues,
-  type AFTeam,
-  type AFLeague,
-} from "@/lib/apiFootball";
-import { translateCountryName } from "@/lib/countryTranslate";
-import { type ActionResult, errorMessage } from "@/lib/actionResult";
 
 export async function signOut() {
   const supabase = await createClient();
@@ -63,67 +55,6 @@ export async function createTeam(name: string, countryId: string) {
 
 export async function createCompetition(name: string, countryId: string) {
   return createCountryLinkedEntity("competitions", name, countryId);
-}
-
-export async function searchApiTeams(query: string): Promise<ActionResult<AFTeam[]>> {
-  try {
-    return { ok: true, data: await apiSearchTeams(query) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function searchApiLeagues(query: string): Promise<ActionResult<AFLeague[]>> {
-  try {
-    return { ok: true, data: await apiSearchLeagues(query) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-interface ResolvedComboItem {
-  id: string;
-  name: string;
-  countryName: string;
-}
-
-async function resolveFromApi(
-  table: "teams" | "competitions",
-  name: string,
-  apiCountryName: string
-): Promise<ResolvedComboItem> {
-  const ptCountryName = translateCountryName(apiCountryName);
-  const supabase = await createClient();
-  const { data: country, error } = await supabase
-    .from("countries")
-    .select("id")
-    .eq("name", ptCountryName)
-    .single();
-  if (error || !country) throw new Error(`País "${ptCountryName}" não encontrado.`);
-  const row = await createCountryLinkedEntity(table, name, country.id);
-  return { id: row.id, name: row.name, countryName: ptCountryName };
-}
-
-export async function resolveApiTeam(
-  name: string,
-  apiCountryName: string
-): Promise<ActionResult<ResolvedComboItem>> {
-  try {
-    return { ok: true, data: await resolveFromApi("teams", name, apiCountryName) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function resolveApiCompetition(
-  name: string,
-  apiCountryName: string
-): Promise<ActionResult<ResolvedComboItem>> {
-  try {
-    return { ok: true, data: await resolveFromApi("competitions", name, apiCountryName) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
 }
 
 export async function createTicket(input: {

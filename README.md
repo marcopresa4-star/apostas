@@ -17,7 +17,6 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`
    - `anon public` key
-5. Cria uma conta gratuita em [api-football.com](https://www.api-football.com/), confirma o email, e copia a **API-Key** do dashboard (usada para procurar equipas/competições reais ao registar uma aposta).
 
 ## 2. Configurar variáveis de ambiente
 
@@ -26,10 +25,7 @@ Copia `.env.local.example` para `.env.local` e preenche com os valores do passo 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=xxxxxxxx
-API_FOOTBALL_KEY=xxxxxxxx
 ```
-
-`API_FOOTBALL_KEY` nunca é exposta ao browser — só é usada em código de servidor (Server Actions).
 
 ## 3. Correr localmente
 
@@ -44,7 +40,7 @@ Abre [http://localhost:3000](http://localhost:3000) — vais ser redirecionado p
 
 1. Publica este repositório no GitHub (usa o botão **Publish to GitHub** no VS Code, ou `git remote add origin ...` + `git push`).
 2. Em [vercel.com](https://vercel.com), faz **Import Project** a partir do repositório GitHub.
-3. Em **Environment Variables**, adiciona `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `API_FOOTBALL_KEY` com os mesmos valores do `.env.local`.
+3. Em **Environment Variables**, adiciona `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` com os mesmos valores do `.env.local`.
 4. Deploy. A partir daí, cada push ao branch principal faz um novo deploy automaticamente.
 
 ## Estrutura de dados
@@ -55,4 +51,4 @@ Abre [http://localhost:3000](http://localhost:3000) — vais ser redirecionado p
 - **tickets** — o jogo em si: competição, equipa da casa, equipa de fora, dia e hora.
 - **picks** — cada aposta feita sobre um `ticket`: a seleção (ex: "Benfica vence"), a razão, e o estado (`pending`, `green`, `red`, `void`). Um jogo pode ter várias apostas associadas. Tudo é restrito ao utilizador autenticado via RLS.
 
-No formulário de "Nova aposta" (e em "Editar jogo"), os campos de competição e equipas pesquisam diretamente na base de dados mundial da [API-Football](https://www.api-football.com/): escreves o nome real (ex: "Benfica", "UEFA Europa League") e, ao escolheres um resultado, a equipa/competição é criada automaticamente na tua base de dados Supabase com o país certo — não precisas de a adicionar nem de escolher o país à mão. Se a API não encontrar o que procuras (equipas amadoras, nomes muito específicos, etc.), há sempre a opção "Criar manualmente" como reserva. Depois de guardares um jogo, podes adicionar mais apostas a esse mesmo jogo diretamente na lista principal.
+No formulário de "Nova aposta", os campos de competição e equipas são pesquisáveis; se não encontrares o que procuras, há uma opção para criar uma nova entrada (nome + país) sem sair do formulário. Depois de guardares um jogo, podes adicionar mais apostas a esse mesmo jogo diretamente na lista principal.
