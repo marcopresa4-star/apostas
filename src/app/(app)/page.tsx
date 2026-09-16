@@ -107,6 +107,21 @@ export default async function DashboardPage({
     .order("match_time", { ascending: false })
     .returns<TicketRow[]>();
 
+  const imageUrls = new Map<string, string>();
+  const withImage = (tickets ?? []).filter(
+    (t): t is TicketRow & { image_path: string } => Boolean(t.image_path)
+  );
+  if (withImage.length > 0) {
+    const signedResults = await Promise.all(
+      withImage.map((t) =>
+        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(t.image_path, 3600)
+      )
+    );
+    signedResults.forEach((result, i) => {
+      if (result.data?.signedUrl) imageUrls.set(withImage[i].id, result.data.signedUrl);
+    });
+  }
+
   const todayISO = todayISODate();
 
   const displayTickets = (tickets ?? [])
@@ -272,12 +287,7 @@ export default async function DashboardPage({
                   <TicketImage
                     ticketId={ticket.id}
                     imagePath={ticket.image_path}
-                    imageUrl={
-                      ticket.image_path
-                        ? supabase.storage.from(IMAGE_BUCKET).getPublicUrl(ticket.image_path)
-                            .data.publicUrl
-                        : null
-                    }
+                    imageUrl={imageUrls.get(ticket.id) ?? null}
                   />
 
                   <div className="mt-3">
