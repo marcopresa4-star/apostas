@@ -31,6 +31,32 @@ const FILTERS: { value: string; label: string }[] = [
   { value: "void", label: "Devolvidas" },
 ];
 
+function sameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
+function formatDateHeader(dateStr: string) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const formatted = date.toLocaleDateString("pt-PT", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+
+  if (sameDay(date, today)) return `Hoje · ${capitalized}`;
+  if (sameDay(date, tomorrow)) return `Amanhã · ${capitalized}`;
+  if (sameDay(date, yesterday)) return `Ontem · ${capitalized}`;
+  return capitalized;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -63,6 +89,16 @@ export default async function DashboardPage({
           : ticket.picks.filter((p) => p.status === activeFilter),
     }))
     .filter((ticket) => ticket.picks.length > 0);
+
+  const groups: { date: string; tickets: typeof displayTickets }[] = [];
+  for (const ticket of displayTickets) {
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.date === ticket.match_date) {
+      lastGroup.tickets.push(ticket);
+    } else {
+      groups.push({ date: ticket.match_date, tickets: [ticket] });
+    }
+  }
 
   return (
     <div>
@@ -102,52 +138,58 @@ export default async function DashboardPage({
         </div>
       )}
 
-      <div className="space-y-3">
-        {displayTickets.map((ticket) => (
-          <div
-            key={ticket.id}
-            className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
-          >
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-neutral-500">
-                  {ticket.competition?.name}
-                  {ticket.competition?.country?.name
-                    ? ` · ${ticket.competition.country.name}`
-                    : ""}
-                </p>
-                <p className="text-base font-medium text-neutral-100">
-                  {ticket.home_team?.name} vs {ticket.away_team?.name}
-                </p>
-                <p className="text-sm text-neutral-400">
-                  {new Date(`${ticket.match_date}T00:00:00`).toLocaleDateString("pt-PT", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                  })}{" "}
-                  às {ticket.match_time?.slice(0, 5)}
-                </p>
-              </div>
-              <DeleteTicketButton ticketId={ticket.id} />
-            </div>
-
-            <div className="space-y-2">
-              {ticket.picks.map((pick) => (
-                <div key={pick.id} className="rounded-lg bg-neutral-950 p-3">
-                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-emerald-300">{pick.selection}</p>
-                    <StatusBadge status={pick.status} />
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <div key={group.date}>
+            <h2 className="mb-3 text-sm font-semibold text-neutral-400">
+              {formatDateHeader(group.date)}
+            </h2>
+            <div className="space-y-3">
+              {group.tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                >
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-neutral-500">
+                        {ticket.competition?.name}
+                        {ticket.competition?.country?.name
+                          ? ` · ${ticket.competition.country.name}`
+                          : ""}
+                      </p>
+                      <p className="text-base font-medium text-neutral-100">
+                        {ticket.home_team?.name} vs {ticket.away_team?.name}
+                      </p>
+                      <p className="text-sm text-neutral-400">
+                        às {ticket.match_time?.slice(0, 5)}
+                      </p>
+                    </div>
+                    <DeleteTicketButton ticketId={ticket.id} />
                   </div>
-                  {pick.reason && (
-                    <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>
-                  )}
-                  <StatusButtons pickId={pick.id} status={pick.status} />
+
+                  <div className="space-y-2">
+                    {ticket.picks.map((pick) => (
+                      <div key={pick.id} className="rounded-lg bg-neutral-950 p-3">
+                        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-emerald-300">
+                            {pick.selection}
+                          </p>
+                          <StatusBadge status={pick.status} />
+                        </div>
+                        {pick.reason && (
+                          <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>
+                        )}
+                        <StatusButtons pickId={pick.id} status={pick.status} />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-3">
+                    <AddPickForm ticketId={ticket.id} />
+                  </div>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-3">
-              <AddPickForm ticketId={ticket.id} />
             </div>
           </div>
         ))}
