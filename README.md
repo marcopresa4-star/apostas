@@ -14,6 +14,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0004_tickets_and_picks.sql` (separa o jogo, "ticket", das apostas individuais, "picks", para permitir mais que uma aposta por jogo)
    - `0005_ticket_images.sql` (cria o bucket de Storage `game-images` e o campo para anexar um print a cada jogo)
    - `0006_add_pick_odd.sql` (adiciona o campo "Odd" a cada aposta)
+   - `0007_multiple_pick_images.sql` (permite anexar mais do que um print a cada aposta)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`
@@ -50,6 +51,7 @@ Abre [http://localhost:3000](http://localhost:3000) — vais ser redirecionado p
 - **competitions** — ligas/competições, cada uma ligada a um país.
 - **teams** — equipas, cada uma ligada a um país.
 - **tickets** — o jogo em si: competição, equipa da casa, equipa de fora, dia e hora.
-- **picks** — cada aposta feita sobre um `ticket`: a seleção (ex: "Benfica vence"), a razão, e o estado (`pending`, `green`, `red`, `void`). Um jogo pode ter várias apostas associadas. Tudo é restrito ao utilizador autenticado via RLS.
+- **picks** — cada aposta feita sobre um `ticket`: a seleção (ex: "Benfica vence"), a odd, a razão, e o estado (`pending`, `green`, `red`, `void`). Um jogo pode ter várias apostas associadas. Tudo é restrito ao utilizador autenticado via RLS.
+- **pick_images** — os prints anexados a uma aposta (uma aposta pode ter vários), guardados no bucket privado `game-images`.
 
 No formulário de "Nova aposta", os campos de competição e equipas são pesquisáveis; se não encontrares o que procuras, há uma opção para criar uma nova entrada (nome + país) sem sair do formulário. Depois de guardares um jogo, podes adicionar mais apostas a esse mesmo jogo diretamente na lista principal.

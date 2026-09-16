@@ -235,12 +235,18 @@ export async function deletePick(pickId: string) {
   revalidatePath("/");
 }
 
-export async function setPickImage(pickId: string, imagePath: string | null) {
+export async function addPickImage(pickId: string, imagePath: string) {
   const supabase = await createClient();
   const { error } = await supabase
-    .from("picks")
-    .update({ image_path: imagePath })
-    .eq("id", pickId);
+    .from("pick_images")
+    .insert({ pick_id: pickId, image_path: imagePath });
+  if (error) throw error;
+  revalidatePath("/");
+}
+
+export async function deletePickImage(imageId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("pick_images").delete().eq("id", imageId);
   if (error) throw error;
   revalidatePath("/");
 }

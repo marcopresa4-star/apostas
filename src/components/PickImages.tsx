@@ -2,21 +2,22 @@
 
 import { useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { setPickImage } from "@/app/(app)/actions";
+import { addPickImage, deletePickImage } from "@/app/(app)/actions";
 
 const BUCKET = "game-images";
 
-export default function PickImage({
+export type PickImageItem = { id: string; path: string; url: string };
+
+export default function PickImages({
   pickId,
-  imagePath,
-  imageUrl,
+  images,
 }: {
   pickId: string;
-  imagePath: string | null;
-  imageUrl: string | null;
+  images: PickImageItem[];
 }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -36,11 +37,7 @@ export default function PickImage({
         .upload(path, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      if (imagePath) {
-        await supabase.storage.from(BUCKET).remove([imagePath]);
-      }
-
-      await setPickImage(pickId, path);
+      await addPickImage(pickId, path);
     } catch {
       setError("Não foi possível enviar a imagem.");
     } finally {
@@ -49,41 +46,43 @@ export default function PickImage({
     }
   }
 
-  function handleRemove() {
+  function handleRemove(image: PickImageItem) {
+    setRemovingId(image.id);
     startTransition(async () => {
       const supabase = createClient();
-      if (imagePath) {
-        await supabase.storage.from(BUCKET).remove([imagePath]);
-      }
-      await setPickImage(pickId, null);
+      await supabase.storage.from(BUCKET).remove([image.path]);
+      await deletePickImage(image.id);
+      setRemovingId(null);
     });
-  }
-
-  if (imageUrl) {
-    return (
-      <div className="mb-2">
-        <a href={imageUrl} target="_blank" rel="noreferrer" className="inline-block">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imageUrl}
-            alt="Print da aposta"
-            className="max-h-48 rounded-lg border border-neutral-800 object-cover transition hover:opacity-90"
-          />
-        </a>
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={isPending}
-          className="mt-1 block text-xs text-neutral-500 hover:text-red-400 disabled:opacity-50"
-        >
-          Remover print
-        </button>
-      </div>
-    );
   }
 
   return (
     <div className="mb-2">
+      {images.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {images.map((image) => (
+            <div key={image.id} className="relative">
+              <a href={image.url} target="_blank" rel="noreferrer" className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={image.url}
+                  alt="Print da aposta"
+                  className="h-24 w-24 rounded-lg border border-neutral-800 object-cover transition hover:opacity-90"
+                />
+              </a>
+              <button
+                type="button"
+                title="Remover print"
+                onClick={() => handleRemove(image)}
+                disabled={isPending}
+                className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-800 text-xs text-neutral-300 hover:bg-red-600 hover:text-white disabled:opacity-50"
+              >
+                {removingId === image.id ? "…" : "✕"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <label className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-emerald-400 hover:underline">
         {uploading ? "A enviar..." : "+ Anexar print"}
         <input

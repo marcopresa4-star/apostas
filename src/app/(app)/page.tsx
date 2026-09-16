@@ -3,17 +3,23 @@ import { createClient } from "@/lib/supabase/server";
 import PickCard from "@/components/PickCard";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
+import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
+
+interface PickImageRow {
+  id: string;
+  image_path: string;
+}
 
 interface Pick {
   id: string;
   selection: string;
   reason: string | null;
   status: BetStatus;
-  image_path: string | null;
   odd: number | null;
+  pick_images: PickImageRow[];
 }
 
 interface TicketRow {
@@ -101,24 +107,28 @@ export default async function DashboardPage({
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, image_path, odd)`
+       picks(id, selection, reason, status, odd, pick_images(id, image_path))`
     )
     .order("match_date", { ascending: false })
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
-  const imageUrls = new Map<string, string>();
-  const picksWithImage = (tickets ?? [])
-    .flatMap((t) => t.picks)
-    .filter((p): p is Pick & { image_path: string } => Boolean(p.image_path));
-  if (picksWithImage.length > 0) {
+  const imagesByPick = new Map<string, PickImageItem[]>();
+  const allImageRows = (tickets ?? []).flatMap((t) =>
+    t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
+  );
+  if (allImageRows.length > 0) {
     const signedResults = await Promise.all(
-      picksWithImage.map((p) =>
-        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(p.image_path, 3600)
+      allImageRows.map((img) =>
+        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(img.image_path, 3600)
       )
     );
     signedResults.forEach((result, i) => {
-      if (result.data?.signedUrl) imageUrls.set(picksWithImage[i].id, result.data.signedUrl);
+      if (!result.data?.signedUrl) return;
+      const row = allImageRows[i];
+      const existing = imagesByPick.get(row.pickId) ?? [];
+      existing.push({ id: row.id, path: row.image_path, url: result.data.signedUrl });
+      imagesByPick.set(row.pickId, existing);
     });
   }
 
@@ -283,7 +293,7 @@ export default async function DashboardPage({
                       <PickCard
                         key={pick.id}
                         pick={pick}
-                        imageUrl={imageUrls.get(pick.id) ?? null}
+                        images={imagesByPick.get(pick.id) ?? []}
                       />
                     ))}
                   </div>
