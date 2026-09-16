@@ -189,7 +189,7 @@ export default function TicketForm({
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
         <Link
-          href="/"
+          href="/apostas"
           className="rounded-lg px-3 py-2 text-center font-medium text-neutral-400 transition hover:text-white sm:w-auto"
         >
           Cancelar

@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import PickCard from "@/components/PickCard";
-import AddPickForm from "@/components/AddPickForm";
-import DeleteTicketButton from "@/components/DeleteTicketButton";
+import TicketCard from "@/components/TicketCard";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -34,23 +32,6 @@ interface TicketRow {
   picks: Pick[];
 }
 
-const FILTERS: { value: string; label: string; dot?: string }[] = [
-  { value: "all", label: "Todas" },
-  { value: "pending", label: "Pendentes", dot: "bg-neutral-500" },
-  { value: "green", label: "Green", dot: "bg-emerald-400" },
-  { value: "red", label: "Red", dot: "bg-red-400" },
-  { value: "void", label: "Devolvidas", dot: "bg-amber-400" },
-];
-
-const SCOPES: { value: string; label: string }[] = [
-  { value: "hoje", label: "Hoje" },
-  { value: "historico", label: "Histórico" },
-];
-
-function sameDay(a: Date, b: Date) {
-  return a.toDateString() === b.toDateString();
-}
-
 function todayISODate() {
   const now = new Date();
   const y = now.getFullYear();
@@ -59,47 +40,7 @@ function todayISODate() {
   return `${y}-${m}-${d}`;
 }
 
-function formatDateHeader(dateStr: string) {
-  const date = new Date(`${dateStr}T00:00:00`);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const formatted = date.toLocaleDateString("pt-PT", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const capitalized = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-
-  if (sameDay(date, today)) return `Hoje · ${capitalized}`;
-  if (sameDay(date, tomorrow)) return `Amanhã · ${capitalized}`;
-  if (sameDay(date, yesterday)) return `Ontem · ${capitalized}`;
-  return capitalized;
-}
-
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string; scope?: string }>;
-}) {
-  const { status, scope } = await searchParams;
-  const activeFilter = FILTERS.some((f) => f.value === status) ? status! : "all";
-  const activeScope = SCOPES.some((s) => s.value === scope) ? scope! : "hoje";
-
-  function buildHref(overrides: { status?: string; scope?: string }) {
-    const nextStatus = overrides.status ?? activeFilter;
-    const nextScope = overrides.scope ?? activeScope;
-    const params = new URLSearchParams();
-    if (nextStatus !== "all") params.set("status", nextStatus);
-    if (nextScope !== "hoje") params.set("scope", nextScope);
-    const qs = params.toString();
-    return qs ? `/?${qs}` : "/";
-  }
-
+export default async function DashboardPage() {
   const supabase = await createClient();
 
   const { data: tickets, error } = await supabase
@@ -111,7 +52,7 @@ export default async function DashboardPage({
        away_team:teams!tickets_away_team_id_fkey(id, name),
        picks(id, selection, reason, status, bet_type, odd, odd_min, pick_images(id, image_path))`
     )
-    .order("match_date", { ascending: false })
+    .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
@@ -135,47 +76,53 @@ export default async function DashboardPage({
   }
 
   const todayISO = todayISODate();
+  const all = tickets ?? [];
 
-  const displayTickets = (tickets ?? [])
-    .filter((ticket) =>
-      activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
-    )
-    .map((ticket) => ({
-      ...ticket,
-      picks: ticket.picks.filter(
-        (p) => p.bet_type === "pre_jogo" && (activeFilter === "all" || p.status === activeFilter)
-      ),
-    }))
-    .filter((ticket) => ticket.picks.length > 0);
-
-  const groups: { date: string; tickets: typeof displayTickets }[] = [];
-  for (const ticket of displayTickets) {
-    const lastGroup = groups[groups.length - 1];
-    if (lastGroup && lastGroup.date === ticket.match_date) {
-      lastGroup.tickets.push(ticket);
-    } else {
-      groups.push({ date: ticket.match_date, tickets: [ticket] });
-    }
-  }
-
-  const allPicks = (tickets ?? [])
-    .flatMap((t) => t.picks)
-    .filter((p) => p.bet_type === "pre_jogo");
+  const preJogoPicks = all.flatMap((t) => t.picks).filter((p) => p.bet_type === "pre_jogo");
   const stats = {
-    total: allPicks.length,
-    green: allPicks.filter((p) => p.status === "green").length,
-    red: allPicks.filter((p) => p.status === "red").length,
-    pending: allPicks.filter((p) => p.status === "pending").length,
+    total: preJogoPicks.length,
+    green: preJogoPicks.filter((p) => p.status === "green").length,
+    red: preJogoPicks.filter((p) => p.status === "red").length,
+    pending: preJogoPicks.filter((p) => p.status === "pending").length,
   };
+
+  const todayTickets = all
+    .filter((t) => t.match_date === todayISO)
+    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "pre_jogo") }))
+    .filter((t) => t.picks.length > 0);
+
+  const liveTickets = all
+    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
+    .filter((t) => t.picks.length > 0);
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">As minhas apostas</h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div className="flex gap-2">
+          <Link
+            href="/apostas/nova"
+            className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+          >
+            + Nova aposta
+          </Link>
+          <Link
+            href="/live/nova"
+            className="whitespace-nowrap rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500"
+          >
+            + Vigiar jogo
+          </Link>
+        </div>
       </div>
 
+      {error && (
+        <p className="mb-5 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
+          Erro ao carregar dados: {error.message}
+        </p>
+      )}
+
       {stats.total > 0 && (
-        <div className="mb-5 grid grid-cols-4 gap-2">
+        <div className="mb-6 grid grid-cols-4 gap-2">
           <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
             <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
             <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
@@ -195,119 +142,56 @@ export default async function DashboardPage({
         </div>
       )}
 
-      <div className="mb-4 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-        {SCOPES.map((s) => (
-          <Link
-            key={s.value}
-            href={buildHref({ scope: s.value })}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-              activeScope === s.value
-                ? "bg-emerald-600 text-white"
-                : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            {s.label}
+      <div className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-neutral-300">Jogos de hoje</h2>
+          <Link href="/apostas" className="text-xs font-medium text-emerald-400 hover:underline">
+            Ver todas →
           </Link>
-        ))}
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.value}
-            href={buildHref({ status: f.value })}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-              activeFilter === f.value
-                ? "bg-emerald-600 text-white"
-                : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
-            }`}
-          >
-            {f.dot && <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${f.dot}`} />}
-            {f.label}
-          </Link>
-        ))}
-      </div>
-
-      {error && (
-        <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
-          Erro ao carregar apostas: {error.message}
-        </p>
-      )}
-
-      {!error && displayTickets.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-neutral-800 px-4 py-12 text-center text-neutral-500">
-          <p aria-hidden className="mb-2 text-3xl">
-            🎟️
-          </p>
-          {activeScope === "hoje"
-            ? "Sem apostas para hoje ou próximos dias."
-            : "Ainda não tens apostas no histórico."}{" "}
-          <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
-            Regista uma aposta
-          </Link>
-          .
         </div>
-      )}
-
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <div key={group.date}>
-            <div className="mb-3 flex items-center gap-3">
-              <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">
-                {formatDateHeader(group.date)}
-              </h2>
-              <div aria-hidden className="h-px flex-1 bg-neutral-800" />
-            </div>
-            <div className="space-y-3">
-              {group.tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-colors hover:border-neutral-700"
-                >
-                  <div className="mb-3 flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs uppercase tracking-wide text-neutral-500">
-                        {ticket.competition?.name}
-                        {ticket.competition?.country?.name
-                          ? ` · ${ticket.competition.country.name}`
-                          : ""}
-                      </p>
-                      <p className="break-words text-base font-medium text-neutral-100">
-                        {ticket.home_team?.name} <span className="text-neutral-500">vs</span>{" "}
-                        {ticket.away_team?.name}
-                      </p>
-                      <p className="text-sm text-neutral-400">
-                        às {ticket.match_time?.slice(0, 5)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <Link
-                        href={`/apostas/${ticket.id}/editar`}
-                        className="text-xs font-medium text-neutral-500 hover:text-neutral-300"
-                      >
-                        Editar jogo
-                      </Link>
-                      <DeleteTicketButton ticketId={ticket.id} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {ticket.picks.map((pick) => (
-                      <PickCard
-                        key={pick.id}
-                        pick={pick}
-                        images={imagesByPick.get(pick.id) ?? []}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-3">
-                    <AddPickForm ticketId={ticket.id} betType="pre_jogo" />
-                  </div>
-                </div>
-              ))}
-            </div>
+        {todayTickets.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+            Sem apostas pré-jogo registadas para hoje.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {todayTickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                picks={ticket.picks}
+                imagesByPick={imagesByPick}
+                addPickBetType="pre_jogo"
+              />
+            ))}
           </div>
-        ))}
+        )}
+      </div>
+
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-sky-400">🔴 A vigiar em live</h2>
+          <Link href="/live" className="text-xs font-medium text-sky-400 hover:underline">
+            Ver todas →
+          </Link>
+        </div>
+        {liveTickets.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+            Sem jogos a vigiar para live.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {liveTickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                picks={ticket.picks}
+                imagesByPick={imagesByPick}
+                addPickBetType="live"
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

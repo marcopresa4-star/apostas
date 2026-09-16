@@ -15,6 +15,7 @@ import {
 
 export default function EditTicketForm({
   ticketId,
+  returnTo,
   initialCompetition,
   initialHomeTeam,
   initialAwayTeam,
@@ -25,6 +26,7 @@ export default function EditTicketForm({
   countries,
 }: {
   ticketId: string;
+  returnTo: string;
   initialCompetition: ComboItem;
   initialHomeTeam: ComboItem;
   initialAwayTeam: ComboItem;
@@ -87,6 +89,7 @@ export default function EditTicketForm({
           awayTeamId: awayTeam.id,
           matchDate,
           matchTime,
+          returnTo,
         });
       } catch (err) {
         if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) throw err;
@@ -151,7 +154,7 @@ export default function EditTicketForm({
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
         <Link
-          href="/"
+          href={returnTo}
           className="rounded-lg px-3 py-2 text-center font-medium text-neutral-400 transition hover:text-white sm:w-auto"
         >
           Cancelar

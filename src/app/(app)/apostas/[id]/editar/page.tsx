@@ -17,6 +17,7 @@ interface TicketDetailRow {
   competition: { id: string; name: string; country: { name: string } | null } | null;
   home_team: { id: string; name: string; country: { name: string } | null } | null;
   away_team: { id: string; name: string; country: { name: string } | null } | null;
+  picks: { bet_type: string }[];
 }
 
 export default async function EditarApostaPage({
@@ -35,7 +36,8 @@ export default async function EditarApostaPage({
           `id, match_date, match_time,
            competition:competitions(id, name, country:countries(name)),
            home_team:teams!tickets_home_team_id_fkey(id, name, country:countries(name)),
-           away_team:teams!tickets_away_team_id_fkey(id, name, country:countries(name))`
+           away_team:teams!tickets_away_team_id_fkey(id, name, country:countries(name)),
+           picks(bet_type)`
         )
         .eq("id", id)
         .single()
@@ -57,6 +59,8 @@ export default async function EditarApostaPage({
     notFound();
   }
 
+  const returnTo = ticket.picks.some((p) => p.bet_type === "live") ? "/live" : "/apostas";
+
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -77,7 +81,7 @@ export default async function EditarApostaPage({
   return (
     <div>
       <Link
-        href="/"
+        href={returnTo}
         className="mb-2 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-300"
       >
         ← Voltar
@@ -85,6 +89,7 @@ export default async function EditarApostaPage({
       <h1 className="mb-6 text-xl font-semibold">Editar jogo</h1>
       <EditTicketForm
         ticketId={ticket.id}
+        returnTo={returnTo}
         initialCompetition={{
           id: ticket.competition.id,
           name: ticket.competition.name,

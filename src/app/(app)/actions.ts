@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
+function revalidateAll() {
+  revalidatePath("/");
+  revalidatePath("/apostas");
+  revalidatePath("/live");
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
@@ -177,9 +183,8 @@ export async function createTicket(
 
   if (pickError) throw pickError;
 
-  revalidatePath("/");
-  revalidatePath("/live");
-  redirect(input.betType === "live" ? "/live" : "/");
+  revalidateAll();
+  redirect(input.betType === "live" ? "/live" : "/apostas");
 }
 
 export async function updateTicket(input: {
@@ -189,6 +194,7 @@ export async function updateTicket(input: {
   awayTeamId: string;
   matchDate: string;
   matchTime: string;
+  returnTo?: string;
 }) {
   const supabase = await createClient();
 
@@ -209,9 +215,8 @@ export async function updateTicket(input: {
 
   if (error) throw error;
 
-  revalidatePath("/");
-  revalidatePath("/live");
-  redirect("/");
+  revalidateAll();
+  redirect(input.returnTo === "/live" ? "/live" : "/apostas");
 }
 
 interface PickInput {
@@ -254,8 +259,7 @@ export async function updatePick(input: { pickId: string } & PickInput) {
   const { error } = await supabase.from("picks").update(fields).eq("id", input.pickId);
 
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function addPick(input: { ticketId: string } & PickInput) {
@@ -267,16 +271,14 @@ export async function addPick(input: { ticketId: string } & PickInput) {
     .insert({ ticket_id: input.ticketId, ...fields });
 
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function updatePickStatus(pickId: string, status: BetStatus) {
   const supabase = await createClient();
   const { error } = await supabase.from("picks").update({ status }).eq("id", pickId);
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function deletePick(pickId: string) {
@@ -303,8 +305,7 @@ export async function deletePick(pickId: string) {
     }
   }
 
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function addPickImage(pickId: string, imagePath: string) {
@@ -313,22 +314,19 @@ export async function addPickImage(pickId: string, imagePath: string) {
     .from("pick_images")
     .insert({ pick_id: pickId, image_path: imagePath });
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function deletePickImage(imageId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("pick_images").delete().eq("id", imageId);
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
 
 export async function deleteTicket(ticketId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
   if (error) throw error;
-  revalidatePath("/");
-  revalidatePath("/live");
+  revalidateAll();
 }
