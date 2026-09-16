@@ -20,9 +20,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span aria-hidden>⚽</span> Apostas
           </Link>
           <nav className="flex items-center gap-2 text-sm sm:gap-4">
-            <Link href="/analise" className="text-neutral-300 transition hover:text-white">
-              Análise
-            </Link>
             <Link
               href="/apostas/nova"
               className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
