@@ -5,6 +5,12 @@ import SearchCombobox from "./SearchCombobox";
 import { searchLeagues, searchTeams, analiseJogo } from "@/app/(app)/analise/actions";
 import type { AFLeague, AFTeam, AFFixture, AFStandingRow } from "@/lib/apiFootball";
 
+// Kept in sync with AVAILABLE_SEASONS/DEFAULT_SEASON in src/lib/apiFootball.ts
+// (duplicated instead of imported so this client component doesn't bundle
+// the server-only fetch code from that module).
+const AVAILABLE_SEASONS = [2024, 2023, 2022] as const;
+const DEFAULT_SEASON = AVAILABLE_SEASONS[0];
+
 function resultLabel(fixture: AFFixture, teamName: string): "V" | "E" | "D" | "?" {
   if (fixture.homeGoals === null || fixture.awayGoals === null) return "?";
   const isHome = fixture.homeTeam === teamName;
@@ -57,6 +63,7 @@ export default function AnaliseForm() {
   const [league, setLeague] = useState<AFLeague | null>(null);
   const [homeTeam, setHomeTeam] = useState<AFTeam | null>(null);
   const [awayTeam, setAwayTeam] = useState<AFTeam | null>(null);
+  const [season, setSeason] = useState<number>(DEFAULT_SEASON);
 
   const [result, setResult] = useState<{
     homeForm: AFFixture[];
@@ -79,6 +86,7 @@ export default function AnaliseForm() {
           leagueId: league.id,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
+          season,
         });
         if (res.ok) setResult(res.data);
         else setError(res.error);
@@ -90,6 +98,11 @@ export default function AnaliseForm() {
 
   return (
     <div className="space-y-6">
+      <p className="rounded-lg bg-amber-950 px-3 py-2 text-sm text-amber-300">
+        O plano gratuito da API-Football não dá acesso à época em curso — os dados abaixo são
+        da época que escolheres (2022 a 2024), não refletem a forma ou classificação atuais.
+      </p>
+
       <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
         <SearchCombobox
           label="Competição"
@@ -118,6 +131,21 @@ export default function AnaliseForm() {
           />
         </div>
 
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Época</label>
+          <select
+            value={season}
+            onChange={(e) => setSeason(Number(e.target.value))}
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500 sm:w-auto"
+          >
+            {AVAILABLE_SEASONS.map((y) => (
+              <option key={y} value={y}>
+                {y}/{y + 1}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {error && (
           <p className="rounded-lg bg-red-950 px-3 py-2 text-sm text-red-300">{error}</p>
         )}
@@ -136,7 +164,7 @@ export default function AnaliseForm() {
         <div className="space-y-4">
           <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-neutral-400">
-              Forma recente (últimos 5 jogos)
+              Forma na época {season}/{season + 1} (últimos 5 jogos)
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {homeTeam && <FormRow team={homeTeam} fixtures={result.homeForm} />}
@@ -167,11 +195,13 @@ export default function AnaliseForm() {
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold text-neutral-400">Classificação</h2>
+            <h2 className="mb-3 text-sm font-semibold text-neutral-400">
+              Classificação {season}/{season + 1}
+            </h2>
             {result.standings.length === 0 && (
               <p className="text-sm text-neutral-500">
-                Sem classificação disponível para esta competição (a época pode ainda não ter
-                começado, ou a API não cobre este dado para esta liga).
+                Sem classificação disponível para esta competição nesta época (a API não cobre
+                este dado para esta liga).
               </p>
             )}
             {result.standings.length > 0 && (

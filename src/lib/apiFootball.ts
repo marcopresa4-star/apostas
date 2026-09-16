@@ -39,12 +39,11 @@ export interface AFStandingRow {
   goalsDiff: number;
 }
 
-function currentSeason(): number {
-  const now = new Date();
-  const month = now.getMonth() + 1;
-  // European domestic seasons start around July/August.
-  return month >= 7 ? now.getFullYear() : now.getFullYear() - 1;
-}
+// The API-Football Free plan only allows querying these seasons (confirmed
+// against a live account: newer seasons return a "plan" error). Update this
+// list if the account is ever upgraded to a plan with current-season access.
+export const AVAILABLE_SEASONS = [2024, 2023, 2022] as const;
+export const DEFAULT_SEASON = AVAILABLE_SEASONS[0];
 
 async function apiFootballFetch<T>(path: string, params: Record<string, string | number>) {
   const apiKey = process.env.API_FOOTBALL_KEY;
@@ -134,10 +133,14 @@ function mostRecentFinished(fixtures: AFFixture[], count: number): AFFixture[] {
     .slice(0, count);
 }
 
-export async function getRecentForm(teamId: number, last = 5): Promise<AFFixture[]> {
+export async function getRecentForm(
+  teamId: number,
+  season: number,
+  last = 5
+): Promise<AFFixture[]> {
   const data = await apiFootballFetch<RawFixture[]>("/fixtures", {
     team: teamId,
-    season: currentSeason(),
+    season,
   });
   return mostRecentFinished(mapFixtures(data), last);
 }
@@ -153,8 +156,7 @@ export async function getHeadToHead(
   return mostRecentFinished(mapFixtures(data), last);
 }
 
-export async function getStandings(leagueId: number): Promise<AFStandingRow[]> {
-  const season = currentSeason();
+export async function getStandings(leagueId: number, season: number): Promise<AFStandingRow[]> {
   type Raw = {
     league: {
       standings: {
@@ -179,14 +181,4 @@ export async function getStandings(leagueId: number): Promise<AFStandingRow[]> {
     lose: row.all.lose,
     goalsDiff: row.goalsDiff,
   }));
-}
-
-export function fixtureResult(fixture: AFFixture, teamName: string): "V" | "E" | "D" | "?" {
-  if (fixture.homeGoals === null || fixture.awayGoals === null) return "?";
-  const isHome = fixture.homeTeam === teamName;
-  const goalsFor = isHome ? fixture.homeGoals : fixture.awayGoals;
-  const goalsAgainst = isHome ? fixture.awayGoals : fixture.homeGoals;
-  if (goalsFor > goalsAgainst) return "V";
-  if (goalsFor < goalsAgainst) return "D";
-  return "E";
 }

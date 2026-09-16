@@ -47,13 +47,14 @@ export async function analiseJogo(input: {
   leagueId: number;
   homeTeamId: number;
   awayTeamId: number;
+  season: number;
 }): Promise<ActionResult<AnaliseData>> {
   try {
     const [homeForm, awayForm, h2h, standings] = await Promise.all([
-      getRecentForm(input.homeTeamId),
-      getRecentForm(input.awayTeamId),
+      getRecentForm(input.homeTeamId, input.season),
+      getRecentForm(input.awayTeamId, input.season),
       getHeadToHead(input.homeTeamId, input.awayTeamId),
-      getStandings(input.leagueId),
+      getStandings(input.leagueId, input.season),
     ]);
 
     return { ok: true, data: { homeForm, awayForm, h2h, standings } };
