@@ -20,28 +20,30 @@ export default function StatusButtons({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {OPTIONS.map((opt) => (
-        <button
-          key={opt.status}
-          disabled={isPending}
-          onClick={() => startTransition(() => updatePickStatus(pickId, opt.status))}
-          className={`rounded-lg px-2.5 py-1 text-xs font-medium text-white transition disabled:opacity-50 ${
-            status === opt.status ? opt.className : "bg-neutral-800 hover:bg-neutral-700"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-      {status !== "pending" && (
-        <button
-          disabled={isPending}
-          onClick={() => startTransition(() => updatePickStatus(pickId, "pending"))}
-          className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-400 hover:text-white disabled:opacity-50"
-        >
-          Repor pendente
-        </button>
-      )}
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {OPTIONS.map((opt) => (
+          <button
+            key={opt.status}
+            disabled={isPending}
+            onClick={() => startTransition(() => updatePickStatus(pickId, opt.status))}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium text-white transition disabled:opacity-50 ${
+              status === opt.status ? opt.className : "bg-neutral-800 hover:bg-neutral-700"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+        {status !== "pending" && (
+          <button
+            disabled={isPending}
+            onClick={() => startTransition(() => updatePickStatus(pickId, "pending"))}
+            className="rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-400 hover:text-white disabled:opacity-50"
+          >
+            Repor pendente
+          </button>
+        )}
+      </div>
       <button
         disabled={isPending}
         onClick={() => {
@@ -49,7 +51,7 @@ export default function StatusButtons({
             startTransition(() => deletePick(pickId));
           }
         }}
-        className="ml-auto rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-red-400 disabled:opacity-50"
+        className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-red-400 disabled:opacity-50"
       >
         Apagar
       </button>

@@ -150,32 +150,36 @@ export default async function DashboardPage({
                   key={ticket.id}
                   className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
                 >
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs uppercase tracking-wide text-neutral-500">
                         {ticket.competition?.name}
                         {ticket.competition?.country?.name
                           ? ` · ${ticket.competition.country.name}`
                           : ""}
                       </p>
-                      <p className="text-base font-medium text-neutral-100">
+                      <p className="break-words text-base font-medium text-neutral-100">
                         {ticket.home_team?.name} vs {ticket.away_team?.name}
                       </p>
                       <p className="text-sm text-neutral-400">
                         às {ticket.match_time?.slice(0, 5)}
                       </p>
                     </div>
-                    <DeleteTicketButton ticketId={ticket.id} />
+                    <div className="shrink-0">
+                      <DeleteTicketButton ticketId={ticket.id} />
+                    </div>
                   </div>
 
                   <div className="space-y-2">
                     {ticket.picks.map((pick) => (
                       <div key={pick.id} className="rounded-lg bg-neutral-950 p-3">
-                        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                          <p className="text-sm font-medium text-emerald-300">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <p className="min-w-0 break-words text-sm font-medium text-emerald-300">
                             {pick.selection}
                           </p>
-                          <StatusBadge status={pick.status} />
+                          <div className="shrink-0">
+                            <StatusBadge status={pick.status} />
+                          </div>
                         </div>
                         {pick.reason && (
                           <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>
