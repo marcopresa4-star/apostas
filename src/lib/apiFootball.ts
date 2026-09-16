@@ -22,7 +22,10 @@ export interface AFFixture {
   awayTeam: string;
   homeGoals: number | null;
   awayGoals: number | null;
+  statusShort: string;
 }
+
+const FINISHED_STATUSES = new Set(["FT", "AET", "PEN"]);
 
 export interface AFStandingRow {
   rank: number;
@@ -101,14 +104,14 @@ export async function searchTeams(query: string): Promise<AFTeam[]> {
   }));
 }
 
-function mapFixtures(
-  data: {
-    fixture: { id: number; date: string };
-    league: { name: string };
-    teams: { home: { name: string }; away: { name: string } };
-    goals: { home: number | null; away: number | null };
-  }[]
-): AFFixture[] {
+type RawFixture = {
+  fixture: { id: number; date: string; status: { short: string } };
+  league: { name: string };
+  teams: { home: { name: string }; away: { name: string } };
+  goals: { home: number | null; away: number | null };
+};
+
+function mapFixtures(data: RawFixture[]): AFFixture[] {
   return data.map((f) => ({
     fixtureId: f.fixture.id,
     date: f.fixture.date,
@@ -117,15 +120,26 @@ function mapFixtures(
     awayTeam: f.teams.away.name,
     homeGoals: f.goals.home,
     awayGoals: f.goals.away,
+    statusShort: f.fixture.status.short,
   }));
 }
 
+// The Free plan does not support the "last" query param on /fixtures or
+// /fixtures/headtohead, so we always fetch the broader result set and take
+// the most recent finished matches ourselves.
+function mostRecentFinished(fixtures: AFFixture[], count: number): AFFixture[] {
+  return fixtures
+    .filter((f) => FINISHED_STATUSES.has(f.statusShort))
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, count);
+}
+
 export async function getRecentForm(teamId: number, last = 5): Promise<AFFixture[]> {
-  const data = await apiFootballFetch<Parameters<typeof mapFixtures>[0]>("/fixtures", {
+  const data = await apiFootballFetch<RawFixture[]>("/fixtures", {
     team: teamId,
-    last,
+    season: currentSeason(),
   });
-  return mapFixtures(data);
+  return mostRecentFinished(mapFixtures(data), last);
 }
 
 export async function getHeadToHead(
@@ -133,11 +147,10 @@ export async function getHeadToHead(
   awayTeamId: number,
   last = 5
 ): Promise<AFFixture[]> {
-  const data = await apiFootballFetch<Parameters<typeof mapFixtures>[0]>(
-    "/fixtures/headtohead",
-    { h2h: `${homeTeamId}-${awayTeamId}`, last }
-  );
-  return mapFixtures(data);
+  const data = await apiFootballFetch<RawFixture[]>("/fixtures/headtohead", {
+    h2h: `${homeTeamId}-${awayTeamId}`,
+  });
+  return mostRecentFinished(mapFixtures(data), last);
 }
 
 export async function getStandings(leagueId: number): Promise<AFStandingRow[]> {
