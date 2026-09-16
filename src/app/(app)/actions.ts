@@ -100,6 +100,7 @@ export async function createTicket(input: {
   matchTime: string;
   selection: string;
   reason: string;
+  odd: number | null;
 }) {
   const supabase = await createClient();
   const {
@@ -134,6 +135,7 @@ export async function createTicket(input: {
     ticket_id: ticket.id,
     selection: input.selection.trim(),
     reason: input.reason.trim() || null,
+    odd: input.odd,
   });
 
   if (pickError) throw pickError;
@@ -173,7 +175,12 @@ export async function updateTicket(input: {
   redirect("/");
 }
 
-export async function updatePick(input: { pickId: string; selection: string; reason: string }) {
+export async function updatePick(input: {
+  pickId: string;
+  selection: string;
+  reason: string;
+  odd: number | null;
+}) {
   if (!input.selection.trim()) {
     throw new Error("Indica a aposta.");
   }
@@ -184,6 +191,7 @@ export async function updatePick(input: { pickId: string; selection: string; rea
     .update({
       selection: input.selection.trim(),
       reason: input.reason.trim() || null,
+      odd: input.odd,
     })
     .eq("id", input.pickId);
 
@@ -195,6 +203,7 @@ export async function addPick(input: {
   ticketId: string;
   selection: string;
   reason: string;
+  odd: number | null;
 }) {
   if (!input.selection.trim()) {
     throw new Error("Indica a aposta.");
@@ -205,6 +214,7 @@ export async function addPick(input: {
     ticket_id: input.ticketId,
     selection: input.selection.trim(),
     reason: input.reason.trim() || null,
+    odd: input.odd,
   });
 
   if (error) throw error;

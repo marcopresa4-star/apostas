@@ -6,6 +6,7 @@ import { addPick } from "@/app/(app)/actions";
 export default function AddPickForm({ ticketId }: { ticketId: string }) {
   const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState("");
+  const [odd, setOdd] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -27,11 +28,21 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
       setError("Indica a aposta.");
       return;
     }
+    if (odd.trim() && Number(odd) <= 1) {
+      setError("A odd tem de ser maior que 1.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       try {
-        await addPick({ ticketId, selection, reason });
+        await addPick({
+          ticketId,
+          selection,
+          reason,
+          odd: odd.trim() ? Number(odd) : null,
+        });
         setSelection("");
+        setOdd("");
         setReason("");
         setOpen(false);
       } catch {
@@ -42,14 +53,25 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-      <input
-        type="text"
-        autoFocus
-        value={selection}
-        onChange={(e) => setSelection(e.target.value)}
-        placeholder="Ex: Ambas marcam"
-        className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-      />
+      <div className="mb-2 flex gap-2">
+        <input
+          type="text"
+          autoFocus
+          value={selection}
+          onChange={(e) => setSelection(e.target.value)}
+          placeholder="Ex: Ambas marcam"
+          className="w-full flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+        />
+        <input
+          type="number"
+          step="0.01"
+          min="1.01"
+          value={odd}
+          onChange={(e) => setOdd(e.target.value)}
+          placeholder="Odd"
+          className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+        />
+      </div>
       <textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}

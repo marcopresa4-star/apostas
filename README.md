@@ -13,6 +13,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0003_add_bet_selection.sql` (adiciona o campo "Aposta")
    - `0004_tickets_and_picks.sql` (separa o jogo, "ticket", das apostas individuais, "picks", para permitir mais que uma aposta por jogo)
    - `0005_ticket_images.sql` (cria o bucket de Storage `game-images` e o campo para anexar um print a cada jogo)
+   - `0006_add_pick_odd.sql` (adiciona o campo "Odd" a cada aposta)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`

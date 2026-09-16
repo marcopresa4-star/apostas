@@ -31,6 +31,7 @@ export default function TicketForm({
   const [matchDate, setMatchDate] = useState("");
   const [matchTime, setMatchTime] = useState("");
   const [selection, setSelection] = useState("");
+  const [odd, setOdd] = useState("");
   const [reason, setReason] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export default function TicketForm({
     if (!matchDate) return setError("Indica o dia do jogo.");
     if (!matchTime) return setError("Indica a hora do jogo.");
     if (!selection.trim()) return setError("Indica a aposta.");
+    if (odd.trim() && Number(odd) <= 1) return setError("A odd tem de ser maior que 1.");
 
     startTransition(async () => {
       try {
@@ -79,6 +81,7 @@ export default function TicketForm({
           matchTime,
           selection,
           reason,
+          odd: odd.trim() ? Number(odd) : null,
         });
       } catch (err) {
         if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) throw err;
@@ -137,15 +140,29 @@ export default function TicketForm({
         <TimePicker label="Hora" value={matchTime} onChange={setMatchTime} />
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm text-neutral-300">Aposta</label>
-        <input
-          type="text"
-          value={selection}
-          onChange={(e) => setSelection(e.target.value)}
-          placeholder="Ex: Benfica vence, Mais de 2.5 golos..."
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-        />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Aposta</label>
+          <input
+            type="text"
+            value={selection}
+            onChange={(e) => setSelection(e.target.value)}
+            placeholder="Ex: Benfica vence, Mais de 2.5 golos..."
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Odd</label>
+          <input
+            type="number"
+            step="0.01"
+            min="1.01"
+            value={odd}
+            onChange={(e) => setOdd(e.target.value)}
+            placeholder="Ex: 1.85"
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
       </div>
 
       <div>

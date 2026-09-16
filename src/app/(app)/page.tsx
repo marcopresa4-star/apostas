@@ -13,6 +13,7 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   image_path: string | null;
+  odd: number | null;
 }
 
 interface TicketRow {
@@ -100,7 +101,7 @@ export default async function DashboardPage({
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, image_path)`
+       picks(id, selection, reason, status, image_path, odd)`
     )
     .order("match_date", { ascending: false })
     .order("match_time", { ascending: true })
