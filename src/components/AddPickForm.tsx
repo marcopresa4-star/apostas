@@ -4,9 +4,14 @@ import { useState, useTransition } from "react";
 import { addPick } from "@/app/(app)/actions";
 import type { BetType } from "@/lib/database.types";
 
-export default function AddPickForm({ ticketId }: { ticketId: string }) {
+export default function AddPickForm({
+  ticketId,
+  betType,
+}: {
+  ticketId: string;
+  betType: BetType;
+}) {
   const [open, setOpen] = useState(false);
-  const [betType, setBetType] = useState<BetType>("pre_jogo");
   const [selection, setSelection] = useState("");
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
@@ -19,15 +24,16 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-xs font-medium text-emerald-400 hover:underline"
+        className={`text-xs font-medium hover:underline ${
+          betType === "live" ? "text-sky-400" : "text-emerald-400"
+        }`}
       >
-        + Adicionar aposta a este jogo
+        {betType === "live" ? "+ Vigiar aposta live" : "+ Adicionar aposta pré-jogo"}
       </button>
     );
   }
 
   function reset() {
-    setBetType("pre_jogo");
     setSelection("");
     setOdd("");
     setOddMin("");
@@ -56,34 +62,13 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-      <div className="mb-2 inline-flex rounded-lg border border-neutral-700 bg-neutral-900 p-0.5 text-xs">
-        <button
-          type="button"
-          onClick={() => setBetType("pre_jogo")}
-          className={`rounded-md px-2.5 py-1 font-medium transition ${
-            betType === "pre_jogo" ? "bg-emerald-600 text-white" : "text-neutral-400 hover:text-white"
-          }`}
-        >
-          Pré-jogo
-        </button>
-        <button
-          type="button"
-          onClick={() => setBetType("live")}
-          className={`rounded-md px-2.5 py-1 font-medium transition ${
-            betType === "live" ? "bg-sky-600 text-white" : "text-neutral-400 hover:text-white"
-          }`}
-        >
-          Live
-        </button>
-      </div>
-
       <div className="mb-2 flex gap-2">
         <input
           type="text"
           autoFocus
           value={selection}
           onChange={(e) => setSelection(e.target.value)}
-          placeholder="Ex: Ambas marcam"
+          placeholder={betType === "live" ? "Ex: Próximo a marcar: Casa" : "Ex: Ambas marcam"}
           className="w-full flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
         />
         {betType === "pre_jogo" ? (
@@ -104,7 +89,7 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
             value={oddMin}
             onChange={(e) => setOddMin(e.target.value)}
             placeholder="Odd mín."
-            className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            className="w-24 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
           />
         )}
       </div>
@@ -121,7 +106,9 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
           type="button"
           disabled={isPending}
           onClick={handleSubmit}
-          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60 ${
+            betType === "live" ? "bg-sky-600 hover:bg-sky-500" : "bg-emerald-600 hover:bg-emerald-500"
+          }`}
         >
           {isPending ? "A guardar..." : "Adicionar"}
         </button>

@@ -291,17 +291,38 @@ export default async function DashboardPage({
                   </div>
 
                   <div className="space-y-2">
-                    {ticket.picks.map((pick) => (
-                      <PickCard
-                        key={pick.id}
-                        pick={pick}
-                        images={imagesByPick.get(pick.id) ?? []}
-                      />
-                    ))}
+                    {ticket.picks
+                      .filter((p) => p.bet_type === "pre_jogo")
+                      .map((pick) => (
+                        <PickCard
+                          key={pick.id}
+                          pick={pick}
+                          images={imagesByPick.get(pick.id) ?? []}
+                        />
+                      ))}
+                  </div>
+                  <div className="mt-2">
+                    <AddPickForm ticketId={ticket.id} betType="pre_jogo" />
                   </div>
 
-                  <div className="mt-3">
-                    <AddPickForm ticketId={ticket.id} />
+                  <div className="mt-4 border-t border-neutral-800 pt-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-sky-400">
+                      🔴 Vigiar para live
+                    </p>
+                    <div className="space-y-2">
+                      {ticket.picks
+                        .filter((p) => p.bet_type === "live")
+                        .map((pick) => (
+                          <PickCard
+                            key={pick.id}
+                            pick={pick}
+                            images={imagesByPick.get(pick.id) ?? []}
+                          />
+                        ))}
+                    </div>
+                    <div className="mt-2">
+                      <AddPickForm ticketId={ticket.id} betType="live" />
+                    </div>
                   </div>
                 </div>
               ))}
