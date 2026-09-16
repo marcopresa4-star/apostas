@@ -224,7 +224,6 @@ interface PickInput {
   betType: BetType;
   odd: number | null;
   oddMin: number | null;
-  oddMax: number | null;
 }
 
 function buildPickFields(input: PickInput) {
@@ -233,14 +232,11 @@ function buildPickFields(input: PickInput) {
   }
 
   if (input.betType === "live") {
-    if (input.oddMin === null || input.oddMax === null) {
-      throw new Error("Indica o intervalo de odd (mínima e máxima) da aposta live.");
+    if (input.oddMin === null) {
+      throw new Error("Indica a odd mínima de entrada da aposta live.");
     }
-    if (input.oddMin <= 1 || input.oddMax <= 1) {
-      throw new Error("As odds têm de ser maiores que 1.");
-    }
-    if (input.oddMin > input.oddMax) {
-      throw new Error("A odd mínima não pode ser maior do que a odd máxima.");
+    if (input.oddMin <= 1) {
+      throw new Error("A odd tem de ser maior que 1.");
     }
   } else if (input.odd !== null && input.odd <= 1) {
     throw new Error("A odd tem de ser maior que 1.");
@@ -252,7 +248,6 @@ function buildPickFields(input: PickInput) {
     bet_type: input.betType,
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
-    odd_max: input.betType === "live" ? input.oddMax : null,
   };
 }
 

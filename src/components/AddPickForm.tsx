@@ -10,7 +10,6 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
   const [selection, setSelection] = useState("");
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
-  const [oddMax, setOddMax] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -32,7 +31,6 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
     setSelection("");
     setOdd("");
     setOddMin("");
-    setOddMax("");
     setReason("");
   }
 
@@ -47,7 +45,6 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
-          oddMax: oddMax.trim() ? Number(oddMax) : null,
         });
         reset();
         setOpen(false);
@@ -100,26 +97,15 @@ export default function AddPickForm({ ticketId }: { ticketId: string }) {
             className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
           />
         ) : (
-          <>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={oddMin}
-              onChange={(e) => setOddMin(e.target.value)}
-              placeholder="Odd mín."
-              className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={oddMax}
-              onChange={(e) => setOddMax(e.target.value)}
-              placeholder="Odd máx."
-              className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
-          </>
+          <input
+            type="number"
+            step="0.01"
+            min="1.01"
+            value={oddMin}
+            onChange={(e) => setOddMin(e.target.value)}
+            placeholder="Odd mín."
+            className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+          />
         )}
       </div>
       <textarea

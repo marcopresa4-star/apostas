@@ -16,7 +16,6 @@ interface PickCardProps {
     bet_type: BetType;
     odd: number | null;
     odd_min: number | null;
-    odd_max: number | null;
   };
   images: PickImageItem[];
 }
@@ -27,7 +26,6 @@ export default function PickCard({ pick, images }: PickCardProps) {
   const [selection, setSelection] = useState(pick.selection);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
-  const [oddMax, setOddMax] = useState(pick.odd_max !== null ? String(pick.odd_max) : "");
   const [reason, setReason] = useState(pick.reason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -37,7 +35,6 @@ export default function PickCard({ pick, images }: PickCardProps) {
     setSelection(pick.selection);
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
-    setOddMax(pick.odd_max !== null ? String(pick.odd_max) : "");
     setReason(pick.reason ?? "");
     setError(null);
     setEditing(false);
@@ -54,7 +51,6 @@ export default function PickCard({ pick, images }: PickCardProps) {
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
-          oddMax: oddMax.trim() ? Number(oddMax) : null,
         });
         setEditing(false);
       } catch (err) {
@@ -106,26 +102,15 @@ export default function PickCard({ pick, images }: PickCardProps) {
                 className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
               />
             ) : (
-              <>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1.01"
-                  value={oddMin}
-                  onChange={(e) => setOddMin(e.target.value)}
-                  placeholder="Odd mín."
-                  className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1.01"
-                  value={oddMax}
-                  onChange={(e) => setOddMax(e.target.value)}
-                  placeholder="Odd máx."
-                  className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-                />
-              </>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={oddMin}
+                onChange={(e) => setOddMin(e.target.value)}
+                placeholder="Odd mín."
+                className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
             )}
           </div>
           <textarea
@@ -169,9 +154,9 @@ export default function PickCard({ pick, images }: PickCardProps) {
                   @ {pick.odd.toFixed(2)}
                 </span>
               )}
-              {pick.bet_type === "live" && pick.odd_min !== null && pick.odd_max !== null && (
+              {pick.bet_type === "live" && pick.odd_min !== null && (
                 <span className="ml-2 text-xs font-normal text-neutral-400">
-                  entra entre {pick.odd_min.toFixed(2)} e {pick.odd_max.toFixed(2)}
+                  entra a partir de {pick.odd_min.toFixed(2)}
                 </span>
               )}
             </p>
