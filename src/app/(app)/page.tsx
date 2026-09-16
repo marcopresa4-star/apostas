@@ -103,7 +103,7 @@ export default async function DashboardPage({
        picks(id, selection, reason, status, image_path)`
     )
     .order("match_date", { ascending: false })
-    .order("match_time", { ascending: false })
+    .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
   const imageUrls = new Map<string, string>();
