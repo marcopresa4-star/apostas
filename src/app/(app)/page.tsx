@@ -4,7 +4,7 @@ import PickCard from "@/components/PickCard";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
 import type { PickImageItem } from "@/components/PickImages";
-import type { BetStatus } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -18,7 +18,10 @@ interface Pick {
   selection: string;
   reason: string | null;
   status: BetStatus;
+  bet_type: BetType;
   odd: number | null;
+  odd_min: number | null;
+  odd_max: number | null;
   pick_images: PickImageRow[];
 }
 
@@ -107,7 +110,7 @@ export default async function DashboardPage({
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, odd, pick_images(id, image_path))`
+       picks(id, selection, reason, status, bet_type, odd, odd_min, odd_max, pick_images(id, image_path))`
     )
     .order("match_date", { ascending: false })
     .order("match_time", { ascending: true })

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { BetStatus } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 export async function signOut() {
   const supabase = await createClient();
@@ -218,47 +218,61 @@ export async function updateTicket(input: {
   redirect("/");
 }
 
-export async function updatePick(input: {
-  pickId: string;
+interface PickInput {
   selection: string;
   reason: string;
+  betType: BetType;
   odd: number | null;
-}) {
+  oddMin: number | null;
+  oddMax: number | null;
+}
+
+function buildPickFields(input: PickInput) {
   if (!input.selection.trim()) {
     throw new Error("Indica a aposta.");
   }
 
+  if (input.betType === "live") {
+    if (input.oddMin === null || input.oddMax === null) {
+      throw new Error("Indica o intervalo de odd (mínima e máxima) da aposta live.");
+    }
+    if (input.oddMin <= 1 || input.oddMax <= 1) {
+      throw new Error("As odds têm de ser maiores que 1.");
+    }
+    if (input.oddMin > input.oddMax) {
+      throw new Error("A odd mínima não pode ser maior do que a odd máxima.");
+    }
+  } else if (input.odd !== null && input.odd <= 1) {
+    throw new Error("A odd tem de ser maior que 1.");
+  }
+
+  return {
+    selection: input.selection.trim(),
+    reason: input.reason.trim() || null,
+    bet_type: input.betType,
+    odd: input.betType === "pre_jogo" ? input.odd : null,
+    odd_min: input.betType === "live" ? input.oddMin : null,
+    odd_max: input.betType === "live" ? input.oddMax : null,
+  };
+}
+
+export async function updatePick(input: { pickId: string } & PickInput) {
+  const fields = buildPickFields(input);
+
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("picks")
-    .update({
-      selection: input.selection.trim(),
-      reason: input.reason.trim() || null,
-      odd: input.odd,
-    })
-    .eq("id", input.pickId);
+  const { error } = await supabase.from("picks").update(fields).eq("id", input.pickId);
 
   if (error) throw error;
   revalidatePath("/");
 }
 
-export async function addPick(input: {
-  ticketId: string;
-  selection: string;
-  reason: string;
-  odd: number | null;
-}) {
-  if (!input.selection.trim()) {
-    throw new Error("Indica a aposta.");
-  }
+export async function addPick(input: { ticketId: string } & PickInput) {
+  const fields = buildPickFields(input);
 
   const supabase = await createClient();
-  const { error } = await supabase.from("picks").insert({
-    ticket_id: input.ticketId,
-    selection: input.selection.trim(),
-    reason: input.reason.trim() || null,
-    odd: input.odd,
-  });
+  const { error } = await supabase
+    .from("picks")
+    .insert({ ticket_id: input.ticketId, ...fields });
 
   if (error) throw error;
   revalidatePath("/");
