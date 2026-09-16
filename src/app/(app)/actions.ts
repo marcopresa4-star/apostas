@@ -135,16 +135,15 @@ export async function deleteCompetition(id: string): Promise<DeleteResult> {
   return deleteCountryLinkedEntity("competitions", id);
 }
 
-export async function createTicket(input: {
-  competitionId: string;
-  homeTeamId: string;
-  awayTeamId: string;
-  matchDate: string;
-  matchTime: string;
-  selection: string;
-  reason: string;
-  odd: number | null;
-}) {
+export async function createTicket(
+  input: {
+    competitionId: string;
+    homeTeamId: string;
+    awayTeamId: string;
+    matchDate: string;
+    matchTime: string;
+  } & PickInput
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -155,9 +154,7 @@ export async function createTicket(input: {
     throw new Error("A equipa da casa e a equipa de fora têm de ser diferentes.");
   }
 
-  if (!input.selection.trim()) {
-    throw new Error("Indica a aposta.");
-  }
+  const pickFields = buildPickFields(input);
 
   const { data: ticket, error: ticketError } = await supabase
     .from("tickets")
@@ -174,17 +171,15 @@ export async function createTicket(input: {
 
   if (ticketError) throw ticketError;
 
-  const { error: pickError } = await supabase.from("picks").insert({
-    ticket_id: ticket.id,
-    selection: input.selection.trim(),
-    reason: input.reason.trim() || null,
-    odd: input.odd,
-  });
+  const { error: pickError } = await supabase
+    .from("picks")
+    .insert({ ticket_id: ticket.id, ...pickFields });
 
   if (pickError) throw pickError;
 
   revalidatePath("/");
-  redirect("/");
+  revalidatePath("/live");
+  redirect(input.betType === "live" ? "/live" : "/");
 }
 
 export async function updateTicket(input: {
@@ -215,6 +210,7 @@ export async function updateTicket(input: {
   if (error) throw error;
 
   revalidatePath("/");
+  revalidatePath("/live");
   redirect("/");
 }
 
@@ -259,6 +255,7 @@ export async function updatePick(input: { pickId: string } & PickInput) {
 
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function addPick(input: { ticketId: string } & PickInput) {
@@ -271,6 +268,7 @@ export async function addPick(input: { ticketId: string } & PickInput) {
 
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function updatePickStatus(pickId: string, status: BetStatus) {
@@ -278,6 +276,7 @@ export async function updatePickStatus(pickId: string, status: BetStatus) {
   const { error } = await supabase.from("picks").update({ status }).eq("id", pickId);
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function deletePick(pickId: string) {
@@ -305,6 +304,7 @@ export async function deletePick(pickId: string) {
   }
 
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function addPickImage(pickId: string, imagePath: string) {
@@ -314,6 +314,7 @@ export async function addPickImage(pickId: string, imagePath: string) {
     .insert({ pick_id: pickId, image_path: imagePath });
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function deletePickImage(imageId: string) {
@@ -321,6 +322,7 @@ export async function deletePickImage(imageId: string) {
   const { error } = await supabase.from("pick_images").delete().eq("id", imageId);
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }
 
 export async function deleteTicket(ticketId: string) {
@@ -328,4 +330,5 @@ export async function deleteTicket(ticketId: string) {
   const { error } = await supabase.from("tickets").delete().eq("id", ticketId);
   if (error) throw error;
   revalidatePath("/");
+  revalidatePath("/live");
 }

@@ -34,29 +34,8 @@ interface TicketRow {
   picks: Pick[];
 }
 
-const FILTERS: { value: string; label: string; dot?: string }[] = [
-  { value: "all", label: "Todas" },
-  { value: "pending", label: "Pendentes", dot: "bg-neutral-500" },
-  { value: "green", label: "Green", dot: "bg-emerald-400" },
-  { value: "red", label: "Red", dot: "bg-red-400" },
-  { value: "void", label: "Devolvidas", dot: "bg-amber-400" },
-];
-
-const SCOPES: { value: string; label: string }[] = [
-  { value: "hoje", label: "Hoje" },
-  { value: "historico", label: "Histórico" },
-];
-
 function sameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
-}
-
-function todayISODate() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
 }
 
 function formatDateHeader(dateStr: string) {
@@ -81,25 +60,7 @@ function formatDateHeader(dateStr: string) {
   return capitalized;
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string; scope?: string }>;
-}) {
-  const { status, scope } = await searchParams;
-  const activeFilter = FILTERS.some((f) => f.value === status) ? status! : "all";
-  const activeScope = SCOPES.some((s) => s.value === scope) ? scope! : "hoje";
-
-  function buildHref(overrides: { status?: string; scope?: string }) {
-    const nextStatus = overrides.status ?? activeFilter;
-    const nextScope = overrides.scope ?? activeScope;
-    const params = new URLSearchParams();
-    if (nextStatus !== "all") params.set("status", nextStatus);
-    if (nextScope !== "hoje") params.set("scope", nextScope);
-    const qs = params.toString();
-    return qs ? `/?${qs}` : "/";
-  }
-
+export default async function LivePage() {
   const supabase = await createClient();
 
   const { data: tickets, error } = await supabase
@@ -111,12 +72,19 @@ export default async function DashboardPage({
        away_team:teams!tickets_away_team_id_fkey(id, name),
        picks(id, selection, reason, status, bet_type, odd, odd_min, pick_images(id, image_path))`
     )
-    .order("match_date", { ascending: false })
+    .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
+  const displayTickets = (tickets ?? [])
+    .map((ticket) => ({
+      ...ticket,
+      picks: ticket.picks.filter((p) => p.bet_type === "live"),
+    }))
+    .filter((ticket) => ticket.picks.length > 0);
+
   const imagesByPick = new Map<string, PickImageItem[]>();
-  const allImageRows = (tickets ?? []).flatMap((t) =>
+  const allImageRows = displayTickets.flatMap((t) =>
     t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
   );
   if (allImageRows.length > 0) {
@@ -134,20 +102,6 @@ export default async function DashboardPage({
     });
   }
 
-  const todayISO = todayISODate();
-
-  const displayTickets = (tickets ?? [])
-    .filter((ticket) =>
-      activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
-    )
-    .map((ticket) => ({
-      ...ticket,
-      picks: ticket.picks.filter(
-        (p) => p.bet_type === "pre_jogo" && (activeFilter === "all" || p.status === activeFilter)
-      ),
-    }))
-    .filter((ticket) => ticket.picks.length > 0);
-
   const groups: { date: string; tickets: typeof displayTickets }[] = [];
   for (const ticket of displayTickets) {
     const lastGroup = groups[groups.length - 1];
@@ -158,92 +112,37 @@ export default async function DashboardPage({
     }
   }
 
-  const allPicks = (tickets ?? [])
-    .flatMap((t) => t.picks)
-    .filter((p) => p.bet_type === "pre_jogo");
-  const stats = {
-    total: allPicks.length,
-    green: allPicks.filter((p) => p.status === "green").length,
-    red: allPicks.filter((p) => p.status === "red").length,
-    pending: allPicks.filter((p) => p.status === "pending").length,
-  };
-
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">As minhas apostas</h1>
-      </div>
-
-      {stats.total > 0 && (
-        <div className="mb-5 grid grid-cols-4 gap-2">
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-emerald-400">{stats.green}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Green</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-red-400">{stats.red}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Red</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-300">{stats.pending}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Pendentes</p>
-          </div>
+      <div className="mb-6 flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold">🔴 Live</h1>
+          <p className="text-sm text-neutral-500">
+            Jogos que estás a vigiar para uma possível entrada em live.
+          </p>
         </div>
-      )}
-
-      <div className="mb-4 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
-        {SCOPES.map((s) => (
-          <Link
-            key={s.value}
-            href={buildHref({ scope: s.value })}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-              activeScope === s.value
-                ? "bg-emerald-600 text-white"
-                : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
-
-      <div className="mb-5 flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.value}
-            href={buildHref({ status: f.value })}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
-              activeFilter === f.value
-                ? "bg-emerald-600 text-white"
-                : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
-            }`}
-          >
-            {f.dot && <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${f.dot}`} />}
-            {f.label}
-          </Link>
-        ))}
+        <Link
+          href="/live/nova"
+          className="whitespace-nowrap rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500"
+        >
+          + Vigiar jogo
+        </Link>
       </div>
 
       {error && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
-          Erro ao carregar apostas: {error.message}
+          Erro ao carregar: {error.message}
         </p>
       )}
 
       {!error && displayTickets.length === 0 && (
         <div className="rounded-2xl border border-dashed border-neutral-800 px-4 py-12 text-center text-neutral-500">
           <p aria-hidden className="mb-2 text-3xl">
-            🎟️
+            📡
           </p>
-          {activeScope === "hoje"
-            ? "Sem apostas para hoje ou próximos dias."
-            : "Ainda não tens apostas no histórico."}{" "}
-          <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
-            Regista uma aposta
+          Ainda não tens jogos a vigiar para live.{" "}
+          <Link href="/live/nova" className="text-sky-400 hover:underline">
+            Adiciona um
           </Link>
           .
         </div>
@@ -301,7 +200,7 @@ export default async function DashboardPage({
                     ))}
                   </div>
                   <div className="mt-3">
-                    <AddPickForm ticketId={ticket.id} betType="pre_jogo" />
+                    <AddPickForm ticketId={ticket.id} betType="live" />
                   </div>
                 </div>
               ))}

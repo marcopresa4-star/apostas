@@ -13,7 +13,7 @@ import {
   deleteCompetition,
 } from "@/app/(app)/actions";
 
-export default function TicketForm({
+export default function LiveWatchForm({
   initialCompetitions,
   initialTeams,
   countries,
@@ -31,7 +31,7 @@ export default function TicketForm({
   const [matchDate, setMatchDate] = useState("");
   const [matchTime, setMatchTime] = useState("");
   const [selection, setSelection] = useState("");
-  const [odd, setOdd] = useState("");
+  const [oddMin, setOddMin] = useState("");
   const [reason, setReason] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -68,8 +68,9 @@ export default function TicketForm({
       return setError("A equipa da casa e a equipa de fora têm de ser diferentes.");
     if (!matchDate) return setError("Indica o dia do jogo.");
     if (!matchTime) return setError("Indica a hora do jogo.");
-    if (!selection.trim()) return setError("Indica a aposta.");
-    if (odd.trim() && Number(odd) <= 1) return setError("A odd tem de ser maior que 1.");
+    if (!selection.trim()) return setError("Indica a possível aposta.");
+    if (!oddMin.trim()) return setError("Indica a odd mínima de entrada.");
+    if (Number(oddMin) <= 1) return setError("A odd tem de ser maior que 1.");
 
     startTransition(async () => {
       try {
@@ -81,13 +82,13 @@ export default function TicketForm({
           matchTime,
           selection,
           reason,
-          betType: "pre_jogo",
-          odd: odd.trim() ? Number(odd) : null,
-          oddMin: null,
+          betType: "live",
+          odd: null,
+          oddMin: Number(oddMin),
         });
       } catch (err) {
         if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) throw err;
-        setError("Não foi possível guardar a aposta. Tenta novamente.");
+        setError("Não foi possível guardar. Tenta novamente.");
       }
     });
   }
@@ -144,23 +145,23 @@ export default function TicketForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
         <div>
-          <label className="mb-1 block text-sm text-neutral-300">Aposta</label>
+          <label className="mb-1 block text-sm text-neutral-300">Possível aposta</label>
           <input
             type="text"
             value={selection}
             onChange={(e) => setSelection(e.target.value)}
-            placeholder="Ex: Benfica vence, Mais de 2.5 golos..."
+            placeholder="Ex: Próximo a marcar: Casa"
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-neutral-300">Odd</label>
+          <label className="mb-1 block text-sm text-neutral-300">Odd mínima</label>
           <input
             type="number"
             step="0.01"
             min="1.01"
-            value={odd}
-            onChange={(e) => setOdd(e.target.value)}
+            value={oddMin}
+            onChange={(e) => setOddMin(e.target.value)}
             placeholder="Ex: 1.85"
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
           />
@@ -168,19 +169,19 @@ export default function TicketForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm text-neutral-300">Razão da aposta</label>
+        <label className="mb-1 block text-sm text-neutral-300">Razão (opcional)</label>
         <textarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="Porque estás a fazer esta aposta..."
+          placeholder="O que estás a vigiar neste jogo..."
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
       </div>
 
       <p className="text-xs text-neutral-500">
-        Depois de guardares, podes adicionar mais apostas a este mesmo jogo diretamente na
-        lista de apostas.
+        Depois de guardares, podes adicionar mais apostas live a este mesmo jogo diretamente
+        na lista.
       </p>
 
       {error && (
@@ -189,7 +190,7 @@ export default function TicketForm({
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row">
         <Link
-          href="/"
+          href="/live"
           className="rounded-lg px-3 py-2 text-center font-medium text-neutral-400 transition hover:text-white sm:w-auto"
         >
           Cancelar
@@ -198,9 +199,9 @@ export default function TicketForm({
           type="button"
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500 disabled:opacity-60 sm:w-auto"
+          className="w-full rounded-lg bg-sky-600 px-3 py-2 font-medium text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500 disabled:opacity-60 sm:w-auto"
         >
-          {isPending ? "A guardar..." : "Registar aposta"}
+          {isPending ? "A guardar..." : "Vigiar jogo"}
         </button>
       </div>
     </div>
