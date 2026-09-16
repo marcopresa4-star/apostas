@@ -59,4 +59,6 @@ No formulário de "Nova aposta", os campos de competição e equipas são pesqui
 
 ## Análise de jogo
 
-O menu "Análise" usa a [API-Football](https://www.api-football.com/) (independente da tua base de dados de equipas/competições) para mostrar forma recente, confronto direto e classificação de qualquer competição/equipas que exista na API. O plano gratuito dá 100 pedidos/dia; cada análise consome 4 pedidos (forma das duas equipas + confronto direto + classificação), e as respostas ficam em cache 1 hora para poupar o limite.
+O menu "Análise" usa a [API-Football](https://www.api-football.com/) (independente da tua base de dados de equipas/competições) para mostrar forma recente, confronto direto e classificação de qualquer competição/equipas que exista na API. Cada análise consome 4 pedidos (forma das duas equipas + confronto direto + classificação), e as respostas ficam em cache 1 hora para poupar a cota.
+
+**Importante:** o plano gratuito da API-Football só dá acesso a épocas de 2022 a 2024, não à época atual — para forma/classificação em tempo real (o objetivo desta funcionalidade) é preciso um plano pago. Verifica em [api-football.com](https://www.api-football.com/) qual o plano mais barato que cobre a época em curso.
