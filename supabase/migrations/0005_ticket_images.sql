@@ -1,10 +1,12 @@
--- Adds support for attaching a screenshot/print to a ticket (game).
--- Creates a private Storage bucket "game-images" and the column that
--- points at the uploaded file. The bucket is not public: images are
--- only reachable through short-lived signed URLs generated for the
--- logged-in user. Run this in the Supabase SQL editor.
+-- Adds support for attaching a screenshot/print to a pick (an individual
+-- bet, not the game itself). Creates a private Storage bucket
+-- "game-images" and the column that points at the uploaded file. The
+-- bucket is not public: images are only reachable through short-lived
+-- signed URLs generated for the logged-in user. Run this in the
+-- Supabase SQL editor.
 
-alter table tickets add column if not exists image_path text;
+alter table tickets drop column if exists image_path;
+alter table picks add column if not exists image_path text;
 
 insert into storage.buckets (id, name, public)
 values ('game-images', 'game-images', false)

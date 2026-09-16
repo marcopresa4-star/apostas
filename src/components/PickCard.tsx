@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import StatusBadge, { STATUS_BORDER } from "./StatusBadge";
 import StatusButtons from "./StatusButtons";
+import PickImage from "./PickImage";
 import { updatePick } from "@/app/(app)/actions";
 import type { BetStatus } from "@/lib/database.types";
 
@@ -12,10 +13,12 @@ interface PickCardProps {
     selection: string;
     reason: string | null;
     status: BetStatus;
+    image_path: string | null;
   };
+  imageUrl: string | null;
 }
 
-export default function PickCard({ pick }: PickCardProps) {
+export default function PickCard({ pick, imageUrl }: PickCardProps) {
   const [editing, setEditing] = useState(false);
   const [selection, setSelection] = useState(pick.selection);
   const [reason, setReason] = useState(pick.reason ?? "");
@@ -93,6 +96,7 @@ export default function PickCard({ pick }: PickCardProps) {
             </div>
           </div>
           {pick.reason && <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>}
+          <PickImage pickId={pick.id} imagePath={pick.image_path} imageUrl={imageUrl} />
           <button
             type="button"
             onClick={() => setEditing(true)}

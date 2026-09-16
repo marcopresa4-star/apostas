@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import PickCard from "@/components/PickCard";
 import AddPickForm from "@/components/AddPickForm";
 import DeleteTicketButton from "@/components/DeleteTicketButton";
-import TicketImage from "@/components/TicketImage";
 import type { BetStatus } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
@@ -13,13 +12,13 @@ interface Pick {
   selection: string;
   reason: string | null;
   status: BetStatus;
+  image_path: string | null;
 }
 
 interface TicketRow {
   id: string;
   match_date: string;
   match_time: string;
-  image_path: string | null;
   competition: { id: string; name: string; country: { name: string } | null } | null;
   home_team: { id: string; name: string } | null;
   away_team: { id: string; name: string } | null;
@@ -97,28 +96,28 @@ export default async function DashboardPage({
   const { data: tickets, error } = await supabase
     .from("tickets")
     .select(
-      `id, match_date, match_time, image_path,
+      `id, match_date, match_time,
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status)`
+       picks(id, selection, reason, status, image_path)`
     )
     .order("match_date", { ascending: false })
     .order("match_time", { ascending: false })
     .returns<TicketRow[]>();
 
   const imageUrls = new Map<string, string>();
-  const withImage = (tickets ?? []).filter(
-    (t): t is TicketRow & { image_path: string } => Boolean(t.image_path)
-  );
-  if (withImage.length > 0) {
+  const picksWithImage = (tickets ?? [])
+    .flatMap((t) => t.picks)
+    .filter((p): p is Pick & { image_path: string } => Boolean(p.image_path));
+  if (picksWithImage.length > 0) {
     const signedResults = await Promise.all(
-      withImage.map((t) =>
-        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(t.image_path, 3600)
+      picksWithImage.map((p) =>
+        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(p.image_path, 3600)
       )
     );
     signedResults.forEach((result, i) => {
-      if (result.data?.signedUrl) imageUrls.set(withImage[i].id, result.data.signedUrl);
+      if (result.data?.signedUrl) imageUrls.set(picksWithImage[i].id, result.data.signedUrl);
     });
   }
 
@@ -280,15 +279,13 @@ export default async function DashboardPage({
 
                   <div className="space-y-2">
                     {ticket.picks.map((pick) => (
-                      <PickCard key={pick.id} pick={pick} />
+                      <PickCard
+                        key={pick.id}
+                        pick={pick}
+                        imageUrl={imageUrls.get(pick.id) ?? null}
+                      />
                     ))}
                   </div>
-
-                  <TicketImage
-                    ticketId={ticket.id}
-                    imagePath={ticket.image_path}
-                    imageUrl={imageUrls.get(ticket.id) ?? null}
-                  />
 
                   <div className="mt-3">
                     <AddPickForm ticketId={ticket.id} />

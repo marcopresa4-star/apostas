@@ -2,16 +2,16 @@
 
 import { useRef, useState, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { setTicketImage } from "@/app/(app)/actions";
+import { setPickImage } from "@/app/(app)/actions";
 
 const BUCKET = "game-images";
 
-export default function TicketImage({
-  ticketId,
+export default function PickImage({
+  pickId,
   imagePath,
   imageUrl,
 }: {
-  ticketId: string;
+  pickId: string;
   imagePath: string | null;
   imageUrl: string | null;
 }) {
@@ -29,7 +29,7 @@ export default function TicketImage({
     try {
       const supabase = createClient();
       const ext = file.name.split(".").pop() || "jpg";
-      const path = `${ticketId}-${Date.now()}.${ext}`;
+      const path = `${pickId}-${Date.now()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
@@ -40,7 +40,7 @@ export default function TicketImage({
         await supabase.storage.from(BUCKET).remove([imagePath]);
       }
 
-      await setTicketImage(ticketId, path);
+      await setPickImage(pickId, path);
     } catch {
       setError("Não foi possível enviar a imagem.");
     } finally {
@@ -55,18 +55,18 @@ export default function TicketImage({
       if (imagePath) {
         await supabase.storage.from(BUCKET).remove([imagePath]);
       }
-      await setTicketImage(ticketId, null);
+      await setPickImage(pickId, null);
     });
   }
 
   if (imageUrl) {
     return (
-      <div className="mt-3">
+      <div className="mb-2">
         <a href={imageUrl} target="_blank" rel="noreferrer" className="inline-block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imageUrl}
-            alt="Print do jogo"
+            alt="Print da aposta"
             className="max-h-48 rounded-lg border border-neutral-800 object-cover transition hover:opacity-90"
           />
         </a>
@@ -83,7 +83,7 @@ export default function TicketImage({
   }
 
   return (
-    <div className="mt-3">
+    <div className="mb-2">
       <label className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-emerald-400 hover:underline">
         {uploading ? "A enviar..." : "+ Anexar print"}
         <input
