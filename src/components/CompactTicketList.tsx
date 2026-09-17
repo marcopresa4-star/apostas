@@ -40,7 +40,7 @@ export default function CompactTicketList({ tickets }: { tickets: Ticket[] }) {
         return (
           <div
             key={ticket.id}
-            className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5"
+            className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20"
           >
             <div className="mb-1 flex items-center justify-between gap-2">
               <p className="min-w-0 truncate text-sm font-medium text-neutral-100">

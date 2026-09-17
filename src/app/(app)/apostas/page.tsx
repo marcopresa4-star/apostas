@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import TicketCard from "@/components/TicketCard";
+import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType } from "@/lib/database.types";
@@ -177,41 +178,22 @@ export default async function ApostasPage({
         <h1 className="text-xl font-semibold">As minhas apostas</h1>
         <Link
           href="/apostas/nova"
-          className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+          className="whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-emerald-500/30"
         >
           + Nova aposta
         </Link>
       </div>
 
-      {stats.total > 0 && (
-        <div className="mb-5 grid grid-cols-4 gap-2">
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-emerald-400">{stats.green}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Green</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-red-400">{stats.red}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Red</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-300">{stats.pending}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Pendentes</p>
-          </div>
-        </div>
-      )}
+      <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
 
       <div className="mb-4 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
         {SCOPES.map((s) => (
           <Link
             key={s.value}
             href={buildHref({ scope: s.value })}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-200 ${
               activeScope === s.value
-                ? "bg-emerald-600 text-white"
+                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-600/25"
                 : "text-neutral-400 hover:text-white"
             }`}
           >
@@ -225,10 +207,10 @@ export default async function ApostasPage({
           <Link
             key={f.value}
             href={buildHref({ status: f.value })}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition ${
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
               activeFilter === f.value
-                ? "bg-emerald-600 text-white"
-                : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-600/25"
+                : "bg-neutral-900 text-neutral-400 hover:-translate-y-0.5 hover:bg-neutral-800"
             }`}
           >
             {f.dot && <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${f.dot}`} />}

@@ -47,7 +47,7 @@ export default function TicketCard({
   const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-colors hover:border-neutral-700">
+    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-xs uppercase tracking-wide text-neutral-500">

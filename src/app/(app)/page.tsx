@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CompactTicketList from "@/components/CompactTicketList";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
+import StatsRow from "@/components/StatsRow";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import LiveClock from "@/components/LiveClock";
 import type { BetStatus, BetType } from "@/lib/database.types";
@@ -128,13 +129,13 @@ export default async function DashboardPage() {
         <div className="flex gap-2">
           <Link
             href="/apostas/nova"
-            className="whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+            className="whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-emerald-500/30"
           >
             + Nova aposta
           </Link>
           <Link
             href="/live/nova"
-            className="whitespace-nowrap rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500"
+            className="whitespace-nowrap rounded-lg bg-gradient-to-r from-sky-600 to-sky-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sky-500/30"
           >
             + Vigiar jogo
           </Link>
@@ -147,32 +148,18 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      {stats.total > 0 && (
-        <div className="mb-6 grid grid-cols-4 gap-2">
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-emerald-400">{stats.green}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Green</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-red-400">{stats.red}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Red</p>
-          </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
-            <p className="text-lg font-semibold text-neutral-300">{stats.pending}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Pendentes</p>
-          </div>
-        </div>
-      )}
+      <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
 
       <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-300">Jogos de hoje</h2>
-            <Link href="/apostas" className="text-xs font-medium text-emerald-400 hover:underline">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-300">
+              <span aria-hidden>⚽</span> Jogos de hoje
+            </h2>
+            <Link
+              href="/apostas"
+              className="text-xs font-medium text-emerald-400 transition hover:translate-x-0.5 hover:underline"
+            >
               Ver todas →
             </Link>
           </div>
@@ -187,8 +174,17 @@ export default async function DashboardPage() {
 
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-sky-400">🔴 A vigiar em live</h2>
-            <Link href="/live" className="text-xs font-medium text-sky-400 hover:underline">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
+              <span
+                aria-hidden
+                className="h-2 w-2 animate-pulse rounded-full bg-red-500"
+              />
+              A vigiar em live
+            </h2>
+            <Link
+              href="/live"
+              className="text-xs font-medium text-sky-400 transition hover:translate-x-0.5 hover:underline"
+            >
               Ver todas →
             </Link>
           </div>
