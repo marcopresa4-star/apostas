@@ -4,16 +4,29 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ExistingTicketPicker, { type TicketOption } from "./ExistingTicketPicker";
-import { addPick } from "@/app/(app)/actions";
+import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
+import { addPick, createBetCategory } from "@/app/(app)/actions";
 
-export default function AddLiveToExistingForm({ tickets }: { tickets: TicketOption[] }) {
+export default function AddLiveToExistingForm({
+  tickets,
+  initialCategories,
+}: {
+  tickets: TicketOption[];
+  initialCategories: TagItem[];
+}) {
   const [ticket, setTicket] = useState<TicketOption | null>(null);
   const [selection, setSelection] = useState("");
   const [oddMin, setOddMin] = useState("");
+  const [categories, setCategories] = useState(initialCategories);
+  const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  function addCategory(item: TagItem) {
+    setCategories((prev) => (prev.some((c) => c.id === item.id) ? prev : [...prev, item]));
+  }
 
   function handleSubmit() {
     setError(null);
@@ -31,6 +44,7 @@ export default function AddLiveToExistingForm({ tickets }: { tickets: TicketOpti
           betType: "live",
           odd: null,
           oddMin: Number(oddMin),
+          categoryId: category?.id ?? null,
         });
         router.push("/live");
       } catch (err) {
@@ -79,6 +93,16 @@ export default function AddLiveToExistingForm({ tickets }: { tickets: TicketOpti
           />
         </div>
       </div>
+
+      <CategoryCombobox
+        label="Tipo de aposta (opcional)"
+        placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
+        items={categories}
+        value={category}
+        onSelect={setCategory}
+        createAction={createBetCategory}
+        onCreated={addCategory}
+      />
 
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Razão (opcional)</label>

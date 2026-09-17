@@ -1,20 +1,25 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addPick } from "@/app/(app)/actions";
+import { addPick, createBetCategory } from "@/app/(app)/actions";
+import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
 import type { BetType } from "@/lib/database.types";
 
 export default function AddPickForm({
   ticketId,
   betType,
+  initialCategories,
 }: {
   ticketId: string;
   betType: BetType;
+  initialCategories: TagItem[];
 }) {
   const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState("");
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
+  const [categories, setCategories] = useState(initialCategories);
+  const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -37,7 +42,12 @@ export default function AddPickForm({
     setSelection("");
     setOdd("");
     setOddMin("");
+    setCategory(null);
     setReason("");
+  }
+
+  function addCategory(item: TagItem) {
+    setCategories((prev) => (prev.some((c) => c.id === item.id) ? prev : [...prev, item]));
   }
 
   function handleSubmit() {
@@ -51,6 +61,7 @@ export default function AddPickForm({
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
+          categoryId: category?.id ?? null,
         });
         reset();
         setOpen(false);
@@ -92,6 +103,17 @@ export default function AddPickForm({
             className="w-24 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
           />
         )}
+      </div>
+      <div className="mb-2">
+        <CategoryCombobox
+          label="Tipo de aposta (opcional)"
+          placeholder="Ex: Over/Under, Ambas Marcam..."
+          items={categories}
+          value={category}
+          onSelect={setCategory}
+          createAction={createBetCategory}
+          onCreated={addCategory}
+        />
       </div>
       <textarea
         value={reason}

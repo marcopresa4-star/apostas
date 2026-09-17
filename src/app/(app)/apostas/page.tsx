@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import TicketCard from "@/components/TicketCard";
 import type { PickImageItem } from "@/components/PickImages";
+import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
@@ -19,6 +20,7 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  category: { id: string; name: string } | null;
   pick_images: PickImageRow[];
 }
 
@@ -100,18 +102,21 @@ export default async function ApostasPage({
 
   const supabase = await createClient();
 
-  const { data: tickets, error } = await supabase
-    .from("tickets")
-    .select(
-      `id, match_date, match_time,
-       competition:competitions(id, name, country:countries(name)),
-       home_team:teams!tickets_home_team_id_fkey(id, name),
-       away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, bet_type, odd, odd_min, pick_images(id, image_path))`
-    )
-    .order("match_date", { ascending: false })
-    .order("match_time", { ascending: true })
-    .returns<TicketRow[]>();
+  const [{ data: tickets, error }, { data: categories }] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select(
+        `id, match_date, match_time,
+         competition:competitions(id, name, country:countries(name)),
+         home_team:teams!tickets_home_team_id_fkey(id, name),
+         away_team:teams!tickets_away_team_id_fkey(id, name),
+         picks(id, selection, reason, status, bet_type, odd, odd_min, category:bet_categories(id, name), pick_images(id, image_path))`
+      )
+      .order("match_date", { ascending: false })
+      .order("match_time", { ascending: true })
+      .returns<TicketRow[]>(),
+    supabase.from("bet_categories").select("id, name").order("name").returns<TagItem[]>(),
+  ]);
 
   const imagesByPick: Record<string, PickImageItem[]> = {};
   const allImageRows = (tickets ?? []).flatMap((t) =>
@@ -270,6 +275,7 @@ export default async function ApostasPage({
                   picks={ticket.picks}
                   imagesByPick={imagesByPick}
                   addPickBetType="pre_jogo"
+                  initialCategories={categories ?? []}
                 />
               ))}
             </div>

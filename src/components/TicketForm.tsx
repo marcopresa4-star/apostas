@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
+import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
 import DatePicker from "./DatePicker";
 import TimePicker from "./TimePicker";
 import {
   createTicket,
   createTeam,
   createCompetition,
+  createBetCategory,
   deleteTeam,
   deleteCompetition,
 } from "@/app/(app)/actions";
@@ -17,13 +19,16 @@ export default function TicketForm({
   initialCompetitions,
   initialTeams,
   countries,
+  initialCategories,
 }: {
   initialCompetitions: ComboItem[];
   initialTeams: ComboItem[];
   countries: ComboCountry[];
+  initialCategories: TagItem[];
 }) {
   const [competitions, setCompetitions] = useState(initialCompetitions);
   const [teams, setTeams] = useState(initialTeams);
+  const [categories, setCategories] = useState(initialCategories);
 
   const [competition, setCompetition] = useState<ComboItem | null>(null);
   const [homeTeam, setHomeTeam] = useState<ComboItem | null>(null);
@@ -32,6 +37,7 @@ export default function TicketForm({
   const [matchTime, setMatchTime] = useState("");
   const [selection, setSelection] = useState("");
   const [odd, setOdd] = useState("");
+  const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +62,10 @@ export default function TicketForm({
   function removeCompetition(id: string) {
     setCompetitions((prev) => prev.filter((c) => c.id !== id));
     if (competition?.id === id) setCompetition(null);
+  }
+
+  function addCategory(item: TagItem) {
+    setCategories((prev) => (prev.some((c) => c.id === item.id) ? prev : [...prev, item]));
   }
 
   function handleSubmit() {
@@ -84,6 +94,7 @@ export default function TicketForm({
           betType: "pre_jogo",
           odd: odd.trim() ? Number(odd) : null,
           oddMin: null,
+          categoryId: category?.id ?? null,
         });
       } catch (err) {
         if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) throw err;
@@ -166,6 +177,16 @@ export default function TicketForm({
           />
         </div>
       </div>
+
+      <CategoryCombobox
+        label="Tipo de aposta (opcional)"
+        placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
+        items={categories}
+        value={category}
+        onSelect={setCategory}
+        createAction={createBetCategory}
+        onCreated={addCategory}
+      />
 
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Razão da aposta</label>

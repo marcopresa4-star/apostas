@@ -5,6 +5,7 @@ import PickCard from "./PickCard";
 import AddPickForm from "./AddPickForm";
 import DeleteTicketButton from "./DeleteTicketButton";
 import type { PickImageItem } from "./PickImages";
+import type { TagItem } from "./CategoryCombobox";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
 import type { BetStatus, BetType } from "@/lib/database.types";
@@ -17,6 +18,7 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  category: { id: string; name: string } | null;
 }
 
 interface TicketInfo {
@@ -33,11 +35,13 @@ export default function TicketCard({
   picks,
   imagesByPick,
   addPickBetType,
+  initialCategories,
 }: {
   ticket: TicketInfo;
   picks: Pick[];
   imagesByPick: Record<string, PickImageItem[]>;
   addPickBetType: BetType;
+  initialCategories: TagItem[];
 }) {
   const now = useNow();
   const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
@@ -77,12 +81,21 @@ export default function TicketCard({
 
       <div className="space-y-2">
         {picks.map((pick) => (
-          <PickCard key={pick.id} pick={pick} images={imagesByPick[pick.id] ?? []} />
+          <PickCard
+            key={pick.id}
+            pick={pick}
+            images={imagesByPick[pick.id] ?? []}
+            initialCategories={initialCategories}
+          />
         ))}
       </div>
 
       <div className="mt-3">
-        <AddPickForm ticketId={ticket.id} betType={addPickBetType} />
+        <AddPickForm
+          ticketId={ticket.id}
+          betType={addPickBetType}
+          initialCategories={initialCategories}
+        />
       </div>
     </div>
   );

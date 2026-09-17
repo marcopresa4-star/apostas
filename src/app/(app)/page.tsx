@@ -13,6 +13,7 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  category: { id: string; name: string } | null;
 }
 
 interface TicketRow {
@@ -58,7 +59,7 @@ export default async function DashboardPage() {
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, status, bet_type, odd, odd_min)`
+       picks(id, selection, status, bet_type, odd, odd_min, category:bet_categories(id, name))`
     )
     .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
@@ -86,6 +87,7 @@ export default async function DashboardPage() {
 
   const teamMap = new Map<string, { green: number; red: number }>();
   const competitionMap = new Map<string, { green: number; red: number }>();
+  const categoryMap = new Map<string, { green: number; red: number }>();
   const dayStats: Record<string, { green: number; red: number }> = {};
   const ticketsByDay: Record<string, typeof todayTickets> = {};
 
@@ -106,6 +108,7 @@ export default async function DashboardPage() {
       if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, status);
       if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
       if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
+      if (pick.category?.name) bump(categoryMap, pick.category.name, status);
       dayEntry[status]++;
     }
 
@@ -114,6 +117,7 @@ export default async function DashboardPage() {
 
   const topTeams = toRankedRows(teamMap, 5);
   const topCompetitions = toRankedRows(competitionMap, 5);
+  const topCategories = toRankedRows(categoryMap, 5);
   const hasPerformanceData = topTeams.length > 0;
 
   return (
@@ -201,9 +205,10 @@ export default async function DashboardPage() {
       {hasPerformanceData && (
         <div>
           <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
-          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatRanking title="Equipas" rows={topTeams} />
             <StatRanking title="Competições" rows={topCompetitions} />
+            <StatRanking title="Tipos de aposta" rows={topCategories} />
           </div>
           <PerformanceCalendar dayStats={dayStats} ticketsByDay={ticketsByDay} />
         </div>

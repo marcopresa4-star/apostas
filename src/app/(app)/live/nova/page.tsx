@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import NovaVigilanciaTabs from "@/components/NovaVigilanciaTabs";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
 import type { TicketOption } from "@/components/ExistingTicketPicker";
+import type { TagItem } from "@/components/CategoryCombobox";
 
 interface NamedEntityRow {
   id: string;
@@ -23,32 +24,38 @@ interface ExistingTicketRow {
 export default async function NovaVigilanciaLivePage() {
   const supabase = await createClient();
 
-  const [{ data: countries }, { data: competitions }, { data: teams }, { data: existingTickets }] =
-    await Promise.all([
-      supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
-      supabase
-        .from("competitions")
-        .select("id, name, country:countries(name)")
-        .order("name")
-        .returns<NamedEntityRow[]>(),
-      supabase
-        .from("teams")
-        .select("id, name, country:countries(name)")
-        .order("name")
-        .returns<NamedEntityRow[]>(),
-      supabase
-        .from("tickets")
-        .select(
-          `id, match_date, match_time,
-           competition:competitions(name),
-           home_team:teams!tickets_home_team_id_fkey(name),
-           away_team:teams!tickets_away_team_id_fkey(name),
-           picks(bet_type)`
-        )
-        .order("match_date", { ascending: true })
-        .order("match_time", { ascending: true })
-        .returns<ExistingTicketRow[]>(),
-    ]);
+  const [
+    { data: countries },
+    { data: competitions },
+    { data: teams },
+    { data: existingTickets },
+    { data: categories },
+  ] = await Promise.all([
+    supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
+    supabase
+      .from("competitions")
+      .select("id, name, country:countries(name)")
+      .order("name")
+      .returns<NamedEntityRow[]>(),
+    supabase
+      .from("teams")
+      .select("id, name, country:countries(name)")
+      .order("name")
+      .returns<NamedEntityRow[]>(),
+    supabase
+      .from("tickets")
+      .select(
+        `id, match_date, match_time,
+         competition:competitions(name),
+         home_team:teams!tickets_home_team_id_fkey(name),
+         away_team:teams!tickets_away_team_id_fkey(name),
+         picks(bet_type)`
+      )
+      .order("match_date", { ascending: true })
+      .order("match_time", { ascending: true })
+      .returns<ExistingTicketRow[]>(),
+    supabase.from("bet_categories").select("id, name").order("name").returns<TagItem[]>(),
+  ]);
 
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
@@ -96,6 +103,7 @@ export default async function NovaVigilanciaLivePage() {
         initialTeams={comboTeams}
         countries={comboCountries}
         existingTickets={ticketOptions}
+        initialCategories={categories ?? []}
       />
     </div>
   );

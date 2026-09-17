@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import TicketForm from "@/components/TicketForm";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
+import type { TagItem } from "@/components/CategoryCombobox";
 
 interface NamedEntityRow {
   id: string;
@@ -12,19 +13,21 @@ interface NamedEntityRow {
 export default async function NovaApostaPage() {
   const supabase = await createClient();
 
-  const [{ data: countries }, { data: competitions }, { data: teams }] = await Promise.all([
-    supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
-    supabase
-      .from("competitions")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
-    supabase
-      .from("teams")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
-  ]);
+  const [{ data: countries }, { data: competitions }, { data: teams }, { data: categories }] =
+    await Promise.all([
+      supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
+      supabase
+        .from("competitions")
+        .select("id, name, country:countries(name)")
+        .order("name")
+        .returns<NamedEntityRow[]>(),
+      supabase
+        .from("teams")
+        .select("id, name, country:countries(name)")
+        .order("name")
+        .returns<NamedEntityRow[]>(),
+      supabase.from("bet_categories").select("id, name").order("name").returns<TagItem[]>(),
+    ]);
 
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
@@ -56,6 +59,7 @@ export default async function NovaApostaPage() {
         initialCompetitions={comboCompetitions}
         initialTeams={comboTeams}
         countries={comboCountries}
+        initialCategories={categories ?? []}
       />
     </div>
   );

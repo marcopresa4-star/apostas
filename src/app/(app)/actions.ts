@@ -63,6 +63,33 @@ export async function createCompetition(name: string, countryId: string) {
   return createCountryLinkedEntity("competitions", name, countryId);
 }
 
+export async function createBetCategory(name: string) {
+  const supabase = await createClient();
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Nome obrigatório.");
+
+  const { data, error } = await supabase
+    .from("bet_categories")
+    .insert({ name: trimmed })
+    .select("id, name")
+    .single();
+
+  if (error) {
+    if (error.code === "23505") {
+      const { data: existing, error: fetchError } = await supabase
+        .from("bet_categories")
+        .select("id, name")
+        .eq("name", trimmed)
+        .single();
+      if (fetchError) throw fetchError;
+      return existing;
+    }
+    throw error;
+  }
+
+  return data;
+}
+
 type DeleteResult = { ok: true } | { ok: false; error: string };
 
 interface BlockingTicketRow {
@@ -225,6 +252,7 @@ interface PickInput {
   betType: BetType;
   odd: number | null;
   oddMin: number | null;
+  categoryId: string | null;
 }
 
 function buildPickFields(input: PickInput) {
@@ -249,6 +277,7 @@ function buildPickFields(input: PickInput) {
     bet_type: input.betType,
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
+    category_id: input.categoryId,
   };
 }
 

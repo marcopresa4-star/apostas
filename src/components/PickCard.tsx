@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import StatusBadge, { STATUS_BORDER } from "./StatusBadge";
 import StatusButtons from "./StatusButtons";
 import PickImages, { type PickImageItem } from "./PickImages";
-import { updatePick } from "@/app/(app)/actions";
+import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
+import { updatePick, createBetCategory } from "@/app/(app)/actions";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface PickCardProps {
@@ -16,25 +17,34 @@ interface PickCardProps {
     bet_type: BetType;
     odd: number | null;
     odd_min: number | null;
+    category: { id: string; name: string } | null;
   };
   images: PickImageItem[];
+  initialCategories: TagItem[];
 }
 
-export default function PickCard({ pick, images }: PickCardProps) {
+export default function PickCard({ pick, images, initialCategories }: PickCardProps) {
   const [editing, setEditing] = useState(false);
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
   const [selection, setSelection] = useState(pick.selection);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
+  const [categories, setCategories] = useState(initialCategories);
+  const [category, setCategory] = useState<TagItem | null>(pick.category);
   const [reason, setReason] = useState(pick.reason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function addCategory(item: TagItem) {
+    setCategories((prev) => (prev.some((c) => c.id === item.id) ? prev : [...prev, item]));
+  }
 
   function cancelEdit() {
     setBetType(pick.bet_type);
     setSelection(pick.selection);
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
+    setCategory(pick.category);
     setReason(pick.reason ?? "");
     setError(null);
     setEditing(false);
@@ -51,6 +61,7 @@ export default function PickCard({ pick, images }: PickCardProps) {
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
+          categoryId: category?.id ?? null,
         });
         setEditing(false);
       } catch (err) {
@@ -113,6 +124,15 @@ export default function PickCard({ pick, images }: PickCardProps) {
               />
             )}
           </div>
+          <CategoryCombobox
+            label="Tipo de aposta (opcional)"
+            placeholder="Ex: Over/Under, Ambas Marcam..."
+            items={categories}
+            value={category}
+            onSelect={setCategory}
+            createAction={createBetCategory}
+            onCreated={addCategory}
+          />
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -164,6 +184,9 @@ export default function PickCard({ pick, images }: PickCardProps) {
               <StatusBadge status={pick.status} />
             </div>
           </div>
+          {pick.category && (
+            <p className="mb-1.5 text-xs text-neutral-500">🏷️ {pick.category.name}</p>
+          )}
           {pick.reason && <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>}
           <PickImages pickId={pick.id} images={images} />
           <button

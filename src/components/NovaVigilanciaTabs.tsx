@@ -5,17 +5,20 @@ import LiveWatchForm from "./LiveWatchForm";
 import AddLiveToExistingForm from "./AddLiveToExistingForm";
 import type { ComboItem, ComboCountry } from "./EntityCombobox";
 import type { TicketOption } from "./ExistingTicketPicker";
+import type { TagItem } from "./CategoryCombobox";
 
 export default function NovaVigilanciaTabs({
   initialCompetitions,
   initialTeams,
   countries,
   existingTickets,
+  initialCategories,
 }: {
   initialCompetitions: ComboItem[];
   initialTeams: ComboItem[];
   countries: ComboCountry[];
   existingTickets: TicketOption[];
+  initialCategories: TagItem[];
 }) {
   const [mode, setMode] = useState<"novo" | "existente">("existente");
 
@@ -43,12 +46,13 @@ export default function NovaVigilanciaTabs({
       </div>
 
       {mode === "existente" ? (
-        <AddLiveToExistingForm tickets={existingTickets} />
+        <AddLiveToExistingForm tickets={existingTickets} initialCategories={initialCategories} />
       ) : (
         <LiveWatchForm
           initialCompetitions={initialCompetitions}
           initialTeams={initialTeams}
           countries={countries}
+          initialCategories={initialCategories}
         />
       )}
     </div>

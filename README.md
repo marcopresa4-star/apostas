@@ -17,6 +17,9 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0007_multiple_pick_images.sql` (permite anexar mais do que um print a cada aposta)
    - `0008_allow_delete_teams_competitions.sql` (corrige a remoção de equipas/competições, que estava a ser bloqueada em silêncio)
    - `0009_cleanup_orphaned_tickets.sql` (limpeza única de jogos sem apostas associadas)
+   - `0010_live_picks.sql` (adiciona apostas "live", com odd mínima de entrada)
+   - `0011_live_pick_min_odd_only.sql` (simplifica a aposta live para só odd mínima)
+   - `0012_bet_categories.sql` (cria a tabela `bet_categories` — tipos de aposta reutilizáveis, ex: "Over/Under")
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`
@@ -53,7 +56,8 @@ Abre [http://localhost:3000](http://localhost:3000) — vais ser redirecionado p
 - **competitions** — ligas/competições, cada uma ligada a um país.
 - **teams** — equipas, cada uma ligada a um país.
 - **tickets** — o jogo em si: competição, equipa da casa, equipa de fora, dia e hora.
-- **picks** — cada aposta feita sobre um `ticket`: a seleção (ex: "Benfica vence"), a odd, a razão, e o estado (`pending`, `green`, `red`, `void`). Um jogo pode ter várias apostas associadas. Tudo é restrito ao utilizador autenticado via RLS.
+- **picks** — cada aposta feita sobre um `ticket`: o tipo (`pre_jogo` ou `live`), a seleção (ex: "Benfica vence"), a odd (pré-jogo) ou odd mínima (live), a categoria opcional, a razão, e o estado (`pending`, `green`, `red`, `void`). Um jogo pode ter várias apostas associadas. Tudo é restrito ao utilizador autenticado via RLS.
 - **pick_images** — os prints anexados a uma aposta (uma aposta pode ter vários), guardados no bucket privado `game-images`.
+- **bet_categories** — tipos de aposta reutilizáveis (ex: "Over/Under", "Ambas Marcam"), criados ao registar uma aposta e reaproveitados depois; usados para o ranking "Tipos de aposta" no Dashboard.
 
 No formulário de "Nova aposta", os campos de competição e equipas são pesquisáveis; se não encontrares o que procuras, há uma opção para criar uma nova entrada (nome + país) sem sair do formulário. Depois de guardares um jogo, podes adicionar mais apostas a esse mesmo jogo diretamente na lista principal.
