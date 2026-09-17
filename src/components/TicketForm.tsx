@@ -93,6 +93,7 @@ export default function TicketForm({
           betType: "pre_jogo",
           odd: odd.trim() ? Number(odd) : null,
           oddMin: null,
+          alertMinute: null,
           categoryId: category.id,
         });
       } catch (err) {

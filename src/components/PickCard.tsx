@@ -17,6 +17,7 @@ interface PickCardProps {
     bet_type: BetType;
     odd: number | null;
     odd_min: number | null;
+    alert_minute: number | null;
     category: { id: string; name: string } | null;
   };
   images: PickImageItem[];
@@ -28,6 +29,9 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
+  const [alertMinute, setAlertMinute] = useState(
+    pick.alert_minute !== null ? String(pick.alert_minute) : ""
+  );
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(pick.category);
   const [reason, setReason] = useState(pick.reason ?? "");
@@ -42,6 +46,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
     setBetType(pick.bet_type);
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
+    setAlertMinute(pick.alert_minute !== null ? String(pick.alert_minute) : "");
     setCategory(pick.category);
     setReason(pick.reason ?? "");
     setError(null);
@@ -63,6 +68,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
+          alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           categoryId: category.id,
         });
         setEditing(false);
@@ -122,18 +128,32 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                 />
               </div>
             ) : (
-              <div className="w-20 shrink-0">
-                <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1.01"
-                  value={oddMin}
-                  onChange={(e) => setOddMin(e.target.value)}
-                  placeholder="Odd mín."
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-                />
-              </div>
+              <>
+                <div className="w-20 shrink-0">
+                  <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    value={oddMin}
+                    onChange={(e) => setOddMin(e.target.value)}
+                    placeholder="Odd mín."
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="w-24 shrink-0">
+                  <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={alertMinute}
+                    onChange={(e) => setAlertMinute(e.target.value)}
+                    placeholder="Alerta min."
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </>
             )}
           </div>
           <textarea
@@ -180,6 +200,11 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
               {pick.bet_type === "live" && pick.odd_min !== null && (
                 <span className="ml-2 text-xs font-normal text-neutral-400">
                   entra a partir de {pick.odd_min.toFixed(2)}
+                </span>
+              )}
+              {pick.bet_type === "live" && pick.alert_minute !== null && (
+                <span className="ml-2 text-xs font-normal text-amber-400">
+                  🔔 min {pick.alert_minute}
                 </span>
               )}
             </p>

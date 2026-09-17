@@ -252,6 +252,7 @@ interface PickInput {
   betType: BetType;
   odd: number | null;
   oddMin: number | null;
+  alertMinute: number | null;
   categoryId: string | null;
 }
 
@@ -267,6 +268,9 @@ function buildPickFields(input: PickInput) {
     if (input.oddMin <= 1) {
       throw new Error("A odd tem de ser maior que 1.");
     }
+    if (input.alertMinute !== null && input.alertMinute <= 0) {
+      throw new Error("O minuto de alerta tem de ser maior que 0.");
+    }
   } else if (input.odd !== null && input.odd <= 1) {
     throw new Error("A odd tem de ser maior que 1.");
   }
@@ -277,6 +281,7 @@ function buildPickFields(input: PickInput) {
     bet_type: input.betType,
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
+    alert_minute: input.betType === "live" ? input.alertMinute : null,
     category_id: input.categoryId,
   };
 }

@@ -9,3 +9,12 @@ export function isMatchLive(matchDate: string, matchTime: string, now: Date): bo
   const diffMs = now.getTime() - kickoff.getTime();
   return diffMs >= 0 && diffMs <= LIVE_WINDOW_MS;
 }
+
+// Minutes elapsed since kickoff, or null if the match hasn't started yet.
+export function getElapsedMinutes(matchDate: string, matchTime: string, now: Date): number | null {
+  const kickoff = new Date(`${matchDate}T${matchTime}`);
+  if (Number.isNaN(kickoff.getTime())) return null;
+  const diffMs = now.getTime() - kickoff.getTime();
+  if (diffMs < 0) return null;
+  return Math.floor(diffMs / 60000);
+}

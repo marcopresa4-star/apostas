@@ -16,6 +16,7 @@ export default function AddLiveToExistingForm({
 }) {
   const [ticket, setTicket] = useState<TicketOption | null>(null);
   const [oddMin, setOddMin] = useState("");
+  const [alertMinute, setAlertMinute] = useState("");
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
@@ -43,6 +44,7 @@ export default function AddLiveToExistingForm({
           betType: "live",
           odd: null,
           oddMin: Number(oddMin),
+          alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           categoryId: category.id,
         });
         router.push("/live");
@@ -68,7 +70,7 @@ export default function AddLiveToExistingForm({
     <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
       <ExistingTicketPicker items={tickets} value={ticket} onSelect={setTicket} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr_1fr]">
         <CategoryCombobox
           label="Tipo de aposta"
           placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
@@ -87,6 +89,18 @@ export default function AddLiveToExistingForm({
             value={oddMin}
             onChange={(e) => setOddMin(e.target.value)}
             placeholder="Ex: 1.85"
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Alerta ao minuto</label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            value={alertMinute}
+            onChange={(e) => setAlertMinute(e.target.value)}
+            placeholder="Ex: 10"
             className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
           />
         </div>

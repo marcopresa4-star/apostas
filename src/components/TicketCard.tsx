@@ -18,6 +18,7 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  alert_minute: number | null;
   category: { id: string; name: string } | null;
 }
 

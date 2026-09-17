@@ -20,6 +20,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0010_live_picks.sql` (adiciona apostas "live", com odd mínima de entrada)
    - `0011_live_pick_min_odd_only.sql` (simplifica a aposta live para só odd mínima)
    - `0012_bet_categories.sql` (cria a tabela `bet_categories` — tipos de aposta reutilizáveis, ex: "Over/Under")
+   - `0013_pick_alert_minute.sql` (adiciona `alert_minute` às apostas live — alerta na dashboard ao atingir esse minuto de jogo)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`

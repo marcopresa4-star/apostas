@@ -17,6 +17,7 @@ export default function AddPickForm({
   const [open, setOpen] = useState(false);
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
+  const [alertMinute, setAlertMinute] = useState("");
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
@@ -40,6 +41,7 @@ export default function AddPickForm({
   function reset() {
     setOdd("");
     setOddMin("");
+    setAlertMinute("");
     setCategory(null);
     setReason("");
   }
@@ -63,6 +65,7 @@ export default function AddPickForm({
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
+          alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           categoryId: category.id,
         });
         reset();
@@ -101,18 +104,32 @@ export default function AddPickForm({
             />
           </div>
         ) : (
-          <div className="w-24 shrink-0">
-            <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={oddMin}
-              onChange={(e) => setOddMin(e.target.value)}
-              placeholder="Odd mín."
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
-          </div>
+          <>
+            <div className="w-24 shrink-0">
+              <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={oddMin}
+                onChange={(e) => setOddMin(e.target.value)}
+                placeholder="Odd mín."
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div className="w-24 shrink-0">
+              <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={alertMinute}
+                onChange={(e) => setAlertMinute(e.target.value)}
+                placeholder="Alerta min."
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
+            </div>
+          </>
         )}
       </div>
       <textarea
