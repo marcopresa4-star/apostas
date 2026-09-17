@@ -38,6 +38,8 @@ export default function TicketForm({
   const [odd, setOdd] = useState("");
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
+  const [sofascoreUrl, setSofascoreUrl] = useState("");
+  const [bookmakerUrl, setBookmakerUrl] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -94,6 +96,8 @@ export default function TicketForm({
           odd: odd.trim() ? Number(odd) : null,
           oddMin: null,
           alertMinute: null,
+          sofascoreUrl,
+          bookmakerUrl,
           categoryId: category.id,
         });
       } catch (err) {
@@ -186,6 +190,33 @@ export default function TicketForm({
           placeholder="Porque estás a fazer esta aposta..."
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">
+            Link SofaScore <span className="text-neutral-500">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            value={sofascoreUrl}
+            onChange={(e) => setSofascoreUrl(e.target.value)}
+            placeholder="https://www.sofascore.com/..."
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">
+            Link da casa de apostas <span className="text-neutral-500">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            value={bookmakerUrl}
+            onChange={(e) => setBookmakerUrl(e.target.value)}
+            placeholder="https://..."
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
       </div>
 
       <p className="text-xs text-neutral-500">

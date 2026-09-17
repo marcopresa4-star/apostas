@@ -18,6 +18,8 @@ interface PickCardProps {
     odd: number | null;
     odd_min: number | null;
     alert_minute: number | null;
+    sofascore_url: string | null;
+    bookmaker_url: string | null;
     category: { id: string; name: string } | null;
   };
   images: PickImageItem[];
@@ -35,6 +37,8 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(pick.category);
   const [reason, setReason] = useState(pick.reason ?? "");
+  const [sofascoreUrl, setSofascoreUrl] = useState(pick.sofascore_url ?? "");
+  const [bookmakerUrl, setBookmakerUrl] = useState(pick.bookmaker_url ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -49,6 +53,8 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
     setAlertMinute(pick.alert_minute !== null ? String(pick.alert_minute) : "");
     setCategory(pick.category);
     setReason(pick.reason ?? "");
+    setSofascoreUrl(pick.sofascore_url ?? "");
+    setBookmakerUrl(pick.bookmaker_url ?? "");
     setError(null);
     setEditing(false);
   }
@@ -69,6 +75,8 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
           alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
+          sofascoreUrl,
+          bookmakerUrl,
           categoryId: category.id,
         });
         setEditing(false);
@@ -163,6 +171,22 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             placeholder="Razão (opcional)"
             className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
           />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input
+              type="url"
+              value={sofascoreUrl}
+              onChange={(e) => setSofascoreUrl(e.target.value)}
+              placeholder="Link SofaScore (opcional)"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            />
+            <input
+              type="url"
+              value={bookmakerUrl}
+              onChange={(e) => setBookmakerUrl(e.target.value)}
+              placeholder="Link da casa de apostas (opcional)"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            />
+          </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -216,6 +240,30 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             <p className="mb-1.5 text-xs text-neutral-500">🏷️ {pick.category.name}</p>
           )}
           {pick.reason && <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>}
+          {(pick.sofascore_url || pick.bookmaker_url) && (
+            <div className="mb-2 flex flex-wrap gap-3">
+              {pick.sofascore_url && (
+                <a
+                  href={pick.sofascore_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:underline"
+                >
+                  📊 SofaScore
+                </a>
+              )}
+              {pick.bookmaker_url && (
+                <a
+                  href={pick.bookmaker_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:underline"
+                >
+                  🎰 Casa de apostas
+                </a>
+              )}
+            </div>
+          )}
           <PickImages pickId={pick.id} images={images} />
           <button
             type="button"

@@ -5,6 +5,26 @@ import { useNow } from "@/lib/useNow";
 import { isMatchLive, getElapsedMinutes } from "@/lib/matchStatus";
 import type { BetStatus } from "@/lib/database.types";
 
+const STORAGE_KEY = "apostas:dismissedAlerts";
+
+function loadDismissed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissed(ids: Set<string>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(ids)));
+  } catch {
+    // Ignore storage failures (private mode, quota, etc.) — dismissal just
+    // won't survive a reload in that case.
+  }
+}
+
 interface Pick {
   id: string;
   selection: string;
@@ -23,7 +43,9 @@ interface Ticket {
 
 export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
   const now = useNow();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<Set<string>>(() =>
+    typeof window === "undefined" ? new Set() : loadDismissed()
+  );
 
   if (!now) return null;
 
@@ -42,7 +64,11 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
   if (alerts.length === 0) return null;
 
   function dismiss(pickId: string) {
-    setDismissed((prev) => new Set(prev).add(pickId));
+    setDismissed((prev) => {
+      const next = new Set(prev).add(pickId);
+      saveDismissed(next);
+      return next;
+    });
   }
 
   return (

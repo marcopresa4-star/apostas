@@ -21,6 +21,8 @@ export default function AddPickForm({
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
+  const [sofascoreUrl, setSofascoreUrl] = useState("");
+  const [bookmakerUrl, setBookmakerUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -42,6 +44,8 @@ export default function AddPickForm({
     setOdd("");
     setOddMin("");
     setAlertMinute("");
+    setSofascoreUrl("");
+    setBookmakerUrl("");
     setCategory(null);
     setReason("");
   }
@@ -66,6 +70,8 @@ export default function AddPickForm({
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
           alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
+          sofascoreUrl,
+          bookmakerUrl,
           categoryId: category.id,
         });
         reset();
@@ -139,6 +145,22 @@ export default function AddPickForm({
         placeholder="Razão (opcional)"
         className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
       />
+      <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <input
+          type="url"
+          value={sofascoreUrl}
+          onChange={(e) => setSofascoreUrl(e.target.value)}
+          placeholder="Link SofaScore (opcional)"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+        />
+        <input
+          type="url"
+          value={bookmakerUrl}
+          onChange={(e) => setBookmakerUrl(e.target.value)}
+          placeholder="Link da casa de apostas (opcional)"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+        />
+      </div>
       {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
       <div className="flex gap-2">
         <button

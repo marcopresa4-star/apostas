@@ -253,6 +253,8 @@ interface PickInput {
   odd: number | null;
   oddMin: number | null;
   alertMinute: number | null;
+  sofascoreUrl: string;
+  bookmakerUrl: string;
   categoryId: string | null;
 }
 
@@ -282,6 +284,8 @@ function buildPickFields(input: PickInput) {
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
     alert_minute: input.betType === "live" ? input.alertMinute : null,
+    sofascore_url: input.sofascoreUrl.trim() || null,
+    bookmaker_url: input.bookmakerUrl.trim() || null,
     category_id: input.categoryId,
   };
 }

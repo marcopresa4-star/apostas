@@ -20,6 +20,8 @@ export default function AddLiveToExistingForm({
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
+  const [sofascoreUrl, setSofascoreUrl] = useState("");
+  const [bookmakerUrl, setBookmakerUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -45,6 +47,8 @@ export default function AddLiveToExistingForm({
           odd: null,
           oddMin: Number(oddMin),
           alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
+          sofascoreUrl,
+          bookmakerUrl,
           categoryId: category.id,
         });
         router.push("/live");
@@ -115,6 +119,33 @@ export default function AddLiveToExistingForm({
           placeholder="O que estás a vigiar neste jogo..."
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">
+            Link SofaScore <span className="text-neutral-500">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            value={sofascoreUrl}
+            onChange={(e) => setSofascoreUrl(e.target.value)}
+            placeholder="https://www.sofascore.com/..."
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">
+            Link da casa de apostas <span className="text-neutral-500">(opcional)</span>
+          </label>
+          <input
+            type="url"
+            value={bookmakerUrl}
+            onChange={(e) => setBookmakerUrl(e.target.value)}
+            placeholder="https://..."
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+          />
+        </div>
       </div>
 
       {error && (

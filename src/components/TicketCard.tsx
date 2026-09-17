@@ -19,6 +19,8 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   alert_minute: number | null;
+  sofascore_url: string | null;
+  bookmaker_url: string | null;
   category: { id: string; name: string } | null;
 }
 
