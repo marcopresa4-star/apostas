@@ -8,7 +8,6 @@ import type { PickImageItem } from "./PickImages";
 import type { TagItem } from "./CategoryCombobox";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
-import { useSportscoreLive } from "@/lib/useSportscoreLive";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
@@ -48,16 +47,7 @@ export default function TicketCard({
   initialCategories: TagItem[];
 }) {
   const now = useNow();
-  const heuristicLive = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
-  const liveData = useSportscoreLive(
-    heuristicLive ? (ticket.home_team?.name ?? null) : null,
-    heuristicLive ? (ticket.away_team?.name ?? null) : null
-  );
-  const live = liveData ? liveData.isLive : heuristicLive;
-  const liveScore =
-    liveData?.isLive && liveData.homeScore !== null && liveData.awayScore !== null
-      ? `${liveData.homeScore}-${liveData.awayScore}`
-      : null;
+  const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
 
   return (
     <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 hover:z-20">
@@ -76,12 +66,7 @@ export default function TicketCard({
             {live && (
               <span className="flex items-center gap-1 text-xs font-semibold text-red-400">
                 <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
-                {liveData?.isLive && liveData.minuteLabel
-                  ? /^\d+$/.test(liveData.minuteLabel)
-                    ? `${liveData.minuteLabel}'`
-                    : liveData.minuteLabel
-                  : "Em direto"}
-                {liveScore && <span className="text-neutral-300">· {liveScore}</span>}
+                Em direto
               </span>
             )}
           </p>
