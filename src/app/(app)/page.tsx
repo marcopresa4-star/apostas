@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import TicketCard from "@/components/TicketCard";
+import StatRanking, { type RankRow } from "@/components/StatRanking";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -38,6 +39,37 @@ function todayISODate() {
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+const MONTHS = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
+];
+
+function bump(map: Map<string, { green: number; red: number }>, key: string, status: "green" | "red") {
+  const entry = map.get(key) ?? { green: 0, red: 0 };
+  entry[status]++;
+  map.set(key, entry);
+}
+
+function toRankedRows(
+  map: Map<string, { green: number; red: number }>,
+  limit?: number
+): RankRow[] {
+  const rows = Array.from(map.entries()).map(([label, v]) => ({ label, ...v }));
+  rows.sort((a, b) => b.green - a.green || b.green + b.red - (a.green + a.red));
+  return limit ? rows.slice(0, limit) : rows;
 }
 
 export default async function DashboardPage() {
@@ -94,6 +126,37 @@ export default async function DashboardPage() {
   const liveTickets = all
     .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
     .filter((t) => t.picks.length > 0);
+
+  const teamMap = new Map<string, { green: number; red: number }>();
+  const competitionMap = new Map<string, { green: number; red: number }>();
+  const weekdayMap = new Map<string, { green: number; red: number }>();
+  const monthMap = new Map<string, { green: number; red: number }>();
+
+  for (const ticket of all) {
+    const resolvedPicks = ticket.picks.filter(
+      (p) => p.bet_type === "pre_jogo" && (p.status === "green" || p.status === "red")
+    );
+    if (resolvedPicks.length === 0) continue;
+
+    const date = new Date(`${ticket.match_date}T00:00:00`);
+    const weekday = WEEKDAYS[date.getDay()];
+    const month = MONTHS[date.getMonth()];
+
+    for (const pick of resolvedPicks) {
+      const status = pick.status as "green" | "red";
+      if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, status);
+      if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
+      if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
+      bump(weekdayMap, weekday, status);
+      bump(monthMap, month, status);
+    }
+  }
+
+  const topTeams = toRankedRows(teamMap, 5);
+  const topCompetitions = toRankedRows(competitionMap, 5);
+  const weekdayRows = toRankedRows(weekdayMap);
+  const monthRows = toRankedRows(monthMap);
+  const hasPerformanceData = topTeams.length > 0;
 
   return (
     <div>
@@ -193,6 +256,18 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      {hasPerformanceData && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <StatRanking title="Equipas" rows={topTeams} />
+            <StatRanking title="Competições" rows={topCompetitions} />
+            <StatRanking title="Dia da semana" rows={weekdayRows} />
+            <StatRanking title="Mês" rows={monthRows} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
