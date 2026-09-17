@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive, getElapsedMinutes } from "@/lib/matchStatus";
+import { useSofascoreLive } from "@/lib/useSofascoreLive";
 import type { BetStatus } from "@/lib/database.types";
 
 const STORAGE_KEY = "apostas:dismissedAlerts";
@@ -30,6 +31,7 @@ interface Pick {
   selection: string;
   status: BetStatus;
   alert_minute: number | null;
+  sofascore_url: string | null;
 }
 
 interface Ticket {
@@ -49,19 +51,20 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
 
   if (!now) return null;
 
-  const alerts: { ticket: Ticket; pick: Pick; elapsed: number }[] = [];
+  // Heuristic gate only (kickoff-time window): decides which picks are
+  // worth polling/checking at all. The actual alert-minute comparison, once
+  // real SofaScore data is available, happens inside AlertCard.
+  const candidates: { ticket: Ticket; pick: Pick }[] = [];
   for (const ticket of tickets) {
     if (!isMatchLive(ticket.match_date, ticket.match_time, now)) continue;
-    const elapsed = getElapsedMinutes(ticket.match_date, ticket.match_time, now);
-    if (elapsed === null) continue;
     for (const pick of ticket.picks) {
       if (pick.status !== "pending" || pick.alert_minute === null) continue;
       if (dismissed.has(pick.id)) continue;
-      if (elapsed >= pick.alert_minute) alerts.push({ ticket, pick, elapsed });
+      candidates.push({ ticket, pick });
     }
   }
 
-  if (alerts.length === 0) return null;
+  if (candidates.length === 0) return null;
 
   function dismiss(pickId: string) {
     setDismissed((prev) => {
@@ -73,37 +76,67 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
 
   return (
     <div className="mb-6 space-y-2">
-      {alerts.map(({ ticket, pick, elapsed }) => (
-        <div
-          key={pick.id}
-          className="flex items-center gap-3 rounded-xl border border-amber-600/50 bg-gradient-to-r from-amber-950 to-neutral-900 px-4 py-3 shadow-lg shadow-amber-900/20"
-        >
-          <span
-            aria-hidden
-            className="flex h-8 w-8 shrink-0 animate-pulse items-center justify-center rounded-full bg-amber-500/20 text-lg"
-          >
-            🔔
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-amber-200">
-              {ticket.home_team?.name} <span className="text-amber-400/70">vs</span>{" "}
-              {ticket.away_team?.name} · {elapsed}&apos;
-            </p>
-            <p className="truncate text-xs text-amber-300/80">
-              {pick.selection} — chegou ao minuto {pick.alert_minute}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => dismiss(pick.id)}
-            aria-label="Dispensar notificação"
-            title="Já vi, dispensar"
-            className="shrink-0 rounded-lg p-1.5 text-amber-400/70 transition hover:bg-amber-500/10 hover:text-amber-200"
-          >
-            ✕
-          </button>
-        </div>
+      {candidates.map(({ ticket, pick }) => (
+        <AlertCard key={pick.id} ticket={ticket} pick={pick} onDismiss={() => dismiss(pick.id)} />
       ))}
+    </div>
+  );
+}
+
+function AlertCard({
+  ticket,
+  pick,
+  onDismiss,
+}: {
+  ticket: Ticket;
+  pick: Pick;
+  onDismiss: () => void;
+}) {
+  const now = useNow();
+  const sofascoreData = useSofascoreLive(pick.sofascore_url);
+
+  if (!now) return null;
+
+  let elapsed: number | null;
+  let liveScore: string | null = null;
+  if (sofascoreData) {
+    elapsed = sofascoreData.status === "inprogress" ? sofascoreData.minute : null;
+    if (sofascoreData.homeScore !== null && sofascoreData.awayScore !== null) {
+      liveScore = `${sofascoreData.homeScore}-${sofascoreData.awayScore}`;
+    }
+  } else {
+    elapsed = getElapsedMinutes(ticket.match_date, ticket.match_time, now);
+  }
+
+  if (elapsed === null || pick.alert_minute === null || elapsed < pick.alert_minute) return null;
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-amber-600/50 bg-gradient-to-r from-amber-950 to-neutral-900 px-4 py-3 shadow-lg shadow-amber-900/20">
+      <span
+        aria-hidden
+        className="flex h-8 w-8 shrink-0 animate-pulse items-center justify-center rounded-full bg-amber-500/20 text-lg"
+      >
+        🔔
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-amber-200">
+          {ticket.home_team?.name} <span className="text-amber-400/70">vs</span>{" "}
+          {ticket.away_team?.name} · {elapsed}&apos;
+          {liveScore && <span className="text-amber-300/70"> · {liveScore}</span>}
+        </p>
+        <p className="truncate text-xs text-amber-300/80">
+          {pick.selection} — chegou ao minuto {pick.alert_minute}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dispensar notificação"
+        title="Já vi, dispensar"
+        className="shrink-0 rounded-lg p-1.5 text-amber-400/70 transition hover:bg-amber-500/10 hover:text-amber-200"
+      >
+        ✕
+      </button>
     </div>
   );
 }

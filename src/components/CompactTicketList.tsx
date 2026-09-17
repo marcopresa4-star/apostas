@@ -2,6 +2,7 @@
 
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
+import { useSofascoreLive } from "@/lib/useSofascoreLive";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -41,38 +42,61 @@ export default function CompactTicketList({
   tickets: Ticket[];
   imagesByPick?: Record<string, PickImageItem[]>;
 }) {
-  const now = useNow();
-
   return (
     <div className="space-y-2">
-      {tickets.map((ticket) => {
-        const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
-        return (
-          <div
-            key={ticket.id}
-            className="relative rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 hover:z-20"
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <p className="min-w-0 truncate text-sm font-medium text-neutral-100">
-                {ticket.home_team?.name} <span className="text-neutral-500">vs</span>{" "}
-                {ticket.away_team?.name}
-              </p>
-              {live ? (
-                <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-red-400">
-                  <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
-                  Em direto
-                </span>
-              ) : (
-                <span className="shrink-0 text-xs text-neutral-500">
-                  {ticket.match_time?.slice(0, 5)}
-                </span>
-              )}
-            </div>
-            <p className="mb-1.5 truncate text-[11px] uppercase tracking-wide text-neutral-500">
-              {ticket.competition?.name}
-            </p>
-            <div className="space-y-1">
-              {ticket.picks.map((pick) => {
+      {tickets.map((ticket) => (
+        <TicketRow key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
+      ))}
+    </div>
+  );
+}
+
+function TicketRow({
+  ticket,
+  imagesByPick,
+}: {
+  ticket: Ticket;
+  imagesByPick: Record<string, PickImageItem[]>;
+}) {
+  const now = useNow();
+  const heuristicLive = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
+  const sofascoreUrl = ticket.picks.find((p) => p.sofascore_url)?.sofascore_url ?? null;
+  const sofascoreData = useSofascoreLive(sofascoreUrl);
+
+  const live = sofascoreData ? sofascoreData.status === "inprogress" : heuristicLive;
+  const liveScore =
+    sofascoreData?.status === "inprogress" &&
+    sofascoreData.homeScore !== null &&
+    sofascoreData.awayScore !== null
+      ? `${sofascoreData.homeScore}-${sofascoreData.awayScore}`
+      : null;
+
+  return (
+    <div className="relative rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 hover:z-20">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-medium text-neutral-100">
+          {ticket.home_team?.name} <span className="text-neutral-500">vs</span>{" "}
+          {ticket.away_team?.name}
+        </p>
+        {live ? (
+          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-red-400">
+            <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+            {sofascoreData?.minute !== null && sofascoreData?.minute !== undefined
+              ? `${sofascoreData.minute}'`
+              : "Em direto"}
+            {liveScore && <span className="text-neutral-300">· {liveScore}</span>}
+          </span>
+        ) : (
+          <span className="shrink-0 text-xs text-neutral-500">
+            {ticket.match_time?.slice(0, 5)}
+          </span>
+        )}
+      </div>
+      <p className="mb-1.5 truncate text-[11px] uppercase tracking-wide text-neutral-500">
+        {ticket.competition?.name}
+      </p>
+      <div className="space-y-1">
+        {ticket.picks.map((pick) => {
                 const images = imagesByPick[pick.id] ?? [];
                 const hasLinks = Boolean(pick.sofascore_url) || Boolean(pick.bookmaker_url);
                 const hasDetails = Boolean(pick.reason) || images.length > 0 || hasLinks;
@@ -151,10 +175,7 @@ export default function CompactTicketList({
                   </div>
                 );
               })}
-            </div>
-          </div>
-        );
-      })}
+      </div>
     </div>
   );
 }
