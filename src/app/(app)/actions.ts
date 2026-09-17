@@ -257,6 +257,32 @@ export async function markTicketLiveEnded(ticketId: string) {
   revalidateAll();
 }
 
+export async function addWatchedMatch(homeTeam: string, awayTeam: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+
+  const home = homeTeam.trim();
+  const away = awayTeam.trim();
+  if (!home || !away) throw new Error("Indica as duas equipas.");
+
+  const { error } = await supabase
+    .from("watched_matches")
+    .insert({ user_id: user.id, home_team: home, away_team: away });
+
+  if (error) throw error;
+  revalidateAll();
+}
+
+export async function removeWatchedMatch(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("watched_matches").delete().eq("id", id);
+  if (error) throw error;
+  revalidateAll();
+}
+
 interface PickInput {
   selection: string;
   reason: string;

@@ -41,6 +41,12 @@ interface TicketRow {
   picks: Pick[];
 }
 
+interface WatchedMatchRow {
+  id: string;
+  home_team: string;
+  away_team: string;
+}
+
 function todayISODate() {
   const now = new Date();
   const y = now.getFullYear();
@@ -52,18 +58,25 @@ function todayISODate() {
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  const { data: tickets, error } = await supabase
-    .from("tickets")
-    .select(
-      `id, match_date, match_time, live_ended,
-       competition:competitions(id, name, country:countries(name)),
-       home_team:teams!tickets_home_team_id_fkey(id, name),
-       away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, sofascore_url, bookmaker_url, category:bet_categories(id, name), pick_images(id, image_path))`
-    )
-    .order("match_date", { ascending: true })
-    .order("match_time", { ascending: true })
-    .returns<TicketRow[]>();
+  const [{ data: tickets, error }, { data: watchedMatches }] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select(
+        `id, match_date, match_time, live_ended,
+         competition:competitions(id, name, country:countries(name)),
+         home_team:teams!tickets_home_team_id_fkey(id, name),
+         away_team:teams!tickets_away_team_id_fkey(id, name),
+         picks(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, sofascore_url, bookmaker_url, category:bet_categories(id, name), pick_images(id, image_path))`
+      )
+      .order("match_date", { ascending: true })
+      .order("match_time", { ascending: true })
+      .returns<TicketRow[]>(),
+    supabase
+      .from("watched_matches")
+      .select("id, home_team, away_team")
+      .order("created_at", { ascending: true })
+      .returns<WatchedMatchRow[]>(),
+  ]);
 
   const todayISO = todayISODate();
   const all = tickets ?? [];
@@ -185,7 +198,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <LiveWidgetsPanel tickets={liveWidgetCandidates} />
+      <LiveWidgetsPanel tickets={liveWidgetCandidates} watched={watchedMatches ?? []} />
     </div>
   );
 }

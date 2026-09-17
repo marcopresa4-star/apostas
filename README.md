@@ -23,6 +23,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0013_pick_alert_minute.sql` (adiciona `alert_minute` às apostas live — alerta na dashboard ao atingir esse minuto de jogo)
    - `0014_pick_links.sql` (adiciona `sofascore_url` e `bookmaker_url` opcionais a cada aposta)
    - `0015_ticket_live_ended.sql` (adiciona `live_ended` aos jogos — marcar manualmente um jogo como terminado)
+   - `0016_watched_matches.sql` (cria a tabela `watched_matches` — adicionar um widget de um jogo sem aposta)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`
