@@ -2,12 +2,13 @@
 
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
-import type { BetStatus } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
   id: string;
   selection: string;
   status: BetStatus;
+  bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
 }
@@ -67,6 +68,11 @@ export default function CompactTicketList({ tickets }: { tickets: Ticket[] }) {
                     aria-hidden
                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[pick.status]}`}
                   />
+                  {pick.bet_type === "live" && (
+                    <span className="shrink-0 rounded bg-sky-950 px-1 text-[9px] font-semibold text-sky-300">
+                      LIVE
+                    </span>
+                  )}
                   <span className="min-w-0 flex-1 truncate">{pick.selection}</span>
                   {pick.odd !== null && (
                     <span className="shrink-0 text-neutral-500">@{pick.odd.toFixed(2)}</span>

@@ -67,12 +67,12 @@ export default async function DashboardPage() {
   const todayISO = todayISODate();
   const all = tickets ?? [];
 
-  const preJogoPicks = all.flatMap((t) => t.picks).filter((p) => p.bet_type === "pre_jogo");
+  const allPicks = all.flatMap((t) => t.picks);
   const stats = {
-    total: preJogoPicks.length,
-    green: preJogoPicks.filter((p) => p.status === "green").length,
-    red: preJogoPicks.filter((p) => p.status === "red").length,
-    pending: preJogoPicks.filter((p) => p.status === "pending").length,
+    total: allPicks.length,
+    green: allPicks.filter((p) => p.status === "green").length,
+    red: allPicks.filter((p) => p.status === "red").length,
+    pending: allPicks.filter((p) => p.status === "pending").length,
   };
 
   const todayTickets = all
@@ -90,12 +90,11 @@ export default async function DashboardPage() {
   const ticketsByDay: Record<string, typeof todayTickets> = {};
 
   for (const ticket of all) {
-    const preJogoPicks = ticket.picks.filter((p) => p.bet_type === "pre_jogo");
-    if (preJogoPicks.length === 0) continue;
+    if (ticket.picks.length === 0) continue;
 
-    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: preJogoPicks });
+    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: ticket.picks });
 
-    const resolvedPicks = preJogoPicks.filter(
+    const resolvedPicks = ticket.picks.filter(
       (p) => p.status === "green" || p.status === "red"
     );
     if (resolvedPicks.length === 0) continue;

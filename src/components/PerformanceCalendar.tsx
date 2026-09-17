@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import CompactTicketList from "./CompactTicketList";
-import type { BetStatus } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface DayStat {
   green: number;
@@ -13,6 +13,7 @@ interface Pick {
   id: string;
   selection: string;
   status: BetStatus;
+  bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
 }
