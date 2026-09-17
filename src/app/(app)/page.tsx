@@ -33,8 +33,6 @@ function todayISODate() {
   return `${y}-${m}-${d}`;
 }
 
-const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-
 function bump(map: Map<string, { green: number; red: number }>, key: string, status: "green" | "red") {
   const entry = map.get(key) ?? { green: 0, red: 0 };
   entry[status]++;
@@ -88,7 +86,6 @@ export default async function DashboardPage() {
 
   const teamMap = new Map<string, { green: number; red: number }>();
   const competitionMap = new Map<string, { green: number; red: number }>();
-  const weekdayMap = new Map<string, { green: number; red: number }>();
   const dayStats: Record<string, { green: number; red: number }> = {};
 
   for (const ticket of all) {
@@ -97,8 +94,6 @@ export default async function DashboardPage() {
     );
     if (resolvedPicks.length === 0) continue;
 
-    const date = new Date(`${ticket.match_date}T00:00:00`);
-    const weekday = WEEKDAYS[date.getDay()];
     const dayEntry = dayStats[ticket.match_date] ?? { green: 0, red: 0 };
 
     for (const pick of resolvedPicks) {
@@ -106,7 +101,6 @@ export default async function DashboardPage() {
       if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, status);
       if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
       if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
-      bump(weekdayMap, weekday, status);
       dayEntry[status]++;
     }
 
@@ -115,7 +109,6 @@ export default async function DashboardPage() {
 
   const topTeams = toRankedRows(teamMap, 5);
   const topCompetitions = toRankedRows(competitionMap, 5);
-  const weekdayRows = toRankedRows(weekdayMap);
   const hasPerformanceData = topTeams.length > 0;
 
   return (
@@ -207,10 +200,7 @@ export default async function DashboardPage() {
             <StatRanking title="Equipas" rows={topTeams} />
             <StatRanking title="Competições" rows={topCompetitions} />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_2fr]">
-            <StatRanking title="Dia da semana" rows={weekdayRows} />
-            <PerformanceCalendar dayStats={dayStats} />
-          </div>
+          <PerformanceCalendar dayStats={dayStats} />
         </div>
       )}
     </div>

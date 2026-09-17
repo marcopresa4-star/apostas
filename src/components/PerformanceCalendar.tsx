@@ -34,10 +34,9 @@ function cellStyle(stat: DayStat | undefined) {
   if (total === 0) {
     return "border-neutral-800 bg-neutral-950 text-neutral-600";
   }
-  const winRate = stat!.green / total;
-  if (winRate >= 0.7) return "border-emerald-700 bg-emerald-950 text-emerald-300";
-  if (winRate <= 0.3) return "border-red-700 bg-red-950 text-red-300";
-  return "border-amber-700 bg-amber-950 text-amber-300";
+  if (stat!.green > stat!.red) return "border-emerald-700 bg-emerald-950 text-neutral-100";
+  if (stat!.red > stat!.green) return "border-red-700 bg-red-950 text-neutral-100";
+  return "border-neutral-700 bg-neutral-800 text-neutral-100";
 }
 
 export default function PerformanceCalendar({
@@ -118,7 +117,8 @@ export default function PerformanceCalendar({
               <span className="font-medium">{day}</span>
               {total > 0 && (
                 <span className="text-[9px] leading-tight">
-                  {stat!.green}G {stat!.red}R
+                  <span className="text-emerald-400">{stat!.green}G</span>{" "}
+                  <span className="text-red-400">{stat!.red}R</span>
                 </span>
               )}
             </div>
