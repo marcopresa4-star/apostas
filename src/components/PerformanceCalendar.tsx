@@ -1,10 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import CompactTicketList from "./CompactTicketList";
+import type { BetStatus } from "@/lib/database.types";
 
 interface DayStat {
   green: number;
   red: number;
+}
+
+interface Pick {
+  id: string;
+  selection: string;
+  status: BetStatus;
+  odd: number | null;
+  odd_min: number | null;
+}
+
+interface DayTicket {
+  id: string;
+  match_date: string;
+  match_time: string;
+  competition: { name: string } | null;
+  home_team: { name: string } | null;
+  away_team: { name: string } | null;
+  picks: Pick[];
 }
 
 const WEEKDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -29,26 +49,37 @@ function toISODate(year: number, month: number, day: number) {
   return `${year}-${mm}-${dd}`;
 }
 
-function cellStyle(stat: DayStat | undefined) {
+function cellStyle(stat: DayStat | undefined, hasTickets: boolean, isSelected: boolean) {
   const total = stat ? stat.green + stat.red : 0;
+  let base: string;
   if (total === 0) {
-    return "border-neutral-800 bg-neutral-950 text-neutral-600";
+    base = "border-neutral-800 bg-neutral-950 text-neutral-600";
+  } else if (stat!.green > stat!.red) {
+    base = "border-emerald-700 bg-emerald-950 text-neutral-100";
+  } else if (stat!.red > stat!.green) {
+    base = "border-red-700 bg-red-950 text-neutral-100";
+  } else {
+    base = "border-neutral-700 bg-neutral-800 text-neutral-100";
   }
-  if (stat!.green > stat!.red) return "border-emerald-700 bg-emerald-950 text-neutral-100";
-  if (stat!.red > stat!.green) return "border-red-700 bg-red-950 text-neutral-100";
-  return "border-neutral-700 bg-neutral-800 text-neutral-100";
+  if (isSelected) base += " ring-2 ring-sky-400";
+  if (hasTickets) base += " cursor-pointer hover:brightness-125";
+  return base;
 }
 
 export default function PerformanceCalendar({
   dayStats,
+  ticketsByDay,
 }: {
   dayStats: Record<string, DayStat>;
+  ticketsByDay: Record<string, DayTicket[]>;
 }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [selected, setSelected] = useState<string | null>(null);
 
   function prevMonth() {
+    setSelected(null);
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear((y) => y - 1);
@@ -58,6 +89,7 @@ export default function PerformanceCalendar({
   }
 
   function nextMonth() {
+    setSelected(null);
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear((y) => y + 1);
@@ -73,6 +105,8 @@ export default function PerformanceCalendar({
     ...Array(leadingBlanks).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
+
+  const selectedTickets = selected ? (ticketsByDay[selected] ?? []) : [];
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -108,11 +142,15 @@ export default function PerformanceCalendar({
           const iso = toISODate(viewYear, viewMonth, day);
           const stat = dayStats[iso];
           const total = stat ? stat.green + stat.red : 0;
+          const hasTickets = (ticketsByDay[iso] ?? []).length > 0;
           return (
-            <div
+            <button
               key={iso}
+              type="button"
+              disabled={!hasTickets}
+              onClick={() => setSelected((prev) => (prev === iso ? null : iso))}
               title={total > 0 ? `${stat!.green} Green · ${stat!.red} Red` : undefined}
-              className={`flex flex-col items-center justify-center rounded-lg border py-1.5 text-[11px] ${cellStyle(stat)}`}
+              className={`flex flex-col items-center justify-center rounded-lg border py-1.5 text-[11px] transition ${cellStyle(stat, hasTickets, selected === iso)}`}
             >
               <span className="font-medium">{day}</span>
               {total > 0 && (
@@ -121,10 +159,36 @@ export default function PerformanceCalendar({
                   <span className="text-red-400">{stat!.red}R</span>
                 </span>
               )}
-            </div>
+            </button>
           );
         })}
       </div>
+
+      {selected && (
+        <div className="mt-3 border-t border-neutral-800 pt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-medium text-neutral-200">
+              {new Date(`${selected}T00:00:00`).toLocaleDateString("pt-PT", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="text-xs text-neutral-500 hover:text-white"
+            >
+              Fechar ✕
+            </button>
+          </div>
+          {selectedTickets.length === 0 ? (
+            <p className="text-sm text-neutral-500">Sem apostas neste dia.</p>
+          ) : (
+            <CompactTicketList tickets={selectedTickets} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

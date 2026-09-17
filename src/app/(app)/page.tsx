@@ -87,10 +87,16 @@ export default async function DashboardPage() {
   const teamMap = new Map<string, { green: number; red: number }>();
   const competitionMap = new Map<string, { green: number; red: number }>();
   const dayStats: Record<string, { green: number; red: number }> = {};
+  const ticketsByDay: Record<string, typeof todayTickets> = {};
 
   for (const ticket of all) {
-    const resolvedPicks = ticket.picks.filter(
-      (p) => p.bet_type === "pre_jogo" && (p.status === "green" || p.status === "red")
+    const preJogoPicks = ticket.picks.filter((p) => p.bet_type === "pre_jogo");
+    if (preJogoPicks.length === 0) continue;
+
+    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: preJogoPicks });
+
+    const resolvedPicks = preJogoPicks.filter(
+      (p) => p.status === "green" || p.status === "red"
     );
     if (resolvedPicks.length === 0) continue;
 
@@ -200,7 +206,7 @@ export default async function DashboardPage() {
             <StatRanking title="Equipas" rows={topTeams} />
             <StatRanking title="Competições" rows={topCompetitions} />
           </div>
-          <PerformanceCalendar dayStats={dayStats} />
+          <PerformanceCalendar dayStats={dayStats} ticketsByDay={ticketsByDay} />
         </div>
       )}
     </div>
