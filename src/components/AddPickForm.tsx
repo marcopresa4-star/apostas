@@ -15,7 +15,6 @@ export default function AddPickForm({
   initialCategories: TagItem[];
 }) {
   const [open, setOpen] = useState(false);
-  const [selection, setSelection] = useState("");
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
   const [categories, setCategories] = useState(initialCategories);
@@ -39,7 +38,6 @@ export default function AddPickForm({
   }
 
   function reset() {
-    setSelection("");
     setOdd("");
     setOddMin("");
     setCategory(null);
@@ -52,16 +50,20 @@ export default function AddPickForm({
 
   function handleSubmit() {
     setError(null);
+    if (!category?.id) {
+      setError("Seleciona ou cria o tipo de aposta.");
+      return;
+    }
     startTransition(async () => {
       try {
         await addPick({
           ticketId,
-          selection,
+          selection: category.name,
           reason,
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
-          categoryId: category?.id ?? null,
+          categoryId: category.id,
         });
         reset();
         setOpen(false);
@@ -74,46 +76,44 @@ export default function AddPickForm({
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
       <div className="mb-2 flex gap-2">
-        <input
-          type="text"
-          autoFocus
-          value={selection}
-          onChange={(e) => setSelection(e.target.value)}
-          placeholder={betType === "live" ? "Ex: Próximo a marcar: Casa" : "Ex: Ambas marcam"}
-          className="w-full flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-        />
+        <div className="min-w-0 flex-1">
+          <CategoryCombobox
+            label="Tipo de aposta"
+            placeholder="Ex: Over/Under, Ambas Marcam..."
+            items={categories}
+            value={category}
+            onSelect={setCategory}
+            createAction={createBetCategory}
+            onCreated={addCategory}
+          />
+        </div>
         {betType === "pre_jogo" ? (
-          <input
-            type="number"
-            step="0.01"
-            min="1.01"
-            value={odd}
-            onChange={(e) => setOdd(e.target.value)}
-            placeholder="Odd"
-            className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-          />
+          <div className="w-20 shrink-0">
+            <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+            <input
+              type="number"
+              step="0.01"
+              min="1.01"
+              value={odd}
+              onChange={(e) => setOdd(e.target.value)}
+              placeholder="Odd"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            />
+          </div>
         ) : (
-          <input
-            type="number"
-            step="0.01"
-            min="1.01"
-            value={oddMin}
-            onChange={(e) => setOddMin(e.target.value)}
-            placeholder="Odd mín."
-            className="w-24 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-          />
+          <div className="w-24 shrink-0">
+            <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+            <input
+              type="number"
+              step="0.01"
+              min="1.01"
+              value={oddMin}
+              onChange={(e) => setOddMin(e.target.value)}
+              placeholder="Odd mín."
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            />
+          </div>
         )}
-      </div>
-      <div className="mb-2">
-        <CategoryCombobox
-          label="Tipo de aposta (opcional)"
-          placeholder="Ex: Over/Under, Ambas Marcam..."
-          items={categories}
-          value={category}
-          onSelect={setCategory}
-          createAction={createBetCategory}
-          onCreated={addCategory}
-        />
       </div>
       <textarea
         value={reason}

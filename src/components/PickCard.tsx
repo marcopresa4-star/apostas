@@ -26,7 +26,6 @@ interface PickCardProps {
 export default function PickCard({ pick, images, initialCategories }: PickCardProps) {
   const [editing, setEditing] = useState(false);
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
-  const [selection, setSelection] = useState(pick.selection);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
   const [categories, setCategories] = useState(initialCategories);
@@ -41,7 +40,6 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
 
   function cancelEdit() {
     setBetType(pick.bet_type);
-    setSelection(pick.selection);
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
     setCategory(pick.category);
@@ -52,16 +50,20 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
 
   function handleSave() {
     setError(null);
+    if (!category?.id) {
+      setError("Seleciona ou cria o tipo de aposta.");
+      return;
+    }
     startTransition(async () => {
       try {
         await updatePick({
           pickId: pick.id,
-          selection,
+          selection: category.name,
           reason,
           betType,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
-          categoryId: category?.id ?? null,
+          categoryId: category.id,
         });
         setEditing(false);
       } catch (err) {
@@ -95,44 +97,45 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             </button>
           </div>
           <div className="flex gap-2">
-            <input
-              type="text"
-              autoFocus
-              value={selection}
-              onChange={(e) => setSelection(e.target.value)}
-              className="w-full flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
+            <div className="min-w-0 flex-1">
+              <CategoryCombobox
+                label="Tipo de aposta"
+                placeholder="Ex: Over/Under, Ambas Marcam..."
+                items={categories}
+                value={category}
+                onSelect={setCategory}
+                createAction={createBetCategory}
+                onCreated={addCategory}
+              />
+            </div>
             {betType === "pre_jogo" ? (
-              <input
-                type="number"
-                step="0.01"
-                min="1.01"
-                value={odd}
-                onChange={(e) => setOdd(e.target.value)}
-                placeholder="Odd"
-                className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-              />
+              <div className="w-20 shrink-0">
+                <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1.01"
+                  value={odd}
+                  onChange={(e) => setOdd(e.target.value)}
+                  placeholder="Odd"
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                />
+              </div>
             ) : (
-              <input
-                type="number"
-                step="0.01"
-                min="1.01"
-                value={oddMin}
-                onChange={(e) => setOddMin(e.target.value)}
-                placeholder="Odd mín."
-                className="w-20 shrink-0 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-              />
+              <div className="w-20 shrink-0">
+                <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1.01"
+                  value={oddMin}
+                  onChange={(e) => setOddMin(e.target.value)}
+                  placeholder="Odd mín."
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                />
+              </div>
             )}
           </div>
-          <CategoryCombobox
-            label="Tipo de aposta (opcional)"
-            placeholder="Ex: Over/Under, Ambas Marcam..."
-            items={categories}
-            value={category}
-            onSelect={setCategory}
-            createAction={createBetCategory}
-            onCreated={addCategory}
-          />
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -184,7 +187,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
               <StatusBadge status={pick.status} />
             </div>
           </div>
-          {pick.category && (
+          {pick.category && pick.category.name !== pick.selection && (
             <p className="mb-1.5 text-xs text-neutral-500">🏷️ {pick.category.name}</p>
           )}
           {pick.reason && <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>}

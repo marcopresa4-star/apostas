@@ -35,7 +35,6 @@ export default function LiveWatchForm({
   const [awayTeam, setAwayTeam] = useState<ComboItem | null>(null);
   const [matchDate, setMatchDate] = useState("");
   const [matchTime, setMatchTime] = useState("");
-  const [selection, setSelection] = useState("");
   const [oddMin, setOddMin] = useState("");
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
@@ -78,7 +77,7 @@ export default function LiveWatchForm({
       return setError("A equipa da casa e a equipa de fora têm de ser diferentes.");
     if (!matchDate) return setError("Indica o dia do jogo.");
     if (!matchTime) return setError("Indica a hora do jogo.");
-    if (!selection.trim()) return setError("Indica a possível aposta.");
+    if (!category?.id) return setError("Seleciona ou cria o tipo de aposta.");
     if (!oddMin.trim()) return setError("Indica a odd mínima de entrada.");
     if (Number(oddMin) <= 1) return setError("A odd tem de ser maior que 1.");
 
@@ -90,12 +89,12 @@ export default function LiveWatchForm({
           awayTeamId: awayTeam.id,
           matchDate,
           matchTime,
-          selection,
+          selection: category.name,
           reason,
           betType: "live",
           odd: null,
           oddMin: Number(oddMin),
-          categoryId: category?.id ?? null,
+          categoryId: category.id,
         });
       } catch (err) {
         if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) throw err;
@@ -155,16 +154,15 @@ export default function LiveWatchForm({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr]">
-        <div>
-          <label className="mb-1 block text-sm text-neutral-300">Possível aposta</label>
-          <input
-            type="text"
-            value={selection}
-            onChange={(e) => setSelection(e.target.value)}
-            placeholder="Ex: Próximo a marcar: Casa"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-          />
-        </div>
+        <CategoryCombobox
+          label="Tipo de aposta"
+          placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
+          items={categories}
+          value={category}
+          onSelect={setCategory}
+          createAction={createBetCategory}
+          onCreated={addCategory}
+        />
         <div>
           <label className="mb-1 block text-sm text-neutral-300">Odd mínima</label>
           <input
@@ -178,16 +176,6 @@ export default function LiveWatchForm({
           />
         </div>
       </div>
-
-      <CategoryCombobox
-        label="Tipo de aposta (opcional)"
-        placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
-        items={categories}
-        value={category}
-        onSelect={setCategory}
-        createAction={createBetCategory}
-        onCreated={addCategory}
-      />
 
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Razão (opcional)</label>
