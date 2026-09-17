@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import CompactTicketList from "./CompactTicketList";
+import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface DayStat {
@@ -12,6 +13,7 @@ interface DayStat {
 interface Pick {
   id: string;
   selection: string;
+  reason: string | null;
   status: BetStatus;
   bet_type: BetType;
   odd: number | null;
@@ -70,9 +72,11 @@ function cellStyle(stat: DayStat | undefined, hasTickets: boolean, isSelected: b
 export default function PerformanceCalendar({
   dayStats,
   ticketsByDay,
+  imagesByPick = {},
 }: {
   dayStats: Record<string, DayStat>;
   ticketsByDay: Record<string, DayTicket[]>;
+  imagesByPick?: Record<string, PickImageItem[]>;
 }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -186,7 +190,7 @@ export default function PerformanceCalendar({
           {selectedTickets.length === 0 ? (
             <p className="text-sm text-neutral-500">Sem apostas neste dia.</p>
           ) : (
-            <CompactTicketList tickets={selectedTickets} />
+            <CompactTicketList tickets={selectedTickets} imagesByPick={imagesByPick} />
           )}
         </div>
       )}

@@ -2,11 +2,13 @@
 
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
+import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
   id: string;
   selection: string;
+  reason: string | null;
   status: BetStatus;
   bet_type: BetType;
   odd: number | null;
@@ -30,7 +32,13 @@ const DOT: Record<BetStatus, string> = {
   void: "bg-amber-400",
 };
 
-export default function CompactTicketList({ tickets }: { tickets: Ticket[] }) {
+export default function CompactTicketList({
+  tickets,
+  imagesByPick = {},
+}: {
+  tickets: Ticket[];
+  imagesByPick?: Record<string, PickImageItem[]>;
+}) {
   const now = useNow();
 
   return (
@@ -62,26 +70,60 @@ export default function CompactTicketList({ tickets }: { tickets: Ticket[] }) {
               {ticket.competition?.name}
             </p>
             <div className="space-y-1">
-              {ticket.picks.map((pick) => (
-                <div key={pick.id} className="flex items-center gap-1.5 text-xs text-neutral-300">
-                  <span
-                    aria-hidden
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[pick.status]}`}
-                  />
-                  {pick.bet_type === "live" && (
-                    <span className="shrink-0 rounded bg-sky-950 px-1 text-[9px] font-semibold text-sky-300">
-                      LIVE
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{pick.selection}</span>
-                  {pick.odd !== null && (
-                    <span className="shrink-0 text-neutral-500">@{pick.odd.toFixed(2)}</span>
-                  )}
-                  {pick.odd_min !== null && (
-                    <span className="shrink-0 text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
-                  )}
-                </div>
-              ))}
+              {ticket.picks.map((pick) => {
+                const images = imagesByPick[pick.id] ?? [];
+                const hasDetails = Boolean(pick.reason) || images.length > 0;
+                return (
+                  <div key={pick.id} className="group/pick relative">
+                    <div className="flex items-center gap-1.5 text-xs text-neutral-300">
+                      <span
+                        aria-hidden
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT[pick.status]}`}
+                      />
+                      {pick.bet_type === "live" && (
+                        <span className="shrink-0 rounded bg-sky-950 px-1 text-[9px] font-semibold text-sky-300">
+                          LIVE
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{pick.selection}</span>
+                      {pick.odd !== null && (
+                        <span className="shrink-0 text-neutral-500">@{pick.odd.toFixed(2)}</span>
+                      )}
+                      {pick.odd_min !== null && (
+                        <span className="shrink-0 text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
+                      )}
+                      {hasDetails && (
+                        <span aria-hidden className="shrink-0 text-neutral-600">
+                          ⓘ
+                        </span>
+                      )}
+                    </div>
+                    {hasDetails && (
+                      <div className="invisible absolute left-0 top-full z-50 mt-1 w-64 max-w-[80vw] rounded-lg border border-neutral-700 bg-neutral-800 p-2.5 opacity-0 shadow-xl shadow-black/40 transition-all duration-150 group-hover/pick:visible group-hover/pick:opacity-100">
+                        {pick.reason && (
+                          <p className="mb-2 whitespace-pre-wrap text-xs text-neutral-300">
+                            {pick.reason}
+                          </p>
+                        )}
+                        {images.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {images.map((img) => (
+                              <a key={img.id} href={img.url} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={img.url}
+                                  alt="Print da aposta"
+                                  className="h-16 w-16 rounded-md border border-neutral-700 object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

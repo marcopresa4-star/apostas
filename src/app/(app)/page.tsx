@@ -5,16 +5,26 @@ import StatRanking, { type RankRow } from "@/components/StatRanking";
 import StatsRow from "@/components/StatsRow";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import LiveClock from "@/components/LiveClock";
+import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
+
+const IMAGE_BUCKET = "game-images";
+
+interface PickImageRow {
+  id: string;
+  image_path: string;
+}
 
 interface Pick {
   id: string;
   selection: string;
+  reason: string | null;
   status: BetStatus;
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
   category: { id: string; name: string } | null;
+  pick_images: PickImageRow[];
 }
 
 interface TicketRow {
@@ -60,7 +70,7 @@ export default async function DashboardPage() {
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, status, bet_type, odd, odd_min, category:bet_categories(id, name))`
+       picks(id, selection, reason, status, bet_type, odd, odd_min, category:bet_categories(id, name), pick_images(id, image_path))`
     )
     .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
@@ -68,6 +78,25 @@ export default async function DashboardPage() {
 
   const todayISO = todayISODate();
   const all = tickets ?? [];
+
+  const imagesByPick: Record<string, PickImageItem[]> = {};
+  const allImageRows = all.flatMap((t) =>
+    t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
+  );
+  if (allImageRows.length > 0) {
+    const signedResults = await Promise.all(
+      allImageRows.map((img) =>
+        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(img.image_path, 3600)
+      )
+    );
+    signedResults.forEach((result, i) => {
+      if (!result.data?.signedUrl) return;
+      const row = allImageRows[i];
+      const existing = imagesByPick[row.pickId] ?? [];
+      existing.push({ id: row.id, path: row.image_path, url: result.data.signedUrl });
+      imagesByPick[row.pickId] = existing;
+    });
+  }
 
   const allPicks = all.flatMap((t) => t.picks);
   const stats = {
@@ -168,7 +197,7 @@ export default async function DashboardPage() {
               Sem apostas pré-jogo registadas para hoje.
             </p>
           ) : (
-            <CompactTicketList tickets={todayTickets} />
+            <CompactTicketList tickets={todayTickets} imagesByPick={imagesByPick} />
           )}
         </div>
 
@@ -193,7 +222,7 @@ export default async function DashboardPage() {
               Sem jogos a vigiar para live.
             </p>
           ) : (
-            <CompactTicketList tickets={liveTickets} />
+            <CompactTicketList tickets={liveTickets} imagesByPick={imagesByPick} />
           )}
         </div>
       </div>
@@ -206,7 +235,11 @@ export default async function DashboardPage() {
             <StatRanking title="Competições" rows={topCompetitions} />
             <StatRanking title="Tipos de aposta" rows={topCategories} />
           </div>
-          <PerformanceCalendar dayStats={dayStats} ticketsByDay={ticketsByDay} />
+          <PerformanceCalendar
+            dayStats={dayStats}
+            ticketsByDay={ticketsByDay}
+            imagesByPick={imagesByPick}
+          />
         </div>
       )}
     </div>
