@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import LiveWatchForm from "@/components/LiveWatchForm";
+import NovaVigilanciaTabs from "@/components/NovaVigilanciaTabs";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
+import type { TicketOption } from "@/components/ExistingTicketPicker";
 
 interface NamedEntityRow {
   id: string;
@@ -9,22 +10,44 @@ interface NamedEntityRow {
   country: { name: string } | null;
 }
 
+interface ExistingTicketRow {
+  id: string;
+  match_date: string;
+  match_time: string;
+  competition: { name: string } | null;
+  home_team: { name: string } | null;
+  away_team: { name: string } | null;
+  picks: { bet_type: string }[];
+}
+
 export default async function NovaVigilanciaLivePage() {
   const supabase = await createClient();
 
-  const [{ data: countries }, { data: competitions }, { data: teams }] = await Promise.all([
-    supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
-    supabase
-      .from("competitions")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
-    supabase
-      .from("teams")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
-  ]);
+  const [{ data: countries }, { data: competitions }, { data: teams }, { data: existingTickets }] =
+    await Promise.all([
+      supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
+      supabase
+        .from("competitions")
+        .select("id, name, country:countries(name)")
+        .order("name")
+        .returns<NamedEntityRow[]>(),
+      supabase
+        .from("teams")
+        .select("id, name, country:countries(name)")
+        .order("name")
+        .returns<NamedEntityRow[]>(),
+      supabase
+        .from("tickets")
+        .select(
+          `id, match_date, match_time,
+           competition:competitions(name),
+           home_team:teams!tickets_home_team_id_fkey(name),
+           away_team:teams!tickets_away_team_id_fkey(name),
+           picks(bet_type)`
+        )
+        .order("match_date", { ascending: false })
+        .returns<ExistingTicketRow[]>(),
+    ]);
 
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
@@ -43,6 +66,16 @@ export default async function NovaVigilanciaLivePage() {
     countryName: t.country?.name ?? "",
   }));
 
+  const ticketOptions: TicketOption[] = (existingTickets ?? [])
+    .filter((t) => t.picks.some((p) => p.bet_type === "pre_jogo"))
+    .map((t) => ({
+      id: t.id,
+      label: `${t.home_team?.name ?? "?"} vs ${t.away_team?.name ?? "?"}`,
+      subtitle: `${t.competition?.name ?? ""} · ${new Date(
+        `${t.match_date}T00:00:00`
+      ).toLocaleDateString("pt-PT")} ${t.match_time?.slice(0, 5) ?? ""}`,
+    }));
+
   return (
     <div>
       <Link
@@ -52,10 +85,11 @@ export default async function NovaVigilanciaLivePage() {
         ← Voltar
       </Link>
       <h1 className="mb-6 text-xl font-semibold">🔴 Nova vigilância live</h1>
-      <LiveWatchForm
+      <NovaVigilanciaTabs
         initialCompetitions={comboCompetitions}
         initialTeams={comboTeams}
         countries={comboCountries}
+        existingTickets={ticketOptions}
       />
     </div>
   );
