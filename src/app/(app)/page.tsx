@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CompactTicketList from "@/components/CompactTicketList";
-import StatRanking, { type RankRow } from "@/components/StatRanking";
 import StatsRow from "@/components/StatsRow";
-import PerformanceCalendar from "@/components/PerformanceCalendar";
 import LiveClock from "@/components/LiveClock";
 import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
@@ -48,21 +46,6 @@ function todayISODate() {
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function bump(map: Map<string, { green: number; red: number }>, key: string, status: "green" | "red") {
-  const entry = map.get(key) ?? { green: 0, red: 0 };
-  entry[status]++;
-  map.set(key, entry);
-}
-
-function toRankedRows(
-  map: Map<string, { green: number; red: number }>,
-  limit?: number
-): RankRow[] {
-  const rows = Array.from(map.entries()).map(([label, v]) => ({ label, ...v }));
-  rows.sort((a, b) => b.green - a.green || b.green + b.red - (a.green + a.red));
-  return limit ? rows.slice(0, limit) : rows;
 }
 
 export default async function DashboardPage() {
@@ -119,41 +102,6 @@ export default async function DashboardPage() {
   const liveTickets = all
     .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
     .filter((t) => t.picks.length > 0);
-
-  const teamMap = new Map<string, { green: number; red: number }>();
-  const competitionMap = new Map<string, { green: number; red: number }>();
-  const categoryMap = new Map<string, { green: number; red: number }>();
-  const dayStats: Record<string, { green: number; red: number }> = {};
-  const ticketsByDay: Record<string, typeof todayTickets> = {};
-
-  for (const ticket of all) {
-    if (ticket.picks.length === 0) continue;
-
-    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: ticket.picks });
-
-    const resolvedPicks = ticket.picks.filter(
-      (p) => p.status === "green" || p.status === "red"
-    );
-    if (resolvedPicks.length === 0) continue;
-
-    const dayEntry = dayStats[ticket.match_date] ?? { green: 0, red: 0 };
-
-    for (const pick of resolvedPicks) {
-      const status = pick.status as "green" | "red";
-      if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, status);
-      if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
-      if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
-      if (pick.category?.name) bump(categoryMap, pick.category.name, status);
-      dayEntry[status]++;
-    }
-
-    dayStats[ticket.match_date] = dayEntry;
-  }
-
-  const topTeams = toRankedRows(teamMap, 5);
-  const topCompetitions = toRankedRows(competitionMap, 5);
-  const topCategories = toRankedRows(categoryMap, 5);
-  const hasPerformanceData = topTeams.length > 0;
 
   const liveWidgetCandidates = all.filter((t) => t.picks.length > 0);
 
@@ -237,22 +185,6 @@ export default async function DashboardPage() {
       </div>
 
       <LiveWidgetsPanel tickets={liveWidgetCandidates} />
-
-      {hasPerformanceData && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
-          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <StatRanking title="Equipas" rows={topTeams} />
-            <StatRanking title="Competições" rows={topCompetitions} />
-            <StatRanking title="Tipos de aposta" rows={topCategories} />
-          </div>
-          <PerformanceCalendar
-            dayStats={dayStats}
-            ticketsByDay={ticketsByDay}
-            imagesByPick={imagesByPick}
-          />
-        </div>
-      )}
     </div>
   );
 }

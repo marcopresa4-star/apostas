@@ -28,6 +28,13 @@ const NAV_ITEMS = [
     active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
     pulse: true,
   },
+  {
+    href: "/analise",
+    label: "Análise",
+    icon: "📊",
+    chip: "bg-violet-500/15 text-violet-400",
+    active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
+  },
 ];
 
 function isActivePath(pathname: string, href: string) {
