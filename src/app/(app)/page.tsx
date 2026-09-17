@@ -1,26 +1,16 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import TicketCard from "@/components/TicketCard";
+import CompactTicketList from "@/components/CompactTicketList";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
-import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
-
-const IMAGE_BUCKET = "game-images";
-
-interface PickImageRow {
-  id: string;
-  image_path: string;
-}
 
 interface Pick {
   id: string;
   selection: string;
-  reason: string | null;
   status: BetStatus;
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
-  pick_images: PickImageRow[];
 }
 
 interface TicketRow {
@@ -82,30 +72,11 @@ export default async function DashboardPage() {
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, bet_type, odd, odd_min, pick_images(id, image_path))`
+       picks(id, selection, status, bet_type, odd, odd_min)`
     )
     .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
-
-  const imagesByPick = new Map<string, PickImageItem[]>();
-  const allImageRows = (tickets ?? []).flatMap((t) =>
-    t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
-  );
-  if (allImageRows.length > 0) {
-    const signedResults = await Promise.all(
-      allImageRows.map((img) =>
-        supabase.storage.from(IMAGE_BUCKET).createSignedUrl(img.image_path, 3600)
-      )
-    );
-    signedResults.forEach((result, i) => {
-      if (!result.data?.signedUrl) return;
-      const row = allImageRows[i];
-      const existing = imagesByPick.get(row.pickId) ?? [];
-      existing.push({ id: row.id, path: row.image_path, url: result.data.signedUrl });
-      imagesByPick.set(row.pickId, existing);
-    });
-  }
 
   const todayISO = todayISODate();
   const all = tickets ?? [];
@@ -205,60 +176,42 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-neutral-300">Jogos de hoje</h2>
-          <Link href="/apostas" className="text-xs font-medium text-emerald-400 hover:underline">
-            Ver todas →
-          </Link>
-        </div>
-        {todayTickets.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
-            Sem apostas pré-jogo registadas para hoje.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {todayTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                picks={ticket.picks}
-                imagesByPick={imagesByPick}
-                addPickBetType="pre_jogo"
-              />
-            ))}
+      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-neutral-300">Jogos de hoje</h2>
+            <Link href="/apostas" className="text-xs font-medium text-emerald-400 hover:underline">
+              Ver todas →
+            </Link>
           </div>
-        )}
-      </div>
+          {todayTickets.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+              Sem apostas pré-jogo registadas para hoje.
+            </p>
+          ) : (
+            <CompactTicketList tickets={todayTickets} />
+          )}
+        </div>
 
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-sky-400">🔴 A vigiar em live</h2>
-          <Link href="/live" className="text-xs font-medium text-sky-400 hover:underline">
-            Ver todas →
-          </Link>
-        </div>
-        {liveTickets.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
-            Sem jogos a vigiar para live.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {liveTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                picks={ticket.picks}
-                imagesByPick={imagesByPick}
-                addPickBetType="live"
-              />
-            ))}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-sky-400">🔴 A vigiar em live</h2>
+            <Link href="/live" className="text-xs font-medium text-sky-400 hover:underline">
+              Ver todas →
+            </Link>
           </div>
-        )}
+          {liveTickets.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+              Sem jogos a vigiar para live.
+            </p>
+          ) : (
+            <CompactTicketList tickets={liveTickets} />
+          )}
+        </div>
       </div>
 
       {hasPerformanceData && (
-        <div className="mt-8">
+        <div>
           <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <StatRanking title="Equipas" rows={topTeams} />
