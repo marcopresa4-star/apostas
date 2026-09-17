@@ -113,7 +113,7 @@ export default async function ApostasPage({
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
-  const imagesByPick = new Map<string, PickImageItem[]>();
+  const imagesByPick: Record<string, PickImageItem[]> = {};
   const allImageRows = (tickets ?? []).flatMap((t) =>
     t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
   );
@@ -126,9 +126,9 @@ export default async function ApostasPage({
     signedResults.forEach((result, i) => {
       if (!result.data?.signedUrl) return;
       const row = allImageRows[i];
-      const existing = imagesByPick.get(row.pickId) ?? [];
+      const existing = imagesByPick[row.pickId] ?? [];
       existing.push({ id: row.id, path: row.image_path, url: result.data.signedUrl });
-      imagesByPick.set(row.pickId, existing);
+      imagesByPick[row.pickId] = existing;
     });
   }
 

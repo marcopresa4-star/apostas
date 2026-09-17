@@ -81,7 +81,7 @@ export default async function LivePage() {
     }))
     .filter((ticket) => ticket.picks.length > 0);
 
-  const imagesByPick = new Map<string, PickImageItem[]>();
+  const imagesByPick: Record<string, PickImageItem[]> = {};
   const allImageRows = displayTickets.flatMap((t) =>
     t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
   );
@@ -94,9 +94,9 @@ export default async function LivePage() {
     signedResults.forEach((result, i) => {
       if (!result.data?.signedUrl) return;
       const row = allImageRows[i];
-      const existing = imagesByPick.get(row.pickId) ?? [];
+      const existing = imagesByPick[row.pickId] ?? [];
       existing.push({ id: row.id, path: row.image_path, url: result.data.signedUrl });
-      imagesByPick.set(row.pickId, existing);
+      imagesByPick[row.pickId] = existing;
     });
   }
 

@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import PickCard from "./PickCard";
 import AddPickForm from "./AddPickForm";
 import DeleteTicketButton from "./DeleteTicketButton";
 import type { PickImageItem } from "./PickImages";
+import { useNow } from "@/lib/useNow";
+import { isMatchLive } from "@/lib/matchStatus";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
@@ -17,6 +21,7 @@ interface Pick {
 
 interface TicketInfo {
   id: string;
+  match_date: string;
   match_time: string;
   competition: { name: string; country: { name: string } | null } | null;
   home_team: { name: string } | null;
@@ -31,9 +36,12 @@ export default function TicketCard({
 }: {
   ticket: TicketInfo;
   picks: Pick[];
-  imagesByPick: Map<string, PickImageItem[]>;
+  imagesByPick: Record<string, PickImageItem[]>;
   addPickBetType: BetType;
 }) {
+  const now = useNow();
+  const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
+
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-colors hover:border-neutral-700">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -46,7 +54,15 @@ export default function TicketCard({
             {ticket.home_team?.name} <span className="text-neutral-500">vs</span>{" "}
             {ticket.away_team?.name}
           </p>
-          <p className="text-sm text-neutral-400">às {ticket.match_time?.slice(0, 5)}</p>
+          <p className="flex items-center gap-2 text-sm text-neutral-400">
+            <span>às {ticket.match_time?.slice(0, 5)}</span>
+            {live && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-red-400">
+                <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                Em direto
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <Link
@@ -61,7 +77,7 @@ export default function TicketCard({
 
       <div className="space-y-2">
         {picks.map((pick) => (
-          <PickCard key={pick.id} pick={pick} images={imagesByPick.get(pick.id) ?? []} />
+          <PickCard key={pick.id} pick={pick} images={imagesByPick[pick.id] ?? []} />
         ))}
       </div>
 
