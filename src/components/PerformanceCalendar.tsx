@@ -18,6 +18,8 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  sofascore_url: string | null;
+  bookmaker_url: string | null;
 }
 
 interface DayTicket {

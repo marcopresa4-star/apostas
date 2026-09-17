@@ -13,6 +13,8 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  sofascore_url: string | null;
+  bookmaker_url: string | null;
 }
 
 interface Ticket {
@@ -72,7 +74,8 @@ export default function CompactTicketList({
             <div className="space-y-1">
               {ticket.picks.map((pick) => {
                 const images = imagesByPick[pick.id] ?? [];
-                const hasDetails = Boolean(pick.reason) || images.length > 0;
+                const hasLinks = Boolean(pick.sofascore_url) || Boolean(pick.bookmaker_url);
+                const hasDetails = Boolean(pick.reason) || images.length > 0 || hasLinks;
                 return (
                   <div key={pick.id} className="group/pick relative">
                     <div className="flex items-center gap-1.5 text-xs text-neutral-300">
@@ -106,7 +109,7 @@ export default function CompactTicketList({
                           </p>
                         )}
                         {images.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="mb-2 flex flex-wrap gap-1.5">
                             {images.map((img) => (
                               <a key={img.id} href={img.url} target="_blank" rel="noreferrer">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -117,6 +120,30 @@ export default function CompactTicketList({
                                 />
                               </a>
                             ))}
+                          </div>
+                        )}
+                        {hasLinks && (
+                          <div className="flex flex-wrap gap-3">
+                            {pick.sofascore_url && (
+                              <a
+                                href={pick.sofascore_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:underline"
+                              >
+                                📊 SofaScore
+                              </a>
+                            )}
+                            {pick.bookmaker_url && (
+                              <a
+                                href={pick.bookmaker_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:underline"
+                              >
+                                🎰 Casa de apostas
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>
