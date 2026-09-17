@@ -90,7 +90,7 @@ export default async function NovaVigilanciaLivePage() {
     }));
 
   return (
-    <div>
+    <div className="mx-auto max-w-4xl">
       <Link
         href="/live"
         className="mb-2 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-300"
