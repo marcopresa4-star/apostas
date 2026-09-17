@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import Link from "next/link";
 import PickCard from "./PickCard";
 import AddPickForm from "./AddPickForm";
@@ -8,6 +9,7 @@ import type { PickImageItem } from "./PickImages";
 import type { TagItem } from "./CategoryCombobox";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
+import { markTicketLiveEnded } from "@/app/(app)/actions";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
@@ -28,6 +30,7 @@ interface TicketInfo {
   id: string;
   match_date: string;
   match_time: string;
+  live_ended: boolean;
   competition: { name: string; country: { name: string } | null } | null;
   home_team: { name: string } | null;
   away_team: { name: string } | null;
@@ -47,7 +50,14 @@ export default function TicketCard({
   initialCategories: TagItem[];
 }) {
   const now = useNow();
-  const live = now ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
+  const live = now && !ticket.live_ended ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
+  const [isPending, startTransition] = useTransition();
+
+  function handleMarkEnded() {
+    startTransition(async () => {
+      await markTicketLiveEnded(ticket.id);
+    });
+  }
 
   return (
     <div className="relative rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 hover:z-20">
@@ -67,6 +77,15 @@ export default function TicketCard({
               <span className="flex items-center gap-1 text-xs font-semibold text-red-400">
                 <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
                 Em direto
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={handleMarkEnded}
+                  title="Marcar jogo como terminado"
+                  className="ml-0.5 rounded p-0.5 text-red-400/60 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                >
+                  ✕
+                </button>
               </span>
             )}
           </p>

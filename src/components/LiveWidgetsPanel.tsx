@@ -8,6 +8,7 @@ interface Ticket {
   id: string;
   match_date: string;
   match_time: string;
+  live_ended: boolean;
   home_team: { name: string } | null;
   away_team: { name: string } | null;
 }
@@ -21,7 +22,7 @@ export default function LiveWidgetsPanel({ tickets }: { tickets: Ticket[] }) {
   const now = useNow();
   if (!now) return null;
 
-  const live = tickets.filter((t) => isMatchLive(t.match_date, t.match_time, now));
+  const live = tickets.filter((t) => !t.live_ended && isMatchLive(t.match_date, t.match_time, now));
   if (live.length === 0) return null;
 
   return (

@@ -26,6 +26,7 @@ interface DayTicket {
   id: string;
   match_date: string;
   match_time: string;
+  live_ended: boolean;
   competition: { name: string } | null;
   home_team: { name: string } | null;
   away_team: { name: string } | null;

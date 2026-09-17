@@ -36,6 +36,7 @@ interface Ticket {
   id: string;
   match_date: string;
   match_time: string;
+  live_ended: boolean;
   home_team: { name: string } | null;
   away_team: { name: string } | null;
   picks: Pick[];
@@ -51,7 +52,7 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
 
   const alerts: { ticket: Ticket; pick: Pick; elapsed: number }[] = [];
   for (const ticket of tickets) {
-    if (!isMatchLive(ticket.match_date, ticket.match_time, now)) continue;
+    if (ticket.live_ended || !isMatchLive(ticket.match_date, ticket.match_time, now)) continue;
     const elapsed = getElapsedMinutes(ticket.match_date, ticket.match_time, now);
     if (elapsed === null) continue;
     for (const pick of ticket.picks) {

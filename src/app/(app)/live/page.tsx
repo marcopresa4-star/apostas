@@ -32,6 +32,7 @@ interface TicketRow {
   id: string;
   match_date: string;
   match_time: string;
+  live_ended: boolean;
   competition: { id: string; name: string; country: { name: string } | null } | null;
   home_team: { id: string; name: string } | null;
   away_team: { id: string; name: string } | null;
@@ -91,7 +92,7 @@ export default async function LivePage({
     supabase
       .from("tickets")
       .select(
-        `id, match_date, match_time,
+        `id, match_date, match_time, live_ended,
          competition:competitions(id, name, country:countries(name)),
          home_team:teams!tickets_home_team_id_fkey(id, name),
          away_team:teams!tickets_away_team_id_fkey(id, name),

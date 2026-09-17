@@ -246,6 +246,17 @@ export async function updateTicket(input: {
   redirect(input.returnTo === "/live" ? "/live" : "/apostas");
 }
 
+export async function markTicketLiveEnded(ticketId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("tickets")
+    .update({ live_ended: true })
+    .eq("id", ticketId);
+
+  if (error) throw error;
+  revalidateAll();
+}
+
 interface PickInput {
   selection: string;
   reason: string;
