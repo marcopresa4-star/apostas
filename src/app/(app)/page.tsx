@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CompactTicketList from "@/components/CompactTicketList";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
+import PerformanceCalendar from "@/components/PerformanceCalendar";
 import LiveClock from "@/components/LiveClock";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -33,20 +34,6 @@ function todayISODate() {
 }
 
 const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-const MONTHS = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
 
 function bump(map: Map<string, { green: number; red: number }>, key: string, status: "green" | "red") {
   const entry = map.get(key) ?? { green: 0, red: 0 };
@@ -102,7 +89,7 @@ export default async function DashboardPage() {
   const teamMap = new Map<string, { green: number; red: number }>();
   const competitionMap = new Map<string, { green: number; red: number }>();
   const weekdayMap = new Map<string, { green: number; red: number }>();
-  const monthMap = new Map<string, { green: number; red: number }>();
+  const dayStats: Record<string, { green: number; red: number }> = {};
 
   for (const ticket of all) {
     const resolvedPicks = ticket.picks.filter(
@@ -112,7 +99,7 @@ export default async function DashboardPage() {
 
     const date = new Date(`${ticket.match_date}T00:00:00`);
     const weekday = WEEKDAYS[date.getDay()];
-    const month = MONTHS[date.getMonth()];
+    const dayEntry = dayStats[ticket.match_date] ?? { green: 0, red: 0 };
 
     for (const pick of resolvedPicks) {
       const status = pick.status as "green" | "red";
@@ -120,14 +107,15 @@ export default async function DashboardPage() {
       if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
       if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
       bump(weekdayMap, weekday, status);
-      bump(monthMap, month, status);
+      dayEntry[status]++;
     }
+
+    dayStats[ticket.match_date] = dayEntry;
   }
 
   const topTeams = toRankedRows(teamMap, 5);
   const topCompetitions = toRankedRows(competitionMap, 5);
   const weekdayRows = toRankedRows(weekdayMap);
-  const monthRows = toRankedRows(monthMap);
   const hasPerformanceData = topTeams.length > 0;
 
   return (
@@ -215,11 +203,13 @@ export default async function DashboardPage() {
       {hasPerformanceData && (
         <div>
           <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <StatRanking title="Equipas" rows={topTeams} />
             <StatRanking title="Competições" rows={topCompetitions} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_2fr]">
             <StatRanking title="Dia da semana" rows={weekdayRows} />
-            <StatRanking title="Mês" rows={monthRows} />
+            <PerformanceCalendar dayStats={dayStats} />
           </div>
         </div>
       )}
