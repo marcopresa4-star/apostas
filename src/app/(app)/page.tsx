@@ -6,8 +6,7 @@ import StatsRow from "@/components/StatsRow";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import LiveClock from "@/components/LiveClock";
 import LiveAlerts from "@/components/LiveAlerts";
-import SportscoreWidget from "@/components/SportscoreWidget";
-import { isMatchLive } from "@/lib/matchStatus";
+import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -156,9 +155,7 @@ export default async function DashboardPage() {
   const topCategories = toRankedRows(categoryMap, 5);
   const hasPerformanceData = topTeams.length > 0;
 
-  const currentlyLiveTickets = all
-    .filter((t) => t.picks.length > 0 && isMatchLive(t.match_date, t.match_time, new Date()))
-    .slice(0, 3);
+  const liveWidgetCandidates = all.filter((t) => t.picks.length > 0);
 
   return (
     <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
@@ -257,21 +254,7 @@ export default async function DashboardPage() {
       )}
       </div>
 
-      {currentlyLiveTickets.length > 0 && (
-        <aside className="hidden w-80 shrink-0 space-y-4 xl:sticky xl:top-6 xl:block">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
-            <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-            Ao vivo agora
-          </h2>
-          {currentlyLiveTickets.map((ticket) => (
-            <SportscoreWidget
-              key={ticket.id}
-              homeTeam={ticket.home_team?.name ?? ""}
-              awayTeam={ticket.away_team?.name ?? ""}
-            />
-          ))}
-        </aside>
-      )}
+      <LiveWidgetsPanel tickets={liveWidgetCandidates} />
     </div>
   );
 }
