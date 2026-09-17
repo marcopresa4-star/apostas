@@ -45,7 +45,8 @@ export default async function NovaVigilanciaLivePage() {
            away_team:teams!tickets_away_team_id_fkey(name),
            picks(bet_type)`
         )
-        .order("match_date", { ascending: false })
+        .order("match_date", { ascending: true })
+        .order("match_time", { ascending: true })
         .returns<ExistingTicketRow[]>(),
     ]);
 
@@ -66,8 +67,13 @@ export default async function NovaVigilanciaLivePage() {
     countryName: t.country?.name ?? "",
   }));
 
+  const now = new Date();
+  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+
   const ticketOptions: TicketOption[] = (existingTickets ?? [])
-    .filter((t) => t.picks.some((p) => p.bet_type === "pre_jogo"))
+    .filter((t) => t.match_date >= todayISO && t.picks.some((p) => p.bet_type === "pre_jogo"))
     .map((t) => ({
       id: t.id,
       label: `${t.home_team?.name ?? "?"} vs ${t.away_team?.name ?? "?"}`,
