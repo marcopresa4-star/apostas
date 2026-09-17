@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import CompactTicketList from "@/components/CompactTicketList";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
+import LiveClock from "@/components/LiveClock";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
@@ -133,6 +134,7 @@ export default async function DashboardPage() {
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Dashboard</h1>
+        <LiveClock />
         <div className="flex gap-2">
           <Link
             href="/apostas/nova"
