@@ -158,8 +158,7 @@ export default async function DashboardPage() {
   const liveWidgetCandidates = all.filter((t) => t.picks.length > 0);
 
   return (
-    <div className="flex flex-col gap-6 xl:flex-row xl:items-start">
-      <div className="min-w-0 max-w-4xl flex-1">
+    <div>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <LiveClock />
@@ -237,6 +236,8 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      <LiveWidgetsPanel tickets={liveWidgetCandidates} />
+
       {hasPerformanceData && (
         <div>
           <h2 className="mb-3 text-sm font-semibold text-neutral-300">📊 Desempenho</h2>
@@ -252,9 +253,6 @@ export default async function DashboardPage() {
           />
         </div>
       )}
-      </div>
-
-      <LiveWidgetsPanel tickets={liveWidgetCandidates} />
     </div>
   );
 }

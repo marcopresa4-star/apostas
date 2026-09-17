@@ -79,7 +79,7 @@ export default async function EditarApostaPage({
   }));
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <Link
         href={returnTo}
         className="mb-2 inline-flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-300"

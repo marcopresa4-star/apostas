@@ -176,7 +176,7 @@ export default async function ApostasPage({
   };
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <div className="mb-6 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">As minhas apostas</h1>
         <Link

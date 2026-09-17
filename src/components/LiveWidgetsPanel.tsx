@@ -21,22 +21,24 @@ export default function LiveWidgetsPanel({ tickets }: { tickets: Ticket[] }) {
   const now = useNow();
   if (!now) return null;
 
-  const live = tickets.filter((t) => isMatchLive(t.match_date, t.match_time, now)).slice(0, 3);
+  const live = tickets.filter((t) => isMatchLive(t.match_date, t.match_time, now));
   if (live.length === 0) return null;
 
   return (
-    <aside className="hidden w-80 shrink-0 space-y-4 xl:sticky xl:top-6 xl:block">
-      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
+    <div className="mb-8">
+      <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-sky-400">
         <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
         Ao vivo agora
       </h2>
-      {live.map((ticket) => (
-        <SportscoreWidget
-          key={ticket.id}
-          homeTeam={ticket.home_team?.name ?? ""}
-          awayTeam={ticket.away_team?.name ?? ""}
-        />
-      ))}
-    </aside>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {live.map((ticket) => (
+          <SportscoreWidget
+            key={ticket.id}
+            homeTeam={ticket.home_team?.name ?? ""}
+            awayTeam={ticket.away_team?.name ?? ""}
+          />
+        ))}
+      </div>
+    </div>
   );
 }

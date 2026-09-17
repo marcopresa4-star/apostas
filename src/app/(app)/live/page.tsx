@@ -154,7 +154,7 @@ export default async function LivePage({
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div>
       <div className="mb-6 flex items-center justify-between gap-2">
         <div>
           <h1 className="text-xl font-semibold">🔴 Live</h1>
