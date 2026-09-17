@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive, getElapsedMinutes } from "@/lib/matchStatus";
 import type { BetStatus } from "@/lib/database.types";
@@ -22,6 +23,8 @@ interface Ticket {
 
 export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
   const now = useNow();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
   if (!now) return null;
 
   const alerts: { ticket: Ticket; pick: Pick; elapsed: number }[] = [];
@@ -31,11 +34,16 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
     if (elapsed === null) continue;
     for (const pick of ticket.picks) {
       if (pick.status !== "pending" || pick.alert_minute === null) continue;
+      if (dismissed.has(pick.id)) continue;
       if (elapsed >= pick.alert_minute) alerts.push({ ticket, pick, elapsed });
     }
   }
 
   if (alerts.length === 0) return null;
+
+  function dismiss(pickId: string) {
+    setDismissed((prev) => new Set(prev).add(pickId));
+  }
 
   return (
     <div className="mb-6 space-y-2">
@@ -59,6 +67,15 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
               {pick.selection} — chegou ao minuto {pick.alert_minute}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => dismiss(pick.id)}
+            aria-label="Dispensar notificação"
+            title="Já vi, dispensar"
+            className="shrink-0 rounded-lg p-1.5 text-amber-400/70 transition hover:bg-amber-500/10 hover:text-amber-200"
+          >
+            ✕
+          </button>
         </div>
       ))}
     </div>
