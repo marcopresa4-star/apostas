@@ -34,8 +34,21 @@ interface TicketRow {
   picks: Pick[];
 }
 
+const SCOPES: { value: string; label: string }[] = [
+  { value: "hoje", label: "Hoje" },
+  { value: "historico", label: "Histórico" },
+];
+
 function sameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
+}
+
+function todayISODate() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function formatDateHeader(dateStr: string) {
@@ -60,7 +73,14 @@ function formatDateHeader(dateStr: string) {
   return capitalized;
 }
 
-export default async function LivePage() {
+export default async function LivePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ scope?: string }>;
+}) {
+  const { scope } = await searchParams;
+  const activeScope = SCOPES.some((s) => s.value === scope) ? scope! : "hoje";
+
   const supabase = await createClient();
 
   const [{ data: tickets, error }, { data: categories }] = await Promise.all([
@@ -79,7 +99,21 @@ export default async function LivePage() {
     supabase.from("bet_categories").select("id, name").order("name").returns<TagItem[]>(),
   ]);
 
-  const displayTickets = (tickets ?? [])
+  const todayISO = todayISODate();
+  const all = tickets ?? [];
+
+  const livePicksAll = all.flatMap((t) => t.picks).filter((p) => p.bet_type === "live");
+  const stats = {
+    total: livePicksAll.length,
+    green: livePicksAll.filter((p) => p.status === "green").length,
+    red: livePicksAll.filter((p) => p.status === "red").length,
+    pending: livePicksAll.filter((p) => p.status === "pending").length,
+  };
+
+  const displayTickets = all
+    .filter((ticket) =>
+      activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
+    )
     .map((ticket) => ({
       ...ticket,
       picks: ticket.picks.filter((p) => p.bet_type === "live"),
@@ -132,6 +166,43 @@ export default async function LivePage() {
         </Link>
       </div>
 
+      {stats.total > 0 && (
+        <div className="mb-6 grid grid-cols-4 gap-2">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-neutral-100">{stats.total}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Total</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-emerald-400">{stats.green}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Green</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-red-400">{stats.red}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Red</p>
+          </div>
+          <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-center">
+            <p className="text-lg font-semibold text-neutral-300">{stats.pending}</p>
+            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Pendentes</p>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-5 inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
+        {SCOPES.map((s) => (
+          <Link
+            key={s.value}
+            href={s.value === "hoje" ? "/live" : `/live?scope=${s.value}`}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
+              activeScope === s.value
+                ? "bg-sky-600 text-white"
+                : "text-neutral-400 hover:text-white"
+            }`}
+          >
+            {s.label}
+          </Link>
+        ))}
+      </div>
+
       {error && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Erro ao carregar: {error.message}
@@ -143,7 +214,9 @@ export default async function LivePage() {
           <p aria-hidden className="mb-2 text-3xl">
             📡
           </p>
-          Ainda não tens jogos a vigiar para live.{" "}
+          {activeScope === "hoje"
+            ? "Sem jogos a vigiar para hoje ou próximos dias."
+            : "Ainda não tens jogos live no histórico."}{" "}
           <Link href="/live/nova" className="text-sky-400 hover:underline">
             Adiciona um
           </Link>
