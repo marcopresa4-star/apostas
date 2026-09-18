@@ -14,7 +14,7 @@ export default function SportscoreWidget({
   const slug = `${slugify(homeTeam)}-vs-${slugify(awayTeam)}`;
 
   return (
-    <div className="hover-scrollbar aspect-square overflow-y-auto overflow-x-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="h-48 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
       <iframe
         src={`https://sportscore.com/embed/match/football/${slug}/`}
         loading="lazy"
