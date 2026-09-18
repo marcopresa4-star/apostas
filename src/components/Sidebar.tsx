@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "@/app/(app)/actions";
-import { useCommunityUnseen } from "./CommunityUnseenProvider";
 
 const NAV_ITEMS = [
   {
@@ -60,13 +59,11 @@ function NavLink({
   active,
   onClick,
   collapsible = false,
-  badge = 0,
 }: {
   item: (typeof NAV_ITEMS)[number];
   active: boolean;
   onClick?: () => void;
   collapsible?: boolean;
-  badge?: number;
 }) {
   return (
     <Link
@@ -89,14 +86,6 @@ function NavLink({
             aria-hidden
             className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-red-500 ring-2 ring-neutral-900"
           />
-        )}
-        {badge > 0 && (
-          <span
-            title={`${badge} novas`}
-            className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-neutral-900"
-          >
-            {badge > 9 ? "9+" : badge}
-          </span>
         )}
       </span>
       <span
@@ -127,7 +116,6 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const unseen = useCommunityUnseen();
   const homeHref = isAdmin ? "/" : "/comunidade";
   const visibleItems = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
 
@@ -160,7 +148,6 @@ export default function Sidebar({
               item={item}
               active={isActivePath(pathname, item.href)}
               onClick={() => setOpen(false)}
-              badge={item.href === "/comunidade" ? unseen : 0}
             />
           ))}
           <form action={signOut}>
@@ -196,7 +183,6 @@ export default function Sidebar({
               item={item}
               active={isActivePath(pathname, item.href)}
               collapsible
-              badge={item.href === "/comunidade" ? unseen : 0}
             />
           ))}
         </nav>
