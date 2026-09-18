@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useNow } from "@/lib/useNow";
-import { isMatchLive, getCountdownLabel } from "@/lib/matchStatus";
+import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
 import { markTicketLiveEnded } from "@/app/(app)/actions";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
@@ -58,7 +58,7 @@ export default function CompactTicketList({
       {tickets.map((ticket) => {
         const live =
           now && !ticket.live_ended ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
-        const countdown = now ? getCountdownLabel(ticket.match_date, ticket.match_time, now) : null;
+        const countdown = now ? getCountdownClock(ticket.match_date, ticket.match_time, now) : null;
         return (
           <div
             key={ticket.id}
@@ -83,12 +83,16 @@ export default function CompactTicketList({
                     ✕
                   </button>
                 </span>
-              ) : (
+              ) : countdown ? (
                 <span
-                  className="shrink-0 text-xs text-neutral-500"
+                  className="shrink-0 font-mono text-xs font-semibold tabular-nums text-red-400"
                   title={`Começa às ${ticket.match_time?.slice(0, 5)}`}
                 >
-                  {countdown ?? ticket.match_time?.slice(0, 5)}
+                  {countdown}
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs text-neutral-500">
+                  {ticket.match_time?.slice(0, 5)}
                 </span>
               )}
             </div>

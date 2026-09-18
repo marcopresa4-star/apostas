@@ -19,22 +19,20 @@ export function getElapsedMinutes(matchDate: string, matchTime: string, now: Dat
   return Math.floor(diffMs / 60000);
 }
 
-// Compact "time until kickoff" label (e.g. "2d 3h", "3h 4m", "45m 12s"), or
-// null once the match has started (or already passed).
-export function getCountdownLabel(matchDate: string, matchTime: string, now: Date): string | null {
+// Digital-clock "time until kickoff" (HH:MM:SS, hours uncapped past 24 for
+// matches more than a day out), or null once the match has started (or
+// already passed).
+export function getCountdownClock(matchDate: string, matchTime: string, now: Date): string | null {
   const kickoff = new Date(`${matchDate}T${matchTime}`);
   if (Number.isNaN(kickoff.getTime())) return null;
   const diffMs = kickoff.getTime() - now.getTime();
   if (diffMs <= 0) return null;
 
   const totalSeconds = Math.floor(diffMs / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }

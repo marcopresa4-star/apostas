@@ -8,7 +8,7 @@ import DeleteTicketButton from "./DeleteTicketButton";
 import type { PickImageItem } from "./PickImages";
 import type { TagItem } from "./CategoryCombobox";
 import { useNow } from "@/lib/useNow";
-import { isMatchLive, getCountdownLabel } from "@/lib/matchStatus";
+import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
 import { markTicketLiveEnded } from "@/app/(app)/actions";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -51,7 +51,7 @@ export default function TicketCard({
 }) {
   const now = useNow();
   const live = now && !ticket.live_ended ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
-  const countdown = now && !live ? getCountdownLabel(ticket.match_date, ticket.match_time, now) : null;
+  const countdown = now && !live ? getCountdownClock(ticket.match_date, ticket.match_time, now) : null;
   const [isPending, startTransition] = useTransition();
 
   function handleMarkEnded() {
@@ -74,7 +74,11 @@ export default function TicketCard({
           </p>
           <p className="flex items-center gap-2 text-sm text-neutral-400">
             <span>às {ticket.match_time?.slice(0, 5)}</span>
-            {countdown && <span className="text-xs text-neutral-500">· começa em {countdown}</span>}
+            {countdown && (
+              <span className="flex items-center gap-1 font-mono text-xs font-semibold tabular-nums text-red-400">
+                <span aria-hidden>⏱</span> {countdown}
+              </span>
+            )}
             {live && (
               <span className="flex items-center gap-1 text-xs font-semibold text-red-400">
                 <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />

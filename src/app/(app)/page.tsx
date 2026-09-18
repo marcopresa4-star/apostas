@@ -5,6 +5,7 @@ import StatsRow from "@/components/StatsRow";
 import LiveClock from "@/components/LiveClock";
 import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
+import GameStartNotifications from "@/components/GameStartNotifications";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -200,6 +201,8 @@ export default async function DashboardPage() {
       </div>
 
       <LiveWidgetsPanel tickets={liveWidgetCandidates} watched={watchedMatches ?? []} />
+
+      <GameStartNotifications tickets={liveWidgetCandidates} />
     </div>
   );
 }
