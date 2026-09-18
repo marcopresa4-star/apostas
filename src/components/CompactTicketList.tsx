@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
-import { markTicketLiveEnded } from "@/app/(app)/actions";
+import { markTicketLiveEnded, setPickPublished } from "@/app/(app)/actions";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
@@ -17,6 +17,7 @@ interface Pick {
   odd_min: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
+  is_published: boolean;
 }
 
 interface Ticket {
@@ -50,6 +51,12 @@ export default function CompactTicketList({
   function handleMarkEnded(ticketId: string) {
     startTransition(async () => {
       await markTicketLiveEnded(ticketId);
+    });
+  }
+
+  function handleTogglePublish(pickId: string, published: boolean) {
+    startTransition(async () => {
+      await setPickPublished(pickId, !published);
     });
   }
 
@@ -123,6 +130,23 @@ export default function CompactTicketList({
                       {pick.odd_min !== null && (
                         <span className="shrink-0 text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
                       )}
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => handleTogglePublish(pick.id, pick.is_published)}
+                        title={
+                          pick.is_published
+                            ? "Publicado na Comunidade — clique para retirar"
+                            : "Publicar na Comunidade"
+                        }
+                        className={`shrink-0 rounded p-0.5 transition disabled:opacity-50 ${
+                          pick.is_published
+                            ? "text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+                            : "text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400"
+                        }`}
+                      >
+                        📢
+                      </button>
                       {hasDetails && (
                         <span aria-hidden className="shrink-0 text-neutral-600">
                           ⓘ

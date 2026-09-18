@@ -20,6 +20,7 @@ interface Pick {
   odd_min: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
+  is_published: boolean;
 }
 
 interface DayTicket {
