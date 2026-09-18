@@ -356,15 +356,33 @@ export async function updatePickStatus(pickId: string, status: BetStatus) {
   revalidateAll();
 }
 
-export async function setPickPublished(pickId: string, published: boolean) {
+export async function setPickPublished(
+  pickId: string,
+  published: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = await createClient();
+
+  if (published) {
+    const { data: pick, error: fetchError } = await supabase
+      .from("picks")
+      .select("status")
+      .eq("id", pickId)
+      .single();
+    if (fetchError) return { ok: false, error: "Não foi possível verificar a aposta." };
+    if (pick.status !== "pending") {
+      return { ok: false, error: "Só podes publicar apostas pendentes." };
+    }
+  }
+
   const { error } = await supabase
     .from("picks")
     .update({ is_published: published })
     .eq("id", pickId);
-  if (error) throw error;
+  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
+
   revalidatePath("/comunidade");
   revalidateAll();
+  return { ok: true };
 }
 
 export async function deletePick(pickId: string) {

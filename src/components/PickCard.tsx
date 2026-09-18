@@ -42,11 +42,16 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [sofascoreUrl, setSofascoreUrl] = useState(pick.sofascore_url ?? "");
   const [bookmakerUrl, setBookmakerUrl] = useState(pick.bookmaker_url ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const canPublish = pick.is_published || pick.status === "pending";
+
   function handleTogglePublish() {
+    setPublishError(null);
     startPublishTransition(async () => {
-      await setPickPublished(pick.id, !pick.is_published);
+      const result = await setPickPublished(pick.id, !pick.is_published);
+      if (!result.ok) setPublishError(result.error);
     });
   }
 
@@ -291,12 +296,13 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             </button>
             <button
               type="button"
-              disabled={isTogglingPublish}
+              disabled={isTogglingPublish || !canPublish}
               onClick={handleTogglePublish}
+              title={!canPublish ? "Só podes publicar apostas pendentes" : undefined}
               className={`text-xs disabled:opacity-50 ${
                 pick.is_published
                   ? "text-violet-400 hover:text-violet-300"
-                  : "text-neutral-500 hover:text-neutral-300"
+                  : "text-neutral-500 hover:text-neutral-300 disabled:hover:text-neutral-500"
               }`}
             >
               {isTogglingPublish
@@ -306,6 +312,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                   : "Publicar na Comunidade"}
             </button>
           </div>
+          {publishError && <p className="mb-2 text-xs text-red-400">{publishError}</p>}
         </>
       )}
 

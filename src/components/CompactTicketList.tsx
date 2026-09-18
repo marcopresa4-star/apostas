@@ -56,7 +56,8 @@ export default function CompactTicketList({
 
   function handleTogglePublish(pickId: string, published: boolean) {
     startTransition(async () => {
-      await setPickPublished(pickId, !published);
+      const result = await setPickPublished(pickId, !published);
+      if (!result.ok) window.alert(result.error);
     });
   }
 
@@ -111,6 +112,7 @@ export default function CompactTicketList({
                 const images = imagesByPick[pick.id] ?? [];
                 const hasLinks = Boolean(pick.sofascore_url) || Boolean(pick.bookmaker_url);
                 const hasDetails = Boolean(pick.reason) || images.length > 0 || hasLinks;
+                const canPublish = pick.is_published || pick.status === "pending";
                 return (
                   <div key={pick.id} className="group/pick relative">
                     <div className="flex items-center gap-1.5 text-xs text-neutral-300">
@@ -132,17 +134,19 @@ export default function CompactTicketList({
                       )}
                       <button
                         type="button"
-                        disabled={isPending}
+                        disabled={isPending || !canPublish}
                         onClick={() => handleTogglePublish(pick.id, pick.is_published)}
                         title={
                           pick.is_published
                             ? "Publicado na Comunidade — clique para retirar"
-                            : "Publicar na Comunidade"
+                            : canPublish
+                              ? "Publicar na Comunidade"
+                              : "Só podes publicar apostas pendentes"
                         }
-                        className={`shrink-0 rounded p-0.5 transition disabled:opacity-50 ${
+                        className={`shrink-0 rounded p-0.5 transition disabled:opacity-40 ${
                           pick.is_published
                             ? "text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
-                            : "text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400"
+                            : "text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400 disabled:hover:bg-transparent disabled:hover:text-neutral-600"
                         }`}
                       >
                         📢
