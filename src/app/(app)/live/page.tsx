@@ -5,7 +5,7 @@ import TicketCard from "@/components/TicketCard";
 import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -20,10 +20,8 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
-  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
-  entry_odd: number | null;
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
@@ -101,7 +99,7 @@ export default async function LivePage({
          competition:competitions(id, name, country:countries(name)),
          home_team:teams!tickets_home_team_id_fkey(id, name),
          away_team:teams!tickets_away_team_id_fkey(id, name),
-         picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
+         picks(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
       )
       .order("match_date", { ascending: true })
       .order("match_time", { ascending: true })
@@ -112,10 +110,7 @@ export default async function LivePage({
   const todayISO = todayISODate();
   const all = tickets ?? [];
 
-  // Stats only count live picks you actually entered.
-  const livePicksAll = all
-    .flatMap((t) => t.picks)
-    .filter((p) => p.bet_type === "live" && p.stage === "active");
+  const livePicksAll = all.flatMap((t) => t.picks).filter((p) => p.bet_type === "live");
   const stats = {
     total: livePicksAll.length,
     green: livePicksAll.filter((p) => p.status === "green").length,
@@ -123,17 +118,13 @@ export default async function LivePage({
     pending: livePicksAll.filter((p) => p.status === "pending").length,
   };
 
-  // "Hoje" = today onwards, minus anything you marked "não entrei";
-  // "Histórico" = past games plus every "não entrei", whatever its date.
   const displayTickets = all
+    .filter((ticket) =>
+      activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
+    )
     .map((ticket) => ({
       ...ticket,
-      picks: ticket.picks.filter((p) => {
-        if (p.bet_type !== "live") return false;
-        return activeScope === "hoje"
-          ? ticket.match_date >= todayISO && p.stage !== "skipped"
-          : ticket.match_date < todayISO || p.stage === "skipped";
-      }),
+      picks: ticket.picks.filter((p) => p.bet_type === "live"),
     }))
     .filter((ticket) => ticket.picks.length > 0);
 
@@ -172,14 +163,14 @@ export default async function LivePage({
         <div>
           <h1 className="text-xl font-semibold">🔴 Live</h1>
           <p className="text-sm text-neutral-500">
-            Jogos que estás a vigiar e apostas live em que já entraste.
+            Jogos que estás a vigiar para uma possível entrada em live.
           </p>
         </div>
         <Link
           href="/live/nova"
           className="whitespace-nowrap rounded-lg bg-gradient-to-r from-sky-600 to-sky-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sky-500/30"
         >
-          + Nova live
+          + Vigiar jogo
         </Link>
       </div>
 

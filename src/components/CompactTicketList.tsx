@@ -5,8 +5,7 @@ import { useNow } from "@/lib/useNow";
 import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
 import { markTicketLiveEnded, setPickPublished } from "@/app/(app)/actions";
 import type { PickImageItem } from "./PickImages";
-import LiveStageActions from "./LiveStageActions";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
   id: string;
@@ -14,10 +13,8 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
-  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
-  entry_odd: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
   is_published: boolean;
@@ -115,8 +112,7 @@ export default function CompactTicketList({
                 const images = imagesByPick[pick.id] ?? [];
                 const hasLinks = Boolean(pick.sofascore_url) || Boolean(pick.bookmaker_url);
                 const hasDetails = Boolean(pick.reason) || images.length > 0 || hasLinks;
-                const canPublish =
-                  pick.is_published || (pick.status === "pending" && pick.stage !== "skipped");
+                const canPublish = pick.is_published || pick.status === "pending";
                 return (
                   <div key={pick.id} className="group/pick relative">
                     <div className="flex items-center gap-1.5 text-xs text-neutral-300">
@@ -133,15 +129,7 @@ export default function CompactTicketList({
                       {pick.odd !== null && (
                         <span className="shrink-0 text-neutral-500">@{pick.odd.toFixed(2)}</span>
                       )}
-                      {pick.stage === "active" && pick.entry_odd !== null && (
-                        <span
-                          title="Odd em que entrei"
-                          className="shrink-0 font-medium text-emerald-400"
-                        >
-                          @{pick.entry_odd.toFixed(2)}
-                        </span>
-                      )}
-                      {pick.stage !== "active" && pick.odd_min !== null && (
+                      {pick.odd_min !== null && (
                         <span className="shrink-0 text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
                       )}
                       <button
@@ -169,11 +157,6 @@ export default function CompactTicketList({
                         </span>
                       )}
                     </div>
-                    {pick.bet_type === "live" && pick.stage === "watching" && (
-                      <div className="mb-1 mt-1.5 pl-3">
-                        <LiveStageActions pickId={pick.id} stage={pick.stage} />
-                      </div>
-                    )}
                     {hasDetails && (
                       <div className="invisible absolute left-0 top-full z-50 mt-1 w-64 max-w-[80vw] rounded-lg border border-neutral-700 bg-neutral-800 p-2.5 opacity-0 shadow-xl shadow-black/40 transition-all duration-150 group-hover/pick:visible group-hover/pick:opacity-100">
                         {pick.reason && (

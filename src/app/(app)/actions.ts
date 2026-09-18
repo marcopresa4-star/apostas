@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -287,13 +287,8 @@ interface PickInput {
   selection: string;
   reason: string;
   betType: BetType;
-  // Live picks only: "watching" (an idea, needs the minimum odd), "active"
-  // (already entered, needs the entry odd) or "skipped". Ignored for
-  // pre-game picks, which are always "active".
-  stage: PickStage;
   odd: number | null;
   oddMin: number | null;
-  entryOdd: number | null;
   alertMinute: number | null;
   sofascoreUrl: string;
   bookmakerUrl: string;
@@ -305,20 +300,11 @@ function buildPickFields(input: PickInput) {
     throw new Error("Indica a aposta.");
   }
 
-  const stage: PickStage = input.betType === "live" ? input.stage : "active";
-
   if (input.betType === "live") {
-    if (stage === "active") {
-      if (input.entryOdd === null) {
-        throw new Error("Indica a odd em que entraste.");
-      }
-      if (input.entryOdd <= 1) {
-        throw new Error("A odd tem de ser maior que 1.");
-      }
-    } else if (input.oddMin === null) {
+    if (input.oddMin === null) {
       throw new Error("Indica a odd mínima de entrada da aposta live.");
     }
-    if (input.oddMin !== null && input.oddMin <= 1) {
+    if (input.oddMin <= 1) {
       throw new Error("A odd tem de ser maior que 1.");
     }
     if (input.alertMinute !== null && input.alertMinute <= 0) {
@@ -332,10 +318,8 @@ function buildPickFields(input: PickInput) {
     selection: input.selection.trim(),
     reason: input.reason.trim() || null,
     bet_type: input.betType,
-    stage,
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
-    entry_odd: input.betType === "live" && stage === "active" ? input.entryOdd : null,
     alert_minute: input.betType === "live" ? input.alertMinute : null,
     sofascore_url: input.sofascoreUrl.trim() || null,
     bookmaker_url: input.bookmakerUrl.trim() || null,
@@ -381,15 +365,12 @@ export async function setPickPublished(
   if (published) {
     const { data: pick, error: fetchError } = await supabase
       .from("picks")
-      .select("status, stage")
+      .select("status")
       .eq("id", pickId)
       .single();
     if (fetchError) return { ok: false, error: "Não foi possível verificar a aposta." };
     if (pick.status !== "pending") {
       return { ok: false, error: "Só podes publicar apostas pendentes." };
-    }
-    if (pick.stage === "skipped") {
-      return { ok: false, error: "Não podes publicar uma vigilância em que não entraste." };
     }
   }
 
@@ -407,124 +388,38 @@ export async function setPickPublished(
   return { ok: true };
 }
 
-type StageResult = { ok: true } | { ok: false; error: string };
-
-async function fetchLivePick(pickId: string) {
-  const supabase = await createClient();
-  const { data: pick, error } = await supabase
-    .from("picks")
-    .select("bet_type, stage, is_published")
-    .eq("id", pickId)
-    .single();
-  return { supabase, pick: error ? null : pick };
-}
-
-// watching -> active: you entered, at this real odd. If the pick is already
-// published, published_at is bumped so followers get notified again - this
-// is the moment they can actually act on it.
-export async function enterLivePick(pickId: string, entryOdd: number): Promise<StageResult> {
-  if (!Number.isFinite(entryOdd) || entryOdd <= 1) {
-    return { ok: false, error: "A odd tem de ser maior que 1." };
-  }
-
-  const { supabase, pick } = await fetchLivePick(pickId);
-  if (!pick) return { ok: false, error: "Não foi possível verificar a aposta." };
-  if (pick.bet_type !== "live" || pick.stage !== "watching") {
-    return { ok: false, error: "Só podes entrar numa aposta que estás a vigiar." };
-  }
-
-  const { error } = await supabase
-    .from("picks")
-    .update({
-      stage: "active",
-      entry_odd: entryOdd,
-      ...(pick.is_published ? { published_at: new Date().toISOString() } : {}),
-    })
-    .eq("id", pickId);
-  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
-
-  revalidatePath("/comunidade");
-  revalidateAll();
-  return { ok: true };
-}
-
-// watching -> skipped: you never entered. A skipped pick is pulled out of
-// the Comunidade automatically, so followers never see it as still worth
-// entering.
-export async function skipLivePick(pickId: string): Promise<StageResult> {
-  const { supabase, pick } = await fetchLivePick(pickId);
-  if (!pick) return { ok: false, error: "Não foi possível verificar a aposta." };
-  if (pick.bet_type !== "live" || pick.stage !== "watching") {
-    return { ok: false, error: "Só podes marcar como não entrei uma aposta que estás a vigiar." };
-  }
-
-  const { error } = await supabase
-    .from("picks")
-    .update({ stage: "skipped", is_published: false, published_at: null })
-    .eq("id", pickId);
-  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
-
-  revalidatePath("/comunidade");
-  revalidateAll();
-  return { ok: true };
-}
-
-// skipped -> watching: undo a mistaken "Não entrei".
-export async function resumeWatchingPick(pickId: string): Promise<StageResult> {
-  const { supabase, pick } = await fetchLivePick(pickId);
-  if (!pick) return { ok: false, error: "Não foi possível verificar a aposta." };
-  if (pick.bet_type !== "live" || pick.stage !== "skipped") {
-    return { ok: false, error: "Esta aposta não está marcada como não entrei." };
-  }
-
-  const { error } = await supabase.from("picks").update({ stage: "watching" }).eq("id", pickId);
-  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
-
-  revalidateAll();
-  return { ok: true };
-}
-
-// How many picks were published (or, for a published watch, entered) since
-// this user last opened the Comunidade, and how many of those are live
-// entries - so the toast can say "Entrei" instead of a generic "new bet".
+// How many picks were published since this user last opened the Comunidade.
 // A user's first ever call just plants their marker (so they start at zero)
 // instead of flooding them with the whole back catalogue. Never throws: if
-// the table is missing (migration not run yet) it just reports zeros.
-export async function getCommunityUnseen(): Promise<{ count: number; entered: number }> {
-  const none = { count: 0, entered: 0 };
+// the table is missing (migration not run yet) it just reports 0.
+export async function getCommunityUnseen(): Promise<number> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return none;
+  if (!user) return 0;
 
   const { data: read, error: readError } = await supabase
     .from("community_reads")
     .select("last_seen_at")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (readError) return none;
+  if (readError) return 0;
 
   if (!read) {
     await supabase
       .from("community_reads")
       .insert({ user_id: user.id, last_seen_at: new Date().toISOString() });
-    return none;
+    return 0;
   }
 
-  const unseen = () =>
-    supabase
-      .from("picks")
-      .select("id", { count: "exact", head: true })
-      .eq("is_published", true)
-      .gt("published_at", read.last_seen_at);
-
-  const [all, entered] = await Promise.all([
-    unseen(),
-    unseen().eq("bet_type", "live").eq("stage", "active"),
-  ]);
-  if (all.error || entered.error) return none;
-  return { count: all.count ?? 0, entered: entered.count ?? 0 };
+  const { count, error } = await supabase
+    .from("picks")
+    .select("id", { count: "exact", head: true })
+    .eq("is_published", true)
+    .gt("published_at", read.last_seen_at);
+  if (error) return 0;
+  return count ?? 0;
 }
 
 export async function markCommunitySeen(): Promise<void> {

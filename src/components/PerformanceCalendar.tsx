@@ -3,7 +3,7 @@
 import { useState } from "react";
 import CompactTicketList from "./CompactTicketList";
 import type { PickImageItem } from "./PickImages";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface DayStat {
   green: number;
@@ -16,10 +16,8 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
-  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
-  entry_odd: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
   is_published: boolean;

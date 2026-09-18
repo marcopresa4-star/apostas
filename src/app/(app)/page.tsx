@@ -8,7 +8,7 @@ import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import GameStartNotifications from "@/components/GameStartNotifications";
 import type { PickImageItem } from "@/components/PickImages";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -23,10 +23,8 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
-  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
-  entry_odd: number | null;
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
@@ -72,7 +70,7 @@ export default async function DashboardPage() {
          competition:competitions(id, name, country:countries(name)),
          home_team:teams!tickets_home_team_id_fkey(id, name),
          away_team:teams!tickets_away_team_id_fkey(id, name),
-         picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
+         picks(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
       )
       .order("match_date", { ascending: true })
       .order("match_time", { ascending: true })
@@ -106,9 +104,7 @@ export default async function DashboardPage() {
     });
   }
 
-  // Only picks you actually entered count as bets - a live idea you are
-  // still watching (or never entered) must not inflate Total/Pendentes.
-  const allPicks = all.flatMap((t) => t.picks).filter((p) => p.stage === "active");
+  const allPicks = all.flatMap((t) => t.picks);
   const stats = {
     total: allPicks.length,
     green: allPicks.filter((p) => p.status === "green").length,
@@ -121,25 +117,12 @@ export default async function DashboardPage() {
     .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "pre_jogo") }))
     .filter((t) => t.picks.length > 0);
 
-  const upcomingTickets = all.filter((t) => t.match_date >= todayISO);
-
-  const watchingTickets = upcomingTickets
-    .map((t) => ({
-      ...t,
-      picks: t.picks.filter((p) => p.bet_type === "live" && p.stage === "watching"),
-    }))
+  const liveTickets = all
+    .filter((t) => t.match_date >= todayISO)
+    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
     .filter((t) => t.picks.length > 0);
 
-  const activeLiveTickets = upcomingTickets
-    .map((t) => ({
-      ...t,
-      picks: t.picks.filter((p) => p.bet_type === "live" && p.stage === "active"),
-    }))
-    .filter((t) => t.picks.length > 0);
-
-  // Games worth a live widget / start notification: anything with at least
-  // one pick you did not discard as "não entrei".
-  const liveWidgetCandidates = all.filter((t) => t.picks.some((p) => p.stage !== "skipped"));
+  const liveWidgetCandidates = all.filter((t) => t.picks.length > 0);
 
   return (
     <div>
@@ -157,7 +140,7 @@ export default async function DashboardPage() {
             href="/live/nova"
             className="whitespace-nowrap rounded-lg bg-gradient-to-r from-sky-600 to-sky-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sky-500/30"
           >
-            + Nova live
+            + Vigiar jogo
           </Link>
         </div>
       </div>
@@ -168,7 +151,7 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      <LiveAlerts tickets={watchingTickets} />
+      <LiveAlerts tickets={liveTickets} />
 
       <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
 
@@ -210,29 +193,12 @@ export default async function DashboardPage() {
               Ver todas →
             </Link>
           </div>
-          {watchingTickets.length === 0 ? (
+          {liveTickets.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
               Sem jogos a vigiar para live.
             </p>
           ) : (
-            <CompactTicketList tickets={watchingTickets} imagesByPick={imagesByPick} />
-          )}
-
-          {activeLiveTickets.length > 0 && (
-            <div className="mt-6">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400">
-                  <span aria-hidden>🔥</span> Ativas em live
-                </h2>
-                <Link
-                  href="/live"
-                  className="text-xs font-medium text-emerald-400 transition hover:translate-x-0.5 hover:underline"
-                >
-                  Ver todas →
-                </Link>
-              </div>
-              <CompactTicketList tickets={activeLiveTickets} imagesByPick={imagesByPick} />
-            </div>
+            <CompactTicketList tickets={liveTickets} imagesByPick={imagesByPick} />
           )}
         </div>
       </div>

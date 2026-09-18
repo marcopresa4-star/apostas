@@ -10,7 +10,7 @@ import type { TagItem } from "./CategoryCombobox";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
 import { markTicketLiveEnded } from "@/app/(app)/actions";
-import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface Pick {
   id: string;
@@ -18,10 +18,8 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
-  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
-  entry_odd: number | null;
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;

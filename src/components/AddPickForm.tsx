@@ -3,7 +3,6 @@
 import { useState, useTransition } from "react";
 import { addPick, createBetCategory } from "@/app/(app)/actions";
 import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
-import LiveModeToggle, { type LiveMode } from "./LiveModeToggle";
 import type { BetType } from "@/lib/database.types";
 
 export default function AddPickForm({
@@ -16,10 +15,8 @@ export default function AddPickForm({
   initialCategories: TagItem[];
 }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<LiveMode>("watching");
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
-  const [entryOdd, setEntryOdd] = useState("");
   const [alertMinute, setAlertMinute] = useState("");
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
@@ -38,7 +35,7 @@ export default function AddPickForm({
           betType === "live" ? "text-sky-400" : "text-emerald-400"
         }`}
       >
-        {betType === "live" ? "+ Nova aposta live" : "+ Adicionar aposta pré-jogo"}
+        {betType === "live" ? "+ Vigiar aposta live" : "+ Adicionar aposta pré-jogo"}
       </button>
     );
   }
@@ -46,7 +43,6 @@ export default function AddPickForm({
   function reset() {
     setOdd("");
     setOddMin("");
-    setEntryOdd("");
     setAlertMinute("");
     setSofascoreUrl("");
     setBookmakerUrl("");
@@ -71,14 +67,9 @@ export default function AddPickForm({
           selection: category.name,
           reason,
           betType,
-          stage: betType === "live" ? mode : "active",
           odd: odd.trim() ? Number(odd) : null,
-          oddMin: betType === "live" && mode === "watching" && oddMin.trim() ? Number(oddMin) : null,
-          entryOdd: betType === "live" && mode === "active" && entryOdd.trim() ? Number(entryOdd) : null,
-          alertMinute:
-            betType === "live" && mode === "watching" && alertMinute.trim()
-              ? Number(alertMinute)
-              : null,
+          oddMin: oddMin.trim() ? Number(oddMin) : null,
+          alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
           categoryId: category.id,
@@ -93,11 +84,6 @@ export default function AddPickForm({
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
-      {betType === "live" && (
-        <div className="mb-2">
-          <LiveModeToggle value={mode} onChange={setMode} small />
-        </div>
-      )}
       <div className="mb-2 flex gap-2">
         <div className="min-w-0 flex-1">
           <CategoryCombobox
@@ -120,19 +106,6 @@ export default function AddPickForm({
               value={odd}
               onChange={(e) => setOdd(e.target.value)}
               placeholder="Odd"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
-          </div>
-        ) : mode === "active" ? (
-          <div className="w-28 shrink-0">
-            <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={entryOdd}
-              onChange={(e) => setEntryOdd(e.target.value)}
-              placeholder="Odd entrada"
               className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
             />
           </div>

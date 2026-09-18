@@ -99,7 +99,7 @@ export default async function NovaVigilanciaLivePage() {
       >
         ← Voltar
       </Link>
-      <h1 className="mb-6 text-xl font-semibold">🔴 Nova live</h1>
+      <h1 className="mb-6 text-xl font-semibold">🔴 Nova vigilância live</h1>
       <NovaVigilanciaTabs
         initialCompetitions={comboCompetitions}
         initialTeams={comboTeams}
