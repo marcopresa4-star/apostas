@@ -15,18 +15,17 @@ export default function SportscoreWidget({
 
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      {/* Fixed to just the scoreboard header's natural height (teams,
-          score, league name) — short enough to end before the 3D tracker
-          starts, so nothing gets a half-cut preview. scrolling="no" plus
-          overflow:hidden suppress the iframe's own (unstyleable,
-          cross-origin) scrollbar entirely. */}
+      {/* Fixed to the exact visible height (not the widget's full ~900px,
+          which would look absurdly tall and narrow at 3-per-row widths)
+          with scrolling="no", so it shows a clean crop of just the
+          scoreboard header — no scrollbar, nothing cut off mid-image. */}
       <iframe
         src={`https://sportscore.com/embed/match/football/${slug}/`}
         scrolling="no"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         title={`${homeTeam} vs ${awayTeam}`}
-        className="h-36 w-full border-0"
+        className="h-48 w-full border-0"
         style={{ overflow: "hidden" }}
       />
     </div>
