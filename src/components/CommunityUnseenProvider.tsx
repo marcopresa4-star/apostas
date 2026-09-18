@@ -30,6 +30,7 @@ export default function CommunityUnseenProvider({
   const pathname = usePathname();
   const router = useRouter();
   const [unseen, setUnseen] = useState(0);
+  const [enteredCount, setEnteredCount] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const lastCountRef = useRef(0);
   const onCommunityRef = useRef(false);
@@ -42,6 +43,7 @@ export default function CommunityUnseenProvider({
       await markCommunitySeen();
       lastCountRef.current = 0;
       setUnseen(0);
+      setEnteredCount(0);
       setShowToast(false);
     }
     markSeenNow();
@@ -52,7 +54,7 @@ export default function CommunityUnseenProvider({
     let cancelled = false;
 
     async function check() {
-      const count = await getCommunityUnseen();
+      const { count, entered } = await getCommunityUnseen();
       if (cancelled) return;
 
       if (onCommunityRef.current) {
@@ -63,12 +65,14 @@ export default function CommunityUnseenProvider({
         }
         lastCountRef.current = 0;
         setUnseen(0);
+        setEnteredCount(0);
         return;
       }
 
       if (count > lastCountRef.current) setShowToast(true);
       lastCountRef.current = count;
       setUnseen(count);
+      setEnteredCount(entered);
     }
 
     check();
@@ -104,7 +108,13 @@ export default function CommunityUnseenProvider({
             </span>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-orange-200">
-                {unseen === 1 ? "Nova aposta na Comunidade" : `${unseen} novas apostas na Comunidade`}
+                {enteredCount === unseen
+                  ? unseen === 1
+                    ? "Entrei numa aposta live"
+                    : `Entrei em ${unseen} apostas live`
+                  : unseen === 1
+                    ? "Nova aposta na Comunidade"
+                    : `${unseen} novas apostas na Comunidade`}
               </p>
               <p className="text-xs text-orange-300/80">Toca para ver</p>
             </div>

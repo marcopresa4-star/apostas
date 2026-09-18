@@ -27,6 +27,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0017_community.sql` (cria `profiles` e a página Comunidade — publicar apostas para outros utilizadores verem)
    - `0018_fix_community_rls_recursion.sql` (corrige um erro de "infinite recursion" nas políticas criadas em 0017)
    - `0019_community_notifications.sql` (guarda quando cada aposta foi publicada e quando cada utilizador viu a Comunidade pela última vez — notificações dentro do site)
+   - `0020_live_stage.sql` (apostas live passam a ter fases: a vigiar / ativa / não entrei, mais a odd em que entraste; só as ativas contam nas estatísticas)
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — só tu (ou quem tu decidires) é que tens conta.
    - **Depois de correr o `0017_community.sql`**, torna-te admin: no SQL Editor, corre
      `insert into profiles (id, role) select id, 'admin' from auth.users where email = 'o-teu-email@exemplo.com' on conflict (id) do update set role = 'admin';`
