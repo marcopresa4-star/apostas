@@ -14,13 +14,19 @@ export default function SportscoreWidget({
   const slug = `${slugify(homeTeam)}-vs-${slugify(awayTeam)}`;
 
   return (
-    <div className="h-48 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+      {/* Fixed to the exact visible height (not the widget's full ~800px)
+          with scrolling="no", so it shows a clean crop of just the
+          scoreboard header instead of a tall iframe with its own
+          (unstyleable, cross-origin) scrollbar peeking through. */}
       <iframe
         src={`https://sportscore.com/embed/match/football/${slug}/`}
+        scrolling="no"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         title={`${homeTeam} vs ${awayTeam}`}
-        className="h-[820px] w-full border-0"
+        className="h-48 w-full border-0"
+        style={{ overflow: "hidden" }}
       />
     </div>
   );
