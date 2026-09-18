@@ -122,7 +122,7 @@ export default function LiveWidgetsPanel({
       )}
 
       {hasAny && (
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(250px,1fr))]">
+        <div className="grid grid-cols-1 gap-4">
           {liveTickets.map((ticket) => (
             <SportscoreWidget
               key={ticket.id}
