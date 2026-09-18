@@ -14,17 +14,18 @@ export default function SportscoreWidget({
   const slug = `${slugify(homeTeam)}-vs-${slugify(awayTeam)}`;
 
   return (
-    <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      {/* Tall enough to fit the whole widget (scoreboard + 3D tracker +
-          stats) without its own internal scroll. scrolling="no" stays on
-          as a safety net in case a match has more stat rows than usual. */}
+    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+      {/* Fixed to the exact visible height (not the widget's full ~900px,
+          which would look absurdly tall and narrow at 3-per-row widths)
+          with scrolling="no", so it shows a clean crop of just the
+          scoreboard header — no scrollbar, nothing cut off mid-image. */}
       <iframe
         src={`https://sportscore.com/embed/match/football/${slug}/`}
         scrolling="no"
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
         title={`${homeTeam} vs ${awayTeam}`}
-        className="h-[900px] w-full border-0"
+        className="h-48 w-full border-0"
         style={{ overflow: "hidden" }}
       />
     </div>
