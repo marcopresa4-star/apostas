@@ -18,9 +18,10 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
-  sofascore_url: string | null;
-  bookmaker_url: string | null;
-  is_published: boolean;
+  // The three below are left out of the Comunidade queries on purpose.
+  sofascore_url?: string | null;
+  bookmaker_url?: string | null;
+  is_published?: boolean;
 }
 
 interface Ticket {
@@ -44,9 +45,12 @@ const DOT: Record<BetStatus, string> = {
 export default function CompactTicketList({
   tickets,
   imagesByPick = {},
+  readOnly = false,
 }: {
   tickets: Ticket[];
   imagesByPick?: Record<string, PickImageItem[]>;
+  // Hides every admin control (publish, mark ended, Entrei / Não entrei).
+  readOnly?: boolean;
 }) {
   const now = useNow();
   const [isPending, startTransition] = useTransition();
@@ -84,15 +88,17 @@ export default function CompactTicketList({
                 <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-red-400">
                   <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
                   Em direto
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleMarkEnded(ticket.id)}
-                    title="Marcar jogo como terminado"
-                    className="ml-0.5 rounded p-0.5 text-red-400/60 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
-                  >
-                    ✕
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleMarkEnded(ticket.id)}
+                      title="Marcar jogo como terminado"
+                      className="ml-0.5 rounded p-0.5 text-red-400/60 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </span>
               ) : countdown ? (
                 <span
@@ -144,32 +150,34 @@ export default function CompactTicketList({
                       {pick.stage !== "active" && pick.odd_min !== null && (
                         <span className="shrink-0 text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
                       )}
-                      <button
-                        type="button"
-                        disabled={isPending || !canPublish}
-                        onClick={() => handleTogglePublish(pick.id, pick.is_published)}
-                        title={
-                          pick.is_published
-                            ? "Publicado na Comunidade — clique para retirar"
-                            : canPublish
-                              ? "Publicar na Comunidade"
-                              : "Só podes publicar apostas pendentes"
-                        }
-                        className={`shrink-0 rounded p-0.5 transition disabled:opacity-40 ${
-                          pick.is_published
-                            ? "text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
-                            : "text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400 disabled:hover:bg-transparent disabled:hover:text-neutral-600"
-                        }`}
-                      >
-                        📢
-                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          disabled={isPending || !canPublish}
+                          onClick={() => handleTogglePublish(pick.id, Boolean(pick.is_published))}
+                          title={
+                            pick.is_published
+                              ? "Publicado na Comunidade — clique para retirar"
+                              : canPublish
+                                ? "Publicar na Comunidade"
+                                : "Só podes publicar apostas pendentes"
+                          }
+                          className={`shrink-0 rounded p-0.5 transition disabled:opacity-40 ${
+                            pick.is_published
+                              ? "text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+                              : "text-neutral-600 hover:bg-neutral-800 hover:text-neutral-400 disabled:hover:bg-transparent disabled:hover:text-neutral-600"
+                          }`}
+                        >
+                          📢
+                        </button>
+                      )}
                       {hasDetails && (
                         <span aria-hidden className="shrink-0 text-neutral-600">
                           ⓘ
                         </span>
                       )}
                     </div>
-                    {pick.bet_type === "live" && pick.stage === "watching" && (
+                    {!readOnly && pick.bet_type === "live" && pick.stage === "watching" && (
                       <div className="mb-1 mt-1.5 pl-3">
                         <LiveStageActions pickId={pick.id} stage={pick.stage} />
                       </div>

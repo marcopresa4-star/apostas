@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import CommunityTicket from "@/components/CommunityTicket";
+import CommunityTabs from "@/components/CommunityTabs";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -90,7 +91,9 @@ export default async function ComunidadePage() {
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">🌐 Comunidade</h1>
-      <p className="mb-6 text-sm text-neutral-500">Apostas partilhadas para veres e acompanhares.</p>
+      <p className="mb-4 text-sm text-neutral-500">Apostas partilhadas para veres e acompanhares.</p>
+
+      <CommunityTabs />
 
       {error && (
         <p className="mb-5 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">

@@ -20,9 +20,9 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
-  sofascore_url: string | null;
-  bookmaker_url: string | null;
-  is_published: boolean;
+  sofascore_url?: string | null;
+  bookmaker_url?: string | null;
+  is_published?: boolean;
 }
 
 interface DayTicket {
@@ -79,10 +79,12 @@ export default function PerformanceCalendar({
   dayStats,
   ticketsByDay,
   imagesByPick = {},
+  readOnly = false,
 }: {
   dayStats: Record<string, DayStat>;
   ticketsByDay: Record<string, DayTicket[]>;
   imagesByPick?: Record<string, PickImageItem[]>;
+  readOnly?: boolean;
 }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -196,7 +198,11 @@ export default function PerformanceCalendar({
           {selectedTickets.length === 0 ? (
             <p className="text-sm text-neutral-500">Sem apostas neste dia.</p>
           ) : (
-            <CompactTicketList tickets={selectedTickets} imagesByPick={imagesByPick} />
+            <CompactTicketList
+              tickets={selectedTickets}
+              imagesByPick={imagesByPick}
+              readOnly={readOnly}
+            />
           )}
         </div>
       )}
