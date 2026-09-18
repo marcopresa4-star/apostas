@@ -114,6 +114,7 @@ export default async function DashboardPage() {
     .filter((t) => t.picks.length > 0);
 
   const liveTickets = all
+    .filter((t) => t.match_date >= todayISO)
     .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
     .filter((t) => t.picks.length > 0);
 
