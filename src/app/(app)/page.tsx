@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 import CompactTicketList from "@/components/CompactTicketList";
 import StatsRow from "@/components/StatsRow";
 import LiveClock from "@/components/LiveClock";
@@ -57,6 +58,7 @@ function todayISODate() {
 }
 
 export default async function DashboardPage() {
+  await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: tickets, error }, { data: watchedMatches }] = await Promise.all([

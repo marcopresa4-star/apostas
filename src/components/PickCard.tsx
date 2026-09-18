@@ -5,7 +5,7 @@ import StatusBadge, { STATUS_BORDER } from "./StatusBadge";
 import StatusButtons from "./StatusButtons";
 import PickImages, { type PickImageItem } from "./PickImages";
 import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
-import { updatePick, createBetCategory } from "@/app/(app)/actions";
+import { updatePick, createBetCategory, setPickPublished } from "@/app/(app)/actions";
 import type { BetStatus, BetType } from "@/lib/database.types";
 
 interface PickCardProps {
@@ -20,6 +20,7 @@ interface PickCardProps {
     alert_minute: number | null;
     sofascore_url: string | null;
     bookmaker_url: string | null;
+    is_published: boolean;
     category: { id: string; name: string } | null;
   };
   images: PickImageItem[];
@@ -28,6 +29,7 @@ interface PickCardProps {
 
 export default function PickCard({ pick, images, initialCategories }: PickCardProps) {
   const [editing, setEditing] = useState(false);
+  const [isTogglingPublish, startPublishTransition] = useTransition();
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
@@ -41,6 +43,12 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [bookmakerUrl, setBookmakerUrl] = useState(pick.bookmaker_url ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function handleTogglePublish() {
+    startPublishTransition(async () => {
+      await setPickPublished(pick.id, !pick.is_published);
+    });
+  }
 
   function addCategory(item: TagItem) {
     setCategories((prev) => (prev.some((c) => c.id === item.id) ? prev : [...prev, item]));
@@ -232,7 +240,15 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                 </span>
               )}
             </p>
-            <div className="shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
+              {pick.is_published && (
+                <span
+                  title="Visível na Comunidade"
+                  className="rounded-full bg-violet-950 px-2 py-0.5 text-[10px] font-semibold text-violet-300"
+                >
+                  📢 Publicado
+                </span>
+              )}
               <StatusBadge status={pick.status} />
             </div>
           </div>
@@ -265,13 +281,31 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             </div>
           )}
           <PickImages pickId={pick.id} images={images} />
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="mb-2 text-xs text-neutral-500 hover:text-neutral-300"
-          >
-            Editar aposta
-          </button>
+          <div className="mb-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="text-xs text-neutral-500 hover:text-neutral-300"
+            >
+              Editar aposta
+            </button>
+            <button
+              type="button"
+              disabled={isTogglingPublish}
+              onClick={handleTogglePublish}
+              className={`text-xs disabled:opacity-50 ${
+                pick.is_published
+                  ? "text-violet-400 hover:text-violet-300"
+                  : "text-neutral-500 hover:text-neutral-300"
+              }`}
+            >
+              {isTogglingPublish
+                ? "..."
+                : pick.is_published
+                  ? "Retirar da Comunidade"
+                  : "Publicar na Comunidade"}
+            </button>
+          </div>
         </>
       )}
 

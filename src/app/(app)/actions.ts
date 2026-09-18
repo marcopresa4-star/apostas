@@ -356,6 +356,17 @@ export async function updatePickStatus(pickId: string, status: BetStatus) {
   revalidateAll();
 }
 
+export async function setPickPublished(pickId: string, published: boolean) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("picks")
+    .update({ is_published: published })
+    .eq("id", pickId);
+  if (error) throw error;
+  revalidatePath("/comunidade");
+  revalidateAll();
+}
+
 export async function deletePick(pickId: string) {
   const supabase = await createClient();
 

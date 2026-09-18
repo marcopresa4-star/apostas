@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 import TicketForm from "@/components/TicketForm";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
 import type { TagItem } from "@/components/CategoryCombobox";
@@ -11,6 +12,7 @@ interface NamedEntityRow {
 }
 
 export default async function NovaApostaPage() {
+  await requireAdmin();
   const supabase = await createClient();
 
   const [{ data: countries }, { data: competitions }, { data: teams }, { data: categories }] =

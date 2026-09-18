@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 import NovaVigilanciaTabs from "@/components/NovaVigilanciaTabs";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
 import type { TicketOption } from "@/components/ExistingTicketPicker";
@@ -22,6 +23,7 @@ interface ExistingTicketRow {
 }
 
 export default async function NovaVigilanciaLivePage() {
+  await requireAdmin();
   const supabase = await createClient();
 
   const [

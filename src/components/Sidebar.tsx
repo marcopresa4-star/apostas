@@ -12,6 +12,7 @@ const NAV_ITEMS = [
     icon: "🏠",
     chip: "bg-emerald-500/15 text-emerald-400",
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
+    adminOnly: true,
   },
   {
     href: "/apostas",
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
     icon: "🎟️",
     chip: "bg-emerald-500/15 text-emerald-400",
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
+    adminOnly: true,
   },
   {
     href: "/live",
@@ -27,6 +29,7 @@ const NAV_ITEMS = [
     chip: "bg-sky-500/15 text-sky-400",
     active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
     pulse: true,
+    adminOnly: true,
   },
   {
     href: "/analise",
@@ -34,6 +37,15 @@ const NAV_ITEMS = [
     icon: "📊",
     chip: "bg-violet-500/15 text-violet-400",
     active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
+    adminOnly: true,
+  },
+  {
+    href: "/comunidade",
+    label: "Comunidade",
+    icon: "🌐",
+    chip: "bg-orange-500/15 text-orange-400",
+    active: "bg-gradient-to-r from-orange-600 to-orange-500 shadow-lg shadow-orange-600/30",
+    adminOnly: false,
   },
 ];
 
@@ -95,16 +107,24 @@ function NavLink({
   );
 }
 
-export default function Sidebar({ userEmail }: { userEmail: string | null }) {
+export default function Sidebar({
+  userEmail,
+  isAdmin,
+}: {
+  userEmail: string | null;
+  isAdmin: boolean;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const homeHref = isAdmin ? "/" : "/comunidade";
+  const visibleItems = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
 
   return (
     <>
       {/* Mobile top bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-neutral-800/80 bg-neutral-900/80 px-4 py-3 backdrop-blur-md md:hidden">
         <Link
-          href="/"
+          href={homeHref}
           className="flex items-center gap-1.5 text-lg font-semibold text-neutral-100"
           onClick={() => setOpen(false)}
         >
@@ -122,7 +142,7 @@ export default function Sidebar({ userEmail }: { userEmail: string | null }) {
 
       {open && (
         <nav className="space-y-1 border-b border-neutral-800 bg-neutral-900 px-3 py-3 md:hidden">
-          {NAV_ITEMS.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.href}
               item={item}
@@ -148,7 +168,7 @@ export default function Sidebar({ userEmail }: { userEmail: string | null }) {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-48 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/30 via-transparent to-transparent"
         />
         <Link
-          href="/"
+          href={homeHref}
           className="flex items-center gap-2 px-5 py-5 text-lg font-semibold text-neutral-100"
         >
           <span aria-hidden className="text-xl">⚽</span>
@@ -157,7 +177,7 @@ export default function Sidebar({ userEmail }: { userEmail: string | null }) {
           </span>
         </Link>
         <nav className="flex-1 space-y-1.5 px-3">
-          {NAV_ITEMS.map((item) => (
+          {visibleItems.map((item) => (
             <NavLink
               key={item.href}
               item={item}

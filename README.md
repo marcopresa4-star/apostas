@@ -24,7 +24,12 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0014_pick_links.sql` (adiciona `sofascore_url` e `bookmaker_url` opcionais a cada aposta)
    - `0015_ticket_live_ended.sql` (adiciona `live_ended` aos jogos — marcar manualmente um jogo como terminado)
    - `0016_watched_matches.sql` (cria a tabela `watched_matches` — adicionar um widget de um jogo sem aposta)
-3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — o login é só para ti.
+   - `0017_community.sql` (cria `profiles` e a página Comunidade — publicar apostas para outros utilizadores verem)
+3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — só tu (ou quem tu decidires) é que tens conta.
+   - **Depois de correr o `0017_community.sql`**, torna-te admin: no SQL Editor, corre
+     `insert into profiles (id, role) select id, 'admin' from auth.users where email = 'o-teu-email@exemplo.com' on conflict (id) do update set role = 'admin';`
+     (substitui pelo teu email de login). Sem isto ficas com acesso só à página Comunidade, como um utilizador normal.
+   - Para dar acesso a outra pessoa só à Comunidade, cria a conta dela em **Authentication → Users** da mesma forma — não precisa de nenhum passo extra (fica "user" por omissão).
 4. Vai a **Project Settings → API** e copia:
    - `Project URL`
    - `anon public` key

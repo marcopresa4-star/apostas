@@ -23,6 +23,7 @@ interface Pick {
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
+  is_published: boolean;
   category: { id: string; name: string } | null;
 }
 

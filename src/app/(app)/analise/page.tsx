@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import type { PickImageItem } from "@/components/PickImages";
@@ -53,6 +54,7 @@ function toRankedRows(
 }
 
 export default async function AnalisePage() {
+  await requireAdmin();
   const supabase = await createClient();
 
   const { data: tickets, error } = await supabase

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/requireAdmin";
 import EditTicketForm from "@/components/EditTicketForm";
 import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
 
@@ -25,6 +26,7 @@ export default async function EditarApostaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireAdmin();
   const { id } = await params;
   const supabase = await createClient();
 
