@@ -14,7 +14,7 @@ export default function SportscoreWidget({
   const slug = `${slugify(homeTeam)}-vs-${slugify(awayTeam)}`;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
       {/* Tall enough to fit the whole widget (scoreboard + 3D tracker +
           stats) without its own internal scroll. scrolling="no" stays on
           as a safety net in case a match has more stat rows than usual. */}
