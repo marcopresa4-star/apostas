@@ -17,6 +17,7 @@ interface Pick {
   bet_type: BetType;
   odd: number | null;
   odd_min: number | null;
+  alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];
 }
@@ -48,7 +49,7 @@ export default async function ComunidadePage() {
        competition:competitions(name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(name),
        away_team:teams!tickets_away_team_id_fkey(name),
-       picks!inner(id, selection, reason, status, bet_type, odd, odd_min, category:bet_categories(name), pick_images(id, image_path))`
+       picks!inner(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, category:bet_categories(name), pick_images(id, image_path))`
     )
     .eq("picks.is_published", true)
     .order("match_date", { ascending: false })
@@ -166,11 +167,16 @@ function CommunityTicket({
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-100">
                   {pick.selection}
                 </span>
-                {pick.odd !== null && (
-                  <span className="shrink-0 text-xs text-neutral-500">@{pick.odd.toFixed(2)}</span>
+                {pick.bet_type === "pre_jogo" && pick.odd !== null && (
+                  <span className="shrink-0 text-xs text-neutral-500">@ {pick.odd.toFixed(2)}</span>
                 )}
-                {pick.odd_min !== null && (
-                  <span className="shrink-0 text-xs text-neutral-500">≥{pick.odd_min.toFixed(2)}</span>
+                {pick.bet_type === "live" && pick.odd_min !== null && (
+                  <span className="shrink-0 text-xs text-neutral-500">
+                    entra a partir de {pick.odd_min.toFixed(2)}
+                  </span>
+                )}
+                {pick.bet_type === "live" && pick.alert_minute !== null && (
+                  <span className="shrink-0 text-xs text-amber-400">🔔 min {pick.alert_minute}</span>
                 )}
               </div>
               {pick.reason && <p className="mb-2 text-sm text-neutral-300">{pick.reason}</p>}
