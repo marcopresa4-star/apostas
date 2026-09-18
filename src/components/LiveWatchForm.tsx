@@ -5,6 +5,7 @@ import Link from "next/link";
 import EntityCombobox, { type ComboItem, type ComboCountry } from "./EntityCombobox";
 import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
 import DatePicker from "./DatePicker";
+import LiveModeToggle, { type LiveMode } from "./LiveModeToggle";
 import TimePicker from "./TimePicker";
 import {
   createTicket,
@@ -35,7 +36,9 @@ export default function LiveWatchForm({
   const [awayTeam, setAwayTeam] = useState<ComboItem | null>(null);
   const [matchDate, setMatchDate] = useState("");
   const [matchTime, setMatchTime] = useState("");
+  const [mode, setMode] = useState<LiveMode>("watching");
   const [oddMin, setOddMin] = useState("");
+  const [entryOdd, setEntryOdd] = useState("");
   const [alertMinute, setAlertMinute] = useState("");
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
@@ -81,8 +84,13 @@ export default function LiveWatchForm({
     if (!matchDate) return setError("Indica o dia do jogo.");
     if (!matchTime) return setError("Indica a hora do jogo.");
     if (!category?.id) return setError("Seleciona ou cria o tipo de aposta.");
-    if (!oddMin.trim()) return setError("Indica a odd mínima de entrada.");
-    if (Number(oddMin) <= 1) return setError("A odd tem de ser maior que 1.");
+    if (mode === "watching") {
+      if (!oddMin.trim()) return setError("Indica a odd mínima de entrada.");
+      if (Number(oddMin) <= 1) return setError("A odd tem de ser maior que 1.");
+    } else {
+      if (!entryOdd.trim()) return setError("Indica a odd em que entraste.");
+      if (Number(entryOdd) <= 1) return setError("A odd tem de ser maior que 1.");
+    }
 
     startTransition(async () => {
       try {
@@ -95,9 +103,11 @@ export default function LiveWatchForm({
           selection: category.name,
           reason,
           betType: "live",
+          stage: mode,
           odd: null,
-          oddMin: Number(oddMin),
-          alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
+          oddMin: mode === "watching" ? Number(oddMin) : null,
+          entryOdd: mode === "active" ? Number(entryOdd) : null,
+          alertMinute: mode === "watching" && alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
           categoryId: category.id,
@@ -111,6 +121,8 @@ export default function LiveWatchForm({
 
   return (
     <div className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+      <LiveModeToggle value={mode} onChange={setMode} />
+
       <EntityCombobox
         label="Competição / Liga"
         placeholder="Ex: Primeira Liga"
@@ -159,7 +171,11 @@ export default function LiveWatchForm({
         <TimePicker label="Hora" value={matchTime} onChange={setMatchTime} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr_1fr]">
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          mode === "watching" ? "sm:grid-cols-[2fr_1fr_1fr]" : "sm:grid-cols-[2fr_1fr]"
+        }`}
+      >
         <CategoryCombobox
           label="Tipo de aposta"
           placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
@@ -169,30 +185,47 @@ export default function LiveWatchForm({
           createAction={createBetCategory}
           onCreated={addCategory}
         />
-        <div>
-          <label className="mb-1 block text-sm text-neutral-300">Odd mínima</label>
-          <input
-            type="number"
-            step="0.01"
-            min="1.01"
-            value={oddMin}
-            onChange={(e) => setOddMin(e.target.value)}
-            placeholder="Ex: 1.85"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm text-neutral-300">Alerta ao minuto</label>
-          <input
-            type="number"
-            step="1"
-            min="1"
-            value={alertMinute}
-            onChange={(e) => setAlertMinute(e.target.value)}
-            placeholder="Ex: 10"
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-          />
-        </div>
+        {mode === "watching" ? (
+          <>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Odd mínima</label>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={oddMin}
+                onChange={(e) => setOddMin(e.target.value)}
+                placeholder="Ex: 1.85"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Alerta ao minuto</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={alertMinute}
+                onChange={(e) => setAlertMinute(e.target.value)}
+                placeholder="Ex: 10"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+          </>
+        ) : (
+          <div>
+            <label className="mb-1 block text-sm text-neutral-300">Odd em que entrei</label>
+            <input
+              type="number"
+              step="0.01"
+              min="1.01"
+              value={entryOdd}
+              onChange={(e) => setEntryOdd(e.target.value)}
+              placeholder="Ex: 1.85"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+            />
+          </div>
+        )}
       </div>
 
       <div>
@@ -201,7 +234,9 @@ export default function LiveWatchForm({
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="O que estás a vigiar neste jogo..."
+          placeholder={
+            mode === "watching" ? "O que estás a vigiar neste jogo..." : "Porque entraste nesta aposta..."
+          }
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
         />
       </div>
@@ -255,7 +290,7 @@ export default function LiveWatchForm({
           disabled={isPending}
           className="w-full rounded-lg bg-sky-600 px-3 py-2 font-medium text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500 disabled:opacity-60 sm:w-auto"
         >
-          {isPending ? "A guardar..." : "Vigiar jogo"}
+          {isPending ? "A guardar..." : mode === "watching" ? "Vigiar jogo" : "Registar entrada"}
         </button>
       </div>
     </div>

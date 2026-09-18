@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import StatRanking, { type RankRow } from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import type { PickImageItem } from "@/components/PickImages";
-import type { BetStatus, BetType } from "@/lib/database.types";
+import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -18,8 +18,10 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
+  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
+  entry_odd: number | null;
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
@@ -65,7 +67,7 @@ export default async function AnalisePage() {
        competition:competitions(id, name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(id, name),
        away_team:teams!tickets_away_team_id_fkey(id, name),
-       picks(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
+       picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
     )
     .order("match_date", { ascending: true })
     .order("match_time", { ascending: true })
@@ -99,11 +101,14 @@ export default async function AnalisePage() {
   const ticketsByDay: Record<string, TicketRow[]> = {};
 
   for (const ticket of all) {
-    if (ticket.picks.length === 0) continue;
+    // Only picks you actually entered count as bets; watching ideas and
+    // "não entrei" never reach the analysis.
+    const activePicks = ticket.picks.filter((p) => p.stage === "active");
+    if (activePicks.length === 0) continue;
 
-    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: ticket.picks });
+    (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: activePicks });
 
-    const resolvedPicks = ticket.picks.filter(
+    const resolvedPicks = activePicks.filter(
       (p) => p.status === "green" || p.status === "red"
     );
     if (resolvedPicks.length === 0) continue;

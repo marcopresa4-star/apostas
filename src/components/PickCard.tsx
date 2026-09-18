@@ -5,8 +5,9 @@ import StatusBadge, { STATUS_BORDER } from "./StatusBadge";
 import StatusButtons from "./StatusButtons";
 import PickImages, { type PickImageItem } from "./PickImages";
 import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
+import LiveStageActions from "./LiveStageActions";
 import { updatePick, createBetCategory, setPickPublished } from "@/app/(app)/actions";
-import type { BetStatus, BetType } from "@/lib/database.types";
+import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
 interface PickCardProps {
   pick: {
@@ -15,8 +16,10 @@ interface PickCardProps {
     reason: string | null;
     status: BetStatus;
     bet_type: BetType;
+    stage: PickStage;
     odd: number | null;
     odd_min: number | null;
+    entry_odd: number | null;
     alert_minute: number | null;
     sofascore_url: string | null;
     bookmaker_url: string | null;
@@ -33,6 +36,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
+  const [entryOdd, setEntryOdd] = useState(pick.entry_odd !== null ? String(pick.entry_odd) : "");
   const [alertMinute, setAlertMinute] = useState(
     pick.alert_minute !== null ? String(pick.alert_minute) : ""
   );
@@ -45,7 +49,13 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
   const [publishError, setPublishError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const canPublish = pick.is_published || pick.status === "pending";
+  const canPublish = pick.is_published || (pick.status === "pending" && pick.stage !== "skipped");
+
+  // Editing can switch the bet type: a pre-game pick turned live starts as a
+  // watch (it needs the minimum odd), a live pick turned pre-game is simply
+  // active. Otherwise the pick keeps the stage it is in.
+  const stageForSave: PickStage =
+    betType === "pre_jogo" ? "active" : pick.bet_type === "pre_jogo" ? "watching" : pick.stage;
 
   function handleTogglePublish() {
     setPublishError(null);
@@ -63,6 +73,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
     setBetType(pick.bet_type);
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
+    setEntryOdd(pick.entry_odd !== null ? String(pick.entry_odd) : "");
     setAlertMinute(pick.alert_minute !== null ? String(pick.alert_minute) : "");
     setCategory(pick.category);
     setReason(pick.reason ?? "");
@@ -85,8 +96,10 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
           selection: category.name,
           reason,
           betType,
+          stage: stageForSave,
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
+          entryOdd: entryOdd.trim() ? Number(entryOdd) : null,
           alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
@@ -145,6 +158,19 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                   value={odd}
                   onChange={(e) => setOdd(e.target.value)}
                   placeholder="Odd"
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                />
+              </div>
+            ) : stageForSave === "active" ? (
+              <div className="w-28 shrink-0">
+                <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1.01"
+                  value={entryOdd}
+                  onChange={(e) => setEntryOdd(e.target.value)}
+                  placeholder="Odd entrada"
                   className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
                 />
               </div>
@@ -228,18 +254,40 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                   LIVE
                 </span>
               )}
+              {pick.bet_type === "live" && (
+                <span
+                  className={`mr-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold align-middle ${
+                    pick.stage === "active"
+                      ? "bg-emerald-950 text-emerald-300"
+                      : pick.stage === "skipped"
+                        ? "bg-neutral-800 text-neutral-400"
+                        : "bg-amber-950 text-amber-300"
+                  }`}
+                >
+                  {pick.stage === "active"
+                    ? "ATIVA"
+                    : pick.stage === "skipped"
+                      ? "NÃO ENTREI"
+                      : "A VIGIAR"}
+                </span>
+              )}
               {pick.selection}
               {pick.bet_type === "pre_jogo" && pick.odd !== null && (
                 <span className="ml-2 text-xs font-normal text-neutral-400">
                   @ {pick.odd.toFixed(2)}
                 </span>
               )}
-              {pick.bet_type === "live" && pick.odd_min !== null && (
+              {pick.bet_type === "live" && pick.stage === "active" && pick.entry_odd !== null && (
+                <span className="ml-2 text-xs font-normal text-neutral-400">
+                  entrei a {pick.entry_odd.toFixed(2)}
+                </span>
+              )}
+              {pick.bet_type === "live" && pick.stage !== "active" && pick.odd_min !== null && (
                 <span className="ml-2 text-xs font-normal text-neutral-400">
                   entra a partir de {pick.odd_min.toFixed(2)}
                 </span>
               )}
-              {pick.bet_type === "live" && pick.alert_minute !== null && (
+              {pick.bet_type === "live" && pick.stage === "watching" && pick.alert_minute !== null && (
                 <span className="ml-2 text-xs font-normal text-amber-400">
                   🔔 min {pick.alert_minute}
                 </span>
@@ -286,6 +334,11 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
             </div>
           )}
           <PickImages pickId={pick.id} images={images} />
+          {pick.bet_type === "live" && pick.stage !== "active" && (
+            <div className="mb-2">
+              <LiveStageActions pickId={pick.id} stage={pick.stage} />
+            </div>
+          )}
           <div className="mb-2 flex items-center gap-3">
             <button
               type="button"
@@ -298,7 +351,13 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
               type="button"
               disabled={isTogglingPublish || !canPublish}
               onClick={handleTogglePublish}
-              title={!canPublish ? "Só podes publicar apostas pendentes" : undefined}
+              title={
+                !canPublish
+                  ? pick.stage === "skipped"
+                    ? "Não podes publicar uma vigilância em que não entraste"
+                    : "Só podes publicar apostas pendentes"
+                  : undefined
+              }
               className={`text-xs disabled:opacity-50 ${
                 pick.is_published
                   ? "text-violet-400 hover:text-violet-300"
@@ -316,7 +375,9 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
         </>
       )}
 
-      {!editing && <StatusButtons pickId={pick.id} status={pick.status} />}
+      {!editing && pick.stage === "active" && (
+        <StatusButtons pickId={pick.id} status={pick.status} />
+      )}
     </div>
   );
 }

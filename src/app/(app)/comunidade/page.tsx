@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import CommunityTicket from "@/components/CommunityTicket";
 import type { PickImageItem } from "@/components/PickImages";
-import type { BetStatus, BetType } from "@/lib/database.types";
+import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -16,8 +16,10 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
+  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
+  entry_odd: number | null;
   alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];
@@ -44,7 +46,7 @@ export default async function ComunidadePage() {
        competition:competitions(name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(name),
        away_team:teams!tickets_away_team_id_fkey(name),
-       picks!inner(id, selection, reason, status, bet_type, odd, odd_min, alert_minute, category:bet_categories(name), pick_images(id, image_path))`
+       picks!inner(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, category:bet_categories(name), pick_images(id, image_path))`
     )
     .eq("picks.is_published", true)
     .order("match_date", { ascending: false })
@@ -72,13 +74,18 @@ export default async function ComunidadePage() {
     });
   }
 
-  const preJogoTickets = all
-    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "pre_jogo") }))
-    .filter((t) => t.picks.length > 0);
+  // A ticket can hold picks of several kinds, so each section keeps only
+  // its own picks. "Não entrei" picks are unpublished when marked, but the
+  // filter below is a second safety net so they can never show up here.
+  function ticketsWith(match: (p: Pick) => boolean) {
+    return all
+      .map((t) => ({ ...t, picks: t.picks.filter((p) => p.stage !== "skipped" && match(p)) }))
+      .filter((t) => t.picks.length > 0);
+  }
 
-  const liveTickets = all
-    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "live") }))
-    .filter((t) => t.picks.length > 0);
+  const preJogoTickets = ticketsWith((p) => p.bet_type === "pre_jogo");
+  const activeLiveTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "active");
+  const watchingTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "watching");
 
   return (
     <div>
@@ -106,18 +113,33 @@ export default async function ComunidadePage() {
         )}
       </div>
 
+      <div className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold text-emerald-400">🔥 Ativas em live</h2>
+        {activeLiveTickets.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
+            Sem apostas live ativas partilhadas.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {activeLiveTickets.map((ticket) => (
+              <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
+            ))}
+          </div>
+        )}
+      </div>
+
       <div>
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-sky-400">
           <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
           A vigiar em live
         </h2>
-        {liveTickets.length === 0 ? (
+        {watchingTickets.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
-            Sem jogos live partilhados.
+            Sem jogos a vigiar partilhados.
           </p>
         ) : (
           <div className="space-y-3">
-            {liveTickets.map((ticket) => (
+            {watchingTickets.map((ticket) => (
               <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
             ))}
           </div>

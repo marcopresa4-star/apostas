@@ -3,7 +3,7 @@
 import { useNow } from "@/lib/useNow";
 import { isMatchLive, getCountdownClock } from "@/lib/matchStatus";
 import type { PickImageItem } from "./PickImages";
-import type { BetStatus, BetType } from "@/lib/database.types";
+import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
 interface PickImageRow {
   id: string;
@@ -16,8 +16,10 @@ interface Pick {
   reason: string | null;
   status: BetStatus;
   bet_type: BetType;
+  stage: PickStage;
   odd: number | null;
   odd_min: number | null;
+  entry_odd: number | null;
   alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];
@@ -97,12 +99,17 @@ export default function CommunityTicket({
                 {pick.bet_type === "pre_jogo" && pick.odd !== null && (
                   <span className="shrink-0 text-xs text-neutral-500">@ {pick.odd.toFixed(2)}</span>
                 )}
-                {pick.bet_type === "live" && pick.odd_min !== null && (
+                {pick.bet_type === "live" && pick.stage === "active" && pick.entry_odd !== null && (
+                  <span className="shrink-0 text-xs font-medium text-emerald-400">
+                    entrei a {pick.entry_odd.toFixed(2)}
+                  </span>
+                )}
+                {pick.bet_type === "live" && pick.stage === "watching" && pick.odd_min !== null && (
                   <span className="shrink-0 text-xs text-neutral-500">
                     entra a partir de {pick.odd_min.toFixed(2)}
                   </span>
                 )}
-                {pick.bet_type === "live" && pick.alert_minute !== null && (
+                {pick.bet_type === "live" && pick.stage === "watching" && pick.alert_minute !== null && (
                   <span className="shrink-0 text-xs text-amber-400">🔔 min {pick.alert_minute}</span>
                 )}
               </div>
