@@ -376,13 +376,65 @@ export async function setPickPublished(
 
   const { error } = await supabase
     .from("picks")
-    .update({ is_published: published })
+    .update({
+      is_published: published,
+      published_at: published ? new Date().toISOString() : null,
+    })
     .eq("id", pickId);
   if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
 
   revalidatePath("/comunidade");
   revalidateAll();
   return { ok: true };
+}
+
+// How many picks were published since this user last opened the Comunidade.
+// A user's first ever call just plants their marker (so they start at zero)
+// instead of flooding them with the whole back catalogue. Never throws: if
+// the table is missing (migration not run yet) it just reports 0.
+export async function getCommunityUnseen(): Promise<number> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data: read, error: readError } = await supabase
+    .from("community_reads")
+    .select("last_seen_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (readError) return 0;
+
+  if (!read) {
+    await supabase
+      .from("community_reads")
+      .insert({ user_id: user.id, last_seen_at: new Date().toISOString() });
+    return 0;
+  }
+
+  const { count, error } = await supabase
+    .from("picks")
+    .select("id", { count: "exact", head: true })
+    .eq("is_published", true)
+    .gt("published_at", read.last_seen_at);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+export async function markCommunitySeen(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("community_reads")
+    .upsert(
+      { user_id: user.id, last_seen_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
 }
 
 export async function deletePick(pickId: string) {
