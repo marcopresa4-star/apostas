@@ -515,8 +515,17 @@ export async function resumeWatchingPick(pickId: string): Promise<StageResult> {
 // A user's first ever call just plants their marker (so they start at zero)
 // instead of flooding them with the whole back catalogue. Never throws: if
 // the table is missing (migration not run yet) it just reports zeros.
-export async function getCommunityUnseen(): Promise<{ count: number; entered: number }> {
-  const none = { count: 0, entered: 0 };
+//
+// It also returns a "signature" of everything currently published (how many
+// picks and the latest change). Unpublishing or resolving a pick changes it
+// without adding anything new, which is how an open Comunidade page knows it
+// must refresh. Empty means "unknown", never "changed".
+export async function getCommunityUnseen(): Promise<{
+  count: number;
+  entered: number;
+  signature: string;
+}> {
+  const none = { count: 0, entered: 0, signature: "" };
   const supabase = await createClient();
   const {
     data: { user },
@@ -544,12 +553,23 @@ export async function getCommunityUnseen(): Promise<{ count: number; entered: nu
       .eq("is_published", true)
       .gt("published_at", read.last_seen_at);
 
-  const [all, entered] = await Promise.all([
+  const latest = supabase
+    .from("picks")
+    .select("updated_at", { count: "exact" })
+    .eq("is_published", true)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  const [all, entered, newest] = await Promise.all([
     unseen(),
     unseen().eq("bet_type", "live").eq("stage", "active"),
+    latest,
   ]);
   if (all.error || entered.error) return none;
-  return { count: all.count ?? 0, entered: entered.count ?? 0 };
+  const signature = newest.error
+    ? ""
+    : `${newest.count ?? 0}:${newest.data?.[0]?.updated_at ?? ""}`;
+  return { count: all.count ?? 0, entered: entered.count ?? 0, signature };
 }
 
 export async function markCommunitySeen(): Promise<void> {

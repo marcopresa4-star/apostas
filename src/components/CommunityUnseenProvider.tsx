@@ -47,6 +47,7 @@ export default function CommunityUnseenProvider({
   const lastCountRef = useRef(0);
   const onCommunityRef = useRef(false);
   const firstCheckRef = useRef(true);
+  const signatureRef = useRef<string | null>(null);
 
   useEffect(() => {
     onCommunityRef.current = pathname.startsWith("/comunidade");
@@ -69,11 +70,18 @@ export default function CommunityUnseenProvider({
       // A hidden tab has nobody to notify; it checks again when it comes back.
       if (document.visibilityState === "hidden") return;
 
-      const { count, entered } = await getCommunityUnseen();
+      const { count, entered, signature } = await getCommunityUnseen();
       if (cancelled) return;
 
       const isFirstCheck = firstCheckRef.current;
       firstCheckRef.current = false;
+
+      // The set of published picks changed (something was retired or
+      // resolved) since the last check. An empty signature means the check
+      // failed, which is not a change.
+      const publishedChanged =
+        signature !== "" && signatureRef.current !== null && signatureRef.current !== signature;
+      if (signature !== "") signatureRef.current = signature;
 
       if (onCommunityRef.current) {
         if (count > 0) {
@@ -83,6 +91,9 @@ export default function CommunityUnseenProvider({
           // Whatever was already unseen when the page opened is on screen
           // already, so only later arrivals get a toast.
           if (!isFirstCheck) setToast({ count, entered });
+        } else if (publishedChanged) {
+          // Nothing new to announce, but the page on screen is out of date.
+          router.refresh();
         }
         lastCountRef.current = 0;
         setUnseen(0);
