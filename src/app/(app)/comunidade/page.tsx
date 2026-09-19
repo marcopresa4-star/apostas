@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import CommunityTicket from "@/components/CommunityTicket";
+import CommunityFeed from "@/components/CommunityFeed";
 import CommunityTabs from "@/components/CommunityTabs";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
@@ -75,23 +75,13 @@ export default async function ComunidadePage() {
     });
   }
 
-  // A ticket can hold picks of several kinds, so each section keeps only
-  // its own picks. "Não entrei" picks are unpublished when marked, but the
-  // filter below is a second safety net so they can never show up here.
-  function ticketsWith(match: (p: Pick) => boolean) {
-    return all
-      .map((t) => ({ ...t, picks: t.picks.filter((p) => p.stage !== "skipped" && match(p)) }))
-      .filter((t) => t.picks.length > 0);
-  }
-
-  const preJogoTickets = ticketsWith((p) => p.bet_type === "pre_jogo");
-  const activeLiveTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "active");
-  const watchingTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "watching");
-
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">🌐 Comunidade</h1>
-      <p className="mb-4 text-sm text-neutral-500">Apostas partilhadas para veres e acompanhares.</p>
+      <p className="mb-4 text-sm text-neutral-500">
+        Apostas partilhadas de jogos por acabar. Os jogos terminados saem daqui e os resultados
+        ficam na Análise.
+      </p>
 
       <CommunityTabs />
 
@@ -101,53 +91,7 @@ export default async function ComunidadePage() {
         </p>
       )}
 
-      <div className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-emerald-400">🎟️ Apostas</h2>
-        {preJogoTickets.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
-            Ainda não há apostas partilhadas.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {preJogoTickets.map((ticket) => (
-              <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="mb-8">
-        <h2 className="mb-3 text-sm font-semibold text-emerald-400">🔥 Ativas em live</h2>
-        {activeLiveTickets.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
-            Sem apostas live ativas partilhadas.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {activeLiveTickets.map((ticket) => (
-              <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-sky-400">
-          <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-          A vigiar em live
-        </h2>
-        {watchingTickets.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-neutral-800 px-4 py-10 text-center text-neutral-500">
-            Sem jogos a vigiar partilhados.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {watchingTickets.map((ticket) => (
-              <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
-            ))}
-          </div>
-        )}
-      </div>
+      <CommunityFeed tickets={all} imagesByPick={imagesByPick} />
     </div>
   );
 }

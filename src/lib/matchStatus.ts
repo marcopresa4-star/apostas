@@ -10,6 +10,20 @@ export function isMatchLive(matchDate: string, matchTime: string, now: Date): bo
   return diffMs >= 0 && diffMs <= LIVE_WINDOW_MS;
 }
 
+// A game is over once it was marked as ended by hand, or once the live window
+// after kickoff has passed - the exact moment "Em direto" would switch off.
+export function isMatchOver(
+  matchDate: string,
+  matchTime: string,
+  liveEnded: boolean,
+  now: Date
+): boolean {
+  if (liveEnded) return true;
+  const kickoff = new Date(`${matchDate}T${matchTime}`);
+  if (Number.isNaN(kickoff.getTime())) return false;
+  return now.getTime() - kickoff.getTime() > LIVE_WINDOW_MS;
+}
+
 // Minutes elapsed since kickoff, or null if the match hasn't started yet.
 export function getElapsedMinutes(matchDate: string, matchTime: string, now: Date): number | null {
   const kickoff = new Date(`${matchDate}T${matchTime}`);
