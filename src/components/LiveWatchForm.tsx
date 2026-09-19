@@ -7,6 +7,7 @@ import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
 import DatePicker from "./DatePicker";
 import LiveModeToggle, { type LiveMode } from "./LiveModeToggle";
 import TimePicker from "./TimePicker";
+import { kickoffFromMinute } from "@/lib/matchStatus";
 import {
   createTicket,
   createTeam,
@@ -39,6 +40,7 @@ export default function LiveWatchForm({
   const [mode, setMode] = useState<LiveMode>("watching");
   const [oddMin, setOddMin] = useState("");
   const [entryOdd, setEntryOdd] = useState("");
+  const [entryMinute, setEntryMinute] = useState("");
   const [alertMinute, setAlertMinute] = useState("");
   const [category, setCategory] = useState<TagItem | null>(null);
   const [reason, setReason] = useState("");
@@ -81,8 +83,12 @@ export default function LiveWatchForm({
     if (!awayTeam?.id) return setError("Seleciona ou cria a equipa de fora.");
     if (homeTeam.id === awayTeam.id)
       return setError("A equipa da casa e a equipa de fora têm de ser diferentes.");
-    if (!matchDate) return setError("Indica o dia do jogo.");
-    if (!matchTime) return setError("Indica a hora do jogo.");
+    // A game you already entered is happening right now, so its day and
+    // kickoff come from the minute you enter instead of being typed in.
+    if (mode === "watching") {
+      if (!matchDate) return setError("Indica o dia do jogo.");
+      if (!matchTime) return setError("Indica a hora do jogo.");
+    }
     if (!category?.id) return setError("Seleciona ou cria o tipo de aposta.");
     if (mode === "watching") {
       if (!oddMin.trim()) return setError("Indica a odd mínima de entrada.");
@@ -90,7 +96,16 @@ export default function LiveWatchForm({
     } else {
       if (!entryOdd.trim()) return setError("Indica a odd em que entraste.");
       if (Number(entryOdd) <= 1) return setError("A odd tem de ser maior que 1.");
+      if (!entryMinute.trim()) return setError("Indica o minuto do jogo em que entraste.");
+      const minute = Number(entryMinute);
+      if (!Number.isInteger(minute) || minute < 0 || minute > 150)
+        return setError("O minuto tem de ser um número entre 0 e 150.");
     }
+
+    const kickoff =
+      mode === "active"
+        ? kickoffFromMinute(Number(entryMinute), new Date())
+        : { date: matchDate, time: matchTime };
 
     startTransition(async () => {
       try {
@@ -98,8 +113,8 @@ export default function LiveWatchForm({
           competitionId: competition.id,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
-          matchDate,
-          matchTime,
+          matchDate: kickoff.date,
+          matchTime: kickoff.time,
           selection: category.name,
           reason,
           betType: "live",
@@ -107,6 +122,7 @@ export default function LiveWatchForm({
           odd: null,
           oddMin: mode === "watching" ? Number(oddMin) : null,
           entryOdd: mode === "active" ? Number(entryOdd) : null,
+          entryMinute: mode === "active" ? Number(entryMinute) : null,
           alertMinute: mode === "watching" && alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
@@ -166,16 +182,14 @@ export default function LiveWatchForm({
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DatePicker label="Dia do jogo" value={matchDate} onChange={setMatchDate} />
-        <TimePicker label="Hora" value={matchTime} onChange={setMatchTime} />
-      </div>
+      {mode === "watching" && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <DatePicker label="Dia do jogo" value={matchDate} onChange={setMatchDate} />
+          <TimePicker label="Hora" value={matchTime} onChange={setMatchTime} />
+        </div>
+      )}
 
-      <div
-        className={`grid grid-cols-1 gap-4 ${
-          mode === "watching" ? "sm:grid-cols-[2fr_1fr_1fr]" : "sm:grid-cols-[2fr_1fr]"
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr_1fr]">
         <CategoryCombobox
           label="Tipo de aposta"
           placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
@@ -213,20 +227,42 @@ export default function LiveWatchForm({
             </div>
           </>
         ) : (
-          <div>
-            <label className="mb-1 block text-sm text-neutral-300">Odd em que entrei</label>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={entryOdd}
-              onChange={(e) => setEntryOdd(e.target.value)}
-              placeholder="Ex: 1.85"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-            />
-          </div>
+          <>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Odd em que entrei</label>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={entryOdd}
+                onChange={(e) => setEntryOdd(e.target.value)}
+                placeholder="Ex: 1.85"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Minuto em que entrei</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="150"
+                value={entryMinute}
+                onChange={(e) => setEntryMinute(e.target.value)}
+                placeholder="Ex: 35"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+          </>
         )}
       </div>
+
+      {mode === "active" && (
+        <p className="text-xs text-neutral-500">
+          A hora do jogo é calculada a partir deste minuto. Se ficar diferente, corrige em Editar
+          jogo.
+        </p>
+      )}
 
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Razão (opcional)</label>

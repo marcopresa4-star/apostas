@@ -20,6 +20,7 @@ export default function AddPickForm({
   const [odd, setOdd] = useState("");
   const [oddMin, setOddMin] = useState("");
   const [entryOdd, setEntryOdd] = useState("");
+  const [entryMinute, setEntryMinute] = useState("");
   const [alertMinute, setAlertMinute] = useState("");
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
@@ -47,6 +48,7 @@ export default function AddPickForm({
     setOdd("");
     setOddMin("");
     setEntryOdd("");
+    setEntryMinute("");
     setAlertMinute("");
     setSofascoreUrl("");
     setBookmakerUrl("");
@@ -64,6 +66,14 @@ export default function AddPickForm({
       setError("Seleciona ou cria o tipo de aposta.");
       return;
     }
+    const enteringLive = betType === "live" && mode === "active";
+    if (enteringLive) {
+      const minute = Number(entryMinute);
+      if (!entryMinute.trim() || !Number.isInteger(minute) || minute < 0 || minute > 150) {
+        setError("Indica o minuto do jogo em que entraste (0 a 150).");
+        return;
+      }
+    }
     startTransition(async () => {
       try {
         await addPick({
@@ -74,7 +84,8 @@ export default function AddPickForm({
           stage: betType === "live" ? mode : "active",
           odd: odd.trim() ? Number(odd) : null,
           oddMin: betType === "live" && mode === "watching" && oddMin.trim() ? Number(oddMin) : null,
-          entryOdd: betType === "live" && mode === "active" && entryOdd.trim() ? Number(entryOdd) : null,
+          entryOdd: enteringLive && entryOdd.trim() ? Number(entryOdd) : null,
+          entryMinute: enteringLive ? Number(entryMinute) : null,
           alertMinute:
             betType === "live" && mode === "watching" && alertMinute.trim()
               ? Number(alertMinute)
@@ -124,18 +135,33 @@ export default function AddPickForm({
             />
           </div>
         ) : mode === "active" ? (
-          <div className="w-28 shrink-0">
-            <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={entryOdd}
-              onChange={(e) => setEntryOdd(e.target.value)}
-              placeholder="Odd entrada"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-            />
-          </div>
+          <>
+            <div className="w-28 shrink-0">
+              <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={entryOdd}
+                onChange={(e) => setEntryOdd(e.target.value)}
+                placeholder="Odd entrada"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div className="w-24 shrink-0">
+              <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="150"
+                value={entryMinute}
+                onChange={(e) => setEntryMinute(e.target.value)}
+                placeholder="Minuto"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+              />
+            </div>
+          </>
         ) : (
           <>
             <div className="w-24 shrink-0">

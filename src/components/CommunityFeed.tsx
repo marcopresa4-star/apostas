@@ -21,6 +21,7 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
+  entry_minute: number | null;
   alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];

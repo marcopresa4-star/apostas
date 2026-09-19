@@ -187,7 +187,7 @@ export async function createTicket(
     throw new Error("A equipa da casa e a equipa de fora têm de ser diferentes.");
   }
 
-  const pickFields = buildPickFields(input);
+  const pickFields = buildPickFields(input, { requireEntryMinute: true });
 
   const { data: ticket, error: ticketError } = await supabase
     .from("tickets")
@@ -294,13 +294,24 @@ interface PickInput {
   odd: number | null;
   oddMin: number | null;
   entryOdd: number | null;
+  // Active live picks: the game minute at which you entered.
+  entryMinute?: number | null;
   alertMinute: number | null;
   sofascoreUrl: string;
   bookmakerUrl: string;
   categoryId: string | null;
 }
 
-function buildPickFields(input: PickInput) {
+function validateEntryMinute(minute: number | null | undefined) {
+  if (minute == null) return;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 150) {
+    throw new Error("O minuto tem de ser um número entre 0 e 150.");
+  }
+}
+
+// New live entries must say the minute; editing an older pick may leave it
+// empty (it was entered before the minute existed).
+function buildPickFields(input: PickInput, options: { requireEntryMinute?: boolean } = {}) {
   if (!input.selection.trim()) {
     throw new Error("Indica a aposta.");
   }
@@ -315,6 +326,10 @@ function buildPickFields(input: PickInput) {
       if (input.entryOdd <= 1) {
         throw new Error("A odd tem de ser maior que 1.");
       }
+      if (options.requireEntryMinute && input.entryMinute == null) {
+        throw new Error("Indica o minuto do jogo em que entraste.");
+      }
+      validateEntryMinute(input.entryMinute);
     } else if (input.oddMin === null) {
       throw new Error("Indica a odd mínima de entrada da aposta live.");
     }
@@ -336,6 +351,8 @@ function buildPickFields(input: PickInput) {
     odd: input.betType === "pre_jogo" ? input.odd : null,
     odd_min: input.betType === "live" ? input.oddMin : null,
     entry_odd: input.betType === "live" && stage === "active" ? input.entryOdd : null,
+    entry_minute:
+      input.betType === "live" && stage === "active" ? (input.entryMinute ?? null) : null,
     alert_minute: input.betType === "live" ? input.alertMinute : null,
     sofascore_url: input.sofascoreUrl.trim() || null,
     bookmaker_url: input.bookmakerUrl.trim() || null,
@@ -354,7 +371,7 @@ export async function updatePick(input: { pickId: string } & PickInput) {
 }
 
 export async function addPick(input: { ticketId: string } & PickInput) {
-  const fields = buildPickFields(input);
+  const fields = buildPickFields(input, { requireEntryMinute: true });
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -422,9 +439,16 @@ async function fetchLivePick(pickId: string) {
 // watching -> active: you entered, at this real odd. If the pick is already
 // published, published_at is bumped so followers get notified again - this
 // is the moment they can actually act on it.
-export async function enterLivePick(pickId: string, entryOdd: number): Promise<StageResult> {
+export async function enterLivePick(
+  pickId: string,
+  entryOdd: number,
+  entryMinute: number | null = null
+): Promise<StageResult> {
   if (!Number.isFinite(entryOdd) || entryOdd <= 1) {
     return { ok: false, error: "A odd tem de ser maior que 1." };
+  }
+  if (entryMinute !== null && (!Number.isInteger(entryMinute) || entryMinute < 0 || entryMinute > 150)) {
+    return { ok: false, error: "O minuto tem de ser um número entre 0 e 150." };
   }
 
   const { supabase, pick } = await fetchLivePick(pickId);
@@ -438,6 +462,7 @@ export async function enterLivePick(pickId: string, entryOdd: number): Promise<S
     .update({
       stage: "active",
       entry_odd: entryOdd,
+      entry_minute: entryMinute,
       ...(pick.is_published ? { published_at: new Date().toISOString() } : {}),
     })
     .eq("id", pickId);

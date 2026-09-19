@@ -19,6 +19,7 @@ export default function AddLiveToExistingForm({
   const [mode, setMode] = useState<LiveMode>("watching");
   const [oddMin, setOddMin] = useState("");
   const [entryOdd, setEntryOdd] = useState("");
+  const [entryMinute, setEntryMinute] = useState("");
   const [alertMinute, setAlertMinute] = useState("");
   const [categories, setCategories] = useState(initialCategories);
   const [category, setCategory] = useState<TagItem | null>(null);
@@ -43,6 +44,10 @@ export default function AddLiveToExistingForm({
     } else {
       if (!entryOdd.trim()) return setError("Indica a odd em que entraste.");
       if (Number(entryOdd) <= 1) return setError("A odd tem de ser maior que 1.");
+      if (!entryMinute.trim()) return setError("Indica o minuto do jogo em que entraste.");
+      const minute = Number(entryMinute);
+      if (!Number.isInteger(minute) || minute < 0 || minute > 150)
+        return setError("O minuto tem de ser um número entre 0 e 150.");
     }
 
     startTransition(async () => {
@@ -56,6 +61,7 @@ export default function AddLiveToExistingForm({
           odd: null,
           oddMin: mode === "watching" ? Number(oddMin) : null,
           entryOdd: mode === "active" ? Number(entryOdd) : null,
+          entryMinute: mode === "active" ? Number(entryMinute) : null,
           alertMinute: mode === "watching" && alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
@@ -86,11 +92,7 @@ export default function AddLiveToExistingForm({
 
       <ExistingTicketPicker items={tickets} value={ticket} onSelect={setTicket} />
 
-      <div
-        className={`grid grid-cols-1 gap-4 ${
-          mode === "watching" ? "sm:grid-cols-[2fr_1fr_1fr]" : "sm:grid-cols-[2fr_1fr]"
-        }`}
-      >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[2fr_1fr_1fr]">
         <CategoryCombobox
           label="Tipo de aposta"
           placeholder="Ex: Over/Under, Ambas Marcam, Handicap..."
@@ -128,18 +130,33 @@ export default function AddLiveToExistingForm({
             </div>
           </>
         ) : (
-          <div>
-            <label className="mb-1 block text-sm text-neutral-300">Odd em que entrei</label>
-            <input
-              type="number"
-              step="0.01"
-              min="1.01"
-              value={entryOdd}
-              onChange={(e) => setEntryOdd(e.target.value)}
-              placeholder="Ex: 1.85"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
-            />
-          </div>
+          <>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Odd em que entrei</label>
+              <input
+                type="number"
+                step="0.01"
+                min="1.01"
+                value={entryOdd}
+                onChange={(e) => setEntryOdd(e.target.value)}
+                placeholder="Ex: 1.85"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-neutral-300">Minuto em que entrei</label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                max="150"
+                value={entryMinute}
+                onChange={(e) => setEntryMinute(e.target.value)}
+                placeholder="Ex: 35"
+                className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500"
+              />
+            </div>
+          </>
         )}
       </div>
 

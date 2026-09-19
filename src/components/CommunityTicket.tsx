@@ -20,6 +20,7 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
+  entry_minute?: number | null;
   alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];
@@ -104,6 +105,7 @@ export default function CommunityTicket({
                 {pick.bet_type === "live" && pick.stage === "active" && pick.entry_odd !== null && (
                   <span className="shrink-0 text-xs font-medium text-emerald-400">
                     entrei a {pick.entry_odd.toFixed(2)}
+                    {pick.entry_minute != null && ` · min ${pick.entry_minute}'`}
                   </span>
                 )}
                 {pick.bet_type === "live" && pick.stage === "watching" && pick.odd_min !== null && (

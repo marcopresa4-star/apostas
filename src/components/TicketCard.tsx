@@ -117,6 +117,7 @@ export default function TicketCard({
             pick={pick}
             images={imagesByPick[pick.id] ?? []}
             initialCategories={initialCategories}
+            kickoff={{ date: ticket.match_date, time: ticket.match_time }}
           />
         ))}
       </div>

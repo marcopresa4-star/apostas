@@ -20,6 +20,7 @@ interface PickCardProps {
     odd: number | null;
     odd_min: number | null;
     entry_odd: number | null;
+    entry_minute?: number | null;
     alert_minute: number | null;
     sofascore_url: string | null;
     bookmaker_url: string | null;
@@ -28,15 +29,21 @@ interface PickCardProps {
   };
   images: PickImageItem[];
   initialCategories: TagItem[];
+  // Kickoff of the game this pick belongs to, so "Entrei" can suggest the
+  // current match minute.
+  kickoff?: { date: string; time: string };
 }
 
-export default function PickCard({ pick, images, initialCategories }: PickCardProps) {
+export default function PickCard({ pick, images, initialCategories, kickoff }: PickCardProps) {
   const [editing, setEditing] = useState(false);
   const [isTogglingPublish, startPublishTransition] = useTransition();
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
   const [odd, setOdd] = useState(pick.odd !== null ? String(pick.odd) : "");
   const [oddMin, setOddMin] = useState(pick.odd_min !== null ? String(pick.odd_min) : "");
   const [entryOdd, setEntryOdd] = useState(pick.entry_odd !== null ? String(pick.entry_odd) : "");
+  const [entryMinute, setEntryMinute] = useState(
+    pick.entry_minute != null ? String(pick.entry_minute) : ""
+  );
   const [alertMinute, setAlertMinute] = useState(
     pick.alert_minute !== null ? String(pick.alert_minute) : ""
   );
@@ -74,6 +81,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
     setOdd(pick.odd !== null ? String(pick.odd) : "");
     setOddMin(pick.odd_min !== null ? String(pick.odd_min) : "");
     setEntryOdd(pick.entry_odd !== null ? String(pick.entry_odd) : "");
+    setEntryMinute(pick.entry_minute != null ? String(pick.entry_minute) : "");
     setAlertMinute(pick.alert_minute !== null ? String(pick.alert_minute) : "");
     setCategory(pick.category);
     setReason(pick.reason ?? "");
@@ -100,6 +108,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
           odd: odd.trim() ? Number(odd) : null,
           oddMin: oddMin.trim() ? Number(oddMin) : null,
           entryOdd: entryOdd.trim() ? Number(entryOdd) : null,
+          entryMinute: entryMinute.trim() ? Number(entryMinute) : null,
           alertMinute: alertMinute.trim() ? Number(alertMinute) : null,
           sofascoreUrl,
           bookmakerUrl,
@@ -162,18 +171,33 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
                 />
               </div>
             ) : stageForSave === "active" ? (
-              <div className="w-28 shrink-0">
-                <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="1.01"
-                  value={entryOdd}
-                  onChange={(e) => setEntryOdd(e.target.value)}
-                  placeholder="Odd entrada"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
-                />
-              </div>
+              <>
+                <div className="w-28 shrink-0">
+                  <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    value={entryOdd}
+                    onChange={(e) => setEntryOdd(e.target.value)}
+                    placeholder="Odd entrada"
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="w-24 shrink-0">
+                  <label className="mb-1 block text-sm text-neutral-300">&nbsp;</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="150"
+                    value={entryMinute}
+                    onChange={(e) => setEntryMinute(e.target.value)}
+                    placeholder="Minuto"
+                    className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </>
             ) : (
               <>
                 <div className="w-20 shrink-0">
@@ -280,6 +304,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
               {pick.bet_type === "live" && pick.stage === "active" && pick.entry_odd !== null && (
                 <span className="ml-2 text-xs font-normal text-neutral-400">
                   entrei a {pick.entry_odd.toFixed(2)}
+                  {pick.entry_minute != null && ` · min ${pick.entry_minute}'`}
                 </span>
               )}
               {pick.bet_type === "live" && pick.stage !== "active" && pick.odd_min !== null && (
@@ -336,7 +361,7 @@ export default function PickCard({ pick, images, initialCategories }: PickCardPr
           <PickImages pickId={pick.id} images={images} />
           {pick.bet_type === "live" && pick.stage !== "active" && (
             <div className="mb-2">
-              <LiveStageActions pickId={pick.id} stage={pick.stage} />
+              <LiveStageActions pickId={pick.id} stage={pick.stage} kickoff={kickoff} />
             </div>
           )}
           <div className="mb-2 flex items-center gap-3">

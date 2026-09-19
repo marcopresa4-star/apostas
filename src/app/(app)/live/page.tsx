@@ -25,6 +25,7 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
+  entry_minute: number | null;
   alert_minute: number | null;
   sofascore_url: string | null;
   bookmaker_url: string | null;
@@ -102,7 +103,7 @@ export default async function LivePage({
          competition:competitions(id, name, country:countries(name)),
          home_team:teams!tickets_home_team_id_fkey(id, name),
          away_team:teams!tickets_away_team_id_fkey(id, name),
-         picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
+         picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, entry_minute, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
       )
       .order("match_date", { ascending: true })
       .order("match_time", { ascending: true })

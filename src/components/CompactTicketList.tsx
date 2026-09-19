@@ -18,6 +18,7 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
+  entry_minute?: number | null;
   // The three below are left out of the Comunidade queries on purpose.
   sofascore_url?: string | null;
   bookmaker_url?: string | null;
@@ -143,10 +144,17 @@ export default function CompactTicketList({
                       )}
                       {pick.stage === "active" && pick.entry_odd !== null && (
                         <span
-                          title="Odd em que entrei"
+                          title={
+                            pick.entry_minute != null
+                              ? `Odd em que entrei, ao minuto ${pick.entry_minute}`
+                              : "Odd em que entrei"
+                          }
                           className="shrink-0 font-medium text-emerald-400"
                         >
                           @{pick.entry_odd.toFixed(2)}
+                          {pick.entry_minute != null && (
+                            <span className="text-neutral-500"> · {pick.entry_minute}&apos;</span>
+                          )}
                         </span>
                       )}
                       {pick.stage !== "active" && pick.odd_min !== null && (
@@ -181,7 +189,11 @@ export default function CompactTicketList({
                     </div>
                     {!readOnly && pick.bet_type === "live" && pick.stage === "watching" && (
                       <div className="mb-1 mt-1.5 pl-3">
-                        <LiveStageActions pickId={pick.id} stage={pick.stage} />
+                        <LiveStageActions
+                          pickId={pick.id}
+                          stage={pick.stage}
+                          kickoff={{ date: ticket.match_date, time: ticket.match_time }}
+                        />
                       </div>
                     )}
                     {hasDetails && (

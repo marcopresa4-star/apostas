@@ -21,6 +21,7 @@ interface Pick {
   odd: number | null;
   odd_min: number | null;
   entry_odd: number | null;
+  entry_minute: number | null;
   alert_minute: number | null;
   category: { name: string } | null;
   pick_images: PickImageRow[];
@@ -47,7 +48,7 @@ export default async function ComunidadePage() {
        competition:competitions(name, country:countries(name)),
        home_team:teams!tickets_home_team_id_fkey(name),
        away_team:teams!tickets_away_team_id_fkey(name),
-       picks!inner(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, alert_minute, category:bet_categories(name), pick_images(id, image_path))`
+       picks!inner(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, entry_minute, alert_minute, category:bet_categories(name), pick_images(id, image_path))`
     )
     .eq("picks.is_published", true)
     .order("match_date", { ascending: false })

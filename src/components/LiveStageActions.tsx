@@ -2,23 +2,45 @@
 
 import { useState, useTransition } from "react";
 import { enterLivePick, skipLivePick, resumeWatchingPick } from "@/app/(app)/actions";
+import { estimateGameMinute } from "@/lib/matchStatus";
 import type { PickStage } from "@/lib/database.types";
 
 // The two decisions on a live pick you are watching - "Entrei" (asks for the
-// real odd you got) or "Não entrei" - plus an undo for a skipped one. Renders
-// nothing for an active pick (it is resolved with Green/Red/Devolvida
-// instead).
+// real odd you got and the game minute) or "Não entrei" - plus an undo for a
+// skipped one. Renders nothing for an active pick (it is resolved with
+// Green/Red/Devolvida instead). With the game's kickoff the minute field
+// starts filled with the current match minute.
 export default function LiveStageActions({
   pickId,
   stage,
+  kickoff,
 }: {
   pickId: string;
   stage: PickStage;
+  kickoff?: { date: string; time: string };
 }) {
   const [entering, setEntering] = useState(false);
   const [odd, setOdd] = useState("");
+  const [minute, setMinute] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function startEntering() {
+    const estimate = kickoff ? estimateGameMinute(kickoff.date, kickoff.time, new Date()) : null;
+    setMinute(estimate === null ? "" : String(estimate));
+    setEntering(true);
+  }
+
+  function confirmEntry() {
+    if (minute.trim()) {
+      const m = Number(minute);
+      if (!Number.isInteger(m) || m < 0 || m > 150) {
+        setError("O minuto tem de ser um número entre 0 e 150.");
+        return;
+      }
+    }
+    run(() => enterLivePick(pickId, Number(odd), minute.trim() ? Number(minute) : null));
+  }
 
   function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setError(null);
@@ -28,6 +50,7 @@ export default function LiveStageActions({
       else {
         setEntering(false);
         setOdd("");
+        setMinute("");
       }
     });
   }
@@ -66,10 +89,21 @@ export default function LiveStageActions({
           placeholder="Odd em que entrei"
           className="w-36 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-emerald-500"
         />
+        <input
+          type="number"
+          step="1"
+          min="0"
+          max="150"
+          value={minute}
+          onChange={(e) => setMinute(e.target.value)}
+          placeholder="Minuto"
+          title="Minuto do jogo em que entraste"
+          className="w-20 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 outline-none focus:border-emerald-500"
+        />
         <button
           type="button"
           disabled={isPending}
-          onClick={() => run(() => enterLivePick(pickId, Number(odd)))}
+          onClick={confirmEntry}
           className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
         >
           {isPending ? "..." : "Confirmar"}
@@ -94,7 +128,7 @@ export default function LiveStageActions({
       <button
         type="button"
         disabled={isPending}
-        onClick={() => setEntering(true)}
+        onClick={startEntering}
         className="rounded-lg bg-emerald-600/15 px-2.5 py-1 text-xs font-medium text-emerald-300 transition hover:bg-emerald-600/25 disabled:opacity-50"
       >
         Entrei
