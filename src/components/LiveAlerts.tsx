@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useNow } from "@/lib/useNow";
-import { isMatchLive, getElapsedMinutes } from "@/lib/matchStatus";
+import { isMatchLive, estimateGameMinute } from "@/lib/matchStatus";
 import type { BetStatus } from "@/lib/database.types";
 
 const STORAGE_KEY = "apostas:dismissedAlerts";
@@ -53,7 +53,9 @@ export default function LiveAlerts({ tickets }: { tickets: Ticket[] }) {
   const alerts: { ticket: Ticket; pick: Pick; elapsed: number }[] = [];
   for (const ticket of tickets) {
     if (ticket.live_ended || !isMatchLive(ticket.match_date, ticket.match_time, now)) continue;
-    const elapsed = getElapsedMinutes(ticket.match_date, ticket.match_time, now);
+    // The match minute, not the minutes since kickoff: after minute 45 the
+    // halftime break would otherwise make every alert about 15 minutes early.
+    const elapsed = estimateGameMinute(ticket.match_date, ticket.match_time, now);
     if (elapsed === null) continue;
     for (const pick of ticket.picks) {
       if (pick.status !== "pending" || pick.alert_minute === null) continue;

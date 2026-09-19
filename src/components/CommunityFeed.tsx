@@ -3,6 +3,7 @@
 import { useNow } from "@/lib/useNow";
 import { isMatchOver } from "@/lib/matchStatus";
 import CommunityTicket from "./CommunityTicket";
+import LiveAlerts from "./LiveAlerts";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -74,6 +75,10 @@ export default function CommunityFeed({
 
   return (
     <>
+      {/* "Chegou ao minuto X" for the published games being watched, the same
+          banner the admin gets on the Dashboard. */}
+      <LiveAlerts tickets={watchingTickets} />
+
       <div className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-emerald-400">🎟️ Apostas</h2>
         {preJogoTickets.length === 0 ? (
