@@ -4,6 +4,7 @@ import { useNow } from "@/lib/useNow";
 import { isMatchOver } from "@/lib/matchStatus";
 import CommunityTicket from "./CommunityTicket";
 import LiveAlerts from "./LiveAlerts";
+import GameStartNotifications from "./GameStartNotifications";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -75,6 +76,10 @@ export default function CommunityFeed({
 
   return (
     <>
+      {/* "O jogo começou!" for every shared game still in the feed, sitting
+          above the orange new-bet toast so the two never overlap. */}
+      <GameStartNotifications tickets={running} positionClass="bottom-24" />
+
       {/* "Chegou ao minuto X" for the published games being watched, the same
           banner the admin gets on the Dashboard. */}
       <LiveAlerts tickets={watchingTickets} />

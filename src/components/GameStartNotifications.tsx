@@ -21,33 +21,35 @@ interface Toast {
 const TOAST_MS = 12000;
 
 // Watches every tracked game and pops a toast the moment one crosses into
-// its live window. The first tick just records whichever games are already
-// live (e.g. the page was opened mid-match) without notifying for them —
-// only a false-to-true transition seen live, during this session, counts.
-export default function GameStartNotifications({ tickets }: { tickets: Ticket[] }) {
+// its live window. Only a game seen NOT live and then live, during this
+// session, counts: games already live when the page opened, and games that
+// show up in the list mid-match (the admin publishing one while it is being
+// played), are recorded without a toast.
+// `positionClass` lets a page move the stack out of the way of other toasts.
+export default function GameStartNotifications({
+  tickets,
+  positionClass = "bottom-4",
+}: {
+  tickets: Ticket[];
+  positionClass?: string;
+}) {
   const now = useNow();
-  const seenLiveRef = useRef<Set<string> | null>(null);
+  const wasLiveRef = useRef<Map<string, boolean> | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   useEffect(() => {
     function tick() {
       if (!now) return;
 
-      if (seenLiveRef.current === null) {
-        const initial = new Set<string>();
-        for (const ticket of tickets) {
-          if (isMatchLive(ticket.match_date, ticket.match_time, now)) initial.add(ticket.id);
-        }
-        seenLiveRef.current = initial;
-        return;
-      }
+      const previous = wasLiveRef.current;
+      const current = new Map<string, boolean>();
 
-      const seen = seenLiveRef.current;
       for (const ticket of tickets) {
-        if (seen.has(ticket.id)) continue;
-        if (!isMatchLive(ticket.match_date, ticket.match_time, now)) continue;
+        const live = isMatchLive(ticket.match_date, ticket.match_time, now);
+        current.set(ticket.id, live);
 
-        seen.add(ticket.id);
+        if (previous === null || previous.get(ticket.id) !== false || !live) continue;
+
         const toast: Toast = {
           id: ticket.id,
           home: ticket.home_team?.name ?? "?",
@@ -58,6 +60,8 @@ export default function GameStartNotifications({ tickets }: { tickets: Ticket[] 
           setToasts((prev) => prev.filter((t) => t.id !== toast.id));
         }, TOAST_MS);
       }
+
+      wasLiveRef.current = current;
     }
     tick();
   }, [now, tickets]);
@@ -65,7 +69,7 @@ export default function GameStartNotifications({ tickets }: { tickets: Ticket[] 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-72 space-y-2">
+    <div className={`fixed ${positionClass} right-4 z-50 w-72 space-y-2`}>
       {toasts.map((toast) => (
         <div
           key={toast.id}
