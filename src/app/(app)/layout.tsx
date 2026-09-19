@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <CommunityUnseenProvider enabled={!isAdmin}>
         <Sidebar userEmail={user?.email ?? null} isAdmin={isAdmin} />
-        <div className="flex min-h-screen flex-col md:pl-16">
+        <div className="flex min-h-screen flex-col md:pl-56">
           <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">{children}</main>
         </div>
       </CommunityUnseenProvider>

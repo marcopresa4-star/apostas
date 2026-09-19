@@ -59,13 +59,11 @@ function NavLink({
   item,
   active,
   onClick,
-  collapsible = false,
   badge = 0,
 }: {
   item: (typeof NAV_ITEMS)[number];
   active: boolean;
   onClick?: () => void;
-  collapsible?: boolean;
   badge?: number;
 }) {
   return (
@@ -99,15 +97,7 @@ function NavLink({
           </span>
         )}
       </span>
-      <span
-        className={
-          collapsible
-            ? "whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100"
-            : "whitespace-nowrap"
-        }
-      >
-        {item.label}
-      </span>
+      <span className="whitespace-nowrap">{item.label}</span>
       {active && (
         <span
           aria-hidden
@@ -174,8 +164,8 @@ export default function Sidebar({
         </nav>
       )}
 
-      {/* Desktop sidebar — collapsed to an icon rail, expands on hover */}
-      <aside className="group/sidebar fixed inset-y-0 left-0 z-20 hidden w-16 flex-col overflow-hidden border-r border-neutral-800/80 bg-neutral-900/80 backdrop-blur-md transition-[width] duration-300 ease-in-out hover:w-56 focus-within:w-56 md:flex">
+      {/* Desktop sidebar — always open (the layout reserves its 14rem) */}
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-56 flex-col overflow-hidden border-r border-neutral-800/80 bg-neutral-900/80 backdrop-blur-md md:flex">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-48 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-900/30 via-transparent to-transparent"
@@ -185,9 +175,7 @@ export default function Sidebar({
           className="flex items-center gap-2 px-5 py-5 text-lg font-semibold text-neutral-100"
         >
           <span aria-hidden className="text-xl">⚽</span>
-          <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">
-            Apostas
-          </span>
+          <span className="whitespace-nowrap">Apostas</span>
         </Link>
         <nav className="flex-1 space-y-1.5 px-3">
           {visibleItems.map((item) => (
@@ -195,17 +183,13 @@ export default function Sidebar({
               key={item.href}
               item={item}
               active={isActivePath(pathname, item.href)}
-              collapsible
               badge={item.href === "/comunidade" ? unseen : 0}
             />
           ))}
         </nav>
         <div className="border-t border-neutral-800/80 p-3">
           {userEmail && (
-            <p
-              className="mb-2 truncate whitespace-nowrap px-1 text-xs text-neutral-500 opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100"
-              title={userEmail}
-            >
+            <p className="mb-2 truncate whitespace-nowrap px-1 text-xs text-neutral-500" title={userEmail}>
               {userEmail}
             </p>
           )}
@@ -215,9 +199,7 @@ export default function Sidebar({
               className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-neutral-400 transition hover:bg-red-950/40 hover:text-red-300"
             >
               <span aria-hidden>🚪</span>
-              <span className="whitespace-nowrap opacity-0 transition-opacity duration-200 group-hover/sidebar:opacity-100 group-focus-within/sidebar:opacity-100">
-                Sair
-              </span>
+              <span className="whitespace-nowrap">Sair</span>
             </button>
           </form>
         </div>

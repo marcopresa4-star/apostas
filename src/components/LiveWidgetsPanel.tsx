@@ -71,8 +71,12 @@ export default function LiveWidgetsPanel({
     });
   }
 
+  // From md up the page content is a narrow centered column, but the widgets
+  // want the whole area next to the sidebar: the panel is as wide as the
+  // window minus the sidebar (14rem) and a safety margin (2rem, which also
+  // absorbs the scrollbar), centered on the column it sits in.
   return (
-    <div className="mb-8">
+    <div className="mb-8 md:relative md:left-1/2 md:w-[calc(100vw-16rem)] md:-translate-x-1/2">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
           <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
@@ -122,7 +126,7 @@ export default function LiveWidgetsPanel({
       )}
 
       {hasAny && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
           {liveTickets.map((ticket) => (
             <SportscoreWidget
               key={ticket.id}
