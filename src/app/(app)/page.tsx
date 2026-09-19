@@ -9,6 +9,7 @@ import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import GameStartNotifications from "@/components/GameStartNotifications";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import { sumGreen, sumRed } from "@/lib/betResult";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -111,8 +112,8 @@ export default async function DashboardPage() {
   const allPicks = all.flatMap((t) => t.picks).filter((p) => p.stage === "active");
   const stats = {
     total: allPicks.length,
-    green: allPicks.filter((p) => p.status === "green").length,
-    red: allPicks.filter((p) => p.status === "red").length,
+    green: sumGreen(allPicks),
+    red: sumRed(allPicks),
     pending: allPicks.filter((p) => p.status === "pending").length,
   };
 

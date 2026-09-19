@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import CompactTicketList from "./CompactTicketList";
+import { formatCount } from "@/lib/betResult";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -162,14 +163,18 @@ export default function PerformanceCalendar({
               type="button"
               disabled={!hasTickets}
               onClick={() => setSelected((prev) => (prev === iso ? null : iso))}
-              title={total > 0 ? `${stat!.green} Green · ${stat!.red} Red` : undefined}
+              title={
+                total > 0
+                  ? `${formatCount(stat!.green)} Green · ${formatCount(stat!.red)} Red`
+                  : undefined
+              }
               className={`flex flex-col items-center justify-center rounded-lg border py-1.5 text-[11px] transition ${cellStyle(stat, hasTickets, selected === iso)}`}
             >
               <span className="font-medium">{day}</span>
               {total > 0 && (
                 <span className="text-[9px] leading-tight">
-                  <span className="text-emerald-400">{stat!.green}G</span>{" "}
-                  <span className="text-red-400">{stat!.red}R</span>
+                  <span className="text-emerald-400">{formatCount(stat!.green)}G</span>{" "}
+                  <span className="text-red-400">{formatCount(stat!.red)}R</span>
                 </span>
               )}
             </button>

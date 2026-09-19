@@ -6,6 +6,7 @@ import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import { sumGreen, sumRed } from "@/lib/betResult";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -118,8 +119,8 @@ export default async function LivePage({
     .filter((p) => p.bet_type === "live" && p.stage === "active");
   const stats = {
     total: livePicksAll.length,
-    green: livePicksAll.filter((p) => p.status === "green").length,
-    red: livePicksAll.filter((p) => p.status === "red").length,
+    green: sumGreen(livePicksAll),
+    red: sumRed(livePicksAll),
     pending: livePicksAll.filter((p) => p.status === "pending").length,
   };
 

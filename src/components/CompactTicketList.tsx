@@ -40,6 +40,8 @@ const DOT: Record<BetStatus, string> = {
   green: "bg-emerald-400",
   red: "bg-red-400",
   void: "bg-amber-400",
+  half_green: "bg-teal-400",
+  half_red: "bg-orange-400",
 };
 
 export default function CompactTicketList({

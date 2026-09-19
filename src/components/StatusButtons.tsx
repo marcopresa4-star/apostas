@@ -6,6 +6,8 @@ import { updatePickStatus, deletePick } from "@/app/(app)/actions";
 
 const OPTIONS: { status: BetStatus; label: string; className: string }[] = [
   { status: "green", label: "Green", className: "bg-emerald-600 hover:bg-emerald-500" },
+  { status: "half_green", label: "Meia ganha", className: "bg-teal-600 hover:bg-teal-500" },
+  { status: "half_red", label: "Meia perdida", className: "bg-orange-600 hover:bg-orange-500" },
   { status: "red", label: "Red", className: "bg-red-600 hover:bg-red-500" },
   { status: "void", label: "Devolvida", className: "bg-amber-600 hover:bg-amber-500" },
 ];

@@ -1,3 +1,5 @@
+import { formatCount } from "@/lib/betResult";
+
 const CARD_STYLES = {
   neutral:
     "bg-gradient-to-br from-neutral-800/80 to-neutral-900 hover:border-neutral-600 hover:shadow-neutral-900/40",
@@ -22,7 +24,7 @@ function StatCard({
     <div
       className={`rounded-xl border border-neutral-800 px-3 py-2.5 text-center shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${CARD_STYLES[style]}`}
     >
-      <p className={`text-xl font-bold ${valueColor}`}>{value}</p>
+      <p className={`text-xl font-bold ${valueColor}`}>{formatCount(value)}</p>
       <p className="text-[11px] uppercase tracking-wide text-neutral-500">{label}</p>
     </div>
   );

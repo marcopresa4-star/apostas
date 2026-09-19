@@ -1,6 +1,8 @@
 import type { RankRow } from "@/components/StatRanking";
 import type { BetStatus, PickStage } from "@/lib/database.types";
+import { greenWeight, redWeight } from "@/lib/betResult";
 
+// Fractional on purpose: a half win / half loss counts as 0.5.
 interface Tally {
   green: number;
   red: number;
@@ -18,9 +20,10 @@ interface AnalysisTicket {
   }[];
 }
 
-function bump(map: Map<string, Tally>, key: string, status: "green" | "red") {
+function bump(map: Map<string, Tally>, key: string, green: number, red: number) {
   const entry = map.get(key) ?? { green: 0, red: 0 };
-  entry[status]++;
+  entry.green += green;
+  entry.red += red;
   map.set(key, entry);
 }
 
@@ -47,20 +50,23 @@ export function buildAnalysis<T extends AnalysisTicket>(tickets: T[]) {
 
     (ticketsByDay[ticket.match_date] ??= []).push({ ...ticket, picks: activePicks });
 
+    // Green, red and their half versions; pending and Devolvida never count.
     const resolvedPicks = activePicks.filter(
-      (p) => p.status === "green" || p.status === "red"
+      (p) => greenWeight(p.status) > 0 || redWeight(p.status) > 0
     );
     if (resolvedPicks.length === 0) continue;
 
     const dayEntry = dayStats[ticket.match_date] ?? { green: 0, red: 0 };
 
     for (const pick of resolvedPicks) {
-      const status = pick.status as "green" | "red";
-      if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, status);
-      if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, status);
-      if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, status);
-      if (pick.category?.name) bump(categoryMap, pick.category.name, status);
-      dayEntry[status]++;
+      const green = greenWeight(pick.status);
+      const red = redWeight(pick.status);
+      if (ticket.home_team?.name) bump(teamMap, ticket.home_team.name, green, red);
+      if (ticket.away_team?.name) bump(teamMap, ticket.away_team.name, green, red);
+      if (ticket.competition?.name) bump(competitionMap, ticket.competition.name, green, red);
+      if (pick.category?.name) bump(categoryMap, pick.category.name, green, red);
+      dayEntry.green += green;
+      dayEntry.red += red;
     }
 
     dayStats[ticket.match_date] = dayEntry;

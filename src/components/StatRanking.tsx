@@ -1,3 +1,5 @@
+import { formatCount } from "@/lib/betResult";
+
 export interface RankRow {
   label: string;
   green: number;
@@ -19,8 +21,8 @@ export default function StatRanking({ title, rows }: { title: string; rows: Rank
               <div key={row.label} className="flex items-center justify-between gap-2 text-sm">
                 <span className="min-w-0 truncate text-neutral-200">{row.label}</span>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="font-medium text-emerald-400">{row.green}G</span>
-                  <span className="font-medium text-red-400">{row.red}R</span>
+                  <span className="font-medium text-emerald-400">{formatCount(row.green)}G</span>
+                  <span className="font-medium text-red-400">{formatCount(row.red)}R</span>
                   <span className="w-9 text-right text-xs text-neutral-500">{winRate}%</span>
                 </div>
               </div>

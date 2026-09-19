@@ -6,6 +6,7 @@ import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import { sumGreen, sumRed } from "@/lib/betResult";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -47,6 +48,8 @@ const FILTERS: { value: string; label: string; dot?: string }[] = [
   { value: "all", label: "Todas" },
   { value: "pending", label: "Pendentes", dot: "bg-neutral-500" },
   { value: "green", label: "Green", dot: "bg-emerald-400" },
+  { value: "half_green", label: "Meia ganha", dot: "bg-teal-400" },
+  { value: "half_red", label: "Meia perdida", dot: "bg-orange-400" },
   { value: "red", label: "Red", dot: "bg-red-400" },
   { value: "void", label: "Devolvidas", dot: "bg-amber-400" },
 ];
@@ -176,8 +179,8 @@ export default async function ApostasPage({
     .filter((p) => p.bet_type === "pre_jogo");
   const stats = {
     total: allPicks.length,
-    green: allPicks.filter((p) => p.status === "green").length,
-    red: allPicks.filter((p) => p.status === "red").length,
+    green: sumGreen(allPicks),
+    red: sumRed(allPicks),
     pending: allPicks.filter((p) => p.status === "pending").length,
   };
 

@@ -5,6 +5,8 @@ const STYLES: Record<BetStatus, string> = {
   green: "bg-emerald-950 text-emerald-400 shadow-[0_0_0_1px] shadow-emerald-500/20",
   red: "bg-red-950 text-red-400 shadow-[0_0_0_1px] shadow-red-500/20",
   void: "bg-amber-950 text-amber-400 shadow-[0_0_0_1px] shadow-amber-500/20",
+  half_green: "bg-teal-950 text-teal-300 shadow-[0_0_0_1px] shadow-teal-500/20",
+  half_red: "bg-orange-950 text-orange-300 shadow-[0_0_0_1px] shadow-orange-500/20",
 };
 
 const DOT_STYLES: Record<BetStatus, string> = {
@@ -12,6 +14,8 @@ const DOT_STYLES: Record<BetStatus, string> = {
   green: "bg-emerald-400",
   red: "bg-red-400",
   void: "bg-amber-400",
+  half_green: "bg-teal-400",
+  half_red: "bg-orange-400",
 };
 
 const LABELS: Record<BetStatus, string> = {
@@ -19,6 +23,8 @@ const LABELS: Record<BetStatus, string> = {
   green: "Green",
   red: "Red",
   void: "Devolvida",
+  half_green: "Meia ganha",
+  half_red: "Meia perdida",
 };
 
 export const STATUS_BORDER: Record<BetStatus, string> = {
@@ -26,6 +32,8 @@ export const STATUS_BORDER: Record<BetStatus, string> = {
   green: "border-l-emerald-500",
   red: "border-l-red-500",
   void: "border-l-amber-500",
+  half_green: "border-l-teal-500",
+  half_red: "border-l-orange-500",
 };
 
 export default function StatusBadge({ status }: { status: BetStatus }) {
