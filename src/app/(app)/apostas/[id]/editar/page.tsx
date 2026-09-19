@@ -3,13 +3,8 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import EditTicketForm from "@/components/EditTicketForm";
-import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
-
-interface NamedEntityRow {
-  id: string;
-  name: string;
-  country: { name: string } | null;
-}
+import type { ComboCountry } from "@/components/EntityCombobox";
+import { fetchUsedEntities } from "@/lib/entityOptions";
 
 interface TicketDetailRow {
   id: string;
@@ -30,7 +25,7 @@ export default async function EditarApostaPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: ticket }, { data: countries }, { data: competitions }, { data: teams }] =
+  const [{ data: ticket }, { data: countries }, comboCompetitions, comboTeams] =
     await Promise.all([
       supabase
         .from("tickets")
@@ -45,16 +40,8 @@ export default async function EditarApostaPage({
         .single()
         .returns<TicketDetailRow>(),
       supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
-      supabase
-        .from("competitions")
-        .select("id, name, country:countries(name)")
-        .order("name")
-        .returns<NamedEntityRow[]>(),
-      supabase
-        .from("teams")
-        .select("id, name, country:countries(name)")
-        .order("name")
-        .returns<NamedEntityRow[]>(),
+      fetchUsedEntities(supabase, "competitions"),
+      fetchUsedEntities(supabase, "teams"),
     ]);
 
   if (!ticket || !ticket.competition || !ticket.home_team || !ticket.away_team) {
@@ -66,18 +53,6 @@ export default async function EditarApostaPage({
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
     name: c.name,
-  }));
-
-  const comboCompetitions: ComboItem[] = (competitions ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    countryName: c.country?.name ?? "",
-  }));
-
-  const comboTeams: ComboItem[] = (teams ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    countryName: t.country?.name ?? "",
   }));
 
   return (

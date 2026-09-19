@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { searchEntityRows } from "@/lib/entityOptions";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
 function revalidateAll() {
@@ -53,6 +54,14 @@ export async function createCountryLinkedEntity(
   }
 
   return data;
+}
+
+// Powers the team / competition search boxes: the base has thousands of each,
+// so the browser asks for matches as you type instead of loading them all.
+export async function searchEntities(table: "teams" | "competitions", query: string) {
+  if (table !== "teams" && table !== "competitions") return [];
+  const supabase = await createClient();
+  return searchEntityRows(supabase, table, query);
 }
 
 export async function createTeam(name: string, countryId: string) {

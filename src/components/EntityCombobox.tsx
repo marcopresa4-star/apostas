@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { searchEntities } from "@/app/(app)/actions";
 
 export type ComboItem = { id: string; name: string; countryName: string };
 export type ComboCountry = { id: string; name: string };
@@ -9,7 +10,10 @@ interface EntityComboboxProps {
   label: string;
   placeholder: string;
   createLabel: string;
+  // Small list shown before typing (the ones already in use); with
+  // searchTable, what you type is searched on the server across the whole base.
   items: ComboItem[];
+  searchTable?: "teams" | "competitions";
   countries: ComboCountry[];
   value: ComboItem | null;
   onSelect: (item: ComboItem) => void;
@@ -27,6 +31,7 @@ export default function EntityCombobox({
   placeholder,
   createLabel,
   items,
+  searchTable,
   countries,
   value,
   onSelect,
@@ -56,16 +61,37 @@ export default function EntityCombobox({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items.slice(0, 30);
-    return items
-      .filter((item) => item.name.toLowerCase().includes(q))
-      .slice(0, 30);
-  }, [items, query]);
+  // Results of the server search, tagged with the text they answer so a slow
+  // reply for an older text is never shown for a newer one.
+  const [remote, setRemote] = useState<{ query: string; items: ComboItem[] } | null>(null);
+  const requestRef = useRef(0);
+  const trimmed = query.trim();
 
-  const exactMatch = items.some(
-    (item) => item.name.toLowerCase() === query.trim().toLowerCase()
+  useEffect(() => {
+    if (!searchTable || !open || !trimmed) return;
+    const requestId = ++requestRef.current;
+    const timer = setTimeout(async () => {
+      let found: ComboItem[] = [];
+      try {
+        found = await searchEntities(searchTable, trimmed);
+      } catch {
+        // Offline or a failed request: fall back to the local list below.
+      }
+      if (requestRef.current === requestId) setRemote({ query: trimmed, items: found });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchTable, open, trimmed]);
+
+  const lowered = trimmed.toLowerCase();
+  const serverReady = Boolean(searchTable && trimmed && remote?.query === trimmed);
+  const searching = Boolean(searchTable && trimmed && !serverReady);
+  // While the server answers, the games' own teams still filter instantly.
+  const filtered = serverReady
+    ? remote!.items
+    : (lowered ? items.filter((item) => item.name.toLowerCase().includes(lowered)) : items).slice(0, 30);
+
+  const exactMatch = (serverReady ? remote!.items : items).some(
+    (item) => item.name.toLowerCase() === lowered
   );
 
   function selectItem(item: ComboItem) {
@@ -88,6 +114,7 @@ export default function EntityCombobox({
         return;
       }
       onDeleted?.(item.id);
+      setRemote((prev) => (prev ? { ...prev, items: prev.items.filter((i) => i.id !== item.id) } : prev));
       if (value?.id === item.id) {
         onSelect({ id: "", name: "", countryName: "" });
         setQuery("");
@@ -180,7 +207,7 @@ export default function EntityCombobox({
                 ))}
                 {filtered.length === 0 && (
                   <li className="px-3 py-2 text-sm text-neutral-500">
-                    Sem resultados.
+                    {searching ? "A procurar…" : "Sem resultados."}
                   </li>
                 )}
               </ul>
@@ -189,7 +216,7 @@ export default function EntityCombobox({
                   {error}
                 </p>
               )}
-              {query.trim() && !exactMatch && (
+              {query.trim() && !exactMatch && !searching && (
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}

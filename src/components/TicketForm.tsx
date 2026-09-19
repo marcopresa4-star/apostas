@@ -115,6 +115,7 @@ export default function TicketForm({
         label="Competição / Liga"
         placeholder="Ex: Primeira Liga"
         createLabel="Criar competição"
+        searchTable="competitions"
         items={competitions}
         countries={countries}
         value={competition}
@@ -130,6 +131,7 @@ export default function TicketForm({
           label="Equipa da casa"
           placeholder="Ex: Benfica"
           createLabel="Criar equipa"
+          searchTable="teams"
           items={teams}
           countries={countries}
           value={homeTeam}
@@ -143,6 +145,7 @@ export default function TicketForm({
           label="Equipa de fora"
           placeholder="Ex: Sporting"
           createLabel="Criar equipa"
+          searchTable="teams"
           items={teams}
           countries={countries}
           value={awayTeam}

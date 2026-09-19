@@ -2,15 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import NovaVigilanciaTabs from "@/components/NovaVigilanciaTabs";
-import type { ComboItem, ComboCountry } from "@/components/EntityCombobox";
+import type { ComboCountry } from "@/components/EntityCombobox";
 import type { TicketOption } from "@/components/ExistingTicketPicker";
 import type { TagItem } from "@/components/CategoryCombobox";
-
-interface NamedEntityRow {
-  id: string;
-  name: string;
-  country: { name: string } | null;
-}
+import { fetchUsedEntities } from "@/lib/entityOptions";
 
 interface ExistingTicketRow {
   id: string;
@@ -26,24 +21,18 @@ export default async function NovaVigilanciaLivePage() {
   await requireAdmin();
   const supabase = await createClient();
 
+  // Teams and competitions are searched on the server as you type; only the
+  // ones already used in your games are loaded, as first suggestions.
   const [
     { data: countries },
-    { data: competitions },
-    { data: teams },
+    comboCompetitions,
+    comboTeams,
     { data: existingTickets },
     { data: categories },
   ] = await Promise.all([
     supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
-    supabase
-      .from("competitions")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
-    supabase
-      .from("teams")
-      .select("id, name, country:countries(name)")
-      .order("name")
-      .returns<NamedEntityRow[]>(),
+    fetchUsedEntities(supabase, "competitions"),
+    fetchUsedEntities(supabase, "teams"),
     supabase
       .from("tickets")
       .select(
@@ -62,18 +51,6 @@ export default async function NovaVigilanciaLivePage() {
   const comboCountries: ComboCountry[] = (countries ?? []).map((c) => ({
     id: c.id,
     name: c.name,
-  }));
-
-  const comboCompetitions: ComboItem[] = (competitions ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    countryName: c.country?.name ?? "",
-  }));
-
-  const comboTeams: ComboItem[] = (teams ?? []).map((t) => ({
-    id: t.id,
-    name: t.name,
-    countryName: t.country?.name ?? "",
   }));
 
   const now = new Date();
