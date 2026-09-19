@@ -143,8 +143,14 @@ export default async function DashboardPage() {
   // one pick you did not discard as "não entrei".
   const liveWidgetCandidates = all.filter((t) => t.picks.some((p) => p.stage !== "skipped"));
 
+  // From md up the app content is a narrow centered column; the Dashboard
+  // wants the whole area next to the sidebar instead. It is as wide as the
+  // window minus the sidebar (14rem) and a 4rem margin (2rem on each side,
+  // which also absorbs the scrollbar), centered with margins. No transform
+  // here on purpose: it would turn this box into the anchor of the fixed
+  // toasts.
   return (
-    <div>
+    <div className="md:ml-[calc(50%-50vw+9rem)] md:w-[calc(100vw-18rem)]">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <LiveClock />
@@ -174,7 +180,14 @@ export default async function DashboardPage() {
 
       <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
 
-      <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      {/* 2 columns from sm; a third one from xl when there are active live
+          picks, so the wide screen is used instead of stacking them under
+          "A vigiar em live". */}
+      <div
+        className={`mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 ${
+          activeLiveTickets.length > 0 ? "xl:grid-cols-3" : ""
+        }`}
+      >
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-neutral-300">
@@ -196,32 +209,36 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
-              <span
-                aria-hidden
-                className="h-2 w-2 animate-pulse rounded-full bg-red-500"
-              />
-              A vigiar em live
-            </h2>
-            <Link
-              href="/live"
-              className="text-xs font-medium text-sky-400 transition hover:translate-x-0.5 hover:underline"
-            >
-              Ver todas →
-            </Link>
+        {/* At xl this wrapper disappears (contents) so its two blocks become
+            grid columns of their own; below xl they stay stacked together. */}
+        <div className="xl:contents">
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-sky-400">
+                <span
+                  aria-hidden
+                  className="h-2 w-2 animate-pulse rounded-full bg-red-500"
+                />
+                A vigiar em live
+              </h2>
+              <Link
+                href="/live"
+                className="text-xs font-medium text-sky-400 transition hover:translate-x-0.5 hover:underline"
+              >
+                Ver todas →
+              </Link>
+            </div>
+            {watchingTickets.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+                Sem jogos a vigiar para live.
+              </p>
+            ) : (
+              <CompactTicketList tickets={watchingTickets} imagesByPick={imagesByPick} />
+            )}
           </div>
-          {watchingTickets.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
-              Sem jogos a vigiar para live.
-            </p>
-          ) : (
-            <CompactTicketList tickets={watchingTickets} imagesByPick={imagesByPick} />
-          )}
 
           {activeLiveTickets.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-6 xl:mt-0">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400">
                   <span aria-hidden>🔥</span> Ativas em live
