@@ -194,8 +194,12 @@ export default async function DashboardPage() {
     .filter((t) => t.picks.length > 0);
 
   // Games worth a live widget / start notification: anything with at least
-  // one pick you did not discard as "não entrei".
-  const liveWidgetCandidates = all.filter((t) => t.picks.some((p) => p.stage !== "skipped"));
+  // one bet still open. Once every bet on a game has a result the game leaves
+  // the lists above, so its widget goes with it (otherwise there would be no
+  // "Em direto" ✕ left to end it by hand). "Não entrei" never counts.
+  const liveWidgetCandidates = all.filter((t) =>
+    t.picks.some((p) => p.stage !== "skipped" && p.status === "pending")
+  );
 
   // The games inside multiples get a widget and a start notification too,
   // unless the same game (same teams, same day) is already there as a simple
