@@ -142,9 +142,16 @@ export default async function DashboardPage() {
     .map(({ multiple }) => multiple)
     .filter((m) => m.bet_type === "pre_jogo" && m.legs.some((l) => l.match_date === todayISO))
     .sort(byFirstKickoff);
+  // "Ativas" means still open: once a multiple is decided (a game lost, or all
+  // of them settled) it leaves this list, and stays in Live and in the stats.
   const activeLiveMultiples = allMultiples
+    .filter(
+      ({ multiple, status }) =>
+        multiple.bet_type === "live" &&
+        status === "pending" &&
+        lastLegDate(multiple.legs) >= todayISO
+    )
     .map(({ multiple }) => multiple)
-    .filter((m) => m.bet_type === "live" && lastLegDate(m.legs) >= todayISO)
     .sort(byFirstKickoff);
 
   const todayTickets = all
@@ -174,7 +181,9 @@ export default async function DashboardPage() {
 
   // The games inside multiples get a widget and a start notification too,
   // unless the same game (same teams, same day) is already there as a simple
-  // bet. Only the last day or so matters: a game is live for about 2h15.
+  // bet. Only games that can still change the result count: a multiple that is
+  // already decided has none, and in an open one only the games not settled
+  // yet. Only the last day or so matters: a game is live for about 2h15.
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayISO = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
@@ -187,9 +196,10 @@ export default async function DashboardPage() {
     liveWidgetCandidates.map((t) => gameKey(t.home_team, t.away_team, t.match_date))
   );
   const multipleGames = allMultiples
+    .filter(({ status }) => status === "pending")
     .flatMap(({ multiple }) => multiple.legs)
     .filter((leg) => {
-      if (leg.match_date < yesterdayISO) return false;
+      if (leg.status !== "pending" || leg.match_date < yesterdayISO) return false;
       const key = gameKey(leg.home_team, leg.away_team, leg.match_date);
       if (seenGames.has(key)) return false;
       seenGames.add(key);
