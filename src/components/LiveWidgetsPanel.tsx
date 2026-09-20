@@ -11,8 +11,13 @@ interface Ticket {
   match_date: string;
   match_time: string;
   live_ended: boolean;
-  home_team: { name: string } | null;
-  away_team: { name: string } | null;
+  home_team: { name: string; aliases?: string | null } | null;
+  away_team: { name: string; aliases?: string | null } | null;
+}
+
+// teams.aliases holds other names of a club separated by " | ".
+function splitAliases(aliases: string | null | undefined): string[] {
+  return aliases ? aliases.split("|").map((a) => a.trim()).filter(Boolean) : [];
 }
 
 interface WatchedMatch {
@@ -128,6 +133,8 @@ export default function LiveWidgetsPanel({
               key={ticket.id}
               homeTeam={ticket.home_team?.name ?? ""}
               awayTeam={ticket.away_team?.name ?? ""}
+              homeAliases={splitAliases(ticket.home_team?.aliases)}
+              awayAliases={splitAliases(ticket.away_team?.aliases)}
             />
           ))}
           {watched.map((w) => (

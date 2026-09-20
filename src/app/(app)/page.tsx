@@ -43,8 +43,8 @@ interface TicketRow {
   match_time: string;
   live_ended: boolean;
   competition: { id: string; name: string; country: { name: string } | null } | null;
-  home_team: { id: string; name: string } | null;
-  away_team: { id: string; name: string } | null;
+  home_team: { id: string; name: string; aliases: string | null } | null;
+  away_team: { id: string; name: string; aliases: string | null } | null;
   picks: Pick[];
 }
 
@@ -72,8 +72,8 @@ export default async function DashboardPage() {
       .select(
         `id, match_date, match_time, live_ended,
          competition:competitions(id, name, country:countries(name)),
-         home_team:teams!tickets_home_team_id_fkey(id, name),
-         away_team:teams!tickets_away_team_id_fkey(id, name),
+         home_team:teams!tickets_home_team_id_fkey(id, name, aliases),
+         away_team:teams!tickets_away_team_id_fkey(id, name, aliases),
          picks(id, selection, reason, status, bet_type, stage, odd, odd_min, entry_odd, entry_minute, alert_minute, sofascore_url, bookmaker_url, is_published, category:bet_categories(id, name), pick_images(id, image_path))`
       )
       .order("match_date", { ascending: true })
