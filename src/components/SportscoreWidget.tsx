@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 // rarely match the names typed here, so the slug is resolved first through
 // /api/sportscore/resolve (it tries name variants until Sportscore knows the
 // match). `homeAliases`/`awayAliases` are other names the team goes by.
-type Resolved = { key: string; slug: string | null };
+type Resolved = { key: string; slug: string | null; blocked?: boolean };
 
 export default function SportscoreWidget({
   homeTeam,
@@ -30,15 +30,18 @@ export default function SportscoreWidget({
     const controller = new AbortController();
     const query = new URLSearchParams({ home: homeNames, away: awayNames });
     fetch(`/api/sportscore/resolve?${query}`, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : { slug: null }))
-      .then((data: { slug: string | null }) => setResolved({ key, slug: data.slug }))
+      .then((res) => (res.ok ? res.json() : { slug: null, blocked: true }))
+      .then((data: { slug: string | null; blocked?: boolean }) =>
+        setResolved({ key, slug: data.slug, blocked: data.blocked })
+      )
       .catch((err) => {
-        if (err.name !== "AbortError") setResolved({ key, slug: null });
+        if (err.name !== "AbortError") setResolved({ key, slug: null, blocked: true });
       });
     return () => controller.abort();
   }, [key, homeNames, awayNames]);
 
-  const slug = resolved?.key === key ? resolved.slug : undefined;
+  const current = resolved?.key === key ? resolved : null;
+  const slug = current ? current.slug : undefined;
 
   return (
     <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
@@ -61,9 +64,11 @@ export default function SportscoreWidget({
             {homeTeam} vs {awayTeam}
           </p>
           <p className="mt-1 text-xs text-neutral-500">
-            {slug === undefined
+            {!current
               ? "A procurar o jogo..."
-              : "Não encontrei este jogo no Sportscore. Pode ainda não estar listado, ou o nome da equipa é muito diferente do do site."}
+              : current.blocked
+                ? "Não consegui contactar o Sportscore. Recarrega a página para tentar de novo."
+                : "Não encontrei este jogo no Sportscore. Pode ainda não estar listado, ou o nome da equipa é muito diferente do do site."}
           </p>
         </div>
       )}

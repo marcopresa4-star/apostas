@@ -22,27 +22,28 @@ function decodeEntities(text: string): string {
     .replace(/&amp;/g, "&");
 }
 
-// Whether the embed for `slug` exists and shows the teams that were asked for.
-async function isRightMatch(
-  slug: string,
-  homeVariants: string[],
-  awayVariants: string[]
-): Promise<boolean> {
+type Probe = "match" | "no-match" | "wrong-team" | "blocked";
+
+// Checks the embed for `slug`: does it exist, and does it show the teams that
+// were asked for. "blocked" is anything but a plain 404 (Cloudflare turning a
+// datacenter IP away, a timeout, a 5xx), which says nothing about the match.
+async function probe(slug: string, homeVariants: string[], awayVariants: string[]): Promise<Probe> {
   try {
     const res = await fetch(`${EMBED}/${slug}/`, {
       headers: { "User-Agent": "Mozilla/5.0" },
       signal: AbortSignal.timeout(6000),
       cache: "no-store",
     });
-    if (!res.ok) return false;
+    if (res.status === 404) return "no-match";
+    if (!res.ok) return "blocked";
     const names = [...(await res.text()).matchAll(/<div class="nm">([^<]*)<\/div>/g)].map((m) =>
       decodeEntities(m[1]).trim()
     );
     // Can't tell who is playing if the markup changes: trust the 200.
-    if (names.length < 2) return true;
-    return teamsMatch([names[0], names[1]], homeVariants, awayVariants);
+    if (names.length < 2) return "match";
+    return teamsMatch([names[0], names[1]], homeVariants, awayVariants) ? "match" : "wrong-team";
   } catch {
-    return false;
+    return "blocked";
   }
 }
 
@@ -50,18 +51,21 @@ async function firstMatch(
   pairs: { home: string; away: string }[],
   homeVariants: string[],
   awayVariants: string[]
-): Promise<string | null> {
+): Promise<{ slug: string | null; outcomes: Record<Probe, number> }> {
+  const outcomes: Record<Probe, number> = { match: 0, "no-match": 0, "wrong-team": 0, blocked: 0 };
   let next = 0;
   let found: string | null = null;
   const worker = async () => {
     while (found === null && next < pairs.length) {
       const { home, away } = pairs[next++];
       const slug = `${home}-vs-${away}`;
-      if (await isRightMatch(slug, homeVariants, awayVariants)) found ??= slug;
+      const outcome = await probe(slug, homeVariants, awayVariants);
+      outcomes[outcome]++;
+      if (outcome === "match") found ??= slug;
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pairs.length) }, worker));
-  return found;
+  return { slug: found, outcomes };
 }
 
 function namesFrom(params: URLSearchParams, key: string): string[] {
@@ -87,11 +91,18 @@ export async function GET(request: Request) {
 
   const homeVariants = slugCandidates(homeNames);
   const awayVariants = slugCandidates(awayNames);
-  const slug = await firstMatch(pairCandidates(homeVariants, awayVariants), homeVariants, awayVariants);
+  const { slug, outcomes } = await firstMatch(
+    pairCandidates(homeVariants, awayVariants),
+    homeVariants,
+    awayVariants
+  );
 
-  cache.set(key, { slug, expires: Date.now() + (slug ? FOUND_TTL_MS : MISS_TTL_MS) });
+  // Failing to reach Sportscore is not the same as the match not being there:
+  // report it, and don't remember it.
+  const blocked = slug === null && outcomes.blocked > 0;
+  if (!blocked) cache.set(key, { slug, expires: Date.now() + (slug ? FOUND_TTL_MS : MISS_TTL_MS) });
   return Response.json(
-    { slug },
+    { slug, blocked, outcomes },
     { headers: slug ? { "Cache-Control": "private, max-age=3600" } : undefined }
   );
 }
