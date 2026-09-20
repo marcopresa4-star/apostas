@@ -1,12 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { slugify } from "@/lib/slugify";
 
 // Free, self-service embeddable match widget (no account/API key) — see
 // https://sportscore.com/embed/. It identifies teams by its own slugs, which
 // rarely match the names typed here, so the slug is resolved first through
 // /api/sportscore/resolve (it tries name variants until Sportscore knows the
 // match). `homeAliases`/`awayAliases` are other names the team goes by.
+//
+// Only the server can check slugs (Sportscore sends no CORS headers), and its
+// host may be turned away by Cloudflare. When that happens the widget falls
+// back to the plain slug from the typed names, which the browser loads by
+// itself and which is exactly what worked before the resolver existed.
 type Resolved = { key: string; slug: string | null; blocked?: boolean };
 
 export default function SportscoreWidget({
@@ -41,7 +47,11 @@ export default function SportscoreWidget({
   }, [key, homeNames, awayNames]);
 
   const current = resolved?.key === key ? resolved : null;
-  const slug = current ? current.slug : undefined;
+  const slug = current?.blocked
+    ? `${slugify(homeTeam)}-vs-${slugify(awayTeam)}`
+    : current
+      ? current.slug
+      : undefined;
 
   return (
     <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
@@ -66,9 +76,7 @@ export default function SportscoreWidget({
           <p className="mt-1 text-xs text-neutral-500">
             {!current
               ? "A procurar o jogo..."
-              : current.blocked
-                ? "Não consegui contactar o Sportscore. Recarrega a página para tentar de novo."
-                : "Não encontrei este jogo no Sportscore. Pode ainda não estar listado, ou o nome da equipa é muito diferente do do site."}
+              : "Não encontrei este jogo no Sportscore. Pode ainda não estar listado, ou o nome da equipa é muito diferente do do site."}
           </p>
         </div>
       )}
