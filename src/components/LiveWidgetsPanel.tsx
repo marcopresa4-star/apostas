@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
+import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
 import { addWatchedMatch, removeWatchedMatch } from "@/app/(app)/actions";
 import SportscoreWidget from "./SportscoreWidget";
 
@@ -26,6 +27,34 @@ interface WatchedMatch {
   away_team: string;
 }
 
+// The order you arranged the widgets in, as item keys ("t:<ticket id>" for a
+// game from your bets, "w:<id>" for one you added by hand). It lives in this
+// browser only: the widgets themselves come and go with the kickoff clock, so
+// it is a layout preference, not data.
+const ORDER_KEY = "apostas.liveWidgetOrder";
+
+function loadOrder(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(ORDER_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveOrder(order: string[]) {
+  try {
+    if (order.length > 0) window.localStorage.setItem(ORDER_KEY, JSON.stringify(order));
+    else window.localStorage.removeItem(ORDER_KEY);
+  } catch {
+    // Private mode or blocked storage: the order just isn't remembered.
+  }
+}
+
+type Item =
+  | { key: string; kind: "ticket"; ticket: Ticket }
+  | { key: string; kind: "watched"; watched: WatchedMatch };
+
 // Computes "which matches are live" on the client, ticking every second —
 // mirrors the same heuristic CompactTicketList uses for its "Em direto"
 // badges, so this panel never drifts out of sync with them (a server-only
@@ -44,6 +73,11 @@ export default function LiveWidgetsPanel({
   const [awayTeam, setAwayTeam] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // Nothing renders until the clock is ready, so reading storage here can
+  // never disagree with the server's (empty) output.
+  const [order, setOrder] = useState<string[]>(() =>
+    typeof window === "undefined" ? [] : loadOrder()
+  );
 
   if (!now) return null;
 
@@ -51,6 +85,28 @@ export default function LiveWidgetsPanel({
     (t) => !t.live_ended && isMatchLive(t.match_date, t.match_time, now)
   );
   const hasAny = liveTickets.length > 0 || watched.length > 0;
+
+  const items: Item[] = [
+    ...liveTickets.map((ticket): Item => ({ key: `t:${ticket.id}`, kind: "ticket", ticket })),
+    ...watched.map((w): Item => ({ key: `w:${w.id}`, kind: "watched", watched: w })),
+  ];
+  const sortedKeys = sortByOrder(
+    items.map((item) => item.key),
+    order
+  );
+  const position = new Map(sortedKeys.map((key, i) => [key, i]));
+
+  function moveWidget(key: string, to: Move) {
+    const next = moveKey(sortedKeys, key, to);
+    if (!next) return;
+    setOrder(next);
+    saveOrder(next);
+  }
+
+  function resetOrder() {
+    setOrder([]);
+    saveOrder([]);
+  }
 
   function handleAdd() {
     setError(null);
@@ -83,13 +139,24 @@ export default function LiveWidgetsPanel({
           <span aria-hidden className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
           Ao vivo agora
         </h2>
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="text-xs font-medium text-sky-400 hover:underline"
-        >
-          {open ? "Cancelar" : "+ Adicionar jogo"}
-        </button>
+        <div className="flex items-center gap-3">
+          {order.length > 0 && (
+            <button
+              type="button"
+              onClick={resetOrder}
+              className="text-xs text-neutral-500 hover:text-neutral-300 hover:underline"
+            >
+              Repor ordem
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="text-xs font-medium text-sky-400 hover:underline"
+          >
+            {open ? "Cancelar" : "+ Adicionar jogo"}
+          </button>
+        </div>
       </div>
 
       {open && (
@@ -127,30 +194,71 @@ export default function LiveWidgetsPanel({
       )}
 
       {hasAny && (
+        // Each widget keeps its place in the DOM and is only moved with CSS
+        // `order`: moving an iframe in the DOM would reload it.
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-          {liveTickets.map((ticket) => (
-            <SportscoreWidget
-              key={ticket.id}
-              homeTeam={ticket.home_team?.name ?? ""}
-              awayTeam={ticket.away_team?.name ?? ""}
-              homeAliases={splitAliases(ticket.home_team?.aliases)}
-              awayAliases={splitAliases(ticket.away_team?.aliases)}
-            />
-          ))}
-          {watched.map((w) => (
-            <div key={w.id} className="relative">
-              <SportscoreWidget homeTeam={w.home_team} awayTeam={w.away_team} />
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleRemove(w.id)}
-                title="Remover"
-                className="absolute right-2 top-2 rounded-full bg-neutral-900/80 p-1.5 text-neutral-400 backdrop-blur transition hover:bg-red-950 hover:text-red-300 disabled:opacity-50"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+          {items.map((item) => {
+            const pos = position.get(item.key) ?? 0;
+            return (
+              <div key={item.key} style={{ order: pos }} className="relative">
+                {item.kind === "ticket" ? (
+                  <SportscoreWidget
+                    homeTeam={item.ticket.home_team?.name ?? ""}
+                    awayTeam={item.ticket.away_team?.name ?? ""}
+                    homeAliases={splitAliases(item.ticket.home_team?.aliases)}
+                    awayAliases={splitAliases(item.ticket.away_team?.aliases)}
+                  />
+                ) : (
+                  <>
+                    <SportscoreWidget
+                      homeTeam={item.watched.home_team}
+                      awayTeam={item.watched.away_team}
+                    />
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => handleRemove(item.watched.id)}
+                      title="Remover"
+                      className="absolute right-2 top-2 z-10 rounded-full bg-neutral-900/80 p-1.5 text-neutral-400 backdrop-blur transition hover:bg-red-950 hover:text-red-300 disabled:opacity-50"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
+                {items.length > 1 && (
+                  <div className="absolute left-2 top-2 z-10 flex overflow-hidden rounded-full bg-neutral-900/80 text-sm text-neutral-400 backdrop-blur">
+                    <button
+                      type="button"
+                      disabled={pos === 0}
+                      onClick={() => moveWidget(item.key, "first")}
+                      title="Pôr em primeiro"
+                      className="px-2 py-1 transition hover:bg-neutral-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-neutral-400"
+                    >
+                      «
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pos === 0}
+                      onClick={() => moveWidget(item.key, "earlier")}
+                      title="Mover para trás"
+                      className="px-2 py-1 transition hover:bg-neutral-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-neutral-400"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pos === items.length - 1}
+                      onClick={() => moveWidget(item.key, "later")}
+                      title="Mover para a frente"
+                      className="px-2 py-1 transition hover:bg-neutral-700 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-neutral-400"
+                    >
+                      ›
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
