@@ -11,8 +11,10 @@ export interface MultipleLeg {
   match_date: string;
   match_time: string;
   competition: { name: string; country: { name: string } | null } | null;
-  home_team: { name: string } | null;
-  away_team: { name: string } | null;
+  // Other names of a club, separated by " | ": the live widget looks it up
+  // by all of them.
+  home_team: { id: string; name: string; aliases?: string | null } | null;
+  away_team: { id: string; name: string; aliases?: string | null } | null;
   category: { name: string } | null;
 }
 
@@ -28,8 +30,8 @@ export interface MultipleRow {
 
 const LEG_SELECT = `id, selection, odd, status, entry_minute, match_date, match_time,
     competition:competitions(id, name, country:countries(name)),
-    home_team:teams!multiple_legs_home_team_id_fkey(id, name),
-    away_team:teams!multiple_legs_away_team_id_fkey(id, name),
+    home_team:teams!multiple_legs_home_team_id_fkey(id, name, aliases),
+    away_team:teams!multiple_legs_away_team_id_fkey(id, name, aliases),
     category:bet_categories(id, name)`;
 
 // Same joins for every page that lists your own multiples.

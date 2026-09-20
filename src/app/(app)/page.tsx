@@ -172,6 +172,39 @@ export default async function DashboardPage() {
   // one pick you did not discard as "não entrei".
   const liveWidgetCandidates = all.filter((t) => t.picks.some((p) => p.stage !== "skipped"));
 
+  // The games inside multiples get a widget and a start notification too,
+  // unless the same game (same teams, same day) is already there as a simple
+  // bet. Only the last day or so matters: a game is live for about 2h15.
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayISO = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const gameKey = (
+    home: { id: string } | null,
+    away: { id: string } | null,
+    date: string
+  ) => `${home?.id}|${away?.id}|${date}`;
+  const seenGames = new Set(
+    liveWidgetCandidates.map((t) => gameKey(t.home_team, t.away_team, t.match_date))
+  );
+  const multipleGames = allMultiples
+    .flatMap(({ multiple }) => multiple.legs)
+    .filter((leg) => {
+      if (leg.match_date < yesterdayISO) return false;
+      const key = gameKey(leg.home_team, leg.away_team, leg.match_date);
+      if (seenGames.has(key)) return false;
+      seenGames.add(key);
+      return true;
+    })
+    .map((leg) => ({
+      id: leg.id,
+      match_date: leg.match_date,
+      match_time: leg.match_time,
+      live_ended: false,
+      home_team: leg.home_team,
+      away_team: leg.away_team,
+    }));
+  const liveGames = [...liveWidgetCandidates, ...multipleGames];
+
   // From md up the app content is a narrow centered column; the Dashboard
   // wants the whole area next to the sidebar instead. It is as wide as the
   // window minus the sidebar (14rem) and a 4rem margin (2rem on each side,
@@ -297,9 +330,9 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <LiveWidgetsPanel tickets={liveWidgetCandidates} watched={watchedMatches ?? []} />
+      <LiveWidgetsPanel tickets={liveGames} watched={watchedMatches ?? []} />
 
-      <GameStartNotifications tickets={liveWidgetCandidates} />
+      <GameStartNotifications tickets={liveGames} />
     </div>
   );
 }
