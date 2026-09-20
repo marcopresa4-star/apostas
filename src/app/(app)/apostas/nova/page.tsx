@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import TicketForm from "@/components/TicketForm";
+import MultipleForm from "@/components/MultipleForm";
+import BetKindSwitch from "@/components/BetKindSwitch";
 import type { ComboCountry } from "@/components/EntityCombobox";
 import type { TagItem } from "@/components/CategoryCombobox";
 import { fetchUsedEntities } from "@/lib/entityOptions";
@@ -34,11 +36,26 @@ export default async function NovaApostaPage() {
         ← Voltar
       </Link>
       <h1 className="mb-6 text-xl font-semibold">Nova aposta</h1>
-      <TicketForm
-        initialCompetitions={comboCompetitions}
-        initialTeams={comboTeams}
-        countries={comboCountries}
-        initialCategories={categories ?? []}
+      <BetKindSwitch
+        accent="emerald"
+        multipleHint="Uma só aposta com dois ou mais jogos. Indica a odd de cada um e a odd total é calculada."
+        simple={
+          <TicketForm
+            initialCompetitions={comboCompetitions}
+            initialTeams={comboTeams}
+            countries={comboCountries}
+            initialCategories={categories ?? []}
+          />
+        }
+        multiple={
+          <MultipleForm
+            betType="pre_jogo"
+            initialCompetitions={comboCompetitions}
+            initialTeams={comboTeams}
+            countries={comboCountries}
+            initialCategories={categories ?? []}
+          />
+        }
       />
     </div>
   );

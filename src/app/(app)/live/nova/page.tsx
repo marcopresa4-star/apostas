@@ -2,6 +2,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import NovaVigilanciaTabs from "@/components/NovaVigilanciaTabs";
+import MultipleForm from "@/components/MultipleForm";
+import BetKindSwitch from "@/components/BetKindSwitch";
 import type { ComboCountry } from "@/components/EntityCombobox";
 import type { TicketOption } from "@/components/ExistingTicketPicker";
 import type { TagItem } from "@/components/CategoryCombobox";
@@ -77,12 +79,27 @@ export default async function NovaVigilanciaLivePage() {
         ← Voltar
       </Link>
       <h1 className="mb-6 text-xl font-semibold">🔴 Nova live</h1>
-      <NovaVigilanciaTabs
-        initialCompetitions={comboCompetitions}
-        initialTeams={comboTeams}
-        countries={comboCountries}
-        existingTickets={ticketOptions}
-        initialCategories={categories ?? []}
+      <BetKindSwitch
+        accent="sky"
+        multipleHint="Regista uma múltipla em que já entraste: para cada jogo indica a odd e o minuto em que entraste. A odd total é calculada."
+        simple={
+          <NovaVigilanciaTabs
+            initialCompetitions={comboCompetitions}
+            initialTeams={comboTeams}
+            countries={comboCountries}
+            existingTickets={ticketOptions}
+            initialCategories={categories ?? []}
+          />
+        }
+        multiple={
+          <MultipleForm
+            betType="live"
+            initialCompetitions={comboCompetitions}
+            initialTeams={comboTeams}
+            countries={comboCountries}
+            initialCategories={categories ?? []}
+          />
+        }
       />
     </div>
   );

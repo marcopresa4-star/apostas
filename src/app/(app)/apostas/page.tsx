@@ -221,20 +221,12 @@ export default async function ApostasPage({
     <div>
       <div className="mb-6 flex items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">As minhas apostas</h1>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/apostas/nova-multipla"
-            className="whitespace-nowrap rounded-lg border border-neutral-700 px-3 py-1.5 text-sm font-medium text-emerald-400 transition hover:bg-neutral-900"
-          >
-            + Múltipla
-          </Link>
-          <Link
-            href="/apostas/nova"
-            className="whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-emerald-500/30"
-          >
-            + Nova aposta
-          </Link>
-        </div>
+        <Link
+          href="/apostas/nova"
+          className="whitespace-nowrap rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-emerald-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-emerald-500/30"
+        >
+          + Nova aposta
+        </Link>
       </div>
 
       <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
