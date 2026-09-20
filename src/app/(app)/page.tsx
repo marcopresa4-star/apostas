@@ -138,9 +138,16 @@ export default async function DashboardPage() {
   // soonest first (the same windows the game lists use).
   const byFirstKickoff = (a: MultipleRow, b: MultipleRow) =>
     firstLegKickoff(a.legs).localeCompare(firstLegKickoff(b.legs));
+  // Only what is still open: a multiple that is already decided leaves the
+  // panel, like a settled simple bet does.
   const todayMultiples = allMultiples
+    .filter(
+      ({ multiple, status }) =>
+        multiple.bet_type === "pre_jogo" &&
+        status === "pending" &&
+        multiple.legs.some((l) => l.match_date === todayISO)
+    )
     .map(({ multiple }) => multiple)
-    .filter((m) => m.bet_type === "pre_jogo" && m.legs.some((l) => l.match_date === todayISO))
     .sort(byFirstKickoff);
   // "Ativas" means still open: once a multiple is decided (a game lost, or all
   // of them settled) it leaves this list, and stays in Live and in the stats.
@@ -154,9 +161,15 @@ export default async function DashboardPage() {
     .map(({ multiple }) => multiple)
     .sort(byFirstKickoff);
 
+  // Bets that already have a result (Green, Red, half results, Devolvida)
+  // leave this panel; they stay in Apostas, in the history and in the stats. A
+  // game with one settled and one open bet keeps only the open one.
   const todayTickets = all
     .filter((t) => t.match_date === todayISO)
-    .map((t) => ({ ...t, picks: t.picks.filter((p) => p.bet_type === "pre_jogo") }))
+    .map((t) => ({
+      ...t,
+      picks: t.picks.filter((p) => p.bet_type === "pre_jogo" && p.status === "pending"),
+    }))
     .filter((t) => t.picks.length > 0);
 
   const upcomingTickets = all.filter((t) => t.match_date >= todayISO);
@@ -279,7 +292,7 @@ export default async function DashboardPage() {
           </div>
           {todayTickets.length === 0 && todayMultiples.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
-              Sem apostas pré-jogo registadas para hoje.
+              Sem apostas pré-jogo pendentes para hoje.
             </p>
           ) : (
             <div className="space-y-2">
