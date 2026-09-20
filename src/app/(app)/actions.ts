@@ -267,7 +267,12 @@ export async function markTicketLiveEnded(ticketId: string) {
   revalidateAll();
 }
 
-export async function addWatchedMatch(homeTeam: string, awayTeam: string) {
+export async function addWatchedMatch(
+  homeTeam: string,
+  awayTeam: string,
+  homeAliases: string | null = null,
+  awayAliases: string | null = null
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -278,9 +283,13 @@ export async function addWatchedMatch(homeTeam: string, awayTeam: string) {
   const away = awayTeam.trim();
   if (!home || !away) throw new Error("Indica as duas equipas.");
 
-  const { error } = await supabase
-    .from("watched_matches")
-    .insert({ user_id: user.id, home_team: home, away_team: away });
+  const { error } = await supabase.from("watched_matches").insert({
+    user_id: user.id,
+    home_team: home,
+    away_team: away,
+    home_aliases: homeAliases?.trim() || null,
+    away_aliases: awayAliases?.trim() || null,
+  });
 
   if (error) throw error;
   revalidateAll();

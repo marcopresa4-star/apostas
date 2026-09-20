@@ -9,6 +9,8 @@ import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import GameStartNotifications from "@/components/GameStartNotifications";
 import type { PickImageItem } from "@/components/PickImages";
+import type { ComboCountry } from "@/components/EntityCombobox";
+import { fetchUsedEntities } from "@/lib/entityOptions";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 import { sumGreen, sumRed } from "@/lib/betResult";
 import {
@@ -60,6 +62,8 @@ interface WatchedMatchRow {
   id: string;
   home_team: string;
   away_team: string;
+  home_aliases: string | null;
+  away_aliases: string | null;
 }
 
 function todayISODate() {
@@ -74,7 +78,13 @@ export default async function DashboardPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: tickets, error }, { data: watchedMatches }, { data: multipleRows }] = await Promise.all([
+  const [
+    { data: tickets, error },
+    { data: watchedMatches },
+    { data: multipleRows },
+    { data: countries },
+    initialTeams,
+  ] = await Promise.all([
     supabase
       .from("tickets")
       .select(
@@ -89,11 +99,14 @@ export default async function DashboardPage() {
       .returns<TicketRow[]>(),
     supabase
       .from("watched_matches")
-      .select("id, home_team, away_team")
+      .select("id, home_team, away_team, home_aliases, away_aliases")
       .order("created_at", { ascending: true })
       .returns<WatchedMatchRow[]>(),
     // Left empty (never an error) if the multiples migration has not run yet.
     supabase.from("multiples").select(MULTIPLE_SELECT).returns<MultipleRow[]>(),
+    // For the "Adicionar jogo" team search of the live widgets.
+    supabase.from("countries").select("id, name").order("name").returns<ComboCountry[]>(),
+    fetchUsedEntities(supabase, "teams"),
   ]);
 
   const todayISO = todayISODate();
@@ -362,7 +375,12 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <LiveWidgetsPanel tickets={liveGames} watched={watchedMatches ?? []} />
+      <LiveWidgetsPanel
+        tickets={liveGames}
+        watched={watchedMatches ?? []}
+        countries={countries ?? []}
+        initialTeams={initialTeams}
+      />
 
       <GameStartNotifications tickets={liveGames} />
     </div>

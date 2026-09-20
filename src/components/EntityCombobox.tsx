@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { searchEntities } from "@/app/(app)/actions";
 
-export type ComboItem = { id: string; name: string; countryName: string };
+// `aliases` (teams only): the club's other names, separated by " | ".
+export type ComboItem = { id: string; name: string; countryName: string; aliases?: string | null };
 export type ComboCountry = { id: string; name: string };
 
 interface EntityComboboxProps {

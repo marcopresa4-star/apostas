@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { useNow } from "@/lib/useNow";
 import { isMatchLive } from "@/lib/matchStatus";
 import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
-import { addWatchedMatch, removeWatchedMatch } from "@/app/(app)/actions";
+import { addWatchedMatch, removeWatchedMatch, createTeam } from "@/app/(app)/actions";
 import SportscoreWidget from "./SportscoreWidget";
+import EntityCombobox, { type ComboCountry, type ComboItem } from "./EntityCombobox";
 
 interface Ticket {
   id: string;
@@ -25,6 +26,8 @@ interface WatchedMatch {
   id: string;
   home_team: string;
   away_team: string;
+  home_aliases?: string | null;
+  away_aliases?: string | null;
 }
 
 // The order you arranged the widgets in, as item keys ("t:<ticket id>" for a
@@ -63,14 +66,19 @@ type Item =
 export default function LiveWidgetsPanel({
   tickets,
   watched,
+  countries,
+  initialTeams,
 }: {
   tickets: Ticket[];
   watched: WatchedMatch[];
+  countries: ComboCountry[];
+  initialTeams: ComboItem[];
 }) {
   const now = useNow();
   const [open, setOpen] = useState(false);
-  const [homeTeam, setHomeTeam] = useState("");
-  const [awayTeam, setAwayTeam] = useState("");
+  const [teams, setTeams] = useState(initialTeams);
+  const [homeTeam, setHomeTeam] = useState<ComboItem | null>(null);
+  const [awayTeam, setAwayTeam] = useState<ComboItem | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   // Nothing renders until the clock is ready, so reading storage here can
@@ -108,17 +116,30 @@ export default function LiveWidgetsPanel({
     saveOrder([]);
   }
 
+  function addTeam(item: ComboItem) {
+    setTeams((prev) => (prev.some((t) => t.id === item.id) ? prev : [...prev, item]));
+  }
+
   function handleAdd() {
     setError(null);
-    if (!homeTeam.trim() || !awayTeam.trim()) {
-      setError("Indica as duas equipas.");
+    if (!homeTeam?.id || !awayTeam?.id) {
+      setError("Escolhe as duas equipas da lista, ou cria a que falta.");
+      return;
+    }
+    if (homeTeam.id === awayTeam.id) {
+      setError("A equipa da casa e a de fora têm de ser diferentes.");
       return;
     }
     startTransition(async () => {
       try {
-        await addWatchedMatch(homeTeam, awayTeam);
-        setHomeTeam("");
-        setAwayTeam("");
+        await addWatchedMatch(
+          homeTeam.name,
+          awayTeam.name,
+          homeTeam.aliases ?? null,
+          awayTeam.aliases ?? null
+        );
+        setHomeTeam(null);
+        setAwayTeam(null);
         setOpen(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Não foi possível adicionar.");
@@ -159,26 +180,36 @@ export default function LiveWidgetsPanel({
         </div>
       </div>
 
+      {/* z-20 on the form keeps the suggestion menus above the widgets' own
+          controls (z-10). */}
       {open && (
-        <div className="mb-4 flex flex-col gap-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3 sm:flex-row sm:items-end">
+        <div className="relative z-20 mb-4 flex flex-col gap-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3 sm:flex-row sm:items-end">
           <div className="flex-1">
-            <label className="mb-1 block text-xs text-neutral-400">Equipa da casa</label>
-            <input
-              type="text"
-              value={homeTeam}
-              onChange={(e) => setHomeTeam(e.target.value)}
+            <EntityCombobox
+              label="Equipa da casa"
               placeholder="Ex: Real Madrid"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-sky-500"
+              createLabel="Criar equipa"
+              searchTable="teams"
+              items={teams}
+              countries={countries}
+              value={homeTeam}
+              onSelect={setHomeTeam}
+              createAction={createTeam}
+              onCreated={addTeam}
             />
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-xs text-neutral-400">Equipa de fora</label>
-            <input
-              type="text"
-              value={awayTeam}
-              onChange={(e) => setAwayTeam(e.target.value)}
+            <EntityCombobox
+              label="Equipa de fora"
               placeholder="Ex: Barcelona"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-sky-500"
+              createLabel="Criar equipa"
+              searchTable="teams"
+              items={teams}
+              countries={countries}
+              value={awayTeam}
+              onSelect={setAwayTeam}
+              createAction={createTeam}
+              onCreated={addTeam}
             />
           </div>
           <button
@@ -213,6 +244,8 @@ export default function LiveWidgetsPanel({
                     <SportscoreWidget
                       homeTeam={item.watched.home_team}
                       awayTeam={item.watched.away_team}
+                      homeAliases={splitAliases(item.watched.home_aliases)}
+                      awayAliases={splitAliases(item.watched.away_aliases)}
                     />
                     <button
                       type="button"

@@ -7,12 +7,22 @@ export type EntityTable = "teams" | "competitions";
 interface EntityRow {
   id: string;
   name: string;
+  aliases?: string | null;
   country: { name: string } | null;
 }
 
 function toItem(row: EntityRow): ComboItem {
-  return { id: row.id, name: row.name, countryName: row.country?.name ?? "" };
+  return {
+    id: row.id,
+    name: row.name,
+    countryName: row.country?.name ?? "",
+    aliases: row.aliases ?? null,
+  };
 }
+
+// Only teams have other names; competitions have no aliases column.
+const columnsFor = (table: EntityTable) =>
+  table === "teams" ? "id, name, aliases, country:countries(name)" : "id, name, country:countries(name)";
 
 // The teams / competitions already used in your games, most recent first.
 // This is what a search box offers before you type anything: the base holds
@@ -35,7 +45,7 @@ export async function fetchUsedEntities(client: Client, table: EntityTable): Pro
 
   const { data } = await client
     .from(table)
-    .select("id, name, country:countries(name)")
+    .select(columnsFor(table))
     .in("id", ids)
     .order("name")
     .returns<EntityRow[]>();
@@ -60,7 +70,7 @@ export async function searchEntityRows(
   if (terms.length === 0) return [];
 
   const build = (mode: "starts" | "contains") => {
-    let q = client.from(table).select("id, name, country:countries(name)");
+    let q = client.from(table).select(columnsFor(table));
     terms.forEach((term, i) => {
       const pattern = i === 0 && mode === "starts" ? `${term}%` : `%${term}%`;
       q =
