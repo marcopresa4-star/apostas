@@ -168,10 +168,15 @@ export default async function DashboardPage() {
     }))
     .filter((t) => t.picks.length > 0);
 
+  // "Ativas" means still open: a live bet that already has a result (Green,
+  // Red, half results, Devolvida) leaves this list; it stays in Live and in
+  // the stats. A game with one settled and one open bet keeps only the open one.
   const activeLiveTickets = upcomingTickets
     .map((t) => ({
       ...t,
-      picks: t.picks.filter((p) => p.bet_type === "live" && p.stage === "active"),
+      picks: t.picks.filter(
+        (p) => p.bet_type === "live" && p.stage === "active" && p.status === "pending"
+      ),
     }))
     .filter((t) => t.picks.length > 0);
 
