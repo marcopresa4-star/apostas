@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import CompactTicketList from "@/components/CompactTicketList";
+import CompactMultipleList from "@/components/CompactMultipleList";
 import StatsRow from "@/components/StatsRow";
 import LiveClock from "@/components/LiveClock";
 import LiveAlerts from "@/components/LiveAlerts";
@@ -10,6 +11,13 @@ import GameStartNotifications from "@/components/GameStartNotifications";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 import { sumGreen, sumRed } from "@/lib/betResult";
+import {
+  MULTIPLE_SELECT,
+  firstLegKickoff,
+  lastLegDate,
+  multipleStatus,
+  type MultipleRow,
+} from "@/lib/multiples";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -66,7 +74,7 @@ export default async function DashboardPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const [{ data: tickets, error }, { data: watchedMatches }] = await Promise.all([
+  const [{ data: tickets, error }, { data: watchedMatches }, { data: multipleRows }] = await Promise.all([
     supabase
       .from("tickets")
       .select(
@@ -84,6 +92,8 @@ export default async function DashboardPage() {
       .select("id, home_team, away_team")
       .order("created_at", { ascending: true })
       .returns<WatchedMatchRow[]>(),
+    // Left empty (never an error) if the multiples migration has not run yet.
+    supabase.from("multiples").select(MULTIPLE_SELECT).returns<MultipleRow[]>(),
   ]);
 
   const todayISO = todayISODate();
@@ -110,13 +120,32 @@ export default async function DashboardPage() {
 
   // Only picks you actually entered count as bets - a live idea you are
   // still watching (or never entered) must not inflate Total/Pendentes.
+  // A multiple counts as one bet, with the result worked out from its games.
   const allPicks = all.flatMap((t) => t.picks).filter((p) => p.stage === "active");
+  const allMultiples = (multipleRows ?? []).map((multiple) => ({
+    multiple,
+    status: multipleStatus(multiple.legs),
+  }));
+  const betResults = [...allPicks, ...allMultiples];
   const stats = {
-    total: allPicks.length,
-    green: sumGreen(allPicks),
-    red: sumRed(allPicks),
-    pending: allPicks.filter((p) => p.status === "pending").length,
+    total: betResults.length,
+    green: sumGreen(betResults),
+    red: sumRed(betResults),
+    pending: betResults.filter((b) => b.status === "pending").length,
   };
+
+  // Pre-game multiples with a game today, and live ones not yet over, both
+  // soonest first (the same windows the game lists use).
+  const byFirstKickoff = (a: MultipleRow, b: MultipleRow) =>
+    firstLegKickoff(a.legs).localeCompare(firstLegKickoff(b.legs));
+  const todayMultiples = allMultiples
+    .map(({ multiple }) => multiple)
+    .filter((m) => m.bet_type === "pre_jogo" && m.legs.some((l) => l.match_date === todayISO))
+    .sort(byFirstKickoff);
+  const activeLiveMultiples = allMultiples
+    .map(({ multiple }) => multiple)
+    .filter((m) => m.bet_type === "live" && lastLegDate(m.legs) >= todayISO)
+    .sort(byFirstKickoff);
 
   const todayTickets = all
     .filter((t) => t.match_date === todayISO)
@@ -185,7 +214,7 @@ export default async function DashboardPage() {
           "A vigiar em live". */}
       <div
         className={`mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 ${
-          activeLiveTickets.length > 0 ? "xl:grid-cols-3" : ""
+          activeLiveTickets.length > 0 || activeLiveMultiples.length > 0 ? "xl:grid-cols-3" : ""
         }`}
       >
         <div>
@@ -200,12 +229,17 @@ export default async function DashboardPage() {
               Ver todas →
             </Link>
           </div>
-          {todayTickets.length === 0 ? (
+          {todayTickets.length === 0 && todayMultiples.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
               Sem apostas pré-jogo registadas para hoje.
             </p>
           ) : (
-            <CompactTicketList tickets={todayTickets} imagesByPick={imagesByPick} />
+            <div className="space-y-2">
+              {todayMultiples.length > 0 && <CompactMultipleList multiples={todayMultiples} />}
+              {todayTickets.length > 0 && (
+                <CompactTicketList tickets={todayTickets} imagesByPick={imagesByPick} />
+              )}
+            </div>
           )}
         </div>
 
@@ -237,7 +271,7 @@ export default async function DashboardPage() {
             )}
           </div>
 
-          {activeLiveTickets.length > 0 && (
+          {(activeLiveTickets.length > 0 || activeLiveMultiples.length > 0) && (
             <div className="mt-6 xl:mt-0">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400">
@@ -250,7 +284,14 @@ export default async function DashboardPage() {
                   Ver todas →
                 </Link>
               </div>
-              <CompactTicketList tickets={activeLiveTickets} imagesByPick={imagesByPick} />
+              <div className="space-y-2">
+                {activeLiveMultiples.length > 0 && (
+                  <CompactMultipleList multiples={activeLiveMultiples} />
+                )}
+                {activeLiveTickets.length > 0 && (
+                  <CompactTicketList tickets={activeLiveTickets} imagesByPick={imagesByPick} />
+                )}
+              </div>
             </div>
           )}
         </div>

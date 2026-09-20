@@ -2,7 +2,9 @@
 
 import { useNow } from "@/lib/useNow";
 import { isMatchOver } from "@/lib/matchStatus";
+import { isMultipleOver, type MultipleRow } from "@/lib/multiples";
 import CommunityTicket from "./CommunityTicket";
+import MultipleCard from "./MultipleCard";
 import LiveAlerts from "./LiveAlerts";
 import GameStartNotifications from "./GameStartNotifications";
 import type { PickImageItem } from "./PickImages";
@@ -45,9 +47,11 @@ const EMPTY_BOX =
 
 export default function CommunityFeed({
   tickets,
+  multiples,
   imagesByPick,
 }: {
   tickets: TicketRow[];
+  multiples: MultipleRow[];
   imagesByPick: Record<string, PickImageItem[]>;
 }) {
   // Checked with the browser clock, like the "Em direto" badge, so a game
@@ -70,6 +74,12 @@ export default function CommunityFeed({
       .filter((t) => t.picks.length > 0);
   }
 
+  // A multiple stays until its last game is over. A live one is only ever
+  // shared once entered, so it belongs with the active live bets.
+  const runningMultiples = multiples.filter((m) => !isMultipleOver(m.legs, now));
+  const preJogoMultiples = runningMultiples.filter((m) => m.bet_type === "pre_jogo");
+  const liveMultiples = runningMultiples.filter((m) => m.bet_type === "live");
+
   const preJogoTickets = ticketsWith((p) => p.bet_type === "pre_jogo");
   const activeLiveTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "active");
   const watchingTickets = ticketsWith((p) => p.bet_type === "live" && p.stage === "watching");
@@ -86,10 +96,13 @@ export default function CommunityFeed({
 
       <div className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-emerald-400">🎟️ Apostas</h2>
-        {preJogoTickets.length === 0 ? (
+        {preJogoTickets.length === 0 && preJogoMultiples.length === 0 ? (
           <p className={EMPTY_BOX}>Sem apostas partilhadas de jogos por acabar.</p>
         ) : (
           <div className="space-y-3">
+            {preJogoMultiples.map((multiple) => (
+              <MultipleCard key={multiple.id} multiple={multiple} readOnly />
+            ))}
             {preJogoTickets.map((ticket) => (
               <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
             ))}
@@ -99,10 +112,13 @@ export default function CommunityFeed({
 
       <div className="mb-8">
         <h2 className="mb-3 text-sm font-semibold text-emerald-400">🔥 Ativas em live</h2>
-        {activeLiveTickets.length === 0 ? (
+        {activeLiveTickets.length === 0 && liveMultiples.length === 0 ? (
           <p className={EMPTY_BOX}>Sem apostas live ativas partilhadas.</p>
         ) : (
           <div className="space-y-3">
+            {liveMultiples.map((multiple) => (
+              <MultipleCard key={multiple.id} multiple={multiple} readOnly />
+            ))}
             {activeLiveTickets.map((ticket) => (
               <CommunityTicket key={ticket.id} ticket={ticket} imagesByPick={imagesByPick} />
             ))}

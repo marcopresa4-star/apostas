@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { searchEntityRows } from "@/lib/entityOptions";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import { multipleStatus } from "@/lib/multiples";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -569,16 +570,48 @@ export async function getCommunityUnseen(): Promise<{
     .order("updated_at", { ascending: false })
     .limit(1);
 
-  const [all, entered, newest] = await Promise.all([
+  // Published multiples: a live one is always an entry. Their games change
+  // (results) without the multiple itself changing, so the signature follows
+  // the latest update among the games of published multiples.
+  const unseenMultiples = () =>
+    supabase
+      .from("multiples")
+      .select("id", { count: "exact", head: true })
+      .eq("is_published", true)
+      .gt("published_at", read.last_seen_at);
+
+  const latestMultipleLeg = supabase
+    .from("multiple_legs")
+    .select("updated_at, multiple:multiples!inner(is_published)", { count: "exact" })
+    .eq("multiple.is_published", true)
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  const [all, entered, newest, multiples, liveMultiples, newestLeg] = await Promise.all([
     unseen(),
     unseen().eq("bet_type", "live").eq("stage", "active"),
     latest,
+    unseenMultiples(),
+    unseenMultiples().eq("bet_type", "live"),
+    latestMultipleLeg,
   ]);
   if (all.error || entered.error) return none;
+
+  // If the multiples tables are missing (migrations not run yet) they simply
+  // count as nothing.
+  const multiplesCount = multiples.error ? 0 : (multiples.count ?? 0);
+  const liveMultiplesCount = liveMultiples.error ? 0 : (liveMultiples.count ?? 0);
+  const multiplesSignature = newestLeg.error
+    ? ""
+    : `${newestLeg.count ?? 0}:${newestLeg.data?.[0]?.updated_at ?? ""}`;
   const signature = newest.error
     ? ""
-    : `${newest.count ?? 0}:${newest.data?.[0]?.updated_at ?? ""}`;
-  return { count: all.count ?? 0, entered: entered.count ?? 0, signature };
+    : `${newest.count ?? 0}:${newest.data?.[0]?.updated_at ?? ""}|${multiplesSignature}`;
+  return {
+    count: (all.count ?? 0) + multiplesCount,
+    entered: (entered.count ?? 0) + liveMultiplesCount,
+    signature,
+  };
 }
 
 export async function markCommunitySeen(): Promise<void> {
@@ -741,4 +774,39 @@ export async function deleteMultiple(multipleId: string) {
   if (error) throw error;
   revalidateAll();
   revalidatePath("/analise");
+}
+
+// Like setPickPublished: only a pending multiple can be published (worked out
+// from its games), and retiring it is always allowed. Once every game is over
+// it leaves the Comunidade feed on its own but keeps counting in its Análise.
+export async function setMultiplePublished(
+  multipleId: string,
+  published: boolean
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+
+  if (published) {
+    const { data: legs, error: fetchError } = await supabase
+      .from("multiple_legs")
+      .select("status")
+      .eq("multiple_id", multipleId)
+      .returns<{ status: BetStatus }[]>();
+    if (fetchError) return { ok: false, error: "Não foi possível verificar a múltipla." };
+    if (multipleStatus(legs ?? []) !== "pending") {
+      return { ok: false, error: "Só podes publicar múltiplas pendentes." };
+    }
+  }
+
+  const { error } = await supabase
+    .from("multiples")
+    .update({
+      is_published: published,
+      published_at: published ? new Date().toISOString() : null,
+    })
+    .eq("id", multipleId);
+  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
+
+  revalidatePath("/comunidade");
+  revalidateAll();
+  return { ok: true };
 }

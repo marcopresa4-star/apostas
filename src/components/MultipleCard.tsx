@@ -1,10 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import StatusBadge, { STATUS_BORDER } from "./StatusBadge";
 import { STATUS_OPTIONS } from "./StatusButtons";
-import { updateLegStatus, deleteMultiple } from "@/app/(app)/actions";
+import { updateLegStatus, deleteMultiple, setMultiplePublished } from "@/app/(app)/actions";
 import {
+  canPublishMultiple,
   effectiveOdd,
   formatOdd,
   multipleStatus,
@@ -84,6 +85,8 @@ export default function MultipleCard({
   readOnly?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [isTogglingPublish, startPublishTransition] = useTransition();
+  const [publishError, setPublishError] = useState<string | null>(null);
   const legs = [...multiple.legs].sort((a, b) =>
     `${a.match_date}T${a.match_time}`.localeCompare(`${b.match_date}T${b.match_time}`)
   );
@@ -91,6 +94,15 @@ export default function MultipleCard({
   const placed = placedOdd(legs);
   const effective = effectiveOdd(legs);
   const live = multiple.bet_type === "live";
+  const canPublish = canPublishMultiple({ is_published: multiple.is_published, legs });
+
+  function handleTogglePublish() {
+    setPublishError(null);
+    startPublishTransition(async () => {
+      const result = await setMultiplePublished(multiple.id, !multiple.is_published);
+      if (!result.ok) setPublishError(result.error);
+    });
+  }
 
   return (
     <div
@@ -112,6 +124,14 @@ export default function MultipleCard({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {!readOnly && multiple.is_published && (
+            <span
+              title="Visível na Comunidade"
+              className="rounded-full bg-violet-950 px-2 py-0.5 text-[10px] font-semibold text-violet-300"
+            >
+              📢 Publicada
+            </span>
+          )}
           <StatusBadge status={status} />
           {!readOnly && (
             <button
@@ -138,6 +158,28 @@ export default function MultipleCard({
 
       {multiple.reason && (
         <p className="mt-3 whitespace-pre-line text-sm text-neutral-400">{multiple.reason}</p>
+      )}
+      {!readOnly && (
+        <div className="mt-3">
+          <button
+            type="button"
+            disabled={isTogglingPublish || !canPublish}
+            onClick={handleTogglePublish}
+            title={!canPublish ? "Só podes publicar múltiplas pendentes" : undefined}
+            className={`text-xs disabled:opacity-50 ${
+              multiple.is_published
+                ? "text-violet-400 hover:text-violet-300"
+                : "text-neutral-500 hover:text-neutral-300 disabled:hover:text-neutral-500"
+            }`}
+          >
+            {isTogglingPublish
+              ? "..."
+              : multiple.is_published
+                ? "Retirar da Comunidade"
+                : "Publicar na Comunidade"}
+          </button>
+          {publishError && <p className="mt-1 text-xs text-red-400">{publishError}</p>}
+        </div>
       )}
       {multiple.bookmaker_url && (
         <a

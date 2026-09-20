@@ -1,4 +1,6 @@
 import type { BetStatus, BetType } from "./database.types";
+import { greenWeight, redWeight } from "./betResult";
+import { isMatchOver } from "./matchStatus";
 
 export interface MultipleLeg {
   id: string;
@@ -18,17 +20,24 @@ export interface MultipleRow {
   id: string;
   bet_type: BetType;
   reason: string | null;
-  bookmaker_url: string | null;
+  // Left out of the Comunidade queries on purpose: they stay private.
+  bookmaker_url?: string | null;
+  is_published?: boolean;
   legs: MultipleLeg[];
 }
 
-// Same joins for every page that lists multiples.
-export const MULTIPLE_SELECT = `id, bet_type, reason, bookmaker_url,
-  legs:multiple_legs(id, selection, odd, status, entry_minute, match_date, match_time,
+const LEG_SELECT = `id, selection, odd, status, entry_minute, match_date, match_time,
     competition:competitions(id, name, country:countries(name)),
     home_team:teams!multiple_legs_home_team_id_fkey(id, name),
     away_team:teams!multiple_legs_away_team_id_fkey(id, name),
-    category:bet_categories(id, name))`;
+    category:bet_categories(id, name)`;
+
+// Same joins for every page that lists your own multiples.
+export const MULTIPLE_SELECT = `id, bet_type, reason, bookmaker_url, is_published,
+  legs:multiple_legs(${LEG_SELECT})`;
+
+// What the Comunidade may see: no bookmaker link.
+export const PUBLIC_MULTIPLE_SELECT = `id, bet_type, reason, legs:multiple_legs(${LEG_SELECT})`;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -96,4 +105,44 @@ export function firstLegKickoff(legs: Pick<MultipleLeg, "match_date" | "match_ti
 // 2 -> "2,00", the way odds are written elsewhere.
 export function formatOdd(n: number): string {
   return n.toFixed(2).replace(".", ",");
+}
+
+// A multiple is over once every one of its games is (same time window the
+// "Em direto" badge uses), the moment it leaves the Comunidade feed.
+export function isMultipleOver(legs: Pick<MultipleLeg, "match_date" | "match_time">[], now: Date) {
+  return legs.every((l) => isMatchOver(l.match_date, l.match_time, false, now));
+}
+
+// Only a pending multiple can be published, like a single pick.
+export function canPublishMultiple(multiple: Pick<MultipleRow, "is_published" | "legs">): boolean {
+  return Boolean(multiple.is_published) || multipleStatus(multiple.legs) === "pending";
+}
+
+// Adds multiples to a calendar's day stats: each counts as one bet on the day
+// of its last game, and gets listed under that day. They stay out of the team,
+// competition and bet type rankings on purpose (the result belongs to the whole
+// combination, not to any one team). Never mutates `dayStats`.
+export function withMultiples(
+  dayStats: Record<string, { green: number; red: number }>,
+  multiples: MultipleRow[]
+) {
+  const stats = { ...dayStats };
+  const byDay: Record<string, MultipleRow[]> = {};
+  let hasResolved = false;
+
+  for (const multiple of multiples) {
+    const day = lastLegDate(multiple.legs);
+    if (!day) continue;
+    (byDay[day] ??= []).push(multiple);
+
+    const status = multipleStatus(multiple.legs);
+    const green = greenWeight(status);
+    const red = redWeight(status);
+    if (green === 0 && red === 0) continue;
+    hasResolved = true;
+    const entry = stats[day] ?? { green: 0, red: 0 };
+    stats[day] = { green: entry.green + green, red: entry.red + red };
+  }
+
+  return { dayStats: stats, multiplesByDay: byDay, hasResolved };
 }

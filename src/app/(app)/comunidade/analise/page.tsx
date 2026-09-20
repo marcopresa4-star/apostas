@@ -3,6 +3,7 @@ import CommunityTabs from "@/components/CommunityTabs";
 import StatRanking from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import { buildAnalysis } from "@/lib/analysis";
+import { PUBLIC_MULTIPLE_SELECT, withMultiples, type MultipleRow } from "@/lib/multiples";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -59,6 +60,14 @@ export default async function ComunidadeAnalisePage() {
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
+  // Published multiples count too, as one bet each. Left empty, never an
+  // error, if the multiples migrations have not run yet.
+  const { data: multipleRows } = await supabase
+    .from("multiples")
+    .select(PUBLIC_MULTIPLE_SELECT)
+    .eq("is_published", true)
+    .returns<MultipleRow[]>();
+
   const all = tickets ?? [];
 
   const imagesByPick: Record<string, PickImageItem[]> = {};
@@ -82,7 +91,12 @@ export default async function ComunidadeAnalisePage() {
 
   const { topTeams, topCompetitions, topCategories, dayStats, ticketsByDay } =
     buildAnalysis(all);
-  const hasPerformanceData = topTeams.length > 0;
+  const {
+    dayStats: calendarStats,
+    multiplesByDay,
+    hasResolved: hasResolvedMultiple,
+  } = withMultiples(dayStats, multipleRows ?? []);
+  const hasPerformanceData = topTeams.length > 0 || hasResolvedMultiple;
 
   return (
     <div>
@@ -107,8 +121,9 @@ export default async function ComunidadeAnalisePage() {
             <StatRanking title="Tipos de aposta" rows={topCategories} />
           </div>
           <PerformanceCalendar
-            dayStats={dayStats}
+            dayStats={calendarStats}
             ticketsByDay={ticketsByDay}
+            multiplesByDay={multiplesByDay}
             imagesByPick={imagesByPick}
             readOnly
           />

@@ -3,8 +3,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import StatRanking from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import { buildAnalysis } from "@/lib/analysis";
-import { greenWeight, redWeight } from "@/lib/betResult";
-import { MULTIPLE_SELECT, lastLegDate, multipleStatus, type MultipleRow } from "@/lib/multiples";
+import { MULTIPLE_SELECT, withMultiples, type MultipleRow } from "@/lib/multiples";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -92,25 +91,11 @@ export default async function AnalisePage() {
   const { topTeams, topCompetitions, topCategories, dayStats, ticketsByDay } =
     buildAnalysis(all);
 
-  // A multiple counts as one bet on the day of its last game, and stays out of
-  // the team / competition / bet type rankings (its result belongs to the
-  // whole combination, not to any one team).
-  const multiplesByDay: Record<string, MultipleRow[]> = {};
-  const calendarStats = { ...dayStats };
-  let hasResolvedMultiple = false;
-  for (const multiple of multipleRows ?? []) {
-    const day = lastLegDate(multiple.legs);
-    if (!day) continue;
-    (multiplesByDay[day] ??= []).push(multiple);
-
-    const status = multipleStatus(multiple.legs);
-    const green = greenWeight(status);
-    const red = redWeight(status);
-    if (green === 0 && red === 0) continue;
-    hasResolvedMultiple = true;
-    const entry = calendarStats[day] ?? { green: 0, red: 0 };
-    calendarStats[day] = { green: entry.green + green, red: entry.red + red };
-  }
+  const {
+    dayStats: calendarStats,
+    multiplesByDay,
+    hasResolved: hasResolvedMultiple,
+  } = withMultiples(dayStats, multipleRows ?? []);
 
   const hasPerformanceData = topTeams.length > 0 || hasResolvedMultiple;
 

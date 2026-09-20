@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import CommunityFeed from "@/components/CommunityFeed";
 import CommunityTabs from "@/components/CommunityTabs";
+import { PUBLIC_MULTIPLE_SELECT, type MultipleRow } from "@/lib/multiples";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -55,6 +56,14 @@ export default async function ComunidadePage() {
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
+  // Published multiples only (the bookmaker link is not selected). Left empty,
+  // never an error, if the multiples migrations have not run yet.
+  const { data: multipleRows } = await supabase
+    .from("multiples")
+    .select(PUBLIC_MULTIPLE_SELECT)
+    .eq("is_published", true)
+    .returns<MultipleRow[]>();
+
   const all = tickets ?? [];
 
   const imagesByPick: Record<string, PickImageItem[]> = {};
@@ -92,7 +101,7 @@ export default async function ComunidadePage() {
         </p>
       )}
 
-      <CommunityFeed tickets={all} imagesByPick={imagesByPick} />
+      <CommunityFeed tickets={all} multiples={multipleRows ?? []} imagesByPick={imagesByPick} />
     </div>
   );
 }
