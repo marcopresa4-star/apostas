@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import StatRanking from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import { buildAnalysis } from "@/lib/analysis";
+import { greenWeight, redWeight } from "@/lib/betResult";
+import { MULTIPLE_SELECT, lastLegDate, multipleStatus, type MultipleRow } from "@/lib/multiples";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 
@@ -60,6 +62,12 @@ export default async function AnalisePage() {
     .order("match_time", { ascending: true })
     .returns<TicketRow[]>();
 
+  // Left empty (never an error) if the multiples migration has not run yet.
+  const { data: multipleRows } = await supabase
+    .from("multiples")
+    .select(MULTIPLE_SELECT)
+    .returns<MultipleRow[]>();
+
   const all = tickets ?? [];
 
   const imagesByPick: Record<string, PickImageItem[]> = {};
@@ -83,7 +91,28 @@ export default async function AnalisePage() {
 
   const { topTeams, topCompetitions, topCategories, dayStats, ticketsByDay } =
     buildAnalysis(all);
-  const hasPerformanceData = topTeams.length > 0;
+
+  // A multiple counts as one bet on the day of its last game, and stays out of
+  // the team / competition / bet type rankings (its result belongs to the
+  // whole combination, not to any one team).
+  const multiplesByDay: Record<string, MultipleRow[]> = {};
+  const calendarStats = { ...dayStats };
+  let hasResolvedMultiple = false;
+  for (const multiple of multipleRows ?? []) {
+    const day = lastLegDate(multiple.legs);
+    if (!day) continue;
+    (multiplesByDay[day] ??= []).push(multiple);
+
+    const status = multipleStatus(multiple.legs);
+    const green = greenWeight(status);
+    const red = redWeight(status);
+    if (green === 0 && red === 0) continue;
+    hasResolvedMultiple = true;
+    const entry = calendarStats[day] ?? { green: 0, red: 0 };
+    calendarStats[day] = { green: entry.green + green, red: entry.red + red };
+  }
+
+  const hasPerformanceData = topTeams.length > 0 || hasResolvedMultiple;
 
   return (
     <div>
@@ -103,8 +132,9 @@ export default async function AnalisePage() {
             <StatRanking title="Tipos de aposta" rows={topCategories} />
           </div>
           <PerformanceCalendar
-            dayStats={dayStats}
+            dayStats={calendarStats}
             ticketsByDay={ticketsByDay}
+            multiplesByDay={multiplesByDay}
             imagesByPick={imagesByPick}
           />
         </div>

@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import type { BetStatus } from "@/lib/database.types";
 import { updatePickStatus, deletePick } from "@/app/(app)/actions";
 
-const OPTIONS: { status: BetStatus; label: string; className: string }[] = [
+export const STATUS_OPTIONS: { status: BetStatus; label: string; className: string }[] = [
   { status: "green", label: "Green", className: "bg-emerald-600 hover:bg-emerald-500" },
   { status: "half_green", label: "Meia ganha", className: "bg-teal-600 hover:bg-teal-500" },
   { status: "half_red", label: "Meia perdida", className: "bg-orange-600 hover:bg-orange-500" },
@@ -24,7 +24,7 @@ export default function StatusButtons({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        {OPTIONS.map((opt) => (
+        {STATUS_OPTIONS.map((opt) => (
           <button
             key={opt.status}
             disabled={isPending}

@@ -645,3 +645,100 @@ export async function deleteTicket(ticketId: string) {
   if (error) throw error;
   revalidateAll();
 }
+
+export interface MultipleLegInput {
+  competitionId: string;
+  homeTeamId: string;
+  awayTeamId: string;
+  matchDate: string;
+  matchTime: string;
+  selection: string;
+  categoryId: string | null;
+  odd: number;
+  // Live multiples: the game minute at which you entered this game.
+  entryMinute: number | null;
+}
+
+// A multiple is one bet over two or more games. Live multiples are only ever
+// registered once entered, so every live leg needs its minute.
+export async function createMultiple(input: {
+  betType: BetType;
+  reason: string;
+  bookmakerUrl: string;
+  legs: MultipleLegInput[];
+}) {
+  if (input.legs.length < 2) throw new Error("Uma múltipla precisa de pelo menos 2 jogos.");
+
+  input.legs.forEach((leg, i) => {
+    const where = `Jogo ${i + 1}`;
+    if (leg.homeTeamId === leg.awayTeamId) {
+      throw new Error(`${where}: a equipa da casa e a de fora têm de ser diferentes.`);
+    }
+    if (!leg.selection.trim()) throw new Error(`${where}: indica a aposta.`);
+    if (!Number.isFinite(leg.odd) || leg.odd <= 1) {
+      throw new Error(`${where}: a odd tem de ser maior que 1.`);
+    }
+    if (input.betType === "live") {
+      validateEntryMinute(leg.entryMinute);
+      if (leg.entryMinute == null) throw new Error(`${where}: indica o minuto em que entraste.`);
+    }
+  });
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+
+  const { data: multiple, error: multipleError } = await supabase
+    .from("multiples")
+    .insert({
+      user_id: user.id,
+      bet_type: input.betType,
+      reason: input.reason.trim() || null,
+      bookmaker_url: input.bookmakerUrl.trim() || null,
+    })
+    .select("id")
+    .single();
+  if (multipleError) throw multipleError;
+
+  const { error: legsError } = await supabase.from("multiple_legs").insert(
+    input.legs.map((leg) => ({
+      multiple_id: multiple.id,
+      competition_id: leg.competitionId,
+      home_team_id: leg.homeTeamId,
+      away_team_id: leg.awayTeamId,
+      match_date: leg.matchDate,
+      match_time: leg.matchTime,
+      selection: leg.selection.trim(),
+      category_id: leg.categoryId,
+      odd: leg.odd,
+      entry_minute: input.betType === "live" ? leg.entryMinute : null,
+    }))
+  );
+  if (legsError) {
+    // Don't leave a multiple with no games behind.
+    await supabase.from("multiples").delete().eq("id", multiple.id);
+    throw legsError;
+  }
+
+  revalidateAll();
+  revalidatePath("/analise");
+  redirect(input.betType === "live" ? "/live" : "/apostas");
+}
+
+export async function updateLegStatus(legId: string, status: BetStatus) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("multiple_legs").update({ status }).eq("id", legId);
+  if (error) throw error;
+  revalidateAll();
+  revalidatePath("/analise");
+}
+
+export async function deleteMultiple(multipleId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase.from("multiples").delete().eq("id", multipleId);
+  if (error) throw error;
+  revalidateAll();
+  revalidatePath("/analise");
+}

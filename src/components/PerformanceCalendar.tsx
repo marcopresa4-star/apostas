@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import CompactTicketList from "./CompactTicketList";
+import MultipleCard from "./MultipleCard";
 import { formatCount } from "@/lib/betResult";
 import type { PickImageItem } from "./PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
+import type { MultipleRow } from "@/lib/multiples";
 
 interface DayStat {
   green: number;
@@ -79,11 +81,13 @@ function cellStyle(stat: DayStat | undefined, hasTickets: boolean, isSelected: b
 export default function PerformanceCalendar({
   dayStats,
   ticketsByDay,
+  multiplesByDay = {},
   imagesByPick = {},
   readOnly = false,
 }: {
   dayStats: Record<string, DayStat>;
   ticketsByDay: Record<string, DayTicket[]>;
+  multiplesByDay?: Record<string, MultipleRow[]>;
   imagesByPick?: Record<string, PickImageItem[]>;
   readOnly?: boolean;
 }) {
@@ -121,6 +125,7 @@ export default function PerformanceCalendar({
   ];
 
   const selectedTickets = selected ? (ticketsByDay[selected] ?? []) : [];
+  const selectedMultiples = selected ? (multiplesByDay[selected] ?? []) : [];
 
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -156,7 +161,8 @@ export default function PerformanceCalendar({
           const iso = toISODate(viewYear, viewMonth, day);
           const stat = dayStats[iso];
           const total = stat ? stat.green + stat.red : 0;
-          const hasTickets = (ticketsByDay[iso] ?? []).length > 0;
+          const hasTickets =
+            (ticketsByDay[iso] ?? []).length > 0 || (multiplesByDay[iso] ?? []).length > 0;
           return (
             <button
               key={iso}
@@ -200,14 +206,21 @@ export default function PerformanceCalendar({
               Fechar ✕
             </button>
           </div>
-          {selectedTickets.length === 0 ? (
+          {selectedTickets.length === 0 && selectedMultiples.length === 0 ? (
             <p className="text-sm text-neutral-500">Sem apostas neste dia.</p>
           ) : (
-            <CompactTicketList
-              tickets={selectedTickets}
-              imagesByPick={imagesByPick}
-              readOnly={readOnly}
-            />
+            <div className="space-y-3">
+              {selectedMultiples.map((multiple) => (
+                <MultipleCard key={multiple.id} multiple={multiple} readOnly />
+              ))}
+              {selectedTickets.length > 0 && (
+                <CompactTicketList
+                  tickets={selectedTickets}
+                  imagesByPick={imagesByPick}
+                  readOnly={readOnly}
+                />
+              )}
+            </div>
           )}
         </div>
       )}

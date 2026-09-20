@@ -2,11 +2,19 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import TicketCard from "@/components/TicketCard";
+import MultipleCard from "@/components/MultipleCard";
 import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 import { sumGreen, sumRed } from "@/lib/betResult";
+import {
+  MULTIPLE_SELECT,
+  firstLegKickoff,
+  lastLegDate,
+  multipleStatus,
+  type MultipleRow,
+} from "@/lib/multiples";
 
 const IMAGE_BUCKET = "game-images";
 
@@ -95,7 +103,7 @@ export default async function LivePage({
 
   const supabase = await createClient();
 
-  const [{ data: tickets, error }, { data: categories }] = await Promise.all([
+  const [{ data: tickets, error }, { data: categories }, { data: multipleRows }] = await Promise.all([
     supabase
       .from("tickets")
       .select(
@@ -109,21 +117,44 @@ export default async function LivePage({
       .order("match_time", { ascending: true })
       .returns<TicketRow[]>(),
     supabase.from("bet_categories").select("id, name").order("name").returns<TagItem[]>(),
+    // Left empty (never an error) if the multiples migration has not run yet.
+    supabase
+      .from("multiples")
+      .select(MULTIPLE_SELECT)
+      .eq("bet_type", "live")
+      .returns<MultipleRow[]>(),
   ]);
 
   const todayISO = todayISODate();
   const all = tickets ?? [];
 
-  // Stats only count live picks you actually entered.
+  // Stats only count live picks you actually entered. A live multiple is
+  // always registered once entered, and counts as one bet.
   const livePicksAll = all
     .flatMap((t) => t.picks)
     .filter((p) => p.bet_type === "live" && p.stage === "active");
+  const allMultiples = (multipleRows ?? []).map((m) => ({
+    multiple: m,
+    status: multipleStatus(m.legs),
+  }));
+  const betResults = [...livePicksAll, ...allMultiples];
   const stats = {
-    total: livePicksAll.length,
-    green: sumGreen(livePicksAll),
-    red: sumRed(livePicksAll),
-    pending: livePicksAll.filter((p) => p.status === "pending").length,
+    total: betResults.length,
+    green: sumGreen(betResults),
+    red: sumRed(betResults),
+    pending: betResults.filter((b) => b.status === "pending").length,
   };
+
+  const displayMultiples = allMultiples
+    .filter(({ multiple }) => {
+      const last = lastLegDate(multiple.legs);
+      return activeScope === "hoje" ? last >= todayISO : last < todayISO;
+    })
+    .sort((a, b) => {
+      const order = firstLegKickoff(a.multiple.legs).localeCompare(firstLegKickoff(b.multiple.legs));
+      return activeScope === "hoje" ? order : -order;
+    })
+    .map(({ multiple }) => multiple);
 
   // "Hoje" = today onwards, minus anything you marked "não entrei";
   // "Histórico" = past games plus every "não entrei", whatever its date.
@@ -177,12 +208,20 @@ export default async function LivePage({
             Jogos que estás a vigiar e apostas live em que já entraste.
           </p>
         </div>
-        <Link
-          href="/live/nova"
-          className="whitespace-nowrap rounded-lg bg-gradient-to-r from-sky-600 to-sky-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sky-500/30"
-        >
-          + Nova live
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/live/nova-multipla"
+            className="whitespace-nowrap rounded-lg border border-neutral-700 px-3 py-1.5 text-sm font-medium text-sky-400 transition hover:bg-neutral-900"
+          >
+            + Múltipla
+          </Link>
+          <Link
+            href="/live/nova"
+            className="whitespace-nowrap rounded-lg bg-gradient-to-r from-sky-600 to-sky-500 px-3 py-1.5 text-sm font-medium text-white shadow-lg shadow-sky-600/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sky-500/30"
+          >
+            + Nova live
+          </Link>
+        </div>
       </div>
 
       <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
@@ -209,7 +248,7 @@ export default async function LivePage({
         </p>
       )}
 
-      {!error && displayTickets.length === 0 && (
+      {!error && displayTickets.length === 0 && displayMultiples.length === 0 && (
         <div className="rounded-2xl border border-dashed border-neutral-800 px-4 py-12 text-center text-neutral-500">
           <p aria-hidden className="mb-2 text-3xl">
             📡
@@ -221,6 +260,20 @@ export default async function LivePage({
             Adiciona um
           </Link>
           .
+        </div>
+      )}
+
+      {displayMultiples.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">Múltiplas</h2>
+            <div aria-hidden className="h-px flex-1 bg-neutral-800" />
+          </div>
+          <div className="space-y-3">
+            {displayMultiples.map((multiple) => (
+              <MultipleCard key={multiple.id} multiple={multiple} />
+            ))}
+          </div>
         </div>
       )}
 
