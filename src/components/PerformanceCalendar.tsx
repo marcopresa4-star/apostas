@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import CompactTicketList from "./CompactTicketList";
 import MultipleCard from "./MultipleCard";
 import { formatCount } from "@/lib/betResult";
@@ -82,12 +82,16 @@ export default function PerformanceCalendar({
   dayStats,
   ticketsByDay,
   multiplesByDay = {},
+  dayDetail = {},
   imagesByPick = {},
   readOnly = false,
 }: {
   dayStats: Record<string, DayStat>;
   ticketsByDay: Record<string, DayTicket[]>;
   multiplesByDay?: Record<string, MultipleRow[]>;
+  // Ready-made content for a day, shown instead of the compact list when you
+  // click it (the History calendars use it to show the full, editable cards).
+  dayDetail?: Record<string, ReactNode>;
   imagesByPick?: Record<string, PickImageItem[]>;
   readOnly?: boolean;
 }) {
@@ -162,7 +166,9 @@ export default function PerformanceCalendar({
           const stat = dayStats[iso];
           const total = stat ? stat.green + stat.red : 0;
           const hasTickets =
-            (ticketsByDay[iso] ?? []).length > 0 || (multiplesByDay[iso] ?? []).length > 0;
+            (ticketsByDay[iso] ?? []).length > 0 ||
+            (multiplesByDay[iso] ?? []).length > 0 ||
+            iso in dayDetail;
           return (
             <button
               key={iso}
@@ -206,7 +212,9 @@ export default function PerformanceCalendar({
               Fechar ✕
             </button>
           </div>
-          {selectedTickets.length === 0 && selectedMultiples.length === 0 ? (
+          {selected in dayDetail ? (
+            dayDetail[selected]
+          ) : selectedTickets.length === 0 && selectedMultiples.length === 0 ? (
             <p className="text-sm text-neutral-500">Sem apostas neste dia.</p>
           ) : (
             <div className="space-y-3">

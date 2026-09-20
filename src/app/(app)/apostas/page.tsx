@@ -1,13 +1,16 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import TicketCard from "@/components/TicketCard";
 import MultipleCard from "@/components/MultipleCard";
+import PerformanceCalendar from "@/components/PerformanceCalendar";
 import StatsRow from "@/components/StatsRow";
 import type { PickImageItem } from "@/components/PickImages";
 import type { TagItem } from "@/components/CategoryCombobox";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 import { sumGreen, sumRed } from "@/lib/betResult";
+import { historyDayStats } from "@/lib/historyCalendar";
 import {
   MULTIPLE_SELECT,
   firstLegKickoff,
@@ -217,6 +220,35 @@ export default async function ApostasPage({
     pending: betResults.filter((b) => b.status === "pending").length,
   };
 
+  // The Histórico is a calendar (a colour per day, click a day for its bets)
+  // instead of one long list. Clicking a day shows the same full cards as the
+  // list, so results can still be set or corrected there.
+  const dayCards: Record<string, ReactNode[]> = {};
+  if (activeScope === "historico") {
+    for (const multiple of displayMultiples) {
+      (dayCards[lastLegDate(multiple.legs)] ??= []).push(
+        <MultipleCard key={multiple.id} multiple={multiple} />
+      );
+    }
+    for (const group of groups) {
+      for (const ticket of group.tickets) {
+        (dayCards[group.date] ??= []).push(
+          <TicketCard
+            key={ticket.id}
+            ticket={ticket}
+            picks={ticket.picks}
+            imagesByPick={imagesByPick}
+            addPickBetType="pre_jogo"
+            initialCategories={categories ?? []}
+          />
+        );
+      }
+    }
+  }
+  const dayDetail = Object.fromEntries(
+    Object.entries(dayCards).map(([day, cards]) => [day, <div key={day} className="space-y-3">{cards}</div>])
+  );
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between gap-2">
@@ -285,44 +317,56 @@ export default async function ApostasPage({
         </div>
       )}
 
-      {displayMultiples.length > 0 && (
-        <div className="mb-6">
-          <div className="mb-3 flex items-center gap-3">
-            <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">Múltiplas</h2>
-            <div aria-hidden className="h-px flex-1 bg-neutral-800" />
-          </div>
-          <div className="space-y-3">
-            {displayMultiples.map((multiple) => (
-              <MultipleCard key={multiple.id} multiple={multiple} />
+      {activeScope === "historico" ? (
+        (displayTickets.length > 0 || displayMultiples.length > 0) && (
+          <PerformanceCalendar
+            dayStats={historyDayStats(displayTickets, displayMultiples)}
+            ticketsByDay={{}}
+            dayDetail={dayDetail}
+          />
+        )
+      ) : (
+        <>
+          {displayMultiples.length > 0 && (
+            <div className="mb-6">
+              <div className="mb-3 flex items-center gap-3">
+                <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">Múltiplas</h2>
+                <div aria-hidden className="h-px flex-1 bg-neutral-800" />
+              </div>
+              <div className="space-y-3">
+                {displayMultiples.map((multiple) => (
+                  <MultipleCard key={multiple.id} multiple={multiple} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-6">
+            {groups.map((group) => (
+              <div key={group.date}>
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">
+                    {formatDateHeader(group.date)}
+                  </h2>
+                  <div aria-hidden className="h-px flex-1 bg-neutral-800" />
+                </div>
+                <div className="space-y-3">
+                  {group.tickets.map((ticket) => (
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      picks={ticket.picks}
+                      imagesByPick={imagesByPick}
+                      addPickBetType="pre_jogo"
+                      initialCategories={categories ?? []}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        </>
       )}
-
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <div key={group.date}>
-            <div className="mb-3 flex items-center gap-3">
-              <h2 className="whitespace-nowrap text-sm font-semibold text-neutral-400">
-                {formatDateHeader(group.date)}
-              </h2>
-              <div aria-hidden className="h-px flex-1 bg-neutral-800" />
-            </div>
-            <div className="space-y-3">
-              {group.tickets.map((ticket) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  picks={ticket.picks}
-                  imagesByPick={imagesByPick}
-                  addPickBetType="pre_jogo"
-                  initialCategories={categories ?? []}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
