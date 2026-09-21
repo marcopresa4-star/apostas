@@ -54,7 +54,7 @@ export default function SportscoreWidget({
       : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
       {slug ? (
         // Tall enough to fit the whole widget (scoreboard + 3D tracker +
         // stats) without its own internal scroll. scrolling="no" stays on

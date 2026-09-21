@@ -104,6 +104,11 @@ export default function LiveWidgetsPanel({
   );
   const position = new Map(sortedKeys.map((key, i) => [key, i]));
 
+  // The row fills up with the games: one takes the whole width, two share it,
+  // and from three on they go three per row (two on a medium screen).
+  const columns =
+    items.length >= 3 ? "lg:grid-cols-2 xl:grid-cols-3" : items.length === 2 ? "lg:grid-cols-2" : "";
+
   function moveWidget(key: string, to: Move) {
     const next = moveKey(sortedKeys, key, to);
     if (!next) return;
@@ -227,7 +232,7 @@ export default function LiveWidgetsPanel({
       {hasAny && (
         // Each widget keeps its place in the DOM and is only moved with CSS
         // `order`: moving an iframe in the DOM would reload it.
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-4 ${columns}`}>
           {items.map((item) => {
             const pos = position.get(item.key) ?? 0;
             return (
