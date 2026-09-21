@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { slugify } from "@/lib/slugify";
+import { loadSportscoreHints, type Hints } from "@/lib/sportscoreHints";
 import { pairCandidates, slugCandidates, teamsMatch } from "@/lib/sportscoreSlug";
 
 // Finds the Sportscore match slug for two team names by probing likely slug
@@ -15,11 +15,6 @@ const CONCURRENCY = 6;
 const FOUND_TTL_MS = 24 * 60 * 60 * 1000;
 // A miss is remembered only briefly: the match may simply not be listed yet.
 const MISS_TTL_MS = 60 * 1000;
-
-interface Hints {
-  home: string | null;
-  away: string | null;
-}
 
 const cache = new Map<string, { slug: string | null; expires: number }>();
 
@@ -87,33 +82,6 @@ async function firstMatch(
   return { slug: found, outcomes };
 }
 
-// What was taught for these clubs, by any of their names. If the table is not
-// there yet (migration not run) or the lookup fails, nothing was taught.
-async function loadHints(homeNames: string[], awayNames: string[]): Promise<Hints> {
-  const none: Hints = { home: null, away: null };
-  try {
-    const keys = [...new Set([...homeNames, ...awayNames].map(slugify).filter(Boolean))];
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("sportscore_teams")
-      .select("name_key, slug")
-      .in("name_key", keys)
-      .returns<{ name_key: string; slug: string }[]>();
-    if (error || !data) return none;
-    const bySlug = new Map(data.map((row) => [row.name_key, row.slug]));
-    const pick = (names: string[]) => {
-      for (const name of names) {
-        const slug = bySlug.get(slugify(name));
-        if (slug) return slug;
-      }
-      return null;
-    };
-    return { home: pick(homeNames), away: pick(awayNames) };
-  } catch {
-    return none;
-  }
-}
-
 function namesFrom(params: URLSearchParams, key: string): string[] {
   return params
     .getAll(key)
@@ -131,7 +99,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "home and away are required" }, { status: 400 });
   }
 
-  const hints = await loadHints(homeNames, awayNames);
+  const hints = await loadSportscoreHints(await createClient(), homeNames, awayNames);
 
   // A new lesson changes the answer, so it is part of the key.
   const key = `${homeNames.join("|")}~${awayNames.join("|")}~${hints.home}~${hints.away}`.toLowerCase();

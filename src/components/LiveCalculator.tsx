@@ -6,6 +6,9 @@ import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
 import { liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
+import { parseLiveMatch, type LiveGameState } from "@/lib/sportscoreLive";
+import { teamsMatch } from "@/lib/sportscoreSlug";
+import { useNow } from "@/lib/useNow";
 import { fairOdd } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
 
@@ -72,7 +75,24 @@ type Props = {
   href?: string;
   // Where the expected goals come from, in short sentences.
   sourceLines?: string[];
+  // How to read the game from SportScore: its slug when known, otherwise the
+  // slugs to try (with what was taught about the clubs, and the names a page
+  // must show to be the right game).
+  sync?: {
+    slug: string | null;
+    pairs: { slug: string; home: string; away: string }[];
+    hints: { home: string | null; away: string | null };
+    homeVariants: string[];
+    awayVariants: string[];
+  };
 };
+
+const SPORTSCORE_MATCH = "https://sportscore.com/api/widget/match/?sport=football&slug=";
+
+type SyncInfo =
+  | { kind: "notfound" }
+  | { kind: "error" }
+  | { kind: "ok"; state: LiveGameState; at: number };
 
 // Waits for the browser to say what was saved for this game (it cannot be known
 // on the server), then starts the calculator from it.
@@ -96,6 +116,7 @@ function Calculator({
   gameKey,
   href,
   sourceLines = [],
+  sync,
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -122,13 +143,91 @@ function Calculator({
     setMinute(value);
     anchor.current = { minute: whole(value, 0, 120, 0), at: Date.now() };
   };
-  // The lowest fair odd a suggested bet may have: a bet the model gives 90% is
-  // "safe" but pays next to nothing, so it is left out.
-  const [minOdd, setMinOdd] = useState("1.5");
+
   const [homeGoals, setHomeGoals] = useState(String(saved?.homeGoals ?? 0));
   const [awayGoals, setAwayGoals] = useState(String(saved?.awayGoals ?? 0));
   const [lh, setLh] = useState(saved?.lh ?? dot(lambdaHome));
   const [la, setLa] = useState(saved?.la ?? dot(lambdaAway));
+
+  // The game read from SportScore, once a minute: score, minute and cards. Every
+  // reading overwrites what is typed, so the box below turns it off.
+  const [syncOn, setSyncOn] = useState(true);
+  const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
+  const slugRef = useRef<string | null>(sync?.slug ?? null);
+  const now = useNow(5000);
+  useEffect(() => {
+    if (!sync || !syncOn) return;
+    let stop = false;
+    let probed = false;
+    const read = async (slug: string): Promise<LiveGameState | null> => {
+      const res = await fetch(SPORTSCORE_MATCH + encodeURIComponent(slug), { cache: "no-store" });
+      return res.ok ? parseLiveMatch(await res.json()) : null;
+    };
+    // A game whose slug is not known: the likely ones are tried until one is the
+    // right game (the reserve side of a club has a slug too).
+    const find = async (): Promise<string | null> => {
+      for (const pair of sync.pairs.slice(0, 12)) {
+        if (stop) return null;
+        const state = await read(pair.slug).catch(() => null);
+        if (!state) continue;
+        const homeVariants = pair.home === sync.hints.home ? null : sync.homeVariants;
+        const awayVariants = pair.away === sync.hints.away ? null : sync.awayVariants;
+        if (teamsMatch([state.homeName, state.awayName], homeVariants, awayVariants)) return pair.slug;
+      }
+      return null;
+    };
+    const apply = (state: LiveGameState) => {
+      if (state.homeGoals !== null) setHomeGoals(String(state.homeGoals));
+      if (state.awayGoals !== null) setAwayGoals(String(state.awayGoals));
+      if (state.phase === "live" && state.minute !== null) {
+        anchor.current = { minute: state.minute, at: Date.now() };
+        setMinute(String(state.minute));
+        setRunning(true);
+      } else if (state.phase === "halftime") {
+        setMinute("45");
+        setRunning(false);
+      } else if (state.phase === "finished" || state.phase === "upcoming") {
+        setRunning(false);
+      }
+    };
+    const poll = async () => {
+      try {
+        if (!slugRef.current && !probed) {
+          probed = true;
+          slugRef.current = await find();
+        }
+        if (stop) return;
+        if (!slugRef.current) {
+          setSyncInfo({ kind: "notfound" });
+          return;
+        }
+        const state = await read(slugRef.current);
+        if (stop) return;
+        if (!state) {
+          setSyncInfo({ kind: "error" });
+          return;
+        }
+        apply(state);
+        setSyncInfo({ kind: "ok", state, at: Date.now() });
+      } catch {
+        if (!stop) setSyncInfo({ kind: "error" });
+      }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stop = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [sync, syncOn]);
+  // The lowest fair odd a suggested bet may have: a bet the model gives 90% is
+  // "safe" but pays next to nothing, so it is left out.
+  const [minOdd, setMinOdd] = useState("1.5");
 
   const m = whole(minute, 0, 120, 0);
   const h = whole(homeGoals, 0, 20, 0);
@@ -226,8 +325,71 @@ function Calculator({
   const button =
     "rounded-lg bg-neutral-800 px-3 py-2 text-sm font-semibold text-neutral-200 transition hover:bg-neutral-700";
 
+  const seconds = syncInfo?.kind === "ok" && now ? Math.max(0, Math.round((now.getTime() - syncInfo.at) / 1000)) : null;
+  const liveState = syncInfo?.kind === "ok" ? syncInfo.state : null;
+  const redCards = liveState ? liveState.reds.home + liveState.reds.away : 0;
+
   return (
     <div className="space-y-4">
+      {sync && (
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs">
+          <label className="flex cursor-pointer items-center gap-2 text-neutral-300">
+            <input type="checkbox" checked={syncOn} onChange={(e) => setSyncOn(e.target.checked)} className="accent-amber-500" />
+            Ler o resultado, o minuto e os cartões do Sportscore, sozinho (de minuto a minuto)
+          </label>
+          {syncOn && (
+            <p className="mt-1.5 text-neutral-400">
+              {syncInfo === null && "A ligar ao Sportscore…"}
+              {syncInfo?.kind === "notfound" &&
+                "Não encontrei este jogo no Sportscore: escreve o resultado e o minuto à mão (ou cola o link do jogo)."}
+              {syncInfo?.kind === "error" &&
+                "Não consegui ler o Sportscore agora: escreve à mão. Volto a tentar daqui a um minuto."}
+              {liveState?.phase === "live" && (
+                <span className="text-emerald-400">
+                  Em direto · {liveState.homeGoals ?? "?"}–{liveState.awayGoals ?? "?"} · {liveState.minute ?? "?"}&apos;
+                </span>
+              )}
+              {liveState?.phase === "halftime" && (
+                <span className="text-amber-400">
+                  Intervalo · {liveState.homeGoals ?? "?"}–{liveState.awayGoals ?? "?"}
+                </span>
+              )}
+              {liveState?.phase === "finished" && (
+                <span className="text-neutral-300">
+                  Jogo terminado · {liveState.homeGoals ?? "?"}–{liveState.awayGoals ?? "?"}
+                </span>
+              )}
+              {liveState?.phase === "upcoming" && <span className="text-neutral-300">O jogo ainda não começou.</span>}
+              {liveState?.phase === "unknown" && (
+                <span className="text-amber-400">
+                  Estado que não conheço: &quot;{liveState.raw.statusText || liveState.raw.status}&quot;. Escreve à mão.
+                </span>
+              )}
+              {seconds !== null && <span className="text-neutral-500"> · atualizado há {seconds}s</span>}
+            </p>
+          )}
+          {syncOn && redCards > 0 && liveState && (
+            <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
+              Cartões vermelhos: {homeName} {liveState.reds.home}, {awayName} {liveState.reds.away}. O modelo não conta
+              cartões vermelhos, por isso as probabilidades abaixo são menos fiáveis.
+            </p>
+          )}
+          {syncOn && liveState && (
+            <p className="mt-1.5 text-[11px] text-neutral-500">
+              Amarelos: {homeName} {liveState.yellows.home}, {awayName} {liveState.yellows.away}. Estado no Sportscore:{" "}
+              {liveState.raw.statusText || liveState.raw.status || "—"}
+              {liveState.raw.liveMinute ? ` · minuto ${liveState.raw.liveMinute}` : ""}.
+            </p>
+          )}
+          <p className="mt-1.5 text-[11px] text-neutral-500">
+            Dados de{" "}
+            <a href="https://sportscore.com" target="_blank" rel="noopener" className="text-amber-400 hover:underline">
+              Powered by SportScore
+            </a>
+            .
+          </p>
+        </div>
+      )}
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_2fr]">
           <div>

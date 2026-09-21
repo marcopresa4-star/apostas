@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { MULTIPLE_SELECT, type MultipleRow } from "@/lib/multiples";
 import { dashboardGames, type TicketIn, type WatchedIn } from "@/lib/dashboardGames";
 import SportscoreWidget from "@/components/SportscoreWidget";
+import { loadSportscoreHints } from "@/lib/sportscoreHints";
+import { pairCandidates, slugCandidates } from "@/lib/sportscoreSlug";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LiveTeamsForm from "@/components/LiveTeamsForm";
 import LiveCalculator from "@/components/LiveCalculator";
@@ -160,6 +162,36 @@ export default async function LivePage({
       : chosen
         ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
         : null;
+  // How the calculator finds the game on SportScore to read it: from the pasted
+  // link the slug is known; from names (Dashboard, teams picked) the likely slugs
+  // are tried, first the ones taught for these clubs.
+  const names = dash ? { home: dash.homeNames, away: dash.awayNames } : chosen && !parsed ? { home: [casa], away: [fora] } : null;
+  let sync:
+    | {
+        slug: string | null;
+        pairs: { slug: string; home: string; away: string }[];
+        hints: { home: string | null; away: string | null };
+        homeVariants: string[];
+        awayVariants: string[];
+      }
+    | undefined;
+  if (parsed) {
+    sync = { slug: embed, pairs: [], hints: { home: null, away: null }, homeVariants: [], awayVariants: [] };
+  } else if (names) {
+    const hints = await loadSportscoreHints(supabase, names.home, names.away);
+    const homeVariants = slugCandidates(names.home);
+    const awayVariants = slugCandidates(names.away);
+    const withHint = (hint: string | null, variants: string[]) => (hint ? [hint, ...variants.filter((v) => v !== hint)] : variants);
+    sync = {
+      slug: null,
+      pairs: pairCandidates(withHint(hints.home, homeVariants), withHint(hints.away, awayVariants))
+        .slice(0, 12)
+        .map((p) => ({ slug: `${p.home}-vs-${p.away}`, home: p.home, away: p.away })),
+      hints,
+      homeVariants,
+      awayVariants,
+    };
+  }
   const field =
     "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
 
@@ -168,8 +200,8 @@ export default async function LivePage({
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Um jogo a decorrer: escolhe um dos jogos da tua Dashboard ou cola o link do jogo no Sportscore, e vê o que ainda
-        pode acontecer, com a odd justa para comparares com a odd live da casa. O resultado e o minuto tens de os
-        escrever tu (lês no widget ao lado).
+        pode acontecer, com a odd justa para comparares com a odd live da casa. O resultado, o minuto e os cartões
+        são lidos do Sportscore, de minuto a minuto, e podes escrevê-los à mão se o jogo não for encontrado.
       </p>
 
       <EstatisticasTabs />
@@ -343,6 +375,7 @@ export default async function LivePage({
           gameKey={game?.key}
           href={game?.href}
           sourceLines={sourceLines}
+          sync={sync}
         />
       </div>
       )}
