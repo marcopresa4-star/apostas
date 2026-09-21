@@ -1,5 +1,5 @@
 import { predict, type PlayedMatch } from "./footballModel";
-import { baseRates, recommend } from "./recommendation";
+import { MIN_GAMES, baseRates, recommend } from "./recommendation";
 
 // Whether the model deserves trust, from its own record: every game in a window
 // of dates is predicted using only the games before it, and the prediction is
@@ -24,7 +24,6 @@ export interface Reliability {
   picks: { count: number; hitRate: number; claimed: number; leagueRate: number };
 }
 
-const FEW = 8;
 
 // `matches` in date order; the games with date from..to (inclusive) are tested.
 export function backtest(matches: PlayedMatch[], from: string, to: string): Reliability | null {
@@ -68,7 +67,7 @@ export function backtest(matches: PlayedMatch[], from: string, to: string): Reli
     both += (p.bothScore - isBoth) ** 2;
     baseBoth += (base.btts - isBoth) ** 2;
 
-    if (Math.min(p.gamesHome, p.gamesAway) >= FEW) {
+    if (Math.min(p.gamesHome, p.gamesAway) >= MIN_GAMES) {
       const main = recommend(p, base, m.team1, m.team2)[0];
       if (main) {
         picks.count++;

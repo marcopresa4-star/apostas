@@ -37,7 +37,7 @@ export default async function EstatisticasPage({
 
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const now = new Date();
-  const data = league ? await loadLeague(league.code, now) : null;
+  const data = league ? await loadLeague(league.code, now, { history: true }) : null;
 
   const teams = data?.teams ?? [];
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
@@ -147,6 +147,8 @@ export default async function EstatisticasPage({
       {ready && league && data && (
         <MatchupReport
           matches={data.matches}
+          history={data.history}
+          historyFrom={data.historyFrom}
           home={casa}
           away={fora}
           leagueLabel={league.label}

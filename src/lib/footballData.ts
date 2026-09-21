@@ -1,4 +1,5 @@
 import type { Fixture, PlayedMatch } from "./footballModel";
+import { canonicalNames } from "./teamNames";
 
 // Free results of the main European leagues from the openfootball project
 // (public domain JSON on GitHub, no key): date, teams, full-time and half-time
@@ -29,6 +30,10 @@ export const LEAGUES = [
 ] as const;
 
 const SEASONS_BACK = 3;
+// Head to head goes further back than the model does: the seasons the model
+// uses plus these many older ones (the files simply do not exist for some
+// leagues, from some year on).
+const HISTORY_TOTAL = 13;
 const TTL_MS = 3 * 60 * 60 * 1000;
 
 interface RawMatch {
@@ -93,9 +98,21 @@ export interface LeagueData {
   // Date of the most recent result.
   latest: string | null;
   seasons: string[];
+  // Older seasons, only loaded when asked for (head to head): their games are
+  // not in `matches`, so the model does not use them.
+  history: PlayedMatch[];
+  // The oldest season with data, "2018/19", or null if only the recent ones.
+  historyFrom: string | null;
 }
 
-export async function loadLeague(code: string, now: Date): Promise<LeagueData | null> {
+// "2018-19" -> "2018/19"
+export const seasonSpan = (season: string): string => `${season.slice(0, 4)}/${season.slice(5)}`;
+
+export async function loadLeague(
+  code: string,
+  now: Date,
+  options: { history?: boolean } = {}
+): Promise<LeagueData | null> {
   if (!LEAGUES.some((l) => l.code === code)) return null;
 
   const wanted = seasonsFor(now);
@@ -135,7 +152,39 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
 
   if (seasons.length === 0) return null;
   matches.sort((a, b) => a.date.localeCompare(b.date));
-  return { matches, teams, fixtures, latest: matches.at(-1)?.date ?? null, seasons };
+
+  const history: PlayedMatch[] = [];
+  let oldest = seasons.at(-1) ?? null;
+  if (options.history) {
+    const older = seasonsFor(now, HISTORY_TOTAL).slice(SEASONS_BACK);
+    const olderFiles = await Promise.all(older.map((season) => fetchSeason(season, code)));
+    // Old files may spell a club differently: what they call it is mapped to the
+    // name it has today (the model's seasons already agree on it).
+    const canon = canonicalNames([...new Set([...teams, ...matches.flatMap((m) => [m.team1, m.team2])])]);
+    olderFiles.forEach((file, i) => {
+      if (!file) return;
+      oldest = older[i];
+      for (const m of file) {
+        if (!m.score?.ft) continue;
+        history.push({
+          date: m.date,
+          team1: canon(m.team1),
+          team2: canon(m.team2),
+          ft: m.score.ft,
+          ht: m.score.ht ?? null,
+        });
+      }
+    });
+  }
+  return {
+    matches,
+    teams,
+    fixtures,
+    latest: matches.at(-1)?.date ?? null,
+    seasons,
+    history,
+    historyFrom: oldest ? seasonSpan(oldest) : null,
+  };
 }
 
 // The dates of this season so far, or of the whole last one, and its label.

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import FormChart from "./FormChart";
+import H2HPatternCard from "./H2HPatternCard";
+import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
-import { VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
+import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
 import { seasonLabel, seasonStartDate, seasonsFor } from "@/lib/footballData";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
@@ -465,7 +467,17 @@ function AdjustmentsCard({
   );
 }
 
-function SuggestedBet({ picks, few }: { picks: Pick[]; few: boolean }) {
+function SuggestedBet({
+  picks,
+  few,
+  fragileGames,
+}: {
+  picks: Pick[];
+  few: boolean;
+  // The fewest games in the data among the two teams when that is too few for the
+  // estimate to beat the league's own rates; null when it is not.
+  fragileGames: number | null;
+}) {
   const [main, ...others] = picks;
   const line = (pick: Pick) => (
     <p className="text-xs text-neutral-400">
@@ -481,7 +493,8 @@ function SuggestedBet({ picks, few }: { picks: Pick[]; few: boolean }) {
 
       {few ? (
         <p className="text-sm text-neutral-400">
-          Há poucos jogos destas equipas nos dados para sugerir uma aposta com alguma confiança.
+          Há poucos jogos destas equipas nos dados (menos de {MIN_GAMES} numa delas) para sugerir uma aposta com alguma
+          confiança.
         </p>
       ) : !main ? (
         <p className="text-sm text-neutral-400">
@@ -490,6 +503,12 @@ function SuggestedBet({ picks, few }: { picks: Pick[]; few: boolean }) {
         </p>
       ) : (
         <>
+          {fragileGames !== null && (
+            <p className="mb-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
+              Estimativa frágil: uma das equipas só tem {fragileGames} jogos nos dados. Abaixo de {SOLID_GAMES} o modelo
+              ainda não ganha à média da liga, por isso vê esta sugestão como palpite, não como vantagem.
+            </p>
+          )}
           <p className="text-base font-semibold text-neutral-100">{main.label}</p>
           {line(main)}
           {others.length > 0 && (
@@ -564,6 +583,8 @@ function buildMarkets(prediction: Prediction): { groups: { title: string; rows: 
 
 export default function MatchupReport({
   matches,
+  history,
+  historyFrom,
   home,
   away,
   leagueLabel,
@@ -577,6 +598,10 @@ export default function MatchupReport({
   venueWeight,
 }: {
   matches: PlayedMatch[];
+  // Older seasons, for the head to head only.
+  history: PlayedMatch[];
+  // The oldest season the head to head can look at, "2018/19".
+  historyFrom: string | null;
   home: string;
   away: string;
   leagueLabel: string;
@@ -624,7 +649,7 @@ export default function MatchupReport({
       .reverse();
 
   // Head to head looks at every season in the data.
-  const meetings = headToHead(matches, home, away);
+  const meetings = headToHead([...history, ...matches], home, away);
   const h2h = { home: 0, draw: 0, away: 0 };
   for (const m of meetings) {
     const homeGoals = m.team1 === home ? m.ft[0] : m.ft[1];
@@ -634,7 +659,9 @@ export default function MatchupReport({
     else h2h.away++;
   }
 
-  const few = Math.min(prediction.gamesHome, prediction.gamesAway) < 8;
+  const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
+  const few = minGames < MIN_GAMES;
+  const fragile = !few && minGames < SOLID_GAMES;
   const picks = few ? [] : recommend(prediction, baseRates(matches), home, away);
   // The suggestions first, priced with their own (pulled back) chance, so the
   // comparer opens on the suggested bet.
@@ -683,10 +710,11 @@ export default function MatchupReport({
           </span>
           . Dados até {latest ? shortDate(latest) : "?"}.
         </p>
-        {few && (
+        {(few || fragile) && (
           <p className="mt-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
-            Há poucos jogos destas equipas nos dados ({prediction.gamesHome} e {prediction.gamesAway}), por isso a
-            estimativa é frágil.
+            {few
+              ? `Há poucos jogos destas equipas nos dados (${prediction.gamesHome} e ${prediction.gamesAway}), por isso a estimativa é frágil e não sugiro aposta.`
+              : `Uma das equipas só tem ${minGames} jogos nos dados (${prediction.gamesHome} e ${prediction.gamesAway}). Abaixo de ${SOLID_GAMES}, o modelo ainda não ganha à média da liga, por isso a estimativa é frágil.`}
           </p>
         )}
       </div>
@@ -704,7 +732,7 @@ export default function MatchupReport({
         />
       )}
 
-      <SuggestedBet picks={picks} few={few} />
+      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -720,14 +748,21 @@ export default function MatchupReport({
           <div className={CARD}>
             <h3 className="mb-2 text-sm font-semibold text-neutral-300">Confrontos diretos</h3>
             {meetings.length === 0 ? (
-              <p className="text-xs text-neutral-500">Sem jogos entre as duas equipas nos dados.</p>
+              <p className="text-xs text-neutral-500">
+                Sem jogos entre as duas equipas nesta liga{historyFrom ? `, desde a época ${historyFrom}` : ""}. Só
+                contam os jogos deste campeonato: taças e jogos noutras divisões não estão nos dados.
+              </p>
             ) : (
               <>
                 <p className="mb-2 text-xs text-neutral-400">
                   {home}: {h2h.home} vitórias · {h2h.draw} empates · {away}: {h2h.away} vitórias
+                  <span className="block text-[11px] text-neutral-500">
+                    {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"} nesta liga
+                    {historyFrom ? `, desde a época ${historyFrom}` : ""}
+                  </span>
                 </p>
                 <div className="space-y-1 text-xs">
-                  {meetings.slice(0, 6).map((m) => (
+                  {meetings.slice(0, 8).map((m) => (
                     <div key={`${m.date}-${m.team1}`} className="flex items-center justify-between gap-2 text-neutral-300">
                       <span className="text-neutral-500">{shortDate(m.date)}</span>
                       <span className="min-w-0 flex-1 truncate text-right">
@@ -735,12 +770,23 @@ export default function MatchupReport({
                       </span>
                     </div>
                   ))}
+                  {meetings.length > 8 && (
+                    <p className="pt-1 text-[11px] text-neutral-500">e mais {meetings.length - 8} anteriores</p>
+                  )}
                 </div>
               </>
             )}
           </div>
         </div>
       </div>
+
+      <H2HPatternCard
+        pattern={h2hPattern(meetings, home, away)}
+        home={home}
+        away={away}
+        from={historyFrom}
+        homeChance={prediction.fullTime.home}
+      />
 
       <div>
         <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · época {season}</h2>

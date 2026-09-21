@@ -3,14 +3,12 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, loadLeague } from "@/lib/footballData";
 import { predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
-import { baseRates, recommend } from "@/lib/recommendation";
+import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
 import { first, todayISO } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import RoundTable, { type RoundRow } from "@/components/RoundTable";
 
-// Fewer games than this in the data for a team and no bet is suggested.
-const FEW = 8;
 const MAX_ROUNDS = 6;
 
 export default async function JornadaPage({
@@ -36,15 +34,17 @@ export default async function JornadaPage({
   if (data && chosen) {
     const base = baseRates(data.matches);
     rows = chosen.fixtures.map((f): RoundRow => {
-      if (f.ft) return { fixture: f, status: "played", prediction: null, pick: null };
-      if (f.date < today) return { fixture: f, status: "missing", prediction: null, pick: null };
+      if (f.ft) return { fixture: f, status: "played", prediction: null, pick: null, fragile: false };
+      if (f.date < today) return { fixture: f, status: "missing", prediction: null, pick: null, fragile: false };
       const prediction = predict(data.matches, f.team1, f.team2, now);
-      const few = Math.min(prediction.gamesHome, prediction.gamesAway) < FEW;
+      const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
+      const few = minGames < MIN_GAMES;
       return {
         fixture: f,
         status: "upcoming",
         prediction,
         pick: few ? null : (recommend(prediction, base, f.team1, f.team2)[0] ?? null),
+        fragile: minGames < SOLID_GAMES,
       };
     });
   }

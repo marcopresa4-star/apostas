@@ -26,6 +26,14 @@ const MAX_P = 0.77;
 const MIN_LIFT = 0.04;
 // The odd must beat the fair one by this much to be worth it.
 export const VALUE_MARGIN = 0.05;
+
+// A bet is only suggested when the team with the fewest games in the data has
+// at least MIN_GAMES. Tested on 2025/26 (18 leagues), the model beats the
+// league's own rates clearly only from SOLID_GAMES up (log-loss gain 0.068,
+// against about 0.01 for 5 to 11 games), so below that the estimate is
+// flagged as fragile.
+export const MIN_GAMES = 5;
+export const SOLID_GAMES = 12;
 const MAX_PICKS = 3;
 
 export interface Pick {

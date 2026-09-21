@@ -10,6 +10,8 @@ export interface RoundRow {
   status: "upcoming" | "played" | "missing";
   prediction: Prediction | null;
   pick: Pick | null;
+  // A team with few games in the data: the estimate is shaky.
+  fragile: boolean;
 }
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
@@ -33,7 +35,7 @@ export default function RoundTable({ rows, liga }: { rows: RoundRow[]; liga: str
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800/70">
-          {rows.map(({ fixture: f, status, prediction: p, pick }) => (
+          {rows.map(({ fixture: f, status, prediction: p, pick, fragile }) => (
             <tr key={`${f.date}-${f.team1}`} className="align-top">
               <td className="px-3 py-2.5">
                 <p className="text-[11px] text-neutral-500">
@@ -82,7 +84,17 @@ export default function RoundTable({ rows, liga }: { rows: RoundRow[]; liga: str
                   <td className="px-3 py-2.5">
                     {pick ? (
                       <>
-                        <p className="text-xs font-medium text-neutral-100">{pick.label}</p>
+                        <p className="text-xs font-medium text-neutral-100">
+                          {pick.label}
+                          {fragile && (
+                            <span
+                              title="Uma das equipas tem poucos jogos nos dados: o modelo ainda não ganha à média da liga"
+                              className="ml-1.5 rounded bg-amber-950 px-1 text-[10px] font-semibold text-amber-300"
+                            >
+                              frágil
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[11px] text-neutral-500">
                           {pct(pick.p)} · <span className="text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
                         </p>

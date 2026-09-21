@@ -2,10 +2,7 @@ import { fairOdd, predict, type Fixture, type Prediction } from "./footballModel
 import type { LeagueData } from "./footballData";
 import { upcomingRounds } from "./rounds";
 import { betReasons } from "./betReasons";
-import { VALUE_MARGIN, baseRates, candidatesFor, type BaseRates, type Candidate, type PickGroup } from "./recommendation";
-
-// Fewer games than this in the data for a team and its games are left out.
-const FEW = 8;
+import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, candidatesFor, type BaseRates, type Candidate, type PickGroup } from "./recommendation";
 
 // Picking the most probable bet of each game and then the highest of all keeps
 // the ones the model overrates. Tested on 2025/26 (2,933 such bets in 18
@@ -53,6 +50,10 @@ export interface TopBet {
   // by TOP_HAIRCUT, plus the usual margin.
   minOdd: number;
   base: number; // how often it happens in that league
+  // The fewest games in the data among the two teams, and whether that is too
+  // few for the estimate to beat the league's own rates.
+  minGames: number;
+  fragile: boolean;
 }
 
 export interface TopBets {
@@ -103,7 +104,8 @@ export function topBets(
       if (fixture.ft || fixture.date < today) continue;
       if (last && fixture.date > last) continue;
       const prediction = predict(league.data.matches, fixture.team1, fixture.team2, now);
-      if (Math.min(prediction.gamesHome, prediction.gamesAway) < FEW) continue;
+      const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
+      if (minGames < MIN_GAMES) continue;
       games++;
       if (!counted) {
         counted = true;
@@ -126,22 +128,31 @@ export function topBets(
         group: best.group,
         key: best.key,
         label: best.label,
-        reasons: betReasons({
-          matches: league.data.matches,
-          now,
-          home: fixture.team1,
-          away: fixture.team2,
-          prediction,
-          group: best.group,
-          key: best.key,
-          label: best.label,
-          p: best.p,
-          base: best.base,
-        }),
+        reasons: [
+          ...betReasons({
+            matches: league.data.matches,
+            now,
+            home: fixture.team1,
+            away: fixture.team2,
+            prediction,
+            group: best.group,
+            key: best.key,
+            label: best.label,
+            p: best.p,
+            base: best.base,
+          }),
+          ...(minGames < SOLID_GAMES
+            ? [
+                `Atenção: uma das equipas só tem ${minGames} jogos nos dados e, abaixo de ${SOLID_GAMES}, o modelo ainda não ganha à média da liga. Trata esta estimativa como frágil.`,
+              ]
+            : []),
+        ],
         p: best.p,
         fairOdd: fairOdd(best.p),
         minOdd: fairOdd(best.p * TOP_HAIRCUT) * (1 + VALUE_MARGIN),
         base: best.base,
+        minGames,
+        fragile: minGames < SOLID_GAMES,
       });
     }
   }

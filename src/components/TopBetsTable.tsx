@@ -53,6 +53,14 @@ export default function TopBetsTable({ bets }: { bets: TopBet[] }) {
                   <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${group.style}`}>
                     {group.label}
                   </span>
+                  {b.fragile && (
+                    <span
+                      title={`Uma das equipas só tem ${b.minGames} jogos nos dados: abaixo de 12 o modelo ainda não ganha à média da liga`}
+                      className="ml-1 mt-1 inline-block rounded-full bg-amber-950 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                    >
+                      frágil
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <p className="font-semibold text-amber-300">{pct(b.p)}</p>
