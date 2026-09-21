@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { leagueRates, predict } from "@/lib/footballModel";
+import { MIN_GAMES, SOLID_GAMES } from "@/lib/recommendation";
 import { first } from "@/lib/searchParams";
 import { parseSportscoreMatch } from "@/lib/sportscoreLink";
 import { findGame, findGameByNames, prettySlug, sideOfGame } from "@/lib/liveMatch";
@@ -106,6 +107,9 @@ export default async function LivePage({
 
   // With two teams, the expected goals of the game are the model's own.
   let expected = TYPICAL;
+  // Where the expected goals come from, to show under the calculator.
+  const sourceLines: string[] = [];
+  const shortDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(2, 4)}`;
   if (data && chosen) {
     const prediction =
       league && isInternational(league.code)
@@ -116,8 +120,29 @@ export default async function LivePage({
       away: prediction.lambdaAway,
       firstHalfShare: leagueRates(data.matches, now).firstHalfShare,
     };
+    const international = league !== null && isInternational(league.code);
+    sourceLines.push(
+      `Golos esperados do modelo, a partir dos resultados de ${league?.label} (fonte: ${data.source}${data.latest ? `, com resultados até ${shortDate(data.latest)}` : ""}).`,
+      international
+        ? "Usa os jogos entre seleções dos últimos 8 anos, dando mais peso aos recentes e descontando a força de quem cada uma enfrentou."
+        : "Usa os jogos das últimas 3 épocas da liga, dando mais peso aos recentes.",
+      `Jogos de cada equipa nos dados: ${casa} ${prediction.gamesHome}, ${fora} ${prediction.gamesAway}.`
+    );
+    const fewest = Math.min(prediction.gamesHome, prediction.gamesAway);
+    if (fewest < SOLID_GAMES) {
+      sourceLines.push(
+        fewest < MIN_GAMES
+          ? "Há poucos jogos de uma das equipas: a estimativa é frágil."
+          : `Uma das equipas só tem ${fewest} jogos nos dados: abaixo de ${SOLID_GAMES} o modelo ainda não ganha à média da liga.`
+      );
+    }
   } else if (data) {
     expected = { ...TYPICAL, firstHalfShare: leagueRates(data.matches, now).firstHalfShare };
+  }
+  if (!chosen) {
+    sourceLines.push(
+      "Valores típicos de uma liga (1,4 e 1,1 golos): não há dados destas equipas. Não dizem nada sobre a força de cada uma."
+    );
   }
 
   const embed = parsed ? `${parsed.slugs[0]}-vs-${parsed.slugs[1]}` : null;
@@ -317,6 +342,7 @@ export default async function LivePage({
           fromModel={chosen}
           gameKey={game?.key}
           href={game?.href}
+          sourceLines={sourceLines}
         />
       </div>
       )}

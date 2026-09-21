@@ -175,6 +175,8 @@ export interface LeagueData {
   history: PlayedMatch[];
   // The oldest season with data, "2018/19", or null if only the recent ones.
   historyFrom: string | null;
+  // Where the results come from.
+  source: "openfootball" | "football-data.co.uk" | "international_results";
   // For national teams: the games the model is fitted on.
   intl?: IntlGame[];
   // The season the league is in (the newest one with games).
@@ -268,6 +270,7 @@ async function loadFromFootballData(
     seasons,
     history,
     historyFrom: oldest ? seasonSpan(oldest) : null,
+    source: "football-data.co.uk",
     season: seasonInfo(ids[at]),
     calendar: newLayout ? "none" : "days",
   };
@@ -294,6 +297,7 @@ async function loadInternational(code: string, now: Date, options: { history?: b
     history: options.history ? all.filter((g) => g.date < windowFrom).map(toPlayed) : [],
     historyFrom: options.history ? all[0].date.slice(0, 4) : null,
     intl: recent,
+    source: "international_results",
     season: { id: "12m", from, to: now.toISOString().slice(0, 10), label: "últimos 12 meses" },
     calendar: "none",
   };
@@ -387,6 +391,7 @@ export async function loadLeague(
     seasons,
     history,
     historyFrom: oldest ? seasonSpan(oldest) : null,
+    source: "openfootball",
     season: seasonInfo(seasons[0]),
     calendar: "rounds",
   };

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
+import { liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { fairOdd } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
@@ -69,6 +70,8 @@ type Props = {
   // this browser (minute, score and expected goals) and picked up again on return.
   gameKey?: string;
   href?: string;
+  // Where the expected goals come from, in short sentences.
+  sourceLines?: string[];
 };
 
 // Waits for the browser to say what was saved for this game (it cannot be known
@@ -92,6 +95,7 @@ function Calculator({
   fromModel,
   gameKey,
   href,
+  sourceLines = [],
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -118,6 +122,9 @@ function Calculator({
     setMinute(value);
     anchor.current = { minute: whole(value, 0, 120, 0), at: Date.now() };
   };
+  // The lowest fair odd a suggested bet may have: a bet the model gives 90% is
+  // "safe" but pays next to nothing, so it is left out.
+  const [minOdd, setMinOdd] = useState("1.5");
   const [homeGoals, setHomeGoals] = useState(String(saved?.homeGoals ?? 0));
   const [awayGoals, setAwayGoals] = useState(String(saved?.awayGoals ?? 0));
   const [lh, setLh] = useState(saved?.lh ?? dot(lambdaHome));
@@ -181,6 +188,7 @@ function Calculator({
         { label: `${awayName} vence`, p: p.fullTime.away },
         { label: `${homeName} ou empate (1X)`, p: p.fullTime.home + p.fullTime.draw },
         { label: `${awayName} ou empate (X2)`, p: p.fullTime.away + p.fullTime.draw },
+        { label: "Sem empate (12)", p: p.fullTime.home + p.fullTime.away },
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
@@ -200,7 +208,18 @@ function Calculator({
       ],
     },
   ];
-  const oddMarkets: OddMarket[] = groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p })));
+  // The suggested bet: in the last minutes there is nothing left to suggest.
+  const suggestion =
+    m >= 88
+      ? { main: null, others: [] }
+      : suggestLive(liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a }), {
+          minOdd: Number(minOdd),
+        });
+  // The suggestion first, so the odd comparer opens on it.
+  const oddMarkets: OddMarket[] = [
+    ...(suggestion.main ? [{ group: "Aposta sugerida", label: suggestion.main.label, p: suggestion.main.p }] : []),
+    ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p }))),
+  ];
 
   const step = (setter: (v: string) => void, current: number, by: number, min: number, max: number) =>
     setter(String(Math.min(max, Math.max(min, current + by))));
@@ -315,6 +334,19 @@ function Calculator({
           </p>
         </details>
 
+        {sourceLines.length > 0 && (
+          <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+              De onde vêm os golos esperados
+            </p>
+            {sourceLines.map((line) => (
+              <p key={line} className="text-[11px] leading-relaxed text-neutral-400">
+                {line}
+              </p>
+            ))}
+          </div>
+        )}
+
         <p className="mt-3 text-xs text-neutral-400">
           Ainda se esperam <span className="font-medium text-neutral-200">{dot(p.remainingHome + p.remainingAway)}</span>{" "}
           golos ({dot(p.remainingHome)} de {homeName}, {dot(p.remainingAway)} de {awayName}).
@@ -328,6 +360,69 @@ function Calculator({
             <li key={line}>{line}</li>
           ))}
         </ul>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-emerald-300">Aposta sugerida em live</h3>
+          <label className="flex items-center gap-2 text-xs text-neutral-400">
+            Odd justa mínima
+            <select
+              value={minOdd}
+              onChange={(e) => setMinOdd(e.target.value)}
+              className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-neutral-100 outline-none focus:border-emerald-500"
+            >
+              {["1.3", "1.5", "1.8", "2"].map((v) => (
+                <option key={v} value={v}>
+                  {v.replace(".", ",")}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {m >= 88 ? (
+          <p className="text-sm text-neutral-400">O jogo está nos descontos: já pouco pode acontecer, sem sugestão.</p>
+        ) : !suggestion.main ? (
+          <p className="text-sm text-neutral-400">
+            Sem aposta clara: nenhum mercado tem uma odd justa de {minOdd.replace(".", ",")} ou mais sem estar já
+            quase decidido. Baixa a odd mínima ou espera. Não apostar também é uma decisão.
+          </p>
+        ) : (
+          <>
+            <p className="text-base font-semibold text-neutral-100">{suggestion.main.label}</p>
+            <p className="text-xs text-neutral-400">
+              Chance estimada <span className="font-medium text-neutral-200">{pct(suggestion.main.p)}</span> · odd justa{" "}
+              {formatOdd(suggestion.main.fairOdd)} ·{" "}
+              <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(suggestion.main.minOdd)}</span>
+            </p>
+            {suggestion.others.length > 0 && (
+              <div className="mt-3 space-y-2 border-t border-emerald-900/40 pt-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Outras opções</p>
+                {suggestion.others.map((pick) => (
+                  <div key={pick.key}>
+                    <p className="text-sm font-medium text-neutral-200">{pick.label}</p>
+                    <p className="text-xs text-neutral-400">
+                      Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · odd justa{" "}
+                      {formatOdd(pick.fairOdd)} ·{" "}
+                      <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+          É a aposta mais provável com pelo menos essa odd justa, e o número a verde é a odd que a casa teria de pagar para
+          valer a pena (a odd justa com a chance cortada, mais 5%). Testei este critério <span className="text-neutral-400">ao intervalo</span>{" "}
+          em 6.062 jogos de 2025/26: a aposta principal que o modelo dava 60,5% aconteceu em 59,4% (com odd justa mínima de
+          1,5); nos golos o modelo é otimista (dizia 58,9% e aconteceu 55,5%), por isso a chance é cortada mais. Sem os
+          dados das equipas (valores típicos) o resultado foi praticamente igual (60,1%), porque perto do intervalo quase
+          tudo vem do resultado e do tempo que falta. <span className="text-amber-400">A outros minutos não consigo testar.</span>{" "}
+          Acertar muitas vezes não é o mesmo que ganhar dinheiro: compara com a odd da casa aqui em baixo.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
