@@ -43,7 +43,7 @@ export default function FormChart({ name, games }: { name: string; games: TeamGa
       </div>
 
       {/* The top of the scale sticks out above the plot, hence the room. */}
-      <div className="mt-2 flex gap-1.5">
+      <div className="mt-3 flex gap-1.5">
         {/* Scale, in whole goals. */}
         <div className="relative w-4 shrink-0 text-right text-[10px] text-neutral-500" style={{ height: PLOT_PX }}>
           {ticks.map((t) => (

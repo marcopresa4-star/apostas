@@ -29,7 +29,7 @@ export const LEAGUES = [
 ] as const;
 
 const SEASONS_BACK = 3;
-const TTL_MS = 6 * 60 * 60 * 1000;
+const TTL_MS = 3 * 60 * 60 * 1000;
 
 interface RawMatch {
   round?: string;
