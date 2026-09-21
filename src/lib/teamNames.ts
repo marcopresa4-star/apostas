@@ -11,7 +11,7 @@ const NOISE = new Set([
   "the", "sport", "calcio", "1", "04", "05", "1846", "1899", "1909", "1910", "1913", "1919", "1903", "1948",
 ]);
 
-function tokens(name: string): string[] {
+export function tokens(name: string): string[] {
   return name
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

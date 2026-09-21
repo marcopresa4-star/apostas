@@ -66,6 +66,8 @@ export interface LivePrediction {
   bothScore: number;
   // The next goal, or none until the end.
   nextGoal: { home: number; away: number; none: number };
+  // The most likely final scores (the goals already scored included).
+  finalScores: { home: number; away: number; p: number }[];
 }
 
 const LOG_FACT = (() => {
@@ -142,6 +144,7 @@ export function predictLive(
   let bothScore = 0;
   let total = 0;
   let none = 0;
+  const finals: { home: number; away: number; p: number }[] = [];
 
   for (let i = 0; i <= MAX_GOALS; i++) {
     for (let j = 0; j <= MAX_GOALS; j++) {
@@ -150,6 +153,7 @@ export function predictLive(
       if (i === 0 && j === 0) none = p;
       const h = homeGoals + i;
       const a = awayGoals + j;
+      finals.push({ home: h, away: a, p });
       if (h > a) fullTime.home += p;
       else if (h === a) fullTime.draw += p;
       else fullTime.away += p;
@@ -167,6 +171,10 @@ export function predictLive(
   return {
     remainingHome,
     remainingAway,
+    finalScores: finals
+      .sort((x, y) => y.p - x.p)
+      .slice(0, 6)
+      .map((f) => ({ ...f, p: norm(f.p) })),
     fullTime: { home: norm(fullTime.home), draw: norm(fullTime.draw), away: norm(fullTime.away) },
     over,
     bothScore: norm(bothScore),

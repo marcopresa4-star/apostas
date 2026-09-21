@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import { predictLive } from "@/lib/liveModel";
+import { liveSummary } from "@/lib/liveSummary";
 import { fairOdd } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
 
@@ -72,6 +73,19 @@ export default function LiveCalculator({
   fromModel: boolean;
 }) {
   const [minute, setMinute] = useState("60");
+  // The minute can move on by itself, one every real minute; it starts over from
+  // whatever is typed, so the clock keeps in step when it is corrected by hand.
+  const [running, setRunning] = useState(false);
+  const [sync, setSync] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setMinute((current) => String(Math.min(120, whole(current, 0, 120, 0) + 1))), 60_000);
+    return () => clearInterval(id);
+  }, [running, sync]);
+  const setMinuteByHand = (value: string) => {
+    setMinute(value);
+    setSync((n) => n + 1);
+  };
   const [homeGoals, setHomeGoals] = useState("0");
   const [awayGoals, setAwayGoals] = useState("0");
   const [lh, setLh] = useState(dot(lambdaHome));
@@ -150,7 +164,7 @@ export default function LiveCalculator({
           <div>
             <label className="mb-1 block text-sm text-neutral-300">Minuto</label>
             <div className="flex gap-2">
-              <button type="button" className={button} onClick={() => step(setMinute, m, -1, 0, 120)} aria-label="Menos um minuto">
+              <button type="button" className={button} onClick={() => step(setMinuteByHand, m, -1, 0, 120)} aria-label="Menos um minuto">
                 −
               </button>
               <input
@@ -159,13 +173,31 @@ export default function LiveCalculator({
                 min="0"
                 max="120"
                 value={minute}
-                onChange={(e) => setMinute(e.target.value)}
+                onChange={(e) => setMinuteByHand(e.target.value)}
                 className={`${INPUT} text-center`}
               />
-              <button type="button" className={button} onClick={() => step(setMinute, m, 1, 0, 120)} aria-label="Mais um minuto">
+              <button type="button" className={button} onClick={() => step(setMinuteByHand, m, 1, 0, 120)} aria-label="Mais um minuto">
                 +
               </button>
             </div>
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
+              <input
+                type="checkbox"
+                checked={running}
+                onChange={(e) => {
+                  setRunning(e.target.checked);
+                  setSync((n) => n + 1);
+                }}
+                className="accent-amber-500"
+              />
+              Deixar o minuto andar sozinho
+            </label>
+            {running && (
+              <p className="mt-1 text-[11px] leading-snug text-amber-400/90">
+                Sobe um minuto por minuto real. Não sabe do intervalo: desliga aos 45&apos; e volta a ligar quando a
+                2.ª parte começar (com o minuto 46).
+              </p>
+            )}
           </div>
 
           <div>
@@ -237,6 +269,15 @@ export default function LiveCalculator({
           Ainda se esperam <span className="font-medium text-neutral-200">{dot(p.remainingHome + p.remainingAway)}</span>{" "}
           golos ({dot(p.remainingHome)} de {homeName}, {dot(p.remainingAway)} de {awayName}).
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5">
+        <h3 className="mb-2 text-sm font-semibold text-amber-300">O que ainda pode acontecer</h3>
+        <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-neutral-200 marker:text-neutral-600">
+          {liveSummary(p, { home: homeName, away: awayName, minute: m, homeGoals: h, awayGoals: a }).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
