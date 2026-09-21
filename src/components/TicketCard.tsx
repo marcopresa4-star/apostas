@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import PickCard from "./PickCard";
-import AddPickForm from "./AddPickForm";
+import AddPickForm, { type PickTemplate } from "./AddPickForm";
 import DeleteTicketButton from "./DeleteTicketButton";
 import type { PickImageItem } from "./PickImages";
 import type { TagItem } from "./CategoryCombobox";
@@ -56,6 +56,24 @@ export default function TicketCard({
   const live = now && !ticket.live_ended ? isMatchLive(ticket.match_date, ticket.match_time, now) : false;
   const countdown = now && !live ? getCountdownClock(ticket.match_date, ticket.match_time, now) : null;
   const [isPending, startTransition] = useTransition();
+  // The bet being duplicated; each click gets its own number so the form is
+  // opened afresh from that bet.
+  const [duplicate, setDuplicate] = useState<{ n: number; template: PickTemplate } | null>(null);
+
+  function startDuplicate(pick: Pick) {
+    setDuplicate((prev) => ({
+      n: (prev?.n ?? 0) + 1,
+      template: {
+        category: pick.category,
+        reason: pick.reason,
+        odd: pick.odd,
+        oddMin: pick.odd_min,
+        alertMinute: pick.alert_minute,
+        sofascoreUrl: pick.sofascore_url,
+        bookmakerUrl: pick.bookmaker_url,
+      },
+    }));
+  }
 
   function handleMarkEnded() {
     startTransition(async () => {
@@ -118,12 +136,15 @@ export default function TicketCard({
             images={imagesByPick[pick.id] ?? []}
             initialCategories={initialCategories}
             kickoff={{ date: ticket.match_date, time: ticket.match_time }}
+            onDuplicate={pick.bet_type === addPickBetType ? () => startDuplicate(pick) : undefined}
           />
         ))}
       </div>
 
       <div className="mt-3">
         <AddPickForm
+          key={duplicate?.n ?? 0}
+          template={duplicate?.template}
           ticketId={ticket.id}
           betType={addPickBetType}
           initialCategories={initialCategories}

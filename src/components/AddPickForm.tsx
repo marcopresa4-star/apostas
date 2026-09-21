@@ -6,27 +6,44 @@ import CategoryCombobox, { type TagItem } from "./CategoryCombobox";
 import LiveModeToggle, { type LiveMode } from "./LiveModeToggle";
 import type { BetType } from "@/lib/database.types";
 
+// What a duplicated bet starts with; everything can be changed before saving.
+export interface PickTemplate {
+  category: TagItem | null;
+  reason: string | null;
+  odd: number | null;
+  oddMin: number | null;
+  alertMinute: number | null;
+  sofascoreUrl: string | null;
+  bookmakerUrl: string | null;
+}
+
+const text = (n: number | null) => (n === null ? "" : String(n));
+
 export default function AddPickForm({
   ticketId,
   betType,
   initialCategories,
+  template,
 }: {
   ticketId: string;
   betType: BetType;
   initialCategories: TagItem[];
+  // Opens the form already filled in, to duplicate a bet of this game. Give it a
+  // new `key` to start from another one.
+  template?: PickTemplate;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(template));
   const [mode, setMode] = useState<LiveMode>("watching");
-  const [odd, setOdd] = useState("");
-  const [oddMin, setOddMin] = useState("");
+  const [odd, setOdd] = useState(text(template?.odd ?? null));
+  const [oddMin, setOddMin] = useState(text(template?.oddMin ?? null));
   const [entryOdd, setEntryOdd] = useState("");
   const [entryMinute, setEntryMinute] = useState("");
-  const [alertMinute, setAlertMinute] = useState("");
+  const [alertMinute, setAlertMinute] = useState(text(template?.alertMinute ?? null));
   const [categories, setCategories] = useState(initialCategories);
-  const [category, setCategory] = useState<TagItem | null>(null);
-  const [reason, setReason] = useState("");
-  const [sofascoreUrl, setSofascoreUrl] = useState("");
-  const [bookmakerUrl, setBookmakerUrl] = useState("");
+  const [category, setCategory] = useState<TagItem | null>(template?.category ?? null);
+  const [reason, setReason] = useState(template?.reason ?? "");
+  const [sofascoreUrl, setSofascoreUrl] = useState(template?.sofascoreUrl ?? "");
+  const [bookmakerUrl, setBookmakerUrl] = useState(template?.bookmakerUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -104,6 +121,12 @@ export default function AddPickForm({
 
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+      {template && (
+        <p className="mb-2 text-xs text-neutral-400">
+          <span className="font-medium text-neutral-200">Duplicar aposta.</span> Já vem preenchida: muda o tipo de
+          aposta ou o que quiseres e clica em Adicionar.
+        </p>
+      )}
       {betType === "live" && (
         <div className="mb-2">
           <LiveModeToggle value={mode} onChange={setMode} small />

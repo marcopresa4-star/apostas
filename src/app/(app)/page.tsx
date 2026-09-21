@@ -8,6 +8,8 @@ import LiveClock from "@/components/LiveClock";
 import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import GameStartNotifications from "@/components/GameStartNotifications";
+import UnsettledBets from "@/components/UnsettledBets";
+import type { OpenBet } from "@/lib/unsettled";
 import type { PickImageItem } from "@/components/PickImages";
 import type { ComboCountry } from "@/components/EntityCombobox";
 import { fetchUsedEntities } from "@/lib/entityOptions";
@@ -250,6 +252,48 @@ export default async function DashboardPage() {
     }));
   const liveGames = [...liveWidgetCandidates, ...multipleGames];
 
+  // Bets you entered that still have no result (their game may be over: the
+  // panel decides that by the clock).
+  const openBets: OpenBet[] = [
+    ...all.flatMap((t) =>
+      t.picks
+        .filter((p) => p.stage === "active" && p.status === "pending")
+        .map((p) => ({
+          id: p.id,
+          kind: "pick" as const,
+          match_date: t.match_date,
+          match_time: t.match_time,
+          live_ended: t.live_ended,
+          competition: t.competition?.name ?? "",
+          home: t.home_team?.name ?? "?",
+          away: t.away_team?.name ?? "?",
+          selection: p.selection,
+          odd: p.entry_odd ?? p.odd,
+          live: p.bet_type === "live",
+        }))
+    ),
+    // A multiple already decided (a lost game) is not waiting for anything.
+    ...allMultiples
+      .filter(({ status }) => status === "pending")
+      .flatMap(({ multiple }) =>
+        multiple.legs
+          .filter((leg) => leg.status === "pending")
+          .map((leg) => ({
+            id: leg.id,
+            kind: "leg" as const,
+            match_date: leg.match_date,
+            match_time: leg.match_time,
+            live_ended: false,
+            competition: leg.competition?.name ?? "",
+            home: leg.home_team?.name ?? "?",
+            away: leg.away_team?.name ?? "?",
+            selection: leg.selection,
+            odd: leg.odd,
+            live: multiple.bet_type === "live",
+          }))
+      ),
+  ];
+
   // From md up the app content is a narrow centered column; the Dashboard
   // wants the whole area next to the sidebar instead. It is as wide as the
   // window minus the sidebar (14rem) and a 4rem margin (2rem on each side,
@@ -284,6 +328,8 @@ export default async function DashboardPage() {
       )}
 
       <LiveAlerts tickets={watchingTickets} />
+
+      <UnsettledBets open={openBets} />
 
       <StatsRow total={stats.total} green={stats.green} red={stats.red} pending={stats.pending} />
 

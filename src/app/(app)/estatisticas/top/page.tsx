@@ -1,12 +1,26 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, loadLeague, type LeagueData } from "@/lib/footballData";
 import { topBets } from "@/lib/topBets";
-import { first, todayISO } from "@/lib/searchParams";
+import type { PickGroup } from "@/lib/recommendation";
+import { first, list, todayISO } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import TopBetsTable from "@/components/TopBetsTable";
 
 const DEFAULT_ODD = 1.6;
 const COUNTS = [5, 10, 20];
+const DAYS = [
+  { value: 0, label: "Toda a jornada" },
+  { value: 1, label: "Só hoje" },
+  { value: 2, label: "Hoje e amanhã" },
+  { value: 3, label: "Próximos 3 dias" },
+  { value: 7, label: "Próximos 7 dias" },
+];
+const GROUPS: { value: PickGroup; label: string }[] = [
+  { value: "result", label: "Resultado" },
+  { value: "goals", label: "Golos" },
+  { value: "btts", label: "Ambas marcam" },
+];
 
 export default async function TopPage({
   searchParams,
@@ -20,15 +34,20 @@ export default async function TopPage({
   const asked = Number.parseFloat(first(params.odd).replace(",", "."));
   const minOdd = Number.isFinite(asked) ? Math.min(6, Math.max(1.2, asked)) : DEFAULT_ODD;
   const count = COUNTS.includes(Number(first(params.n))) ? Number(first(params.n)) : 5;
+  const days = DAYS.some((d) => d.value === Number(first(params.dias))) ? Number(first(params.dias)) : 0;
+  // Nothing ticked means everything: only what the page offers is accepted.
+  const groups = GROUPS.map((g) => g.value).filter((g) => list(params.tipo).includes(g));
+  const chosenLeagues = LEAGUES.map((l) => l.code as string).filter((code) => list(params.liga).includes(code));
+  const filtered = days > 0 || groups.length > 0 || chosenLeagues.length > 0;
 
   const now = new Date();
   const today = todayISO(now);
   const loaded = await Promise.all(
-    LEAGUES.map(async (l) => ({ code: l.code, label: l.label, data: await loadLeague(l.code, now) }))
+    LEAGUES.filter((l) => chosenLeagues.length === 0 || chosenLeagues.includes(l.code)).map(async (l) => ({ code: l.code, label: l.label, data: await loadLeague(l.code, now) }))
   );
   const leagues: { code: string; label: string; data: LeagueData }[] = [];
   for (const l of loaded) if (l.data) leagues.push({ code: l.code, label: l.label, data: l.data });
-  const { bets, games, leagues: withRound } = topBets(leagues, today, now, { minOdd, count });
+  const { bets, games, leagues: withRound } = topBets(leagues, today, now, { minOdd, count, days, groups });
   const used = new Set(bets.map((b) => b.leagueCode));
 
   const field =
@@ -65,24 +84,93 @@ export default async function TopPage({
             ))}
           </select>
         </div>
+        <div>
+          <label className="mb-1 block text-sm text-neutral-300">Dias</label>
+          <select name="dias" defaultValue={String(days)} className={`${field} w-44`}>
+            {DAYS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <fieldset>
+          <legend className="mb-1 block text-sm text-neutral-300">
+            Tipo de aposta <span className="text-neutral-500">(nenhum = todos)</span>
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {GROUPS.map((g) => (
+              <label key={g.value} className="cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="tipo"
+                  value={g.value}
+                  defaultChecked={groups.includes(g.value)}
+                  className="peer sr-only"
+                />
+                <span className="block rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-400 transition peer-checked:border-amber-500 peer-checked:bg-amber-950 peer-checked:text-amber-300 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-amber-500">
+                  {g.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <button
           type="submit"
           className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
         >
           Atualizar
         </button>
+        {filtered && (
+          <Link
+            href={`/estatisticas/top?odd=${String(minOdd)}&n=${count}`}
+            className="py-2 text-sm text-neutral-500 hover:text-neutral-300"
+          >
+            Limpar filtros
+          </Link>
+        )}
+
+        <details className="w-full rounded-lg border border-neutral-800 bg-neutral-900/50 px-3 py-2" open={chosenLeagues.length > 0}>
+          <summary className="cursor-pointer text-sm text-neutral-300">
+            Ligas{" "}
+            <span className="text-neutral-500">
+              ({chosenLeagues.length === 0 ? "todas" : `${chosenLeagues.length} de ${LEAGUES.length}`}; nenhuma marcada = todas)
+            </span>
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {LEAGUES.map((l) => (
+              <label key={l.code} className="cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="liga"
+                  value={l.code}
+                  defaultChecked={chosenLeagues.includes(l.code)}
+                  className="peer sr-only"
+                />
+                <span className="block rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-xs text-neutral-400 transition peer-checked:border-amber-500 peer-checked:bg-amber-950 peer-checked:text-amber-300 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-amber-500">
+                  {l.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </details>
       </form>
 
       {bets.length === 0 ? (
         <p className="text-sm text-neutral-500">
-          Não há jogos por disputar nos dados, ou nenhuma aposta chega à odd mínima. Baixa-a e tenta outra vez.
+          {filtered
+            ? "Com estes filtros não há jogos por disputar nos dados, ou nenhuma aposta chega à odd mínima. Alarga os filtros ou baixa a odd."
+            : "Não há jogos por disputar nos dados, ou nenhuma aposta chega à odd mínima. Baixa-a e tenta outra vez."}
         </p>
       ) : (
         <>
           <TopBetsTable bets={bets} />
           <p className="mt-2 text-xs text-neutral-500">
-            {games} jogos analisados em {withRound} {withRound === 1 ? "liga" : "ligas"} (das {LEAGUES.length}: só
-            entram as que já têm a próxima jornada nos dados)
+            {games} jogos analisados em {withRound} {withRound === 1 ? "liga" : "ligas"} (
+            {days > 0
+              ? "só entram jogos nos dias escolhidos que já estejam nos dados"
+              : `das ${chosenLeagues.length || LEAGUES.length}: só entram as que já têm a próxima jornada nos dados`}
+            )
             {used.size > 0 ? `; a lista vem de ${used.size} ${used.size === 1 ? "liga" : "ligas"}` : ""}.
           </p>
         </>

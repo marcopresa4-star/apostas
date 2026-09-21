@@ -24,10 +24,13 @@ export function bestBet(
   base: BaseRates,
   home: string,
   away: string,
-  minOdd: number
+  minOdd: number,
+  // The kinds of bet allowed: all of them when left out.
+  groups?: readonly PickGroup[]
 ): Candidate | null {
   let best: Candidate | null = null;
   for (const c of candidatesFor(prediction, base, home, away)) {
+    if (groups && !groups.includes(c.group)) continue;
     if (fairOdd(c.p) < minOdd) continue;
     if (best === null || c.p > best.p) best = c;
   }
@@ -55,37 +58,70 @@ export interface TopBet {
 export interface TopBets {
   bets: TopBet[];
   games: number; // games looked at (still to play, with enough data)
-  leagues: number; // leagues with a round still to come
+  leagues: number; // leagues with games to look at
+}
+
+export interface TopOptions {
+  minOdd: number;
+  count: number;
+  // Only games in the next `days` days (1 = today only). 0 or left out: each
+  // league's nearest round, whatever the days.
+  days?: number;
+  // Only these kinds of bet: all of them when left out or empty.
+  groups?: readonly PickGroup[];
+}
+
+// The last day (YYYY-MM-DD) of a window of `days` days starting today.
+export function windowEnd(today: string, days: number): string {
+  const d = new Date(`${today}T12:00:00`);
+  d.setDate(d.getDate() + days - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // The `count` most probable bets, one per game, among the games of each league's
-// nearest round that pay at least `minOdd`.
+// nearest round (or of the next few days) that pay at least `minOdd`.
 export function topBets(
   leagues: { code: string; label: string; data: LeagueData }[],
   today: string,
   now: Date,
-  options: { minOdd: number; count: number }
+  options: TopOptions
 ): TopBets {
   const all: TopBet[] = [];
   let games = 0;
   let withRound = 0;
+  const last = options.days && options.days > 0 ? windowEnd(today, options.days) : null;
   for (const league of leagues) {
-    const round = upcomingRounds(league.data.fixtures, today)[0];
-    if (!round) continue;
-    withRound++;
+    // A window of days takes the games as they come, whatever their round.
+    const rounds = upcomingRounds(league.data.fixtures, today);
+    const candidates = last
+      ? rounds.flatMap((r) => r.fixtures.map((fixture) => ({ round: r.name, fixture })))
+      : (rounds[0]?.fixtures ?? []).map((fixture) => ({ round: rounds[0].name, fixture }));
+    let counted = false;
     const base = baseRates(league.data.matches);
-    for (const fixture of round.fixtures) {
+    for (const { round, fixture } of candidates) {
       // Only games still to be played.
       if (fixture.ft || fixture.date < today) continue;
+      if (last && fixture.date > last) continue;
       const prediction = predict(league.data.matches, fixture.team1, fixture.team2, now);
       if (Math.min(prediction.gamesHome, prediction.gamesAway) < FEW) continue;
       games++;
-      const best = bestBet(prediction, base, fixture.team1, fixture.team2, options.minOdd);
+      if (!counted) {
+        counted = true;
+        withRound++;
+      }
+      const best = bestBet(
+        prediction,
+        base,
+        fixture.team1,
+        fixture.team2,
+        options.minOdd,
+        options.groups?.length ? options.groups : undefined
+      );
       if (!best) continue;
       all.push({
         leagueCode: league.code,
         leagueLabel: league.label,
-        round: round.name,
+        round,
         fixture,
         group: best.group,
         key: best.key,

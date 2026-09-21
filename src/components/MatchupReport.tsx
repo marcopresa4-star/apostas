@@ -1,5 +1,6 @@
 import Link from "next/link";
 import OddChecker, { type OddMarket } from "./OddChecker";
+import FormChart from "./FormChart";
 import { formatOdd } from "@/lib/multiples";
 import { VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
 import { seasonLabel, seasonStartDate, seasonsFor } from "@/lib/footballData";
@@ -223,6 +224,7 @@ function TeamCard({
           </div>
         </div>
       )}
+      <FormChart name={name} games={games} />
       <SummaryBlock title="Esta época" summary={summarize(games)} />
       <SummaryBlock
         title={venue === "home" ? "Esta época em casa" : "Esta época fora"}

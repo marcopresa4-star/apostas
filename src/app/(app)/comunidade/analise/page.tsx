@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import CommunityTabs from "@/components/CommunityTabs";
+import TrackRecordCard from "@/components/TrackRecordCard";
+import { multipleBet, pickBet, trackRecord } from "@/lib/trackRecord";
 import StatRanking from "@/components/StatRanking";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import { buildAnalysis } from "@/lib/analysis";
@@ -70,6 +72,14 @@ export default async function ComunidadeAnalisePage() {
 
   const all = tickets ?? [];
 
+  // Everything shared and played, for the track record.
+  const record = trackRecord([
+    ...all.flatMap((t) =>
+      t.picks.filter((p) => p.stage === "active").map((p) => pickBet(p, `${t.match_date}T${t.match_time}`))
+    ),
+    ...(multipleRows ?? []).map((m) => multipleBet(m.legs)),
+  ]);
+
   const imagesByPick: Record<string, PickImageItem[]> = {};
   const allImageRows = all.flatMap((t) =>
     t.picks.flatMap((p) => p.pick_images.map((img) => ({ pickId: p.id, ...img })))
@@ -112,6 +122,8 @@ export default async function ComunidadeAnalisePage() {
           Erro ao carregar: {error.message}
         </p>
       )}
+
+      <TrackRecordCard record={record} />
 
       {hasPerformanceData ? (
         <div>

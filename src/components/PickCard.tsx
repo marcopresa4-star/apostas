@@ -32,9 +32,11 @@ interface PickCardProps {
   // Kickoff of the game this pick belongs to, so "Entrei" can suggest the
   // current match minute.
   kickoff?: { date: string; time: string };
+  // Shows the "Duplicar" button: the bet is repeated on the same game.
+  onDuplicate?: () => void;
 }
 
-export default function PickCard({ pick, images, initialCategories, kickoff }: PickCardProps) {
+export default function PickCard({ pick, images, initialCategories, kickoff, onDuplicate }: PickCardProps) {
   const [editing, setEditing] = useState(false);
   const [isTogglingPublish, startPublishTransition] = useTransition();
   const [betType, setBetType] = useState<BetType>(pick.bet_type);
@@ -372,6 +374,16 @@ export default function PickCard({ pick, images, initialCategories, kickoff }: P
             >
               Editar aposta
             </button>
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={onDuplicate}
+                title="Repetir esta aposta neste jogo, podendo mudar o tipo de aposta"
+                className="text-xs text-neutral-500 hover:text-neutral-300"
+              >
+                Duplicar
+              </button>
+            )}
             <button
               type="button"
               disabled={isTogglingPublish || !canPublish}
