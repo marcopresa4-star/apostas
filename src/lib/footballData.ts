@@ -32,6 +32,8 @@ const SEASONS_BACK = 3;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
 interface RawMatch {
+  round?: string;
+  time?: string;
   date: string;
   team1: string;
   team2: string;
@@ -115,6 +117,8 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
         team1: m.team1,
         team2: m.team2,
         ft: m.score?.ft ?? null,
+        round: m.round,
+        time: m.time,
       }));
     }
     for (const m of file) {
@@ -132,4 +136,19 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
   if (seasons.length === 0) return null;
   matches.sort((a, b) => a.date.localeCompare(b.date));
   return { matches, teams, fixtures, latest: matches.at(-1)?.date ?? null, seasons };
+}
+
+// The dates of this season so far, or of the whole last one, and its label.
+export function seasonWindow(now: Date, which: "atual" | "passada"): { from: string; to: string; label: string } {
+  const current = seasonsFor(now, 1)[0];
+  const startYear = Number(current.slice(0, 4));
+  if (which === "atual") {
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    return { from: `${startYear}-07-01`, to: today, label: seasonLabel(current) };
+  }
+  return {
+    from: `${startYear - 1}-07-01`,
+    to: `${startYear}-06-30`,
+    label: seasonLabel(seasonsFor(now, 2)[1]),
+  };
 }

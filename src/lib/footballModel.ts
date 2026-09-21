@@ -360,6 +360,8 @@ export interface Fixture {
   ft: [number, number] | null; // null while not played (or not in the data yet)
   // Only for games added by hand (cups, Europe...); the league is the default.
   competition?: string;
+  round?: string; // "Matchday 7"
+  time?: string; // kickoff, "20:15"
 }
 
 // The team's games of the season in date order.

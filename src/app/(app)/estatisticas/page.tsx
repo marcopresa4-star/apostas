@@ -5,6 +5,8 @@ import { lastLeagueGameDate, nextLeagueGameDate } from "@/lib/footballModel";
 import { encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
 import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
 import MatchupReport from "@/components/MatchupReport";
+import EstatisticasTabs from "@/components/EstatisticasTabs";
+import { first, todayISO as todayOf } from "@/lib/searchParams";
 import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
 
 const DAY_MS = 86_400_000;
@@ -12,9 +14,6 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 const daysText = (n: number) => `${n} ${n === 1 ? "dia" : "dias"}`;
 
-// A parameter can come once or repeated (or not at all).
-const first = (value: string | string[] | undefined): string =>
-  (Array.isArray(value) ? value[0] : value) ?? "";
 
 export default async function EstatisticasPage({
   searchParams,
@@ -44,7 +43,7 @@ export default async function EstatisticasPage({
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
   const sameTeam = casa !== "" && casa === fora;
 
-  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const todayISO = todayOf(now);
 
   // When these two meet in the league, from the calendar (home side as chosen).
   const scheduled =
@@ -107,10 +106,12 @@ export default async function EstatisticasPage({
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
-      <p className="mb-6 text-sm text-neutral-500">
+      <p className="mb-4 text-sm text-neutral-500">
         Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
         enfrentassem.
       </p>
+
+      <EstatisticasTabs />
 
       <MatchupForm
         leagues={LEAGUES}

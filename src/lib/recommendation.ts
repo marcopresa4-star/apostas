@@ -35,6 +35,8 @@ export interface Pick {
   base: number; // how often it happens in this league
   fairOdd: number;
   minOdd: number; // the odd from which the bet is worth it
+  // Whether it came off, given the final score (home, away).
+  won: (ft: [number, number]) => boolean;
 }
 
 export interface BaseRates {
@@ -69,19 +71,44 @@ export function recommend(
   away: string
 ): Pick[] {
   const ft = prediction.fullTime;
-  const candidates: { group: PickGroup; label: string; p: number; base: number }[] = [
-    { group: "result", label: `Vitória de ${home}`, p: ft.home, base: base.home },
-    { group: "result", label: `Vitória de ${away}`, p: ft.away, base: base.away },
-    { group: "result", label: `${home} ou empate (1X)`, p: ft.home + ft.draw, base: base.home + base.draw },
-    { group: "result", label: `${away} ou empate (X2)`, p: ft.away + ft.draw, base: base.away + base.draw },
-    { group: "btts", label: "Ambas marcam: sim", p: prediction.bothScore, base: base.btts },
-    { group: "btts", label: "Ambas marcam: não", p: 1 - prediction.bothScore, base: 1 - base.btts },
+  type Candidate = {
+    group: PickGroup;
+    label: string;
+    p: number;
+    base: number;
+    won: (score: [number, number]) => boolean;
+  };
+  const candidates: Candidate[] = [
+    { group: "result", label: `Vitória de ${home}`, p: ft.home, base: base.home, won: ([h, a]) => h > a },
+    { group: "result", label: `Vitória de ${away}`, p: ft.away, base: base.away, won: ([h, a]) => a > h },
+    {
+      group: "result",
+      label: `${home} ou empate (1X)`,
+      p: ft.home + ft.draw,
+      base: base.home + base.draw,
+      won: ([h, a]) => h >= a,
+    },
+    {
+      group: "result",
+      label: `${away} ou empate (X2)`,
+      p: ft.away + ft.draw,
+      base: base.away + base.draw,
+      won: ([h, a]) => a >= h,
+    },
+    { group: "btts", label: "Ambas marcam: sim", p: prediction.bothScore, base: base.btts, won: ([h, a]) => h > 0 && a > 0 },
+    {
+      group: "btts",
+      label: "Ambas marcam: não",
+      p: 1 - prediction.bothScore,
+      base: 1 - base.btts,
+      won: ([h, a]) => !(h > 0 && a > 0),
+    },
   ];
   for (const line of [1.5, 2.5, 3.5]) {
     const over = prediction.over[String(line)];
     candidates.push(
-      { group: "goals", label: `Mais de ${num(line)} golos`, p: over, base: base.over[String(line)] },
-      { group: "goals", label: `Menos de ${num(line)} golos`, p: 1 - over, base: 1 - base.over[String(line)] }
+      { group: "goals", label: `Mais de ${num(line)} golos`, p: over, base: base.over[String(line)], won: ([h, a]) => h + a > line },
+      { group: "goals", label: `Menos de ${num(line)} golos`, p: 1 - over, base: 1 - base.over[String(line)], won: ([h, a]) => h + a < line }
     );
   }
 
@@ -104,6 +131,7 @@ export function recommend(
       base: c.base,
       fairOdd: fairOdd(c.p),
       minOdd: fairOdd(c.p) * (1 + VALUE_MARGIN),
+      won: c.won,
     });
     if (picks.length === MAX_PICKS) break;
   }
