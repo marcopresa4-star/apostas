@@ -13,9 +13,12 @@ export interface OddMarket {
 // compares with the model: the chance the odd implies against the model's, and
 // how much a bet at that odd would win or lose on average.
 export default function OddChecker({ markets }: { markets: OddMarket[] }) {
-  const [index, setIndex] = useState(0);
+  // The chosen market is kept by its name: the list can change under it (the
+  // live calculator's lines move with the score).
+  const [chosen, setChosen] = useState<string | null>(null);
   const [text, setText] = useState("");
 
+  const index = Math.max(0, markets.findIndex((m) => `${m.group}|${m.label}` === chosen));
   const market = markets[index];
   const odd = Number(text.replace(",", "."));
   const valid = Number.isFinite(odd) && odd > 1;
@@ -35,7 +38,7 @@ export default function OddChecker({ markets }: { markets: OddMarket[] }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr]">
         <select
           value={index}
-          onChange={(e) => setIndex(Number(e.target.value))}
+          onChange={(e) => setChosen(`${markets[Number(e.target.value)].group}|${markets[Number(e.target.value)].label}`)}
           className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500"
         >
           {groups.map((group) => (
