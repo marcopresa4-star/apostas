@@ -4,7 +4,11 @@ import { fitInternational, predictInternational } from "@/lib/internationalModel
 import { leagueRates, predict } from "@/lib/footballModel";
 import { first } from "@/lib/searchParams";
 import { parseSportscoreMatch } from "@/lib/sportscoreLink";
-import { findGame, prettySlug, sideOfGame } from "@/lib/liveMatch";
+import { findGame, findGameByNames, prettySlug, sideOfGame } from "@/lib/liveMatch";
+import { createClient } from "@/lib/supabase/server";
+import { MULTIPLE_SELECT, type MultipleRow } from "@/lib/multiples";
+import { dashboardGames, type TicketIn } from "@/lib/dashboardGames";
+import SportscoreWidget from "@/components/SportscoreWidget";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LiveTeamsForm from "@/components/LiveTeamsForm";
 import LiveCalculator from "@/components/LiveCalculator";
@@ -23,6 +27,7 @@ export default async function LivePage({
   await requireAdmin();
   const params = await searchParams;
   const link = first(params.link).trim();
+  const jogo = first(params.jogo);
   let liga = first(params.liga);
   let casa = first(params.casa);
   let fora = first(params.fora);
@@ -34,14 +39,38 @@ export default async function LivePage({
   // league, and when both are found in the same one, the game is set up from it.
   const parsed = link ? parseSportscoreMatch(link) : null;
   let seen: { home: string; away: string; found: boolean; side: string | null } | null = null;
-  if (parsed) {
+
+  // The games already on the Dashboard can be picked instead of pasting a link.
+  const supabase = await createClient();
+  const yesterday = new Date(now.getTime() - 86_400_000);
+  const since = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+  const [{ data: ticketRows }, { data: multipleRows }] = await Promise.all([
+    supabase
+      .from("tickets")
+      .select(
+        `id, match_date, match_time,
+         competition:competitions(name),
+         home_team:teams!tickets_home_team_id_fkey(id, name, aliases),
+         away_team:teams!tickets_away_team_id_fkey(id, name, aliases),
+         picks(stage, status)`
+      )
+      .gte("match_date", since)
+      .returns<TicketIn[]>(),
+    // Left empty (never an error) if the multiples migration has not run yet.
+    supabase.from("multiples").select(MULTIPLE_SELECT).returns<MultipleRow[]>(),
+  ]);
+  const dashGames = dashboardGames(ticketRows ?? [], multipleRows ?? [], since);
+  const dash = jogo ? (dashGames.find((g) => g.id === jogo) ?? null) : null;
+
+  if (parsed || dash) {
     const all = await Promise.all(
       LEAGUES.map(async (l) => {
         const d = await loadLeague(l.code, now);
         return d ? { code: l.code, label: l.label, teams: d.teams } : null;
       })
     );
-    const found = findGame(parsed.slugs, all.filter((l) => l !== null));
+    const leagues = all.filter((l) => l !== null);
+    const found = parsed ? findGame(parsed.slugs, leagues) : dash ? findGameByNames(dash.homeNames, dash.awayNames, leagues) : null;
     if (found) {
       liga = found.code;
       casa = found.home;
@@ -51,13 +80,17 @@ export default async function LivePage({
       liga = "";
       casa = "";
       fora = "";
-      seen = {
-        home: prettySlug(parsed.slugs[0]),
-        away: prettySlug(parsed.slugs[1]),
-        found: false,
-        side: sideOfGame(parsed.slugs),
-      };
+      seen = parsed
+        ? {
+            home: prettySlug(parsed.slugs[0]),
+            away: prettySlug(parsed.slugs[1]),
+            found: false,
+            side: sideOfGame(parsed.slugs),
+          }
+        : { home: dash!.home, away: dash!.away, found: false, side: null };
     }
+    // A game of the Dashboard is shown by the names it has there.
+    if (dash && seen) seen = { ...seen, home: dash.home, away: dash.away };
   }
 
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
@@ -85,15 +118,17 @@ export default async function LivePage({
   // Without a game the calculator only shows typical figures, which say nothing
   // about any game: it opens on purpose, not by default.
   const typical = first(params.tipico) === "1";
-  const showCalculator = parsed !== null || chosen || typical;
+  const showCalculator = parsed !== null || dash !== null || chosen || typical;
 
   // What to remember the game by, and how to get back to it.
   const extra: Record<string, string> = neutral ? { neutro: "1" } : {};
   const game = parsed
     ? { key: `sc:${embed}`, href: `/estatisticas/live?${new URLSearchParams({ link, ...extra })}` }
-    : chosen
-      ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
-      : null;
+    : dash
+      ? { key: `d:${dash.id}`, href: `/estatisticas/live?${new URLSearchParams({ jogo: dash.id, ...extra })}` }
+      : chosen
+        ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
+        : null;
   const field =
     "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
 
@@ -101,11 +136,44 @@ export default async function LivePage({
     <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Um jogo a decorrer: cola o link do jogo no Sportscore e vê o que ainda pode acontecer, com a odd justa para
-        comparares com a odd live da casa. O resultado e o minuto tens de os escrever tu (lês no widget ao lado).
+        Um jogo a decorrer: escolhe um dos jogos da tua Dashboard ou cola o link do jogo no Sportscore, e vê o que ainda
+        pode acontecer, com a odd justa para comparares com a odd live da casa. O resultado e o minuto tens de os
+        escrever tu (lês no widget ao lado).
       </p>
 
       <EstatisticasTabs />
+
+      {dashGames.length > 0 && (
+        <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+          <h2 className="mb-2 text-sm font-semibold text-neutral-300">Os teus jogos da Dashboard</h2>
+          <div className="flex flex-wrap gap-2">
+            {dashGames.map((g) => (
+              <Link
+                key={g.id}
+                href={`/estatisticas/live?${new URLSearchParams({ jogo: g.id })}`}
+                className={`rounded-xl border px-3 py-2 transition ${
+                  dash?.id === g.id
+                    ? "border-amber-500/60 bg-amber-500/10"
+                    : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"
+                }`}
+              >
+                <p className="text-sm font-medium text-neutral-100">
+                  {g.home} <span className="text-neutral-500">vs</span> {g.away}
+                </p>
+                <p className="text-[11px] text-neutral-500">
+                  {g.date.slice(8, 10)}/{g.date.slice(5, 7)} às {g.time.slice(0, 5)}
+                  {g.competition ? ` · ${g.competition}` : ""}
+                </p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {jogo !== "" && !dash && (
+        <p className="mb-4 max-w-4xl text-xs text-amber-400">
+          Esse jogo já não está na Dashboard (já não tem apostas por decidir). Escolhe outro ou cola o link.
+        </p>
+      )}
 
       <form method="get" action="/estatisticas/live" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
         <label className="mb-1 block text-sm text-neutral-300">Link do jogo no Sportscore</label>
@@ -161,12 +229,12 @@ export default async function LivePage({
         <LiveSavedGames />
       )}
 
-      <details className="mb-4 max-w-4xl" open={!parsed && (league !== null || casa !== "")}>
+      <details className="mb-4 max-w-4xl" open={!parsed && !dash && (league !== null || casa !== "")}>
         <summary className="cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200">
           Ou escolher as equipas à mão
         </summary>
         <div className="mt-2">
-          <LiveTeamsForm leagues={LEAGUES} liga={parsed ? "" : (league?.code ?? "")} teams={parsed ? [] : teams} casa={parsed ? "" : casa} fora={parsed ? "" : fora} />
+          <LiveTeamsForm leagues={LEAGUES} liga={parsed || dash ? "" : (league?.code ?? "")} teams={parsed || dash ? [] : teams} casa={parsed || dash ? "" : casa} fora={parsed || dash ? "" : fora} />
         </div>
       </details>
 
@@ -185,8 +253,8 @@ export default async function LivePage({
 
       {!showCalculator && (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-sm leading-relaxed text-neutral-500">
-          Ainda não escolheste nenhum jogo. Cola em cima o link do Sportscore ou escolhe as equipas à mão. Se só quiseres
-          experimentar, podes abrir{" "}
+          Ainda não escolheste nenhum jogo. Escolhe um da tua Dashboard, cola em cima o link do Sportscore ou escolhe as
+          equipas à mão. Se só quiseres experimentar, podes abrir{" "}
           <Link href="/estatisticas/live?tipico=1" className="text-amber-400 hover:underline">
             a calculadora sem jogo
           </Link>
@@ -201,7 +269,18 @@ export default async function LivePage({
       )}
 
       {showCalculator && (
-      <div className={embed ? "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]" : ""}>
+      <div className={embed || dash ? "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]" : ""}>
+        {dash && !embed && (
+          <div className="lg:sticky lg:top-4 lg:self-start">
+            <SportscoreWidget
+              homeTeam={dash.home}
+              awayTeam={dash.away}
+              homeAliases={dash.homeNames.slice(1)}
+              awayAliases={dash.awayNames.slice(1)}
+            />
+            <p className="mt-1.5 text-[11px] text-neutral-500">Lê aqui o resultado e o minuto.</p>
+          </div>
+        )}
         {embed && (
           <div className="lg:sticky lg:top-4 lg:self-start">
             <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
@@ -222,7 +301,7 @@ export default async function LivePage({
         )}
         {/* Keyed by the teams, so choosing others starts the calculator afresh. */}
         <LiveCalculator
-          key={`${embed ?? ""}|${league?.code ?? ""}|${chosen ? casa : ""}|${chosen ? fora : ""}`}
+          key={`${embed ?? ""}|${dash?.id ?? ""}|${league?.code ?? ""}|${chosen ? casa : ""}|${chosen ? fora : ""}`}
           home={seen ? seen.home : chosen ? casa : ""}
           away={seen ? seen.away : chosen ? fora : ""}
           lambdaHome={expected.home}

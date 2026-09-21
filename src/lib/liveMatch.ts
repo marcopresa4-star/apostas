@@ -83,6 +83,20 @@ export function findGame(slugs: [string, string], leagues: LeagueTeams[]): Found
   return pick?.game ?? null;
 }
 
+// The same for a game whose clubs are known by name (the games added to the
+// Dashboard), each with the other names it goes by: the first pair that fits.
+export function findGameByNames(home: string[], away: string[], leagues: LeagueTeams[]): FoundGame | null {
+  for (const h of home) {
+    for (const a of away) {
+      const slugs: [string, string] = [slugify(h), slugify(a)];
+      if (!slugs[0] || !slugs[1]) continue;
+      const found = findGame(slugs, leagues);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 // What kind of game the link is about when it is not a club's first team
 // ("feminino", "equipa B"...), or null.
 export function sideOfGame(slugs: [string, string]): string | null {
