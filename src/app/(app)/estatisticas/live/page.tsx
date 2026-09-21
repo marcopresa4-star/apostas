@@ -7,7 +7,7 @@ import { parseSportscoreMatch } from "@/lib/sportscoreLink";
 import { findGame, findGameByNames, prettySlug, sideOfGame } from "@/lib/liveMatch";
 import { createClient } from "@/lib/supabase/server";
 import { MULTIPLE_SELECT, type MultipleRow } from "@/lib/multiples";
-import { dashboardGames, type TicketIn } from "@/lib/dashboardGames";
+import { dashboardGames, type TicketIn, type WatchedIn } from "@/lib/dashboardGames";
 import SportscoreWidget from "@/components/SportscoreWidget";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LiveTeamsForm from "@/components/LiveTeamsForm";
@@ -44,7 +44,7 @@ export default async function LivePage({
   const supabase = await createClient();
   const yesterday = new Date(now.getTime() - 86_400_000);
   const since = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
-  const [{ data: ticketRows }, { data: multipleRows }] = await Promise.all([
+  const [{ data: ticketRows }, { data: multipleRows }, { data: watchedRows }] = await Promise.all([
     supabase
       .from("tickets")
       .select(
@@ -58,8 +58,14 @@ export default async function LivePage({
       .returns<TicketIn[]>(),
     // Left empty (never an error) if the multiples migration has not run yet.
     supabase.from("multiples").select(MULTIPLE_SELECT).returns<MultipleRow[]>(),
+    // The games added by hand to "Ao vivo agora" (the widgets of the Dashboard).
+    supabase
+      .from("watched_matches")
+      .select("id, home_team, away_team, home_aliases, away_aliases")
+      .order("created_at", { ascending: true })
+      .returns<WatchedIn[]>(),
   ]);
-  const dashGames = dashboardGames(ticketRows ?? [], multipleRows ?? [], since);
+  const dashGames = dashboardGames(ticketRows ?? [], multipleRows ?? [], since, watchedRows ?? []);
   const dash = jogo ? (dashGames.find((g) => g.id === jogo) ?? null) : null;
 
   if (parsed || dash) {
@@ -161,8 +167,9 @@ export default async function LivePage({
                   {g.home} <span className="text-neutral-500">vs</span> {g.away}
                 </p>
                 <p className="text-[11px] text-neutral-500">
-                  {g.date.slice(8, 10)}/{g.date.slice(5, 7)} às {g.time.slice(0, 5)}
-                  {g.competition ? ` · ${g.competition}` : ""}
+                  {g.manual
+                    ? "Ao vivo agora, adicionado por ti"
+                    : `${g.date.slice(8, 10)}/${g.date.slice(5, 7)} às ${g.time.slice(0, 5)}${g.competition ? ` · ${g.competition}` : ""}`}
                 </p>
               </Link>
             ))}

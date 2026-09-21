@@ -24,7 +24,17 @@ export interface FoundGame {
 }
 
 // Words written differently by Sportscore and by the data.
-const SWAPS: Record<string, string> = { munich: "munchen", man: "manchester", utd: "united", st: "saint" };
+const SWAPS: Record<string, string> = {
+  munich: "munchen",
+  man: "manchester",
+  utd: "united",
+  st: "saint",
+  // Abbreviations of the free data ("Atl. Tucuman", "Sp Braga").
+  atl: "atletico",
+  ath: "athletic",
+  sp: "sporting",
+  dep: "deportivo",
+};
 
 // Slugs whose club is not found by their words ("inter" is "Internazionale").
 const SLUG_TOKENS: Record<string, string[]> = {

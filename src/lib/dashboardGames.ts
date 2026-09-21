@@ -1,6 +1,7 @@
 // The games already added to the Dashboard, as choices for the live calculator:
-// a game with at least one bet still open, or one game of a multiple still open,
-// from yesterday on (a game is live for about two hours).
+// the games added by hand to "Ao vivo agora", a game with at least one bet still
+// open, or one game of a multiple still open, from yesterday on (a game is live
+// for about two hours).
 
 interface TeamRef {
   id: string;
@@ -32,8 +33,19 @@ export interface MultipleIn {
   legs: LegIn[];
 }
 
+// A game added by hand to the Dashboard's live widgets: only the names of the clubs.
+export interface WatchedIn {
+  id: string;
+  home_team: string;
+  away_team: string;
+  home_aliases?: string | null;
+  away_aliases?: string | null;
+}
+
 export interface DashboardGame {
-  id: string; // "t:<ticket>" or "l:<leg of a multiple>"
+  id: string; // "w:<watched>", "t:<ticket>" or "l:<leg of a multiple>"
+  // Added by hand to the live widgets (no date or time known).
+  manual: boolean;
   date: string;
   time: string;
   competition: string;
@@ -52,19 +64,34 @@ const names = (team: TeamRef): string[] => [
     .filter(Boolean),
 ];
 
+const splitNames = (name: string, aliases: string | null | undefined): string[] => [
+  name,
+  ...(aliases ?? "")
+    .split("|")
+    .map((a) => a.trim())
+    .filter(Boolean),
+];
+
 const MAX_GAMES = 30;
 
-// `since` is a date (YYYY-MM-DD); soonest kickoff first.
-export function dashboardGames(tickets: TicketIn[], multiples: MultipleIn[], since: string): DashboardGame[] {
+// `since` is a date (YYYY-MM-DD). The ones added by hand come first, in the order
+// they were added, then the rest by kickoff.
+export function dashboardGames(
+  tickets: TicketIn[],
+  multiples: MultipleIn[],
+  since: string,
+  watched: WatchedIn[] = []
+): DashboardGame[] {
   const out: DashboardGame[] = [];
   const seen = new Set<string>();
-  const add = (id: string, g: Omit<DashboardGame, "id" | "home" | "away" | "homeNames" | "awayNames"> & { home: TeamRef | null; away: TeamRef | null }) => {
+  const add = (id: string, g: Omit<DashboardGame, "id" | "manual" | "home" | "away" | "homeNames" | "awayNames"> & { home: TeamRef | null; away: TeamRef | null }) => {
     if (!g.home || !g.away) return;
     const key = `${g.home.id}|${g.away.id}|${g.date}`;
     if (seen.has(key)) return;
     seen.add(key);
     out.push({
       id,
+      manual: false,
       date: g.date,
       time: g.time,
       competition: g.competition,
@@ -86,7 +113,17 @@ export function dashboardGames(tickets: TicketIn[], multiples: MultipleIn[], sin
       add(`l:${leg.id}`, { date: leg.match_date, time: leg.match_time, competition: leg.competition?.name ?? "", home: leg.home_team, away: leg.away_team });
     }
   }
-  return out
-    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))
-    .slice(0, MAX_GAMES);
+  out.sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`));
+  const byHand: DashboardGame[] = watched.map((w) => ({
+    id: `w:${w.id}`,
+    manual: true,
+    date: "",
+    time: "",
+    competition: "",
+    home: w.home_team,
+    away: w.away_team,
+    homeNames: splitNames(w.home_team, w.home_aliases),
+    awayNames: splitNames(w.away_team, w.away_aliases),
+  }));
+  return [...byHand, ...out].slice(0, MAX_GAMES);
 }
