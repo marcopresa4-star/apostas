@@ -129,4 +129,3 @@ export function clockMinute(game: Pick<SavedGame, "minute" | "at" | "running">, 
 
 // A running clock past this many minutes belongs to a game that has ended.
 export const OVER_MINUTES = 150;
-export const RESUME_MS = 3 * 60 * 60 * 1000;

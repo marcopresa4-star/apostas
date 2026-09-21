@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useNow } from "@/lib/useNow";
 import {
   OVER_MINUTES,
-  RESUME_MS,
   clearGames,
   clockMinute,
   gamesFrom,
@@ -14,11 +12,9 @@ import {
   removeGame,
 } from "@/lib/liveStore";
 
-// The games watched in this browser, to pick one up again. With `autoResume`, the
-// last one goes back on screen by itself if it was touched in the last few hours
-// (a game lasts about two), so coming back to the tab finds it as it was left.
-export default function LiveSavedGames({ autoResume }: { autoResume: boolean }) {
-  const router = useRouter();
+// The games watched in this browser, to pick one up again with a click. Nothing
+// opens by itself: coming back to the page shows an empty calculator and this list.
+export default function LiveSavedGames() {
   const now = useNow(30_000);
   // Removing a game changes the storage, which nothing announces in this tab.
   const [version, setVersion] = useState(0);
@@ -32,13 +28,6 @@ export default function LiveSavedGames({ autoResume }: { autoResume: boolean }) 
   );
 
   const games = raw === null ? [] : gamesFrom(raw);
-  const latest = games[0];
-  const href = latest?.href;
-  const resume =
-    autoResume && latest !== undefined && now !== null && now.getTime() - latest.updated < RESUME_MS && clockMinute(latest, now.getTime()) < OVER_MINUTES;
-  useEffect(() => {
-    if (resume && href) router.replace(href);
-  }, [resume, href, router]);
 
   if (raw === null || games.length === 0) return null;
   void version;
@@ -46,9 +35,7 @@ export default function LiveSavedGames({ autoResume }: { autoResume: boolean }) 
   return (
     <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-neutral-300">
-          {resume ? "A retomar o último jogo…" : "Jogos que estavas a ver"}
-        </h2>
+        <h2 className="text-sm font-semibold text-neutral-300">Jogos que estavas a ver</h2>
         <button
           type="button"
           onClick={() => {

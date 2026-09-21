@@ -28,8 +28,6 @@ export default async function LivePage({
   let fora = first(params.fora);
   // National teams at a neutral venue (World Cup, finals) have no home advantage.
   const neutral = first(params.neutro) === "1";
-  // `novo` skips going back to the last game by itself.
-  const fresh = first(params.novo) === "1";
   const now = new Date();
 
   // A pasted Sportscore link gives the two teams; they are looked for in every
@@ -151,12 +149,12 @@ export default async function LivePage({
       {game ? (
         <p className="mb-4 max-w-4xl text-xs text-neutral-500">
           Este jogo fica guardado neste navegador, com o minuto e o resultado.{" "}
-          <Link href="/estatisticas/live?novo=1" className="font-medium text-amber-400 hover:underline">
+          <Link href="/estatisticas/live" className="font-medium text-amber-400 hover:underline">
             Outro jogo
           </Link>
         </p>
       ) : (
-        <LiveSavedGames autoResume={!fresh && link === "" && liga === "" && casa === "" && fora === ""} />
+        <LiveSavedGames />
       )}
 
       <details className="mb-4 max-w-4xl" open={!parsed && (league !== null || casa !== "")}>
