@@ -1,4 +1,5 @@
-import { slugCandidates } from "./sportscoreSlug";
+import { sideKind, sideTokensIn, slugCandidates } from "./sportscoreSlug";
+import { slugify } from "./slugify";
 import { tokens } from "./teamNames";
 
 // Finds, among the teams of the leagues, the game a Sportscore link is about:
@@ -41,6 +42,10 @@ const words = (list: string[]) => list.map((t) => SWAPS[t] ?? t);
 // 4: the same words; 3: the slug is one of the known ways of writing the name;
 // 2: one contains the other; 0: no fit.
 function fit(slug: string, name: string): number {
+  // A women's, reserve or youth side is not the club's first team: the slug must
+  // not be taken for the men's team whose name it merely contains.
+  const own = slugify(name).split("-");
+  if (sideTokensIn(slug).some((t) => !own.includes(t))) return 0;
   const a = SLUG_TOKENS[slug] ?? words(tokens(slug.replace(/-/g, " ")));
   const b = words(tokens(name));
   if (a.length > 0 && b.length > 0 && a.length === b.length && a.every((t) => b.includes(t))) return 4;
@@ -76,6 +81,13 @@ export function findGame(slugs: [string, string], leagues: LeagueTeams[]): Found
     }
   }
   return pick?.game ?? null;
+}
+
+// What kind of game the link is about when it is not a club's first team
+// ("feminino", "equipa B"...), or null.
+export function sideOfGame(slugs: [string, string]): string | null {
+  const token = [...sideTokensIn(slugs[0]), ...sideTokensIn(slugs[1])][0];
+  return token ? sideKind(token) : null;
 }
 
 // "atletico-madrid" -> "Atletico Madrid", for a game the data does not have.

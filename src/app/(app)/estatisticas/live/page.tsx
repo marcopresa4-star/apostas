@@ -4,7 +4,7 @@ import { fitInternational, predictInternational } from "@/lib/internationalModel
 import { leagueRates, predict } from "@/lib/footballModel";
 import { first } from "@/lib/searchParams";
 import { parseSportscoreMatch } from "@/lib/sportscoreLink";
-import { findGame, prettySlug } from "@/lib/liveMatch";
+import { findGame, prettySlug, sideOfGame } from "@/lib/liveMatch";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LiveTeamsForm from "@/components/LiveTeamsForm";
 import LiveCalculator from "@/components/LiveCalculator";
@@ -35,7 +35,7 @@ export default async function LivePage({
   // A pasted Sportscore link gives the two teams; they are looked for in every
   // league, and when both are found in the same one, the game is set up from it.
   const parsed = link ? parseSportscoreMatch(link) : null;
-  let seen: { home: string; away: string; found: boolean } | null = null;
+  let seen: { home: string; away: string; found: boolean; side: string | null } | null = null;
   if (parsed) {
     const all = await Promise.all(
       LEAGUES.map(async (l) => {
@@ -48,12 +48,17 @@ export default async function LivePage({
       liga = found.code;
       casa = found.home;
       fora = found.away;
-      seen = { home: found.home, away: found.away, found: true };
+      seen = { home: found.home, away: found.away, found: true, side: null };
     } else {
       liga = "";
       casa = "";
       fora = "";
-      seen = { home: prettySlug(parsed.slugs[0]), away: prettySlug(parsed.slugs[1]), found: false };
+      seen = {
+        home: prettySlug(parsed.slugs[0]),
+        away: prettySlug(parsed.slugs[1]),
+        found: false,
+        side: sideOfGame(parsed.slugs),
+      };
     }
   }
 
@@ -134,9 +139,11 @@ export default async function LivePage({
         )}
         {seen && !seen.found && (
           <p className="mt-2 text-xs text-amber-400">
-            Não encontrei as duas equipas na mesma liga dos dados (pode ser uma taça, um jogo entre países ou uma liga
-            que não temos), por isso uso valores típicos de uma liga. Podes mudá-los por baixo, em &quot;Golos
-            esperados antes do jogo&quot;.
+            {seen.side
+              ? `Este parece um jogo de futebol ${seen.side === "equipa B" ? "de uma equipa B" : seen.side}: não tenho dados dessas equipas (só das primeiras equipas masculinas)`
+              : "Não encontrei as duas equipas na mesma liga dos dados (pode ser uma taça, um jogo entre países ou uma liga que não temos)"}
+            , por isso uso valores típicos de uma liga. Podes mudá-los por baixo, em &quot;Golos esperados antes do
+            jogo&quot;.
           </p>
         )}
       </form>

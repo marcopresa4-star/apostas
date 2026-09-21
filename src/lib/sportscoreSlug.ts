@@ -87,6 +87,19 @@ const WORD_SWAPS: Record<string, string> = {
 // Marks a reserve, youth or women's side: "Porto B", "Arsenal W", "Ajax U21".
 const SIDE_TOKENS = /^(b|c|ii|iii|w|women|womens|youth|reserves|res|jr|u\d{2})$/;
 
+// The words in a slug that mark a side other than a club's first team
+// ("werder-bremen-women", "porto-b", "ajax-u21"), in the order they appear.
+export function sideTokensIn(slug: string): string[] {
+  return slug.split("-").filter((t) => SIDE_TOKENS.test(t));
+}
+
+// What kind of side a marker stands for.
+export function sideKind(token: string): "feminino" | "sub-23 ou de formação" | "equipa B" {
+  if (/^(w|women|womens)$/.test(token)) return "feminino";
+  if (/^(youth|jr|u\d{2})$/.test(token)) return "sub-23 ou de formação";
+  return "equipa B";
+}
+
 const MAX_PER_TEAM = 8;
 
 function coreTokens(slug: string): string[] {
