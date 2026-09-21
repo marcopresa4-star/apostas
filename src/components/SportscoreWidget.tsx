@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { slugify } from "@/lib/slugify";
-import SportscoreExtras from "./SportscoreExtras";
 
 // Free, self-service embeddable match widget (no account/API key) — see
 // https://sportscore.com/embed/. It identifies teams by its own slugs, which
@@ -14,12 +13,7 @@ import SportscoreExtras from "./SportscoreExtras";
 // host may be turned away by Cloudflare. When that happens the widget falls
 // back to the plain slug from the typed names, which the browser loads by
 // itself and which is exactly what worked before the resolver existed.
-type Resolved = {
-  key: string;
-  slug: string | null;
-  blocked?: boolean;
-  competitionSlug?: string | null;
-};
+type Resolved = { key: string; slug: string | null; blocked?: boolean };
 
 export default function SportscoreWidget({
   homeTeam,
@@ -43,7 +37,9 @@ export default function SportscoreWidget({
     const query = new URLSearchParams({ home: homeNames, away: awayNames });
     fetch(`/api/sportscore/resolve?${query}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { slug: null, blocked: true }))
-      .then((data: Omit<Resolved, "key">) => setResolved({ key, ...data }))
+      .then((data: { slug: string | null; blocked?: boolean }) =>
+        setResolved({ key, slug: data.slug, blocked: data.blocked })
+      )
       .catch((err) => {
         if (err.name !== "AbortError") setResolved({ key, slug: null, blocked: true });
       });
@@ -56,28 +52,22 @@ export default function SportscoreWidget({
     : current
       ? current.slug
       : undefined;
-  // When the server could not check anything there is no way to know the
-  // league's slug, so the table is left out.
-  const competitionSlug = current?.blocked ? null : (current?.competitionSlug ?? null);
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
       {slug ? (
-        <>
-          {/* Tall enough to fit the whole widget (scoreboard + 3D tracker +
-              stats) without its own internal scroll. scrolling="no" stays on
-              as a safety net in case a match has more stat rows than usual. */}
-          <iframe
-            src={`https://sportscore.com/embed/match/football/${slug}/`}
-            scrolling="no"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            title={`${homeTeam} vs ${awayTeam}`}
-            className="h-[900px] w-full border-0"
-            style={{ overflow: "hidden" }}
-          />
-          <SportscoreExtras matchSlug={slug} competitionSlug={competitionSlug} />
-        </>
+        // Tall enough to fit the whole widget (scoreboard + 3D tracker +
+        // stats) without its own internal scroll. scrolling="no" stays on
+        // as a safety net in case a match has more stat rows than usual.
+        <iframe
+          src={`https://sportscore.com/embed/match/football/${slug}/`}
+          scrolling="no"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          title={`${homeTeam} vs ${awayTeam}`}
+          className="h-[900px] w-full border-0"
+          style={{ overflow: "hidden" }}
+        />
       ) : (
         <div className="px-4 py-10 text-center text-sm text-neutral-400">
           <p className="font-medium text-neutral-200">
