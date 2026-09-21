@@ -105,6 +105,38 @@ function SummaryBlock({ title, summary }: { title: string; summary: Summary | nu
   );
 }
 
+// One result chip with the hover card that spells the game out, home team
+// first. Opens straight away on hover (and on focus, for touch), unlike the
+// browser's own tooltip.
+function ResultChip({ game, name }: { game: TeamGame; name: string }) {
+  return (
+    <span className="group relative">
+      <span
+        tabIndex={0}
+        className={`flex h-7 min-w-7 cursor-help items-center justify-center rounded-md px-1.5 text-xs font-bold outline-none ring-white/60 focus-visible:ring-2 ${CHIP[game.result]}`}
+      >
+        {game.result}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
+      >
+        <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+          {shortDate(game.date)} · {game.competition ? `${game.competition} · ` : ""}
+          {game.home ? "em casa" : "fora"}
+        </span>
+        <span className="block text-xs text-neutral-200">
+          {game.home ? name : game.opponent}{" "}
+          <span className="font-bold text-neutral-100">
+            {game.home ? `${game.gf}–${game.ga}` : `${game.ga}–${game.gf}`}
+          </span>{" "}
+          {game.home ? game.opponent : name}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function TeamCard({
   name,
   role,
@@ -160,32 +192,7 @@ function TeamCard({
           </span>
         ))}
         {last5.map((g) => (
-          // Opens straight away on hover (and on focus, for touch), unlike the
-          // browser's own tooltip, and spells the game out home team first.
-          <span key={`${g.date}-${g.opponent}`} className="group relative">
-            <span
-              tabIndex={0}
-              className={`flex h-7 min-w-7 cursor-help items-center justify-center rounded-md px-1.5 text-xs font-bold outline-none ring-white/60 focus-visible:ring-2 ${CHIP[g.result]}`}
-            >
-              {g.result}
-            </span>
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
-            >
-              <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {shortDate(g.date)} · {g.competition ? `${g.competition} · ` : ""}
-                {g.home ? "em casa" : "fora"}
-              </span>
-              <span className="block text-xs text-neutral-200">
-                {g.home ? name : g.opponent}{" "}
-                <span className="font-bold text-neutral-100">
-                  {g.home ? `${g.gf}–${g.ga}` : `${g.ga}–${g.gf}`}
-                </span>{" "}
-                {g.home ? g.opponent : name}
-              </span>
-            </span>
-          </span>
+          <ResultChip key={`${g.date}-${g.opponent}`} game={g} name={name} />
         ))}
         {(last5.length > 0 || pending.length > 0) && (
           <span className="self-center pl-1 text-[11px] text-neutral-500">últimos 5 (mais recente primeiro)</span>
@@ -202,6 +209,19 @@ function TeamCard({
         <p className="mt-2 text-[11px] text-amber-500/80">
           Inclui {typed} {typed === 1 ? "jogo acrescentado" : "jogos acrescentados"} por ti.
         </p>
+      )}
+      {atVenue.length > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            Forma {venue === "home" ? "em casa" : "fora"}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {atVenue.slice(0, 5).map((g) => (
+              <ResultChip key={`v-${g.date}-${g.opponent}`} game={g} name={name} />
+            ))}
+            <span className="pl-1 text-[11px] text-neutral-500">últimos 5 (mais recente primeiro)</span>
+          </div>
+        </div>
       )}
       <SummaryBlock title="Esta época" summary={summarize(games)} />
       <SummaryBlock
@@ -377,6 +397,7 @@ function AdjustmentsCard({
   before,
   after,
   notes,
+  venueWeight,
 }: {
   home: string;
   away: string;
@@ -385,6 +406,7 @@ function AdjustmentsCard({
   before: Prediction;
   after: Prediction;
   notes: string[];
+  venueWeight: number;
 }) {
   const line = (team: string, adjust: TeamAdjust) => {
     const list = parts(adjust);
@@ -409,6 +431,13 @@ function AdjustmentsCard({
       <div className="space-y-1">
         {line(home, homeAdjust)}
         {line(away, awayAdjust)}
+        {venueWeight > 0 && (
+          <p className="text-xs text-neutral-300">
+            <span className="font-medium text-neutral-100">Forma em casa e fora:</span> peso de{" "}
+            {Math.round(venueWeight * 100)}% (
+            <span className="text-amber-400">nos testes piorou a previsão de quem ganha</span>)
+          </p>
+        )}
       </div>
       {notes.length > 0 && (
         <div className="mt-1 space-y-0.5">
@@ -543,6 +572,7 @@ export default function MatchupReport({
   adjust,
   extras,
   notes,
+  venueWeight,
 }: {
   matches: PlayedMatch[];
   home: string;
@@ -557,9 +587,11 @@ export default function MatchupReport({
   extras: { home: ExtraGame[]; away: ExtraGame[] };
   // What was worked out for the adjustments, to be shown with them.
   notes: string[];
+  // How much the home/away form counts in the model, 0 to 1.
+  venueWeight: number;
 }) {
-  const adjusted = isAdjusted(adjust.home, adjust.away);
-  const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away));
+  const adjusted = isAdjusted(adjust.home, adjust.away) || venueWeight > 0;
+  const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away), venueWeight);
   const unadjusted = adjusted ? predict(matches, home, away, now) : prediction;
   const { groups, odd } = buildMarkets(prediction);
 
@@ -666,6 +698,7 @@ export default function MatchupReport({
           before={unadjusted}
           after={prediction}
           notes={notes}
+          venueWeight={venueWeight}
         />
       )}
 

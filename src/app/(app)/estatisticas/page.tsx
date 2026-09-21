@@ -31,6 +31,9 @@ export default async function EstatisticasPage({
 
   // Games of other competitions typed in by hand, and the date of the game.
   const extras = { casa: parseExtras(params.extra_casa), fora: parseExtras(params.extra_fora) };
+  // Weight of the home/away form in the model: only the offered steps count.
+  const formaLocal = first(params.forma_local);
+  const venuePercent = [25, 50, 75, 100].includes(Number(formaLocal)) ? Number(formaLocal) : 0;
   const askedDate = DATE.test(first(params.data_jogo)) ? first(params.data_jogo) : "";
 
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
@@ -76,6 +79,7 @@ export default async function EstatisticasPage({
     swap.set(other, raw[key]);
   }
   if (askedDate) swap.set("data_jogo", askedDate);
+  if (venuePercent > 0) swap.set("forma_local", String(venuePercent));
   for (const game of extras.casa) swap.append("extra_fora", encodeExtra(game));
   for (const game of extras.fora) swap.append("extra_casa", encodeExtra(game));
   const swapHref = `/estatisticas?${swap}`;
@@ -120,6 +124,7 @@ export default async function EstatisticasPage({
         extras={extras}
         matchDate={askedDate}
         scheduledDate={scheduled}
+        formaLocal={String(venuePercent)}
       />
 
       {league && data === null && (
@@ -151,6 +156,7 @@ export default async function EstatisticasPage({
           adjust={adjust}
           extras={{ home: extras.casa, away: extras.fora }}
           notes={notes}
+          venueWeight={venuePercent / 100}
         />
       )}
 

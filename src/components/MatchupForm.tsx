@@ -38,6 +38,7 @@ export default function MatchupForm({
   extras,
   matchDate,
   scheduledDate,
+  formaLocal,
 }: {
   leagues: readonly { code: string; label: string }[];
   liga: string;
@@ -55,8 +56,11 @@ export default function MatchupForm({
   // two teams (used when none was asked for).
   matchDate: string;
   scheduledDate: string;
+  // Weight of home/away form, in percent, as it came in the address.
+  formaLocal: string;
 }) {
   const hasAdjust =
+    (formaLocal !== "" && formaLocal !== "0") ||
     Object.values(adjust).some((v) => v !== "" && v !== "0" && v !== "normal") ||
     extras.casa.length > 0 ||
     extras.fora.length > 0 ||
@@ -270,6 +274,24 @@ export default function MatchupForm({
                 placeholder="0"
                 className={SELECT}
               />
+            </div>
+
+            <div className="mt-5 max-w-md border-t border-neutral-800 pt-4">
+              <label className="mb-1 block text-sm text-neutral-300">Peso da forma em casa e fora</label>
+              <select name="forma_local" defaultValue={formaLocal || "0"} className={SELECT}>
+                <option value="0">0% (só a força geral de cada equipa)</option>
+                <option value="25">25%</option>
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="100">100% (só casa para a casa, só fora para a de fora)</option>
+              </select>
+              <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+                Com mais de 0%, conta mais o que a equipa da casa faz em casa e o que a de fora faz fora. Testei isto
+                nos jogos de 2025/26 das 7 maiores ligas e <span className="text-amber-400">piorou</span> a previsão
+                de quem ganha, mais quanto maior o peso (acerto de 55,1% a 0%, 54,9% a 25%, 54,5% a 50% e 54,3% a
+                100%): a diferença entre casa e fora é, em grande parte, ruído. Só a Espanha melhorou um pouco. Usa só
+                se souberes porque é que esta equipa é diferente.
+              </p>
             </div>
 
             <div className="mt-5 space-y-4 border-t border-neutral-800 pt-4">

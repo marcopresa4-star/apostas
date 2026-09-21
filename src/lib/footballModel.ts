@@ -102,6 +102,41 @@ export function strengthOf(
   };
 }
 
+export type Venue = "home" | "away";
+
+// How a team does on one side of the pitch only: what it scores and concedes in
+// its home games, or in its away games, against what the league scores there.
+// Fewer games than the overall figure, so it is pulled towards the league
+// average just the same.
+export function venueStrengthOf(
+  matches: PlayedMatch[],
+  team: string,
+  venue: Venue,
+  rates: LeagueRates,
+  now: Date
+): Strength {
+  let w = 0;
+  let scored = 0;
+  let conceded = 0;
+  let games = 0;
+  for (const m of matches) {
+    if ((venue === "home" ? m.team1 : m.team2) !== team) continue;
+    const weight = weightOf(m.date, now);
+    w += weight;
+    scored += weight * (venue === "home" ? m.ft[0] : m.ft[1]);
+    conceded += weight * (venue === "home" ? m.ft[1] : m.ft[0]);
+    games++;
+  }
+  // What the league scores where the team plays, and what it concedes there.
+  const scoredRef = venue === "home" ? rates.home : rates.away;
+  const concededRef = venue === "home" ? rates.away : rates.home;
+  return {
+    attack: (scored + PRIOR_GAMES * scoredRef) / (w + PRIOR_GAMES) / scoredRef,
+    defense: (conceded + PRIOR_GAMES * concededRef) / (w + PRIOR_GAMES) / concededRef,
+    games,
+  };
+}
+
 function poisson(k: number, lambda: number): number {
   let p = Math.exp(-lambda);
   for (let i = 1; i <= k; i++) p *= lambda / i;
@@ -175,16 +210,29 @@ export interface Prediction {
 // `ratio` (default 1) shifts the balance between the teams by hand: the home
 // side's expected goals are multiplied by it and the away side's divided by it
 // (see adjustments.ts).
+//
+// `venueWeight` (0 to 1, default 0) is how much of each team's strength comes
+// from how it does on the side it plays on now (the home team at home, the away
+// team away) instead of from all its games.
 export function predict(
   matches: PlayedMatch[],
   home: string,
   away: string,
   now: Date,
-  ratio = 1
+  ratio = 1,
+  venueWeight = 0
 ): Prediction {
   const rates = leagueRates(matches, now);
-  const h = strengthOf(matches, home, rates, now);
-  const a = strengthOf(matches, away, rates, now);
+  let h = strengthOf(matches, home, rates, now);
+  let a = strengthOf(matches, away, rates, now);
+
+  if (venueWeight > 0) {
+    const hv = venueStrengthOf(matches, home, "home", rates, now);
+    const av = venueStrengthOf(matches, away, "away", rates, now);
+    const mix = (overall: number, venue: number) => (1 - venueWeight) * overall + venueWeight * venue;
+    h = { ...h, attack: mix(h.attack, hv.attack), defense: mix(h.defense, hv.defense) };
+    a = { ...a, attack: mix(a.attack, av.attack), defense: mix(a.defense, av.defense) };
+  }
 
   const lambdaHome = rates.home * h.attack * a.defense * ratio;
   const lambdaAway = (rates.away * a.attack * h.defense) / ratio;
