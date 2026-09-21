@@ -82,6 +82,10 @@ export default async function LivePage({
   }
 
   const embed = parsed ? `${parsed.slugs[0]}-vs-${parsed.slugs[1]}` : null;
+  // Without a game the calculator only shows typical figures, which say nothing
+  // about any game: it opens on purpose, not by default.
+  const typical = first(params.tipico) === "1";
+  const showCalculator = parsed !== null || chosen || typical;
 
   // What to remember the game by, and how to get back to it.
   const extra: Record<string, string> = neutral ? { neutro: "1" } : {};
@@ -168,13 +172,35 @@ export default async function LivePage({
 
       {league && data === null && (
         <p className="mb-4 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
-          Não foi possível carregar os dados desta liga. Podes usar a calculadora com valores típicos.
+          Não foi possível carregar os dados desta liga. Podes usar a{" "}
+          <Link href="/estatisticas/live?tipico=1" className="underline">
+            calculadora com valores típicos
+          </Link>
+          .
         </p>
       )}
       {casa !== "" && casa === fora && (
         <p className="mb-4 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">Escolhe duas equipas diferentes.</p>
       )}
 
+      {!showCalculator && (
+        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-sm leading-relaxed text-neutral-500">
+          Ainda não escolheste nenhum jogo. Cola em cima o link do Sportscore ou escolhe as equipas à mão. Se só quiseres
+          experimentar, podes abrir{" "}
+          <Link href="/estatisticas/live?tipico=1" className="text-amber-400 hover:underline">
+            a calculadora sem jogo
+          </Link>
+          , que usa valores típicos de uma liga (1,4 e 1,1 golos esperados) e não diz nada sobre nenhum jogo em concreto.
+        </p>
+      )}
+      {typical && !parsed && !chosen && (
+        <p className="mb-4 max-w-4xl rounded-lg bg-amber-950 px-4 py-3 text-xs text-amber-300">
+          Sem jogo escolhido: os golos esperados são os valores típicos de uma liga (1,4 e 1,1) e o minuto e o resultado
+          são só um exemplo. Serve para experimentar; para um jogo a sério, cola o link ou escolhe as equipas.
+        </p>
+      )}
+
+      {showCalculator && (
       <div className={embed ? "grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]" : ""}>
         {embed && (
           <div className="lg:sticky lg:top-4 lg:self-start">
@@ -207,6 +233,7 @@ export default async function LivePage({
           href={game?.href}
         />
       </div>
+      )}
     </div>
   );
 }
