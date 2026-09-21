@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
+import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { fairOdd } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
 
@@ -56,14 +57,7 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
 // score are typed. `lambdaHome` / `lambdaAway` are the goals each side was
 // expected to score in the whole game; they can be edited, so it also works for
 // a game the data does not cover.
-export default function LiveCalculator({
-  home,
-  away,
-  lambdaHome,
-  lambdaAway,
-  firstHalfShare,
-  fromModel,
-}: {
+type Props = {
   home: string;
   away: string;
   lambdaHome: number;
@@ -71,25 +65,63 @@ export default function LiveCalculator({
   firstHalfShare: number;
   // Whether the expected goals came from the two teams chosen (or are typical figures).
   fromModel: boolean;
-}) {
-  const [minute, setMinute] = useState("60");
-  // The minute can move on by itself, one every real minute; it starts over from
-  // whatever is typed, so the clock keeps in step when it is corrected by hand.
-  const [running, setRunning] = useState(false);
-  const [sync, setSync] = useState(0);
+  // Which game this is, and where to reopen it: with them it is remembered in
+  // this browser (minute, score and expected goals) and picked up again on return.
+  gameKey?: string;
+  href?: string;
+};
+
+// Waits for the browser to say what was saved for this game (it cannot be known
+// on the server), then starts the calculator from it.
+export default function LiveCalculator(props: Props) {
+  const raw = useSyncExternalStore(
+    () => () => {},
+    rawSnapshot,
+    () => null
+  );
+  if (raw === null) return null;
+  return <Calculator key={props.gameKey ?? ""} {...props} saved={savedFrom(raw, props.gameKey)} />;
+}
+
+function Calculator({
+  home,
+  away,
+  lambdaHome,
+  lambdaAway,
+  firstHalfShare,
+  fromModel,
+  gameKey,
+  href,
+  saved,
+}: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
+  const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
+  // The minute can move on by itself, one every real minute. It is worked out
+  // from when it was last set, so it stays right if the tab was in the background
+  // (or the page was left and reopened).
+  const [running, setRunning] = useState(saved?.running ?? false);
+  const anchor = useRef({ minute: saved?.minute ?? 60, at: saved?.at ?? 0 });
   useEffect(() => {
     if (!running) return;
-    const id = setInterval(() => setMinute((current) => String(Math.min(120, whole(current, 0, 120, 0) + 1))), 60_000);
-    return () => clearInterval(id);
-  }, [running, sync]);
+    const tick = () => {
+      const now = clockMinute({ minute: anchor.current.minute, at: anchor.current.at, running: true }, Date.now());
+      setMinute((current) => (String(now) === current ? current : String(now)));
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [running]);
   const setMinuteByHand = (value: string) => {
     setMinute(value);
-    setSync((n) => n + 1);
+    anchor.current = { minute: whole(value, 0, 120, 0), at: Date.now() };
   };
-  const [homeGoals, setHomeGoals] = useState("0");
-  const [awayGoals, setAwayGoals] = useState("0");
-  const [lh, setLh] = useState(dot(lambdaHome));
-  const [la, setLa] = useState(dot(lambdaAway));
+  const [homeGoals, setHomeGoals] = useState(String(saved?.homeGoals ?? 0));
+  const [awayGoals, setAwayGoals] = useState(String(saved?.awayGoals ?? 0));
+  const [lh, setLh] = useState(saved?.lh ?? dot(lambdaHome));
+  const [la, setLa] = useState(saved?.la ?? dot(lambdaAway));
 
   const m = whole(minute, 0, 120, 0);
   const h = whole(homeGoals, 0, 20, 0);
@@ -105,6 +137,24 @@ export default function LiveCalculator({
     homeGoals: h,
     awayGoals: a,
   });
+
+  // What is remembered: a running minute is kept as the minute it was at a given moment.
+  useEffect(() => {
+    if (!gameKey || !href) return;
+    saveGame({
+      key: gameKey,
+      href,
+      home,
+      away,
+      minute: running ? anchor.current.minute : m,
+      at: running ? anchor.current.at : undefined,
+      running,
+      homeGoals: h,
+      awayGoals: a,
+      lh,
+      la,
+    });
+  }, [gameKey, href, home, away, m, running, h, a, lh, la]);
 
   const total = h + a;
   const homeName = home || "Casa";
@@ -185,8 +235,8 @@ export default function LiveCalculator({
                 type="checkbox"
                 checked={running}
                 onChange={(e) => {
+                  anchor.current = { minute: m, at: Date.now() };
                   setRunning(e.target.checked);
-                  setSync((n) => n + 1);
                 }}
                 className="accent-amber-500"
               />

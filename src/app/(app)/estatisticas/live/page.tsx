@@ -8,6 +8,8 @@ import { findGame, prettySlug } from "@/lib/liveMatch";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LiveTeamsForm from "@/components/LiveTeamsForm";
 import LiveCalculator from "@/components/LiveCalculator";
+import LiveSavedGames from "@/components/LiveSavedGames";
+import Link from "next/link";
 
 // What a typical league scores when no teams are chosen, and how its goals split
 // around half time.
@@ -26,6 +28,8 @@ export default async function LivePage({
   let fora = first(params.fora);
   // National teams at a neutral venue (World Cup, finals) have no home advantage.
   const neutral = first(params.neutro) === "1";
+  // `novo` skips going back to the last game by itself.
+  const fresh = first(params.novo) === "1";
   const now = new Date();
 
   // A pasted Sportscore link gives the two teams; they are looked for in every
@@ -75,6 +79,14 @@ export default async function LivePage({
   }
 
   const embed = parsed ? `${parsed.slugs[0]}-vs-${parsed.slugs[1]}` : null;
+
+  // What to remember the game by, and how to get back to it.
+  const extra: Record<string, string> = neutral ? { neutro: "1" } : {};
+  const game = parsed
+    ? { key: `sc:${embed}`, href: `/estatisticas/live?${new URLSearchParams({ link, ...extra })}` }
+    : chosen
+      ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
+      : null;
   const field =
     "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
 
@@ -129,6 +141,17 @@ export default async function LivePage({
         )}
       </form>
 
+      {game ? (
+        <p className="mb-4 max-w-4xl text-xs text-neutral-500">
+          Este jogo fica guardado neste navegador, com o minuto e o resultado.{" "}
+          <Link href="/estatisticas/live?novo=1" className="font-medium text-amber-400 hover:underline">
+            Outro jogo
+          </Link>
+        </p>
+      ) : (
+        <LiveSavedGames autoResume={!fresh && link === "" && liga === "" && casa === "" && fora === ""} />
+      )}
+
       <details className="mb-4 max-w-4xl" open={!parsed && (league !== null || casa !== "")}>
         <summary className="cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200">
           Ou escolher as equipas à mão
@@ -175,6 +198,8 @@ export default async function LivePage({
           lambdaAway={expected.away}
           firstHalfShare={expected.firstHalfShare}
           fromModel={chosen}
+          gameKey={game?.key}
+          href={game?.href}
         />
       </div>
     </div>
