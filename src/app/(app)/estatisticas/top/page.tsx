@@ -48,6 +48,8 @@ export default async function TopPage({
   const leagues: { code: string; label: string; data: LeagueData }[] = [];
   for (const l of loaded) if (l.data) leagues.push({ code: l.code, label: l.label, data: l.data });
   const { bets, games, leagues: withRound } = topBets(leagues, today, now, { minOdd, count, days, groups });
+  // Some leagues only have the next few days' games, so they come and go.
+  const daysOnly = leagues.filter((l) => l.data.calendarDays);
   const used = new Set(bets.map((b) => b.leagueCode));
 
   const field =
@@ -177,6 +179,14 @@ export default async function TopPage({
       )}
 
       <div className="mt-4 max-w-4xl space-y-2 text-xs leading-relaxed text-neutral-500">
+        {daysOnly.length > 0 && (
+          <p>
+            <span className="font-medium text-neutral-400">Ligas só com os próximos dias:</span>{" "}
+            {daysOnly.map((l) => l.label.split(" · ")[1] ?? l.label).join(", ")}. Nestas o calendário só tem os jogos
+            dos próximos dias e atualiza-se duas vezes por semana, por isso só entram aqui quando há jogos nesse
+            período (a hora é a de Portugal).
+          </p>
+        )}
         <p>
           <span className="font-medium text-neutral-400">A odd é a do modelo, não a da casa.</span> Não temos as odds
           das casas de apostas. A <span className="font-medium text-neutral-400">odd justa</span> é 1 a dividir pela

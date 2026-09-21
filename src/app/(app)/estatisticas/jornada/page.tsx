@@ -66,7 +66,11 @@ export default async function JornadaPage({
       )}
 
       {league && data && !chosen && (
-        <p className="text-sm text-neutral-500">Não há jogos por disputar nos dados desta liga.</p>
+        <p className="text-sm text-neutral-500">
+          {data.calendarDays
+            ? "Desta liga só temos os jogos dos próximos dias, e neste momento não há nenhum nos dados. A fonte atualiza o calendário duas vezes por semana, por isso os próximos jogos aparecem lá para o meio da semana."
+            : "Não há jogos por disputar nos dados desta liga."}
+        </p>
       )}
 
       {league && data && chosen && (
@@ -82,7 +86,7 @@ export default async function JornadaPage({
                     : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
                 }`}
               >
-                {roundLabel(r.name)} · {r.first.slice(8, 10)}/{r.first.slice(5, 7)}
+                {data.calendarDays ? r.name : `${roundLabel(r.name)} · ${r.first.slice(8, 10)}/${r.first.slice(5, 7)}`}
               </Link>
             ))}
           </div>
@@ -96,6 +100,8 @@ export default async function JornadaPage({
             compensaria; sem isso, o traço quer dizer que não há sugestão. Dados até{" "}
             {data.latest ? `${data.latest.slice(8, 10)}/${data.latest.slice(5, 7)}` : "?"}, a fonte atrasa-se alguns dias.
             Em Golos, o número é o esperado para a casa e o de fora.
+            {data.calendarDays &&
+              " Nesta liga o calendário só tem os jogos dos próximos dias (não há jornadas), com as horas de Portugal."}
           </p>
         </>
       )}

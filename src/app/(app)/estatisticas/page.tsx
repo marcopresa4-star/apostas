@@ -166,8 +166,8 @@ export default async function EstatisticasPage({
       {!league && (
         <p className="mt-4 text-xs leading-relaxed text-neutral-500">
           Ligas disponíveis: Portugal, Inglaterra (4 divisões), Espanha, Itália, Alemanha, França (2 divisões cada),
-          Países Baixos, Bélgica, Áustria, Escócia e Turquia. Brasil, México, EUA, Argentina e Grécia não estão
-          disponíveis, porque não há fonte gratuita fiável com os resultados. Os dados vêm do projeto{" "}
+          Países Baixos, Bélgica, Áustria, Escócia, Turquia e Grécia. Brasil, México, EUA e Argentina ainda não estão
+          disponíveis. Os dados vêm do projeto{" "}
           <Link
             href="https://github.com/openfootball/football.json"
             target="_blank"
@@ -176,7 +176,16 @@ export default async function EstatisticasPage({
           >
             openfootball
           </Link>{" "}
-          e só têm golos (sem cantos, cartões nem remates).
+          e, nas ligas que ele não atualiza, de{" "}
+          <Link
+            href="https://www.football-data.co.uk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-400 hover:underline"
+          >
+            football-data.co.uk
+          </Link>
+          . Só têm golos (sem cantos, cartões nem remates).
         </p>
       )}
     </div>
