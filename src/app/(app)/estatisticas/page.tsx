@@ -1,16 +1,24 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, loadLeague } from "@/lib/footballData";
-import MatchupForm from "@/components/MatchupForm";
+import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
 import MatchupReport from "@/components/MatchupReport";
+import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
+
+const DAY_MS = 86_400_000;
 
 export default async function EstatisticasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ liga?: string; casa?: string; fora?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   await requireAdmin();
-  const { liga = "", casa = "", fora = "" } = await searchParams;
+  const params = await searchParams;
+  const { liga = "", casa = "", fora = "" } = params;
+  const raw: Record<string, string> = Object.fromEntries(
+    ADJUST_KEYS.map((key) => [key, params[key] ?? ""])
+  );
+  const adjust = { home: adjustFromParams(raw, "casa"), away: adjustFromParams(raw, "fora") };
 
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const now = new Date();
@@ -20,7 +28,26 @@ export default async function EstatisticasPage({
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
   const sameTeam = casa !== "" && casa === fora;
 
-  const swapHref = `/estatisticas?${new URLSearchParams({ liga, casa: fora, fora: casa })}`;
+  // Swapping home and away swaps the adjustments too.
+  const swapped: Record<string, string> = { liga, casa: fora, fora: casa };
+  for (const key of ADJUST_KEYS) {
+    const other = key.endsWith("_casa") ? key.replace("_casa", "_fora") : key.replace("_fora", "_casa");
+    swapped[other] = raw[key];
+  }
+  const swapHref = `/estatisticas?${new URLSearchParams(swapped)}`;
+
+  // The date of a team's last game in the data, to help fill in its rest days.
+  const restHint = (team: string) => {
+    if (!data || !team) return "";
+    const last = data.fixtures
+      .filter((f) => f.ft && (f.team1 === team || f.team2 === team))
+      .map((f) => f.date)
+      .sort()
+      .at(-1);
+    if (!last) return "";
+    const days = Math.round((now.getTime() - new Date(`${last}T12:00:00`).getTime()) / DAY_MS);
+    return `Último jogo nos dados: ${last.slice(8, 10)}/${last.slice(5, 7)} (há ${days} dias). A fonte pode estar atrasada.`;
+  };
 
   return (
     <div>
@@ -30,7 +57,15 @@ export default async function EstatisticasPage({
         enfrentassem.
       </p>
 
-      <MatchupForm leagues={LEAGUES} liga={league?.code ?? ""} teams={teams} casa={casa} fora={fora} />
+      <MatchupForm
+        leagues={LEAGUES}
+        liga={league?.code ?? ""}
+        teams={teams}
+        casa={casa}
+        fora={fora}
+        adjust={raw as unknown as AdjustValues}
+        restHint={{ casa: restHint(casa), fora: restHint(fora) }}
+      />
 
       {league && data === null && (
         <p className="mt-4 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
@@ -58,6 +93,7 @@ export default async function EstatisticasPage({
           swapHref={swapHref}
           now={now}
           fixtures={data.fixtures}
+          adjust={adjust}
         />
       )}
 

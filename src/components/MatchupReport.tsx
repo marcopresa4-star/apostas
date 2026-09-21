@@ -3,6 +3,7 @@ import OddChecker, { type OddMarket } from "./OddChecker";
 import { formatOdd } from "@/lib/multiples";
 import { VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
 import { seasonLabel, seasonStartDate, seasonsFor } from "@/lib/footballData";
+import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import {
   OVER_LINES,
   fairOdd,
@@ -306,6 +307,61 @@ function HalvesCard({ team, halves, max }: { team: string; halves: GoalsByHalf; 
   );
 }
 
+// What was adjusted by hand and what it did to the expected goals.
+function AdjustmentsCard({
+  home,
+  away,
+  homeAdjust,
+  awayAdjust,
+  before,
+  after,
+}: {
+  home: string;
+  away: string;
+  homeAdjust: TeamAdjust;
+  awayAdjust: TeamAdjust;
+  before: Prediction;
+  after: Prediction;
+}) {
+  const line = (team: string, adjust: TeamAdjust) => {
+    const list = parts(adjust);
+    const change = (teamFactor(adjust) - 1) * 100;
+    return (
+      <p className="text-xs text-neutral-300">
+        <span className="font-medium text-neutral-100">{team}:</span>{" "}
+        {list.length === 0 ? "sem ajustes" : list.map((p) => p.label).join(", ")}
+        {list.length > 0 && (
+          <span className={change < 0 ? "text-red-400" : "text-emerald-400"}>
+            {" "}
+            → {change > 0 ? "+" : ""}
+            {change.toFixed(1).replace(".", ",")}%
+          </span>
+        )}
+      </p>
+    );
+  };
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Ajustes aplicados</h3>
+      <div className="space-y-1">
+        {line(home, homeAdjust)}
+        {line(away, awayAdjust)}
+      </div>
+      <p className="mt-2 text-xs text-neutral-400">
+        Golos esperados: {dot(before.lambdaHome)} – {dot(before.lambdaAway)} sem ajustes,{" "}
+        <span className="font-medium text-neutral-200">
+          {dot(after.lambdaHome)} – {dot(after.lambdaAway)}
+        </span>{" "}
+        com eles.
+      </p>
+      <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+        Os testes de fiabilidade que a página cita foram feitos sem ajustes: com eles, as probabilidades valem o que
+        valer a tua avaliação.
+      </p>
+    </div>
+  );
+}
+
 function SuggestedBet({ picks, few }: { picks: Pick[]; few: boolean }) {
   const [main, ...others] = picks;
   const line = (pick: Pick) => (
@@ -412,6 +468,7 @@ export default function MatchupReport({
   swapHref,
   now,
   fixtures,
+  adjust,
 }: {
   matches: PlayedMatch[];
   home: string;
@@ -421,8 +478,11 @@ export default function MatchupReport({
   swapHref: string;
   now: Date;
   fixtures: Fixture[];
+  adjust: { home: TeamAdjust; away: TeamAdjust };
 }) {
-  const prediction = predict(matches, home, away, now);
+  const adjusted = isAdjusted(adjust.home, adjust.away);
+  const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away));
+  const unadjusted = adjusted ? predict(matches, home, away, now) : prediction;
   const { groups, odd } = buildMarkets(prediction);
 
   // The teams' own records count only this season (from 1 July); the estimate
@@ -508,6 +568,17 @@ export default function MatchupReport({
           </p>
         )}
       </div>
+
+      {adjusted && (
+        <AdjustmentsCard
+          home={home}
+          away={away}
+          homeAdjust={adjust.home}
+          awayAdjust={adjust.away}
+          before={unadjusted}
+          after={prediction}
+        />
+      )}
 
       <SuggestedBet picks={picks} few={few} />
 

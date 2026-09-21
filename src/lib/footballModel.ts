@@ -172,18 +172,22 @@ export interface Prediction {
   gamesAway: number;
 }
 
+// `ratio` (default 1) shifts the balance between the teams by hand: the home
+// side's expected goals are multiplied by it and the away side's divided by it
+// (see adjustments.ts).
 export function predict(
   matches: PlayedMatch[],
   home: string,
   away: string,
-  now: Date
+  now: Date,
+  ratio = 1
 ): Prediction {
   const rates = leagueRates(matches, now);
   const h = strengthOf(matches, home, rates, now);
   const a = strengthOf(matches, away, rates, now);
 
-  const lambdaHome = rates.home * h.attack * a.defense;
-  const lambdaAway = rates.away * a.attack * h.defense;
+  const lambdaHome = rates.home * h.attack * a.defense * ratio;
+  const lambdaAway = (rates.away * a.attack * h.defense) / ratio;
 
   const grid = scoreGrid(lambdaHome, lambdaAway, true);
 
