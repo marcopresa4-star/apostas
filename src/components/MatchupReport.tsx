@@ -4,6 +4,7 @@ import { formatOdd } from "@/lib/multiples";
 import { VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
 import { seasonLabel, seasonStartDate, seasonsFor } from "@/lib/footballData";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
+import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
 import {
   OVER_LINES,
   fairOdd,
@@ -118,6 +119,7 @@ function TeamCard({
   venue: "home" | "away";
   season: string;
 }) {
+  const typed = games.filter((g) => g.competition !== undefined).length;
   const last5 = games.slice(0, 5);
   const atVenue = games.filter((g) => g.home === (venue === "home"));
   return (
@@ -146,7 +148,8 @@ function TeamCard({
               className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
             >
               <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-                {shortDate(g.date)} · {g.home ? "em casa" : "fora"}
+                {shortDate(g.date)} · {g.competition ? `${g.competition} · ` : ""}
+                {g.home ? "em casa" : "fora"}
               </span>
               <span className="block text-xs text-neutral-200">
                 {g.home ? name : g.opponent}{" "}
@@ -163,6 +166,11 @@ function TeamCard({
         )}
       </div>
 
+      {typed > 0 && (
+        <p className="mt-2 text-[11px] text-amber-500/80">
+          Inclui {typed} {typed === 1 ? "jogo acrescentado" : "jogos acrescentados"} por ti.
+        </p>
+      )}
       <SummaryBlock title="Esta época" summary={summarize(games)} />
       <SummaryBlock
         title={venue === "home" ? "Esta época em casa" : "Esta época fora"}
@@ -187,8 +195,15 @@ function GameRow({ fixture, team, today }: { fixture: Fixture; team: string; tod
   const name = (n: string) =>
     n === team ? "font-semibold text-neutral-100" : "text-neutral-400";
   return (
-    <div className="grid grid-cols-[2.6rem_1fr_3.2rem_1fr] items-center gap-2 py-1 text-xs">
-      <span className="text-neutral-500">{dayMonth(fixture.date)}</span>
+    <div className="grid grid-cols-[3.2rem_1fr_3.2rem_1fr] items-center gap-2 py-1 text-xs">
+      <span className="text-neutral-500">
+        {dayMonth(fixture.date)}
+        {fixture.competition && (
+          <span title={fixture.competition} className="block truncate text-[9px] leading-tight text-amber-500/80">
+            {fixture.competition}
+          </span>
+        )}
+      </span>
       <span className={`truncate text-right ${name(fixture.team1)}`}>{fixture.team1}</span>
       <span
         className={`rounded px-1 py-0.5 text-center font-semibold ${
@@ -205,8 +220,22 @@ function GameRow({ fixture, team, today }: { fixture: Fixture; team: string; tod
 // One team's league season, in the way of the classic results tables: the last
 // games with the score coloured by the team's result, the next ones, and every
 // game of the season on request.
-function TeamSeason({ team, fixtures, today }: { team: string; fixtures: Fixture[]; today: string }) {
-  const all = seasonOf(fixtures, team);
+function TeamSeason({
+  team,
+  fixtures,
+  extras,
+  today,
+}: {
+  team: string;
+  fixtures: Fixture[];
+  extras: ExtraGame[];
+  today: string;
+}) {
+  // The league from the data plus the games typed in, by date. The extras are
+  // per team: a rival's extras must not end up in this team's list.
+  const all = [...seasonOf(fixtures, team), ...extras.map((g) => extraToFixture(g, team))].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
   // A game whose date has passed but has no result yet belongs with the past
   // ones (marked "?"): the data is a few days behind, not the game still to come.
   const isPast = (f: Fixture) => f.ft !== null || f.date < today;
@@ -315,6 +344,7 @@ function AdjustmentsCard({
   awayAdjust,
   before,
   after,
+  notes,
 }: {
   home: string;
   away: string;
@@ -322,6 +352,7 @@ function AdjustmentsCard({
   awayAdjust: TeamAdjust;
   before: Prediction;
   after: Prediction;
+  notes: string[];
 }) {
   const line = (team: string, adjust: TeamAdjust) => {
     const list = parts(adjust);
@@ -347,6 +378,15 @@ function AdjustmentsCard({
         {line(home, homeAdjust)}
         {line(away, awayAdjust)}
       </div>
+      {notes.length > 0 && (
+        <div className="mt-1 space-y-0.5">
+          {notes.map((note) => (
+            <p key={note} className="text-[11px] text-neutral-500">
+              {note}
+            </p>
+          ))}
+        </div>
+      )}
       <p className="mt-2 text-xs text-neutral-400">
         Golos esperados: {dot(before.lambdaHome)} – {dot(before.lambdaAway)} sem ajustes,{" "}
         <span className="font-medium text-neutral-200">
@@ -469,6 +509,8 @@ export default function MatchupReport({
   now,
   fixtures,
   adjust,
+  extras,
+  notes,
 }: {
   matches: PlayedMatch[];
   home: string;
@@ -479,6 +521,10 @@ export default function MatchupReport({
   now: Date;
   fixtures: Fixture[];
   adjust: { home: TeamAdjust; away: TeamAdjust };
+  // Games of other competitions typed in by hand, for each team.
+  extras: { home: ExtraGame[]; away: ExtraGame[] };
+  // What was worked out for the adjustments, to be shown with them.
+  notes: string[];
 }) {
   const adjusted = isAdjusted(adjust.home, adjust.away);
   const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away));
@@ -489,8 +535,13 @@ export default function MatchupReport({
   // above still leans on the earlier seasons, which it needs.
   const seasonStart = seasonStartDate(now);
   const thisSeason = (team: string) => gamesOf(matches, team).filter((g) => g.date >= seasonStart);
-  const homeGames = thisSeason(home);
-  const awayGames = thisSeason(away);
+  // The league's games and the ones typed in, most recent first.
+  const withExtras = (games: TeamGame[], typed: ExtraGame[]) =>
+    [...games, ...typed.filter((g) => g.date >= seasonStart).map(extraToTeamGame)].sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
+  const homeGames = withExtras(thisSeason(home), extras.home);
+  const awayGames = withExtras(thisSeason(away), extras.away);
   const season = seasonLabel(seasonsFor(now, 1)[0]);
   const homeHalves = goalsByHalf(matches, home, seasonStart);
   const awayHalves = goalsByHalf(matches, away, seasonStart);
@@ -577,6 +628,7 @@ export default function MatchupReport({
           awayAdjust={adjust.away}
           before={unadjusted}
           after={prediction}
+          notes={notes}
         />
       )}
 
@@ -631,13 +683,14 @@ export default function MatchupReport({
       </div>
 
       <div>
-        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos da liga · época {season}</h2>
+        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos · época {season}</h2>
         <p className="mb-3 text-xs text-neutral-500">
-          Só os jogos da liga: as taças e as provas europeias não estão nos dados gratuitos.
+          Os jogos da liga vêm dos dados. Taças e provas europeias não estão nos dados gratuitos: só aparecem os que
+          acrescentaste nos Ajustes (com a competição a amarelo).
         </p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TeamSeason team={home} fixtures={fixtures} today={today} />
-          <TeamSeason team={away} fixtures={fixtures} today={today} />
+          <TeamSeason team={home} fixtures={fixtures} extras={extras.home.filter((g) => g.date >= seasonStart)} today={today} />
+          <TeamSeason team={away} fixtures={fixtures} extras={extras.away.filter((g) => g.date >= seasonStart)} today={today} />
         </div>
       </div>
 

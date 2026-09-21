@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 import { EFFECTS } from "@/lib/adjustments";
+import type { ExtraGame } from "@/lib/extraGames";
+import ExtraGames from "./ExtraGames";
 
 const SELECT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
@@ -32,6 +34,9 @@ export default function MatchupForm({
   fora,
   adjust,
   restHint,
+  extras,
+  matchDate,
+  scheduledDate,
 }: {
   leagues: readonly { code: string; label: string }[];
   liga: string;
@@ -41,8 +46,18 @@ export default function MatchupForm({
   adjust: AdjustValues;
   // What the data says about each team's last game, to help fill in the rest days.
   restHint: { casa: string; fora: string };
+  // Games of other competitions typed in by hand, for each team.
+  extras: { casa: ExtraGame[]; fora: ExtraGame[] };
+  // The date of the game as asked for, and the one the calendar gives for these
+  // two teams (used when none was asked for).
+  matchDate: string;
+  scheduledDate: string;
 }) {
-  const hasAdjust = Object.values(adjust).some((v) => v !== "" && v !== "0" && v !== "normal");
+  const hasAdjust =
+    Object.values(adjust).some((v) => v !== "" && v !== "0" && v !== "normal") ||
+    extras.casa.length > 0 ||
+    extras.fora.length > 0 ||
+    matchDate !== "";
   const formRef = useRef<HTMLFormElement>(null);
 
   function changeLeague() {
@@ -106,7 +121,24 @@ export default function MatchupForm({
               Ajustes (opcional): lesões, castigos, descanso e motivação
             </summary>
 
-            <div className="mt-3 grid grid-cols-[1fr_1fr_1fr] items-start gap-x-3 gap-y-3 text-sm">
+            <div className="mt-3 max-w-xs">
+              <label className="mb-1 block text-sm text-neutral-300">Data do jogo</label>
+              <input
+                type="date"
+                name="data_jogo"
+                defaultValue={matchDate || scheduledDate}
+                className={SELECT}
+              />
+              <p className="mt-1 text-[11px] text-neutral-500">
+                {scheduledDate
+                  ? "Vem do calendário da liga; muda-a se o jogo for outro. "
+                  : "Estas duas equipas não se defrontam no calendário da liga. "}
+                Com a data, os dias de descanso calculam-se sozinhos a partir do último jogo de cada equipa, da liga
+                ou dos que acrescentares abaixo.
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-[1fr_1fr_1fr] items-start gap-x-3 gap-y-3 text-sm">
               <span />
               <span className="truncate text-xs font-semibold uppercase tracking-wide text-neutral-500">
                 {casa || "Casa"}
@@ -204,6 +236,28 @@ export default function MatchupForm({
                 placeholder="0"
                 className={SELECT}
               />
+            </div>
+
+            <div className="mt-5 space-y-4 border-t border-neutral-800 pt-4">
+              <div>
+                <p className="text-sm font-medium text-neutral-300">Outros jogos das equipas</p>
+                <p className="text-[11px] leading-relaxed text-neutral-500">
+                  Taças, provas europeias e amigáveis não estão nos dados gratuitos. Acrescenta-os aqui para contarem
+                  no descanso, na forma e nas estatísticas da época.
+                </p>
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  {casa || "Casa"}
+                </p>
+                <ExtraGames key={`extra-casa-${liga}-${casa}`} name="extra_casa" initial={extras.casa} />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  {fora || "Fora"}
+                </p>
+                <ExtraGames key={`extra-fora-${liga}-${fora}`} name="extra_fora" initial={extras.fora} />
+              </div>
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">

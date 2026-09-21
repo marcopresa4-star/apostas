@@ -1,24 +1,37 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, loadLeague } from "@/lib/footballData";
+import { lastLeagueGameDate, nextLeagueGameDate } from "@/lib/footballModel";
+import { encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
 import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
 import MatchupReport from "@/components/MatchupReport";
 import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
 
 const DAY_MS = 86_400_000;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+const daysText = (n: number) => `${n} ${n === 1 ? "dia" : "dias"}`;
+
+// A parameter can come once or repeated (or not at all).
+const first = (value: string | string[] | undefined): string =>
+  (Array.isArray(value) ? value[0] : value) ?? "";
 
 export default async function EstatisticasPage({
   searchParams,
 }: {
-  searchParams: Promise<Record<string, string | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const { liga = "", casa = "", fora = "" } = params;
-  const raw: Record<string, string> = Object.fromEntries(
-    ADJUST_KEYS.map((key) => [key, params[key] ?? ""])
-  );
-  const adjust = { home: adjustFromParams(raw, "casa"), away: adjustFromParams(raw, "fora") };
+  const liga = first(params.liga);
+  const casa = first(params.casa);
+  const fora = first(params.fora);
+  const raw: Record<string, string> = Object.fromEntries(ADJUST_KEYS.map((key) => [key, first(params[key])]));
+  const typedAdjust = { home: adjustFromParams(raw, "casa"), away: adjustFromParams(raw, "fora") };
+
+  // Games of other competitions typed in by hand, and the date of the game.
+  const extras = { casa: parseExtras(params.extra_casa), fora: parseExtras(params.extra_fora) };
+  const askedDate = DATE.test(first(params.data_jogo)) ? first(params.data_jogo) : "";
 
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const now = new Date();
@@ -28,25 +41,63 @@ export default async function EstatisticasPage({
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
   const sameTeam = casa !== "" && casa === fora;
 
-  // Swapping home and away swaps the adjustments too.
-  const swapped: Record<string, string> = { liga, casa: fora, fora: casa };
+  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  // When these two meet in the league, from the calendar (home side as chosen).
+  const scheduled =
+    data?.fixtures
+      .filter((f) => f.team1 === casa && f.team2 === fora && f.date >= todayISO)
+      .map((f) => f.date)
+      .sort()[0] ?? "";
+  const matchDate = askedDate || scheduled;
+
+  // Days of rest before that game, from the league calendar and the games typed
+  // in. What was typed in the "Dias de descanso" field wins over it.
+  const restOf = (team: string, typed: typeof extras.casa): LastGame | null =>
+    data && matchDate && team ? restFor(matchDate, data.fixtures, team, typed) : null;
+  const autoRest = { home: restOf(casa, extras.casa), away: restOf(fora, extras.fora) };
+  const adjust = {
+    home: { ...typedAdjust.home, restDays: typedAdjust.home.restDays ?? autoRest.home?.days ?? null },
+    away: { ...typedAdjust.away, restDays: typedAdjust.away.restDays ?? autoRest.away?.days ?? null },
+  };
+  const restNote = (team: string, typed: number | null, auto: LastGame | null) =>
+    auto && typed === null
+      ? `Descanso de ${team}: ${daysText(auto.days)} (último jogo: ${auto.competition || "liga"}, ${dayMonth(auto.date)}), calculado para o jogo de ${dayMonth(matchDate)}.`
+      : "";
+  const notes = [
+    restNote(casa, typedAdjust.home.restDays, autoRest.home),
+    restNote(fora, typedAdjust.away.restDays, autoRest.away),
+  ].filter(Boolean);
+
+  // Swapping home and away swaps the adjustments and the games typed in too.
+  const swap = new URLSearchParams({ liga, casa: fora, fora: casa });
   for (const key of ADJUST_KEYS) {
     const other = key.endsWith("_casa") ? key.replace("_casa", "_fora") : key.replace("_fora", "_casa");
-    swapped[other] = raw[key];
+    swap.set(other, raw[key]);
   }
-  const swapHref = `/estatisticas?${new URLSearchParams(swapped)}`;
+  if (askedDate) swap.set("data_jogo", askedDate);
+  for (const game of extras.casa) swap.append("extra_fora", encodeExtra(game));
+  for (const game of extras.fora) swap.append("extra_casa", encodeExtra(game));
+  const swapHref = `/estatisticas?${swap}`;
 
-  // The date of a team's last game in the data, to help fill in its rest days.
-  const restHint = (team: string) => {
+  // Under the rest field: what was worked out for the game's date, or else
+  // what the calendar says. Only the league is in the data, so games of other
+  // competitions count only if they were typed in.
+  const restHint = (team: string, auto: LastGame | null) => {
     if (!data || !team) return "";
-    const last = data.fixtures
-      .filter((f) => f.ft && (f.team1 === team || f.team2 === team))
-      .map((f) => f.date)
-      .sort()
-      .at(-1);
-    if (!last) return "";
-    const days = Math.round((now.getTime() - new Date(`${last}T12:00:00`).getTime()) / DAY_MS);
-    return `Último jogo nos dados: ${last.slice(8, 10)}/${last.slice(5, 7)} (há ${days} dias). A fonte pode estar atrasada.`;
+    if (auto) {
+      return `Calculado para ${dayMonth(matchDate)}: ${daysText(auto.days)} (último jogo: ${auto.competition || "liga"}, ${dayMonth(auto.date)}). Só conta a liga e os jogos que acrescentares.`;
+    }
+    const last = lastLeagueGameDate(data.fixtures, team, todayISO);
+    const next = nextLeagueGameDate(data.fixtures, team, todayISO);
+    const parts: string[] = [];
+    if (last) {
+      const days = Math.round((now.getTime() - new Date(`${last}T12:00:00`).getTime()) / DAY_MS);
+      parts.push(`Último jogo da liga: ${dayMonth(last)} (há ${daysText(days)}).`);
+    }
+    if (next) parts.push(`Próximo: ${dayMonth(next)}.`);
+    parts.push("Não inclui taças nem provas europeias: acrescenta-as abaixo ou confirma.");
+    return parts.join(" ");
   };
 
   return (
@@ -64,7 +115,10 @@ export default async function EstatisticasPage({
         casa={casa}
         fora={fora}
         adjust={raw as unknown as AdjustValues}
-        restHint={{ casa: restHint(casa), fora: restHint(fora) }}
+        restHint={{ casa: restHint(casa, autoRest.home), fora: restHint(fora, autoRest.away) }}
+        extras={extras}
+        matchDate={askedDate}
+        scheduledDate={scheduled}
       />
 
       {league && data === null && (
@@ -94,6 +148,8 @@ export default async function EstatisticasPage({
           now={now}
           fixtures={data.fixtures}
           adjust={adjust}
+          extras={{ home: extras.casa, away: extras.fora }}
+          notes={notes}
         />
       )}
 

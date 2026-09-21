@@ -241,6 +241,8 @@ export interface TeamGame {
   gf: number;
   ga: number;
   result: "V" | "E" | "D";
+  // Only for games added by hand (cups, Europe...); the league is the default.
+  competition?: string;
 }
 
 // The team's games, most recent first.
@@ -308,6 +310,8 @@ export interface Fixture {
   team1: string;
   team2: string;
   ft: [number, number] | null; // null while not played (or not in the data yet)
+  // Only for games added by hand (cups, Europe...); the league is the default.
+  competition?: string;
 }
 
 // The team's games of the season in date order.
@@ -352,4 +356,17 @@ export function goalsByHalf(matches: PlayedMatch[], team: string, since: string)
     out.secondAgainst += ftAgainst - htAgainst;
   }
   return out;
+}
+
+// The date of the team's most recent league game on the calendar, played or
+// not in the data yet: a game whose date has passed most likely happened even
+// if its result has not arrived. Cups and European games are not in this data.
+export function lastLeagueGameDate(fixtures: Fixture[], team: string, today: string): string | null {
+  const past = seasonOf(fixtures, team).filter((f) => f.date <= today);
+  return past.length > 0 ? past[past.length - 1].date : null;
+}
+
+// The date of its next league game on the calendar, if any.
+export function nextLeagueGameDate(fixtures: Fixture[], team: string, today: string): string | null {
+  return seasonOf(fixtures, team).find((f) => f.date > today)?.date ?? null;
 }
