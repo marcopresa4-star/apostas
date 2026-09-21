@@ -39,6 +39,8 @@ export default function MatchupForm({
   matchDate,
   scheduledDate,
   formaLocal,
+  international = false,
+  neutral = false,
 }: {
   leagues: readonly { code: string; label: string }[];
   liga: string;
@@ -58,6 +60,9 @@ export default function MatchupForm({
   scheduledDate: string;
   // Weight of home/away form, in percent, as it came in the address.
   formaLocal: string;
+  // National teams: they can meet at a neutral venue, and there is no home/away form.
+  international?: boolean;
+  neutral?: boolean;
 }) {
   const hasAdjust =
     (formaLocal !== "" && formaLocal !== "0") ||
@@ -111,7 +116,9 @@ export default function MatchupForm({
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-sm text-neutral-300">Equipa da casa</label>
+              <label className="mb-1 block text-sm text-neutral-300">
+                {international ? "Seleção da casa (ou a primeira)" : "Equipa da casa"}
+              </label>
               <select
                 key={`casa-${liga}`}
                 name="casa"
@@ -128,7 +135,9 @@ export default function MatchupForm({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-neutral-300">Equipa de fora</label>
+              <label className="mb-1 block text-sm text-neutral-300">
+                {international ? "Seleção de fora (ou a segunda)" : "Equipa de fora"}
+              </label>
               <select
                 key={`fora-${liga}`}
                 name="fora"
@@ -145,6 +154,17 @@ export default function MatchupForm({
               </select>
             </div>
           </div>
+          {international && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-300">
+              <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="mt-1 accent-amber-500" />
+              <span>
+                Campo neutro
+                <span className="block text-[11px] text-neutral-500">
+                  Mundial, fases finais e jogos num país que não é o de nenhuma das duas: ninguém joga em casa.
+                </span>
+              </span>
+            </label>
+          )}
           <details open={hasAdjust} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium text-amber-400">
               Ajustes (opcional): lesões, castigos, descanso e motivação
@@ -276,6 +296,7 @@ export default function MatchupForm({
               />
             </div>
 
+            {!international && (
             <div className="mt-5 max-w-md border-t border-neutral-800 pt-4">
               <label className="mb-1 block text-sm text-neutral-300">Peso da forma em casa e fora</label>
               <select name="forma_local" defaultValue={formaLocal || "0"} className={SELECT}>
@@ -293,6 +314,7 @@ export default function MatchupForm({
                 se souberes porque é que esta equipa é diferente.
               </p>
             </div>
+            )}
 
             <div className="mt-5 space-y-4 border-t border-neutral-800 pt-4">
               <div>

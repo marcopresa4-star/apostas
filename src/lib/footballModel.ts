@@ -14,6 +14,8 @@ export interface PlayedMatch {
   team2: string; // away
   ft: [number, number];
   ht: [number, number] | null;
+  // Only where the data mixes competitions (national teams).
+  competition?: string;
 }
 
 // A result counts half as much every this many days, so this season weighs more
@@ -237,6 +239,20 @@ export function predict(
   const lambdaHome = rates.home * h.attack * a.defense * ratio;
   const lambdaAway = (rates.away * a.attack * h.defense) / ratio;
 
+  return predictionFromLambdas(lambdaHome, lambdaAway, rates.firstHalfShare, h.games, a.games);
+}
+
+// Everything the model says about a game, from the goals each side is expected
+// to score: the chances of every score and of the markets that come from them.
+// `firstHalfShare` is the share of goals seen before the break, for the first-half
+// estimate (a rougher one than the full-time figures).
+export function predictionFromLambdas(
+  lambdaHome: number,
+  lambdaAway: number,
+  firstHalfShare: number,
+  gamesHome: number,
+  gamesAway: number
+): Prediction {
   const grid = scoreGrid(lambdaHome, lambdaAway, true);
 
   const over: Record<string, number> = {};
@@ -252,9 +268,7 @@ export function predict(
   );
   scores.sort((x, y) => y.p - x.p);
 
-  // First half: the same goals, scaled by the share of goals seen before the
-  // break in this league. A rougher estimate than the full-time one.
-  const htGrid = scoreGrid(lambdaHome * rates.firstHalfShare, lambdaAway * rates.firstHalfShare, false);
+  const htGrid = scoreGrid(lambdaHome * firstHalfShare, lambdaAway * firstHalfShare, false);
 
   return {
     lambdaHome,
@@ -268,8 +282,8 @@ export function predict(
       over05: overLine(htGrid, 0.5),
       over15: overLine(htGrid, 1.5),
     },
-    gamesHome: h.games,
-    gamesAway: a.games,
+    gamesHome,
+    gamesAway,
   };
 }
 

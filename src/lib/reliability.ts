@@ -1,5 +1,7 @@
 import { predict, type PlayedMatch } from "./footballModel";
 import { MIN_GAMES, baseRates, recommend } from "./recommendation";
+import { fitInternational, predictInternational, type IntlGame } from "./internationalModel";
+import { isoDaysAgo, toPlayed } from "./internationalData";
 
 // Whether the model deserves trust, from its own record: every game in a window
 // of dates is predicted using only the games before it, and the prediction is
@@ -89,6 +91,85 @@ export function backtest(matches: PlayedMatch[], from: string, to: string): Reli
     baselineOver25: baseOver / games,
     btts: both / games,
     baselineBtts: baseBoth / games,
+    picks: {
+      count: picks.count,
+      hitRate: picks.count ? picks.hit / picks.count : 0,
+      claimed: picks.count ? picks.claimed / picks.count : 0,
+      leagueRate: picks.count ? picks.league / picks.count : 0,
+    },
+  };
+}
+
+// The same test for national teams. Their model is fitted on all the games
+// before a month starts, so the fit is redone once a month and every game of that
+// month is predicted from it; the naive guess is the results of the last four
+// years. `games` in any order.
+export function backtestInternational(games: IntlGame[], from: string, to: string): Reliability | null {
+  const starts: string[] = [];
+  for (let d = new Date(`${from}T12:00:00Z`); d.toISOString().slice(0, 10) <= to; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1, 12))) {
+    starts.push(d.toISOString().slice(0, 10));
+  }
+  let n = 0;
+  let hit = 0;
+  let baseHit = 0;
+  let ll = 0;
+  let baseLl = 0;
+  let over = 0;
+  let baseOver = 0;
+  let both = 0;
+  let baseBoth = 0;
+  const picks = { count: 0, hit: 0, claimed: 0, league: 0 };
+
+  starts.forEach((start, i) => {
+    const end = i + 1 < starts.length ? starts[i + 1] : new Date(new Date(`${to}T12:00:00Z`).getTime() + 86_400_000).toISOString().slice(0, 10);
+    const now = new Date(`${start}T12:00:00Z`);
+    const fit = fitInternational(games, now);
+    const recent = games.filter((g) => g.date < start && g.date >= isoDaysAgo(now, 4 * 365)).map(toPlayed);
+    if (recent.length === 0) return;
+    const base = baseRates(recent);
+    const naive = { home: base.home, draw: base.draw, away: base.away };
+    const best = (o: Record<string, number>) => Object.entries(o).sort((a, b) => b[1] - a[1])[0][0];
+
+    for (const g of games) {
+      if (g.date < start || g.date >= end || g.date > to) continue;
+      if (!fit.attack.has(g.home) || !fit.attack.has(g.away)) continue;
+      const p = predictInternational(fit, g.home, g.away, { neutral: g.neutral });
+      const outcome = g.hg > g.ag ? "home" : g.hg === g.ag ? "draw" : "away";
+      const model = { home: p.fullTime.home, draw: p.fullTime.draw, away: p.fullTime.away };
+      n++;
+      ll += -Math.log(model[outcome]);
+      baseLl += -Math.log(naive[outcome]);
+      if (best(model) === outcome) hit++;
+      if (best(naive) === outcome) baseHit++;
+      const isOver = g.hg + g.ag > 2 ? 1 : 0;
+      const isBoth = g.hg > 0 && g.ag > 0 ? 1 : 0;
+      over += (p.over["2.5"] - isOver) ** 2;
+      baseOver += (base.over["2.5"] - isOver) ** 2;
+      both += (p.bothScore - isBoth) ** 2;
+      baseBoth += (base.btts - isBoth) ** 2;
+      if (Math.min(p.gamesHome, p.gamesAway) >= MIN_GAMES) {
+        const main = recommend(p, base, g.home, g.away)[0];
+        if (main) {
+          picks.count++;
+          picks.hit += main.won([g.hg, g.ag]) ? 1 : 0;
+          picks.claimed += main.p;
+          picks.league += main.base;
+        }
+      }
+    }
+  });
+
+  if (n === 0) return null;
+  return {
+    games: n,
+    accuracy: hit / n,
+    baselineAccuracy: baseHit / n,
+    logLoss: ll / n,
+    baselineLogLoss: baseLl / n,
+    over25: over / n,
+    baselineOver25: baseOver / n,
+    btts: both / n,
+    baselineBtts: baseBoth / n,
     picks: {
       count: picks.count,
       hitRate: picks.count ? picks.hit / picks.count : 0,

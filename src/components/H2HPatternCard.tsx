@@ -56,12 +56,15 @@ export default function H2HPatternCard({
   away,
   from,
   homeChance,
+  international = false,
 }: {
   pattern: H2HPattern;
   home: string;
   away: string;
   from: string | null;
   homeChance: number;
+  // National teams: the games are of every competition, from the year `from`.
+  international?: boolean;
 }) {
   if (pattern.total === 0) return null;
   const s = pattern.homeAtHome;
@@ -69,7 +72,8 @@ export default function H2HPatternCard({
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
       <h2 className="text-sm font-semibold text-neutral-300">Padrão dos confrontos diretos</h2>
       <p className="mb-3 text-xs text-neutral-500">
-        {pattern.total} {pattern.total === 1 ? "jogo" : "jogos"} nesta liga{from ? `, desde a época ${from}` : ""}. Média de{" "}
+        {pattern.total} {pattern.total === 1 ? "jogo" : "jogos"} {international ? "entre seleções" : "nesta liga"}
+        {from ? `, desde ${international ? "" : "a época "}${from}` : ""}. Média de{" "}
         {one(pattern.goalsPerGame)} golos por jogo, mais de 2,5 golos em {pct(pattern.over25)} e ambas marcam em{" "}
         {pct(pattern.btts)}.
       </p>
@@ -119,6 +123,13 @@ export default function H2HPatternCard({
         </p>
       )}
 
+      {international ? (
+        <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+          O que vale isto? Nas seleções há muito menos jogos entre as mesmas duas equipas, e o plantel muda de um jogo
+          para o outro: trata os padrões como curiosidade. Não testei o valor deste historial nas seleções, e o modelo
+          não o usa nas contas (usa o ataque e a defesa de cada seleção).
+        </p>
+      ) : (
       <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
         O que vale isto? Testei nos jogos de 2025/26 com pelo menos 4 confrontos anteriores. No <span className="text-neutral-400">resultado</span>{" "}
         há alguma informação: quando um dos lados dominava o historial (65% dos pontos ou mais), ganhou mais do que o
@@ -127,6 +138,7 @@ export default function H2HPatternCard({
         de golos como curiosidade. Com poucos jogos (2 ou 3) é quase só acaso. O modelo ainda não usa este historial nas
         contas.
       </p>
+      )}
     </div>
   );
 }

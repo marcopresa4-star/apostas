@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague, previousSeason, seasonInfo, seasonsFor } from "@/lib/footballData";
-import { backtest, combine } from "@/lib/reliability";
+import { LEAGUES, isInternational, loadLeague, previousSeason, seasonInfo, seasonsFor } from "@/lib/footballData";
+import { isoDaysAgo } from "@/lib/internationalData";
+import { backtest, backtestInternational, combine } from "@/lib/reliability";
 import { first, todayISO } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import ReliabilityTable, { type ReliabilityLine } from "@/components/ReliabilityTable";
@@ -21,7 +22,7 @@ export default async function FiabilidadePage({
   // Every game of the window is predicted from the games before it, in each
   // league, over the league's own season (July to June, or a calendar year).
   const leagues = await Promise.all(
-    LEAGUES.map(async (l) => {
+    LEAGUES.filter((l) => !isInternational(l.code)).map(async (l) => {
       const data = await loadLeague(l.code, now);
       if (!data) return { label: l.label, result: null };
       const window = which === "atual" ? { from: data.season.from, to: today } : previousSeason(data.season);
@@ -30,7 +31,22 @@ export default async function FiabilidadePage({
   );
   const summer = seasonInfo(seasonsFor(now, 1)[0]);
   const total = combine(leagues.flatMap((l) => (l.result ? [l.result] : [])));
-  const lines: ReliabilityLine[] = [...leagues, { label: "Todas as ligas", result: total }];
+
+  // National teams have their own model and are left out of the total: their
+  // period is the last twelve months, or the twelve before.
+  const national = await loadLeague("int.1", now);
+  const nationalResult = national?.intl
+    ? backtestInternational(
+        national.intl,
+        which === "atual" ? isoDaysAgo(now, 365) : isoDaysAgo(now, 730),
+        which === "atual" ? today : isoDaysAgo(now, 366)
+      )
+    : null;
+  const lines: ReliabilityLine[] = [
+    ...leagues,
+    { label: "Todas as ligas", result: total },
+    { label: "Seleções (à parte)", result: nationalResult },
+  ];
 
   const tab = (value: "atual" | "passada", label: string) => (
     <Link
@@ -63,7 +79,8 @@ export default async function FiabilidadePage({
       <ReliabilityTable lines={lines} />
       <p className="mt-2 text-xs text-neutral-500">
         As ligas que jogam num ano civil (Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China) usam o
-        ano: {now.getFullYear()} para a época atual e {now.getFullYear() - 1} para a passada.
+        ano: {now.getFullYear()} para a época atual e {now.getFullYear() - 1} para a passada. As seleções não entram em
+        &quot;Todas as ligas&quot;, porque têm outro modelo: usam os últimos 12 meses (ou os 12 anteriores).
       </p>
 
       <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-neutral-500">

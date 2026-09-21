@@ -147,15 +147,18 @@ function TeamCard({
   venue,
   season,
   pending,
+  international,
 }: {
   name: string;
   role: string;
   // This season's games, most recent first.
   games: TeamGame[];
   venue: "home" | "away";
+  // "época 26/27", or "últimos 12 meses" for national teams.
   season: string;
   // Games whose date has passed but whose result is not in the data yet.
   pending: Fixture[];
+  international: boolean;
 }) {
   const typed = games.filter((g) => g.competition !== undefined).length;
   const last5 = games.slice(0, 5);
@@ -163,7 +166,7 @@ function TeamCard({
   return (
     <div className={CARD}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-        {role} · época {season}
+        {role} · {season}
       </p>
       <h3 className="mb-2 text-base font-semibold text-neutral-100">{name}</h3>
 
@@ -227,9 +230,9 @@ function TeamCard({
         </div>
       )}
       <FormChart name={name} games={games} />
-      <SummaryBlock title="Esta época" summary={summarize(games)} />
+      <SummaryBlock title={international ? "Últimos 12 meses" : "Esta época"} summary={summarize(games)} />
       <SummaryBlock
-        title={venue === "home" ? "Esta época em casa" : "Esta época fora"}
+        title={`${international ? "Últimos 12 meses" : "Esta época"} ${venue === "home" ? "em casa" : "fora"}`}
         summary={summarize(atVenue)}
       />
     </div>
@@ -281,11 +284,13 @@ function TeamSeason({
   fixtures,
   extras,
   today,
+  international,
 }: {
   team: string;
   fixtures: Fixture[];
   extras: ExtraGame[];
   today: string;
+  international: boolean;
 }) {
   // The league from the data plus the games typed in, by date. The extras are
   // per team: a rival's extras must not end up in this team's list.
@@ -303,7 +308,7 @@ function TeamSeason({
     <div className={CARD}>
       <h3 className="mb-2 text-base font-semibold text-neutral-100">{team}</h3>
 
-      <p className={heading}>Últimos jogos da liga</p>
+      <p className={heading}>{international ? "Últimos jogos" : "Últimos jogos da liga"}</p>
       {last.length === 0 ? (
         <p className="text-xs text-neutral-500">Ainda sem jogos esta época.</p>
       ) : (
@@ -322,7 +327,9 @@ function TeamSeason({
 
       <p className={`${heading} mt-4`}>Próximos jogos</p>
       {next.length === 0 ? (
-        <p className="text-xs text-neutral-500">Sem mais jogos da liga nos dados.</p>
+        <p className="text-xs text-neutral-500">
+          {international ? "Não há jogos marcados nos dados." : "Sem mais jogos da liga nos dados."}
+        </p>
       ) : (
         <div className="divide-y divide-neutral-800/60">
           {next.map((f) => (
@@ -333,7 +340,7 @@ function TeamSeason({
 
       <details className="mt-3">
         <summary className="cursor-pointer text-xs font-medium text-amber-400 hover:underline">
-          Ver todos os jogos da época ({all.length})
+          {international ? "Ver todos os jogos dos últimos 12 meses" : "Ver todos os jogos da época"} ({all.length})
         </summary>
         <div className="mt-2 divide-y divide-neutral-800/60">
           {all.map((f) => (
@@ -471,9 +478,12 @@ function SuggestedBet({
   picks,
   few,
   fragileGames,
+  avg,
 }: {
   picks: Pick[];
   few: boolean;
+  // "média da liga", or "média das seleções".
+  avg: string;
   // The fewest games in the data among the two teams when that is too few for the
   // estimate to beat the league's own rates; null when it is not.
   fragileGames: number | null;
@@ -481,7 +491,7 @@ function SuggestedBet({
   const [main, ...others] = picks;
   const line = (pick: Pick) => (
     <p className="text-xs text-neutral-400">
-      Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · média da liga{" "}
+      Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · {avg}{" "}
       {pct(pick.base)} · odd justa {formatOdd(pick.fairOdd)} ·{" "}
       <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
     </p>
@@ -498,7 +508,7 @@ function SuggestedBet({
         </p>
       ) : !main ? (
         <p className="text-sm text-neutral-400">
-          Sem aposta clara: o modelo não vê nenhum mercado com vantagem suficiente sobre a média da liga. Não apostar
+          Sem aposta clara: o modelo não vê nenhum mercado com vantagem suficiente sobre a {avg}. Não apostar
           também é uma decisão.
         </p>
       ) : (
@@ -506,7 +516,7 @@ function SuggestedBet({
           {fragileGames !== null && (
             <p className="mb-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
               Estimativa frágil: uma das equipas só tem {fragileGames} jogos nos dados. Abaixo de {SOLID_GAMES} o modelo
-              ainda não ganha à média da liga, por isso vê esta sugestão como palpite, não como vantagem.
+              ainda não ganha à {avg}, por isso vê esta sugestão como palpite, não como vantagem.
             </p>
           )}
           <p className="text-base font-semibold text-neutral-100">{main.label}</p>
@@ -529,7 +539,7 @@ function SuggestedBet({
         Sem a odd real da casa não dá para saber se uma aposta compensa: só compensa se a odd oferecida for maior do que
         a indicada (a odd justa mais {Math.round(VALUE_MARGIN * 100)}%). Compara no quadro em baixo. Acertar muitas vezes
         não é o mesmo que ganhar dinheiro, porque os favoritos pagam pouco. Nos golos e em ambas marcam a chance está
-        puxada para a média da liga, porque o modelo exagera nesses mercados.
+        puxada para a {avg}, porque o modelo exagera nesses mercados.
       </p>
     </div>
   );
@@ -596,6 +606,8 @@ export default function MatchupReport({
   history,
   historyFrom,
   currentSeason,
+  international = false,
+  predictFn,
   home,
   away,
   leagueLabel,
@@ -615,6 +627,11 @@ export default function MatchupReport({
   historyFrom: string | null;
   // The season the league is in, which starts in July or in January.
   currentSeason: SeasonInfo;
+  // National teams: no league, neutral venues, and their own model.
+  international?: boolean;
+  // How the model sees the game for a shift of the balance by hand (see
+  // adjustments.ts); for the leagues it is the goals model of the league.
+  predictFn?: (ratio: number) => Prediction;
   home: string;
   away: string;
   leagueLabel: string;
@@ -631,8 +648,11 @@ export default function MatchupReport({
   venueWeight: number;
 }) {
   const adjusted = isAdjusted(adjust.home, adjust.away) || venueWeight > 0;
-  const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away), venueWeight);
-  const unadjusted = adjusted ? predict(matches, home, away, now) : prediction;
+  const ratio = strengthRatio(adjust.home, adjust.away);
+  const prediction = predictFn ? predictFn(ratio) : predict(matches, home, away, now, ratio, venueWeight);
+  const unadjusted = adjusted ? (predictFn ? predictFn(1) : predict(matches, home, away, now)) : prediction;
+  const avg = international ? "média das seleções" : "média da liga";
+  const period = international ? currentSeason.label : `época ${currentSeason.label}`;
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null);
   const { groups, odd } = buildMarkets(prediction, hasHalfTime);
@@ -648,7 +668,6 @@ export default function MatchupReport({
     );
   const homeGames = withExtras(thisSeason(home), extras.home);
   const awayGames = withExtras(thisSeason(away), extras.away);
-  const season = currentSeason.label;
   const homeHalves = goalsByHalf(matches, home, seasonStart);
   const awayHalves = goalsByHalf(matches, away, seasonStart);
   const halvesMax = Math.max(
@@ -729,7 +748,7 @@ export default function MatchupReport({
           <p className="mt-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
             {few
               ? `Há poucos jogos destas equipas nos dados (${prediction.gamesHome} e ${prediction.gamesAway}), por isso a estimativa é frágil e não sugiro aposta.`
-              : `Uma das equipas só tem ${minGames} jogos nos dados (${prediction.gamesHome} e ${prediction.gamesAway}). Abaixo de ${SOLID_GAMES}, o modelo ainda não ganha à média da liga, por isso a estimativa é frágil.`}
+              : `Uma das equipas só tem ${minGames} jogos nos dados (${prediction.gamesHome} e ${prediction.gamesAway}). Abaixo de ${SOLID_GAMES}, o modelo ainda não ganha à ${avg}, por isso a estimativa é frágil.`}
           </p>
         )}
       </div>
@@ -747,7 +766,7 @@ export default function MatchupReport({
         />
       )}
 
-      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} />
+      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -757,29 +776,38 @@ export default function MatchupReport({
         </div>
 
         <div className="space-y-4">
-          <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={season} pending={pendingOf(home)} />
-          <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={season} pending={pendingOf(away)} />
+          <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
+          <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
 
           <div className={CARD}>
             <h3 className="mb-2 text-sm font-semibold text-neutral-300">Confrontos diretos</h3>
             {meetings.length === 0 ? (
               <p className="text-xs text-neutral-500">
-                Sem jogos entre as duas equipas nesta liga{historyFrom ? `, desde a época ${historyFrom}` : ""}. Só
-                contam os jogos deste campeonato: taças e jogos noutras divisões não estão nos dados.
+                {international
+                  ? `Sem jogos entre as duas seleções nos dados${historyFrom ? `, desde ${historyFrom}` : ""}.`
+                  : `Sem jogos entre as duas equipas nesta liga${historyFrom ? `, desde a época ${historyFrom}` : ""}. Só contam os jogos deste campeonato: taças e jogos noutras divisões não estão nos dados.`}
               </p>
             ) : (
               <>
                 <p className="mb-2 text-xs text-neutral-400">
                   {home}: {h2h.home} vitórias · {h2h.draw} empates · {away}: {h2h.away} vitórias
                   <span className="block text-[11px] text-neutral-500">
-                    {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"} nesta liga
-                    {historyFrom ? `, desde a época ${historyFrom}` : ""}
+                    {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"}{" "}
+                    {international ? "entre seleções" : "nesta liga"}
+                    {historyFrom ? `, desde ${international ? "" : "a época "}${historyFrom}` : ""}
                   </span>
                 </p>
                 <div className="space-y-1 text-xs">
                   {meetings.slice(0, 8).map((m) => (
                     <div key={`${m.date}-${m.team1}`} className="flex items-center justify-between gap-2 text-neutral-300">
-                      <span className="text-neutral-500">{shortDate(m.date)}</span>
+                      <span className="text-neutral-500">
+                        {shortDate(m.date)}
+                        {m.competition && (
+                          <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-amber-500/80">
+                            {m.competition}
+                          </span>
+                        )}
+                      </span>
                       <span className="min-w-0 flex-1 truncate text-right">
                         {m.team1} <span className="font-semibold text-neutral-100">{m.ft[0]}–{m.ft[1]}</span> {m.team2}
                       </span>
@@ -801,10 +829,11 @@ export default function MatchupReport({
         away={away}
         from={historyFrom}
         homeChance={prediction.fullTime.home}
+        international={international}
       />
 
       <div>
-        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · época {season}</h2>
+        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · {period}</h2>
         {hasHalfTime && (
           <p className="mb-3 text-xs text-neutral-500">
             Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
@@ -813,8 +842,8 @@ export default function MatchupReport({
         )}
         {!hasHalfTime ? (
           <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xs text-neutral-500">
-            Os dados desta liga não têm o resultado ao intervalo, por isso não há a divisão por partes nem os mercados
-            ao intervalo.
+            {international ? "Estes dados" : "Os dados desta liga"} não têm o resultado ao intervalo, por isso não há a
+            divisão por partes nem os mercados ao intervalo.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -825,25 +854,24 @@ export default function MatchupReport({
       </div>
 
       <div>
-        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos · época {season}</h2>
+        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos · {period}</h2>
         <p className="mb-3 text-xs text-neutral-500">
-          Os jogos da liga vêm dos dados. Taças e provas europeias não estão nos dados gratuitos: só aparecem os que
-          acrescentaste nos Ajustes (com a competição a amarelo).
+          {international
+            ? "São os jogos de seleções dos últimos 12 meses (amigáveis, qualificações e competições), com a competição a amarelo por baixo da data."
+            : "Os jogos da liga vêm dos dados. Taças e provas europeias não estão nos dados gratuitos: só aparecem os que acrescentaste nos Ajustes (com a competição a amarelo)."}
         </p>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TeamSeason team={home} fixtures={fixtures} extras={extras.home.filter((g) => g.date >= seasonStart)} today={today} />
-          <TeamSeason team={away} fixtures={fixtures} extras={extras.away.filter((g) => g.date >= seasonStart)} today={today} />
+          <TeamSeason team={home} fixtures={fixtures} extras={extras.home.filter((g) => g.date >= seasonStart)} today={today} international={international} />
+          <TeamSeason team={away} fixtures={fixtures} extras={extras.away.filter((g) => g.date >= seasonStart)} today={today} international={international} />
         </div>
       </div>
 
       <OddChecker markets={oddMarkets} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
-        Estimativa estatística a partir dos golos das últimas épocas (modelo de Poisson). Não sabe de lesões, castigos,
-        onze inicial nem motivação. Testado nos jogos de 2025/26 das 7 maiores ligas, previu bem quem ganha (acertou em
-        cerca de 55% dos jogos, contra 46% se se apostasse sempre na média da liga), mas em mais/menos golos e ambas
-        marcam ficou perto da média da liga, por isso nesses mercados vale pouco mais do que a média. Usa-o como
-        referência, não como garantia.
+        {international
+          ? "Estimativa estatística a partir dos resultados dos últimos anos (modelo de Poisson que ajusta o ataque e a defesa de todas as seleções ao mesmo tempo, descontando a força de quem enfrentaram). Não sabe de convocatórias, lesões, castigos, onze inicial nem motivação, e nas seleções o plantel muda muito de jogo para jogo. Testado nos jogos entre julho de 2025 e agosto de 2026 (cerca de 1.040 jogos, cada um previsto só com os anteriores), acertou em quem ganha em 61% dos jogos, contra 48% se se apostasse sempre no resultado mais comum. Usa-o como referência, não como garantia."
+          : "Estimativa estatística a partir dos golos das últimas épocas (modelo de Poisson). Não sabe de lesões, castigos, onze inicial nem motivação. Testado nos jogos de 2025/26 das 7 maiores ligas, previu bem quem ganha (acertou em cerca de 55% dos jogos, contra 46% se se apostasse sempre na média da liga), mas em mais/menos golos e ambas marcam ficou perto da média da liga, por isso nesses mercados vale pouco mais do que a média. Usa-o como referência, não como garantia."}
       </p>
     </div>
   );

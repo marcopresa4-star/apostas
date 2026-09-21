@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague } from "@/lib/footballData";
+import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
+import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { lastLeagueGameDate, nextLeagueGameDate } from "@/lib/footballModel";
 import { encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
 import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
@@ -32,10 +33,13 @@ export default async function EstatisticasPage({
   const extras = { casa: parseExtras(params.extra_casa), fora: parseExtras(params.extra_fora) };
   // Weight of the home/away form in the model: only the offered steps count.
   const formaLocal = first(params.forma_local);
-  const venuePercent = [25, 50, 75, 100].includes(Number(formaLocal)) ? Number(formaLocal) : 0;
+  // (National teams have no home/away form, and their venue can be neutral.)
+  const league = LEAGUES.find((l) => l.code === liga) ?? null;
+  const international = league !== null && isInternational(league.code);
+  const neutral = international && first(params.neutro) === "1";
+  const venuePercent = !international && [25, 50, 75, 100].includes(Number(formaLocal)) ? Number(formaLocal) : 0;
   const askedDate = DATE.test(first(params.data_jogo)) ? first(params.data_jogo) : "";
 
-  const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const now = new Date();
   const data = league ? await loadLeague(league.code, now, { history: true }) : null;
 
@@ -44,6 +48,11 @@ export default async function EstatisticasPage({
   const sameTeam = casa !== "" && casa === fora;
 
   const todayISO = todayOf(now);
+
+  // National teams have their own model: every team's attack and defence are
+  // fitted together, and a neutral venue takes the home advantage away.
+  const fit = ready && international && data ? fitInternational(data.intl ?? [], now) : null;
+  const predictFn = fit ? (ratio: number) => predictInternational(fit, casa, fora, { neutral, ratio }) : undefined;
 
   // When these two meet in the league, from the calendar (home side as chosen).
   const scheduled =
@@ -78,6 +87,7 @@ export default async function EstatisticasPage({
     swap.set(other, raw[key]);
   }
   if (askedDate) swap.set("data_jogo", askedDate);
+  if (neutral) swap.set("neutro", "1");
   if (venuePercent > 0) swap.set("forma_local", String(venuePercent));
   for (const game of extras.casa) swap.append("extra_fora", encodeExtra(game));
   for (const game of extras.fora) swap.append("extra_casa", encodeExtra(game));
@@ -126,6 +136,8 @@ export default async function EstatisticasPage({
         matchDate={askedDate}
         scheduledDate={scheduled}
         formaLocal={String(venuePercent)}
+        international={international}
+        neutral={neutral}
       />
 
       {league && data === null && (
@@ -150,6 +162,8 @@ export default async function EstatisticasPage({
           history={data.history}
           historyFrom={data.historyFrom}
           currentSeason={data.season}
+          international={international}
+          predictFn={predictFn}
           home={casa}
           away={fora}
           leagueLabel={league.label}
@@ -168,8 +182,9 @@ export default async function EstatisticasPage({
         <p className="mt-4 text-xs leading-relaxed text-neutral-500">
           Ligas disponíveis: Portugal, Inglaterra (4 divisões), Espanha, Itália, Alemanha, França (2 divisões cada),
           Países Baixos, Bélgica, Áustria, Escócia, Turquia, Grécia, Roménia, Polónia, Dinamarca, Suíça, México, Japão,
-          Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China. Só faltam as que não têm fonte gratuita
-          com os resultados (a Rússia está parada desde agosto). Os dados vêm do projeto{" "}
+          Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China. Também há as seleções nacionais (todas, ou
+          só as da Liga das Nações), com um modelo próprio e campo neutro. Só faltam as que não têm fonte gratuita com
+          os resultados (a Rússia está parada desde agosto). Os dados dos clubes vêm do projeto{" "}
           <Link
             href="https://github.com/openfootball/football.json"
             target="_blank"
@@ -186,6 +201,15 @@ export default async function EstatisticasPage({
             className="text-amber-400 hover:underline"
           >
             football-data.co.uk
+          </Link>
+          , e os das seleções do projeto{" "}
+          <Link
+            href="https://github.com/martj42/international_results"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-400 hover:underline"
+          >
+            international_results
           </Link>
           . Só têm golos (sem cantos, cartões nem remates).
         </p>

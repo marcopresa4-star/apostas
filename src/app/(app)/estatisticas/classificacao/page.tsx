@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague } from "@/lib/footballData";
+import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
 
 // Leagues that split into phases or groups: a table adding up every game is not the official one.
 const PHASED = new Set(["ro.1", "dk.1", "ch.1", "sco.1", "be.1", "at.1", "mx.1", "ar.1", "us.1", "tr.1", "gr.1"]);
@@ -20,7 +20,8 @@ export default async function ClassificacaoPage({
   const liga = first(params.liga);
   const order = first(params.ordem) === "forca" ? "forca" : "pontos";
 
-  const league = LEAGUES.find((l) => l.code === liga) ?? null;
+  // National teams have no table.
+  const league = LEAGUES.find((l) => l.code === liga && !isInternational(l.code)) ?? null;
   const now = new Date();
   const data = league ? await loadLeague(league.code, now) : null;
 
@@ -55,7 +56,12 @@ export default async function ClassificacaoPage({
       </p>
 
       <EstatisticasTabs />
-      <LeaguePicker leagues={LEAGUES} liga={league?.code ?? ""} action="/estatisticas/classificacao" keep={{ ordem: order }} />
+      <LeaguePicker
+        leagues={LEAGUES.filter((l) => !isInternational(l.code))}
+        liga={league?.code ?? ""}
+        action="/estatisticas/classificacao"
+        keep={{ ordem: order }}
+      />
 
       {league && data === null && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">

@@ -64,8 +64,8 @@ export default async function JornadaPage({
       />
       <p className="-mt-3 mb-5 text-[11px] text-neutral-600">
         Não aparecem as ligas de que só temos resultados, sem os jogos que vêm aí (Áustria, Roménia, Polónia, Dinamarca,
-        Suíça, México, Japão, Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China): para essas usa a
-        comparação de equipas.
+        Suíça, México, Japão, Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China) nem as seleções:
+        para essas usa a comparação de equipas.
       </p>
 
       {league && data === null && (

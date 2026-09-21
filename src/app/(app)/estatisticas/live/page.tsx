@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague } from "@/lib/footballData";
+import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
+import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { first } from "@/lib/searchParams";
 import { parseSportscoreMatch } from "@/lib/sportscoreLink";
@@ -23,6 +24,8 @@ export default async function LivePage({
   let liga = first(params.liga);
   let casa = first(params.casa);
   let fora = first(params.fora);
+  // National teams at a neutral venue (World Cup, finals) have no home advantage.
+  const neutral = first(params.neutro) === "1";
   const now = new Date();
 
   // A pasted Sportscore link gives the two teams; they are looked for in every
@@ -58,7 +61,10 @@ export default async function LivePage({
   // With two teams, the expected goals of the game are the model's own.
   let expected = TYPICAL;
   if (data && chosen) {
-    const prediction = predict(data.matches, casa, fora, now);
+    const prediction =
+      league && isInternational(league.code)
+        ? predictInternational(fitInternational(data.intl ?? [], now), casa, fora, { neutral })
+        : predict(data.matches, casa, fora, now);
     expected = {
       home: prediction.lambdaHome,
       away: prediction.lambdaAway,
@@ -99,6 +105,10 @@ export default async function LivePage({
             Analisar
           </button>
         </div>
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
+          <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="accent-amber-500" />
+          Campo neutro (só conta nas seleções: Mundial, fases finais)
+        </label>
         {link && !parsed && (
           <p className="mt-2 text-xs text-red-300">
             Não percebi este link. Tem de ser o endereço de um jogo, com as duas equipas no formato

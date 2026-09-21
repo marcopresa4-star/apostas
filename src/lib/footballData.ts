@@ -11,6 +11,8 @@ import {
   upcomingFrom,
   withRounds,
 } from "./footballDataUk";
+import { WINDOW_YEARS, type IntlGame } from "./internationalModel";
+import { activeTeams, isoDaysAgo, loadInternationalGames, toPlayed } from "./internationalData";
 
 // Free results of the main European leagues from the openfootball project
 // (public domain JSON on GitHub, no key): date, teams, full-time and half-time
@@ -57,7 +59,13 @@ export const LEAGUES = [
   { code: "fi.1", fd: "FIN", label: "Finlândia · Veikkausliiga" },
   { code: "ie.1", fd: "IRL", label: "Irlanda · Premier Division" },
   { code: "cn.1", fd: "CHN", label: "China · Super League" },
+  // National teams: not a league, so `fd` is empty; see internationalModel.ts.
+  { code: "int.1", fd: "", label: "Seleções · Todas" },
+  { code: "int.nl", fd: "", label: "Seleções · Liga das Nações (UEFA)" },
 ] as const;
+
+// National teams instead of a league: their own model, no calendar and no table.
+export const isInternational = (code: string): boolean => code.startsWith("int.");
 
 // Leagues the calendar project (openfootball) does not have at all: they are
 // read from football-data.co.uk only.
@@ -74,7 +82,7 @@ const DIVISION: Record<string, string> = { "ch.1": "Super League" };
 // some countries only have results.
 export function hasFixtures(code: string): boolean {
   const league = LEAGUES.find((l) => l.code === code);
-  return league ? !isNewLayout(league.fd) : false;
+  return league ? !isInternational(code) && !isNewLayout(league.fd) : false;
 }
 
 export const seasonKindOf = (code: string): "summer" | "calendar" => (CALENDAR_YEAR.has(code) ? "calendar" : "summer");
@@ -167,6 +175,8 @@ export interface LeagueData {
   history: PlayedMatch[];
   // The oldest season with data, "2018/19", or null if only the recent ones.
   historyFrom: string | null;
+  // For national teams: the games the model is fitted on.
+  intl?: IntlGame[];
   // The season the league is in (the newest one with games).
   season: SeasonInfo;
   // What the calendar holds: the whole season by "rounds", only the next few
@@ -263,6 +273,32 @@ async function loadFromFootballData(
   };
 }
 
+// National teams: the last WINDOW_YEARS of games feed the model, the "season" is
+// the last twelve months, and the older games since 1990 are for the head to head.
+async function loadInternational(code: string, now: Date, options: { history?: boolean }): Promise<LeagueData | null> {
+  const all = await loadInternationalGames();
+  if (!all || all.length === 0) return null;
+  const windowFrom = isoDaysAgo(now, WINDOW_YEARS * 365);
+  const recent = all.filter((g) => g.date >= windowFrom);
+  const from = isoDaysAgo(now, 365);
+  const teams = activeTeams(all, now, code === "int.nl" ? "UEFA Nations League" : undefined);
+  return {
+    matches: recent.map(toPlayed),
+    teams,
+    // The games of the last twelve months, each with its competition.
+    fixtures: recent
+      .filter((g) => g.date >= from)
+      .map((g) => ({ date: g.date, team1: g.home, team2: g.away, ft: [g.hg, g.ag] as [number, number], competition: g.tournament })),
+    latest: all.at(-1)?.date ?? null,
+    seasons: [],
+    history: options.history ? all.filter((g) => g.date < windowFrom).map(toPlayed) : [],
+    historyFrom: options.history ? all[0].date.slice(0, 4) : null,
+    intl: recent,
+    season: { id: "12m", from, to: now.toISOString().slice(0, 10), label: "últimos 12 meses" },
+    calendar: "none",
+  };
+}
+
 export async function loadLeague(
   code: string,
   now: Date,
@@ -270,6 +306,7 @@ export async function loadLeague(
 ): Promise<LeagueData | null> {
   const league = LEAGUES.find((l) => l.code === code);
   if (!league) return null;
+  if (isInternational(code)) return loadInternational(code, now, options);
 
   // Not in the calendar project at all: only the other source has it.
   if (ONLY_FOOTBALL_DATA.has(code)) return loadFromFootballData(league, now, options);
