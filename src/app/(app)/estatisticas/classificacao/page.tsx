@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, loadLeague } from "@/lib/footballData";
+
+// Leagues that split into phases or groups: a table adding up every game is not the official one.
+const PHASED = new Set(["ro.1", "dk.1", "ch.1", "sco.1", "be.1", "at.1", "mx.1", "ar.1", "us.1", "tr.1", "gr.1"]);
 import { buildStandings, ratings } from "@/lib/standings";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
@@ -71,6 +74,12 @@ export default async function ClassificacaoPage({
           <StandingsTable lines={lines} />
 
           <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-neutral-500">
+            {PHASED.has(league.code) && (
+              <p className="text-amber-400/90">
+                Esta liga tem fases finais, grupos ou pontos que se dividem a meio da época: a tabela soma todos os
+                jogos que estão nos dados e pode não ser igual à oficial.
+              </p>
+            )}
             <p>
               <span className="font-medium text-neutral-400">Ataque</span> e{" "}
               <span className="font-medium text-neutral-400">Defesa</span> comparam a equipa com a média da liga (1,00).

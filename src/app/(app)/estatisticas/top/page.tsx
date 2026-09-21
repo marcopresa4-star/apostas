@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague, type LeagueData } from "@/lib/footballData";
+import { LEAGUES, hasFixtures, loadLeague, type LeagueData } from "@/lib/footballData";
 import { topBets } from "@/lib/topBets";
 import type { PickGroup } from "@/lib/recommendation";
 import { first, list, todayISO } from "@/lib/searchParams";
@@ -9,6 +9,8 @@ import TopBetsTable from "@/components/TopBetsTable";
 
 const DEFAULT_ODD = 1.6;
 const COUNTS = [5, 10, 20];
+// Only leagues with games still to come can have a top.
+const TOP_LEAGUES = LEAGUES.filter((l) => hasFixtures(l.code));
 const DAYS = [
   { value: 0, label: "Toda a jornada" },
   { value: 1, label: "Só hoje" },
@@ -37,19 +39,19 @@ export default async function TopPage({
   const days = DAYS.some((d) => d.value === Number(first(params.dias))) ? Number(first(params.dias)) : 0;
   // Nothing ticked means everything: only what the page offers is accepted.
   const groups = GROUPS.map((g) => g.value).filter((g) => list(params.tipo).includes(g));
-  const chosenLeagues = LEAGUES.map((l) => l.code as string).filter((code) => list(params.liga).includes(code));
+  const chosenLeagues = TOP_LEAGUES.map((l) => l.code as string).filter((code) => list(params.liga).includes(code));
   const filtered = days > 0 || groups.length > 0 || chosenLeagues.length > 0;
 
   const now = new Date();
   const today = todayISO(now);
   const loaded = await Promise.all(
-    LEAGUES.filter((l) => chosenLeagues.length === 0 || chosenLeagues.includes(l.code)).map(async (l) => ({ code: l.code, label: l.label, data: await loadLeague(l.code, now) }))
+    TOP_LEAGUES.filter((l) => chosenLeagues.length === 0 || chosenLeagues.includes(l.code)).map(async (l) => ({ code: l.code, label: l.label, data: await loadLeague(l.code, now) }))
   );
   const leagues: { code: string; label: string; data: LeagueData }[] = [];
   for (const l of loaded) if (l.data) leagues.push({ code: l.code, label: l.label, data: l.data });
   const { bets, games, leagues: withRound } = topBets(leagues, today, now, { minOdd, count, days, groups });
   // Some leagues only have the next few days' games, so they come and go.
-  const daysOnly = leagues.filter((l) => l.data.calendarDays);
+  const daysOnly = leagues.filter((l) => l.data.calendar === "days");
   const used = new Set(bets.map((b) => b.leagueCode));
 
   const field =
@@ -136,11 +138,11 @@ export default async function TopPage({
           <summary className="cursor-pointer text-sm text-neutral-300">
             Ligas{" "}
             <span className="text-neutral-500">
-              ({chosenLeagues.length === 0 ? "todas" : `${chosenLeagues.length} de ${LEAGUES.length}`}; nenhuma marcada = todas)
+              ({chosenLeagues.length === 0 ? "todas" : `${chosenLeagues.length} de ${TOP_LEAGUES.length}`}; nenhuma marcada = todas)
             </span>
           </summary>
           <div className="mt-2 flex flex-wrap gap-2">
-            {LEAGUES.map((l) => (
+            {TOP_LEAGUES.map((l) => (
               <label key={l.code} className="cursor-pointer">
                 <input
                   type="checkbox"
@@ -171,7 +173,7 @@ export default async function TopPage({
             {games} jogos analisados em {withRound} {withRound === 1 ? "liga" : "ligas"} (
             {days > 0
               ? "só entram jogos nos dias escolhidos que já estejam nos dados"
-              : `das ${chosenLeagues.length || LEAGUES.length}: só entram as que já têm a próxima jornada nos dados`}
+              : `das ${chosenLeagues.length || TOP_LEAGUES.length}: só entram as que já têm a próxima jornada nos dados`}
             )
             {used.size > 0 ? `; a lista vem de ${used.size} ${used.size === 1 ? "liga" : "ligas"}` : ""}.
           </p>

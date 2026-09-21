@@ -149,6 +149,7 @@ export default async function EstatisticasPage({
           matches={data.matches}
           history={data.history}
           historyFrom={data.historyFrom}
+          currentSeason={data.season}
           home={casa}
           away={fora}
           leagueLabel={league.label}
@@ -166,8 +167,9 @@ export default async function EstatisticasPage({
       {!league && (
         <p className="mt-4 text-xs leading-relaxed text-neutral-500">
           Ligas disponíveis: Portugal, Inglaterra (4 divisões), Espanha, Itália, Alemanha, França (2 divisões cada),
-          Países Baixos, Bélgica, Áustria, Escócia, Turquia e Grécia. Brasil, México, EUA e Argentina ainda não estão
-          disponíveis. Os dados vêm do projeto{" "}
+          Países Baixos, Bélgica, Áustria, Escócia, Turquia, Grécia, Roménia, Polónia, Dinamarca, Suíça, México, Japão,
+          Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China. Só faltam as que não têm fonte gratuita
+          com os resultados (a Rússia está parada desde agosto). Os dados vêm do projeto{" "}
           <Link
             href="https://github.com/openfootball/football.json"
             target="_blank"
@@ -176,7 +178,7 @@ export default async function EstatisticasPage({
           >
             openfootball
           </Link>{" "}
-          e, nas ligas que ele não atualiza, de{" "}
+          e, nas ligas que ele não tem ou não atualiza, de{" "}
           <Link
             href="https://www.football-data.co.uk"
             target="_blank"

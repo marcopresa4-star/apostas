@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague } from "@/lib/footballData";
+import { LEAGUES, hasFixtures, loadLeague } from "@/lib/footballData";
 import { predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
 import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
@@ -57,7 +57,16 @@ export default async function JornadaPage({
       </p>
 
       <EstatisticasTabs />
-      <LeaguePicker leagues={LEAGUES} liga={league?.code ?? ""} action="/estatisticas/jornada" />
+      <LeaguePicker
+        leagues={LEAGUES.filter((l) => hasFixtures(l.code))}
+        liga={league?.code ?? ""}
+        action="/estatisticas/jornada"
+      />
+      <p className="-mt-3 mb-5 text-[11px] text-neutral-600">
+        Não aparecem as ligas de que só temos resultados, sem os jogos que vêm aí (Áustria, Roménia, Polónia, Dinamarca,
+        Suíça, México, Japão, Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China): para essas usa a
+        comparação de equipas.
+      </p>
 
       {league && data === null && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
@@ -67,7 +76,7 @@ export default async function JornadaPage({
 
       {league && data && !chosen && (
         <p className="text-sm text-neutral-500">
-          {data.calendarDays
+          {data.calendar === "days"
             ? "Desta liga só temos os jogos dos próximos dias, e neste momento não há nenhum nos dados. A fonte atualiza o calendário duas vezes por semana, por isso os próximos jogos aparecem lá para o meio da semana."
             : "Não há jogos por disputar nos dados desta liga."}
         </p>
@@ -86,7 +95,7 @@ export default async function JornadaPage({
                     : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
                 }`}
               >
-                {data.calendarDays ? r.name : `${roundLabel(r.name)} · ${r.first.slice(8, 10)}/${r.first.slice(5, 7)}`}
+                {data.calendar === "days" ? r.name : `${roundLabel(r.name)} · ${r.first.slice(8, 10)}/${r.first.slice(5, 7)}`}
               </Link>
             ))}
           </div>
@@ -100,7 +109,7 @@ export default async function JornadaPage({
             compensaria; sem isso, o traço quer dizer que não há sugestão. Dados até{" "}
             {data.latest ? `${data.latest.slice(8, 10)}/${data.latest.slice(5, 7)}` : "?"}, a fonte atrasa-se alguns dias.
             Em Golos, o número é o esperado para a casa e o de fora.
-            {data.calendarDays &&
+            {data.calendar === "days" &&
               " Nesta liga o calendário só tem os jogos dos próximos dias (não há jornadas), com as horas de Portugal."}
           </p>
         </>

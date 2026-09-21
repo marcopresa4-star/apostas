@@ -11,7 +11,10 @@ const BASE = "https://www.football-data.co.uk";
 const TTL_MS = 3 * 60 * 60 * 1000;
 
 // Leagues whose file is the "new" layout: Country,League,Season,Date,Time,Home,Away,HG,AG...
-const NEW_LAYOUT = new Set(["AUT"]);
+// (every season in one file, no half-time score, no fixtures of the next days).
+const NEW_LAYOUT = new Set([
+  "AUT", "ROU", "POL", "DNK", "SWZ", "MEX", "JPN", "BRA", "ARG", "USA", "NOR", "SWE", "FIN", "IRL", "CHN",
+]);
 export const isNewLayout = (fd: string): boolean => NEW_LAYOUT.has(fd);
 
 export type Row = Record<string, string>;
@@ -88,10 +91,12 @@ export function matchesFromMain(rows: Row[]): PlayedMatch[] {
   return out;
 }
 
-// Same for the "new" layout, which has no half-time score.
-export function matchesFromNew(rows: Row[]): PlayedMatch[] {
+// Same for the "new" layout, which has no half-time score. A file can hold more
+// than one division (Switzerland has two): `division` keeps one of them.
+export function matchesFromNew(rows: Row[], division?: string): PlayedMatch[] {
   const out: PlayedMatch[] = [];
   for (const r of rows) {
+    if (division && r.League !== division) continue;
     const date = isoDate(r.Date ?? "");
     const hg = goals(r.HG);
     const ag = goals(r.AG);
@@ -101,10 +106,18 @@ export function matchesFromNew(rows: Row[]): PlayedMatch[] {
   return out;
 }
 
-// The games of a season (1 July to 30 June) in a list that spans several.
-export function inSeason(matches: PlayedMatch[], season: string): PlayedMatch[] {
+// The dates a season covers: "2026-27" is 1 July 2026 to 30 June 2027, and a
+// calendar-year season like "2026" (Brazil, Norway...) is that year.
+export function seasonRange(season: string): { from: string; to: string } {
+  if (/^\d{4}$/.test(season)) return { from: `${season}-01-01`, to: `${season}-12-31` };
   const start = Number(season.slice(0, 4));
-  return matches.filter((m) => m.date >= `${start}-07-01` && m.date <= `${start + 1}-06-30`);
+  return { from: `${start}-07-01`, to: `${start + 1}-06-30` };
+}
+
+// The games of a season in a list that spans several.
+export function inSeason(matches: PlayedMatch[], season: string): PlayedMatch[] {
+  const { from, to } = seasonRange(season);
+  return matches.filter((m) => m.date >= from && m.date <= to);
 }
 
 export interface Upcoming {
@@ -150,7 +163,9 @@ export function withRounds(fixtures: Fixture[]): Fixture[] {
 
 // --- fetching, with a short memory ------------------------------------------
 
-const cache = new Map<string, { at: number; text: string | null }>();
+// The files are read and parsed once every few hours: the big ones are close to a
+// megabyte.
+const cache = new Map<string, { at: number; rows: Row[] | null }>();
 
 function decode(buffer: ArrayBuffer): string {
   try {
@@ -161,30 +176,29 @@ function decode(buffer: ArrayBuffer): string {
 }
 
 // null when there is no such file (or it could not be read).
-async function fetchText(path: string): Promise<string | null> {
+async function fetchRows(path: string): Promise<Row[] | null> {
   const hit = cache.get(path);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.text;
-  let text: string | null = null;
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.rows;
+  let rows: Row[] | null = null;
   let missing = false;
   try {
-    const res = await fetch(`${BASE}/${path}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" });
-    if (res.ok) text = decode(await res.arrayBuffer());
+    const res = await fetch(`${BASE}/${path}`, { signal: AbortSignal.timeout(20_000), cache: "no-store" });
+    if (res.ok) rows = parseCsv(decode(await res.arrayBuffer()));
     else missing = res.status === 404;
   } catch {
-    text = null;
+    rows = null;
   }
   // A failure is remembered only briefly, a file that does not exist for the whole time.
-  cache.set(path, { at: text || missing ? Date.now() : Date.now() - TTL_MS + 60_000, text });
-  return text;
+  cache.set(path, { at: rows || missing ? Date.now() : Date.now() - TTL_MS + 60_000, rows });
+  return rows;
 }
 
-// The rows of a league's results file for one season ("2026-27").
+// The rows of a league's results file for one season ("2026-27"); the "new
+// layout" files hold every season, so `season` is not used for them.
 export async function fetchResults(fd: string, season: string): Promise<Row[] | null> {
-  const text = await fetchText(isNewLayout(fd) ? `new/${fd}.csv` : `mmz4281/${seasonFolder(season)}/${fd}.csv`);
-  return text === null ? null : parseCsv(text);
+  return fetchRows(isNewLayout(fd) ? `new/${fd}.csv` : `mmz4281/${seasonFolder(season)}/${fd}.csv`);
 }
 
 export async function fetchFixtures(): Promise<Row[] | null> {
-  const text = await fetchText("fixtures.csv");
-  return text === null ? null : parseCsv(text);
+  return fetchRows("fixtures.csv");
 }

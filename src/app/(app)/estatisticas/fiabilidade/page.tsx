@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, loadLeague, seasonWindow } from "@/lib/footballData";
+import { LEAGUES, loadLeague, previousSeason, seasonInfo, seasonsFor } from "@/lib/footballData";
 import { backtest, combine } from "@/lib/reliability";
-import { first } from "@/lib/searchParams";
+import { first, todayISO } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import ReliabilityTable, { type ReliabilityLine } from "@/components/ReliabilityTable";
 
@@ -16,15 +16,19 @@ export default async function FiabilidadePage({
   const which = first(params.epoca) === "passada" ? "passada" : "atual";
 
   const now = new Date();
-  const window = seasonWindow(now, which);
+  const today = todayISO(now);
 
-  // Every game of the window is predicted from the games before it, in each league.
+  // Every game of the window is predicted from the games before it, in each
+  // league, over the league's own season (July to June, or a calendar year).
   const leagues = await Promise.all(
     LEAGUES.map(async (l) => {
       const data = await loadLeague(l.code, now);
-      return { label: l.label, result: data ? backtest(data.matches, window.from, window.to) : null };
+      if (!data) return { label: l.label, result: null };
+      const window = which === "atual" ? { from: data.season.from, to: today } : previousSeason(data.season);
+      return { label: l.label, result: backtest(data.matches, window.from, window.to) };
     })
   );
+  const summer = seasonInfo(seasonsFor(now, 1)[0]);
   const total = combine(leagues.flatMap((l) => (l.result ? [l.result] : [])));
   const lines: ReliabilityLine[] = [...leagues, { label: "Todas as ligas", result: total }];
 
@@ -52,11 +56,15 @@ export default async function FiabilidadePage({
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="text-xs text-neutral-500">Época</span>
-        {tab("atual", `Esta época (${seasonWindow(now, "atual").label}) até agora`)}
-        {tab("passada", `Época passada (${seasonWindow(now, "passada").label})`)}
+        {tab("atual", `Esta época (${summer.label}) até agora`)}
+        {tab("passada", `Época passada (${previousSeason(summer).label})`)}
       </div>
 
       <ReliabilityTable lines={lines} />
+      <p className="mt-2 text-xs text-neutral-500">
+        As ligas que jogam num ano civil (Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China) usam o
+        ano: {now.getFullYear()} para a época atual e {now.getFullYear() - 1} para a passada.
+      </p>
 
       <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-neutral-500">
         <p>

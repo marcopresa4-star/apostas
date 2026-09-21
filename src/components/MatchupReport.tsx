@@ -5,7 +5,7 @@ import H2HPatternCard from "./H2HPatternCard";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
 import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
-import { seasonLabel, seasonStartDate, seasonsFor } from "@/lib/footballData";
+import type { SeasonInfo } from "@/lib/footballData";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
 import {
@@ -585,6 +585,7 @@ export default function MatchupReport({
   matches,
   history,
   historyFrom,
+  currentSeason,
   home,
   away,
   leagueLabel,
@@ -602,6 +603,8 @@ export default function MatchupReport({
   history: PlayedMatch[];
   // The oldest season the head to head can look at, "2018/19".
   historyFrom: string | null;
+  // The season the league is in, which starts in July or in January.
+  currentSeason: SeasonInfo;
   home: string;
   away: string;
   leagueLabel: string;
@@ -624,7 +627,7 @@ export default function MatchupReport({
 
   // The teams' own records count only this season (from 1 July); the estimate
   // above still leans on the earlier seasons, which it needs.
-  const seasonStart = seasonStartDate(now);
+  const seasonStart = currentSeason.from;
   const thisSeason = (team: string) => gamesOf(matches, team).filter((g) => g.date >= seasonStart);
   // The league's games and the ones typed in, most recent first.
   const withExtras = (games: TeamGame[], typed: ExtraGame[]) =>
@@ -633,7 +636,7 @@ export default function MatchupReport({
     );
   const homeGames = withExtras(thisSeason(home), extras.home);
   const awayGames = withExtras(thisSeason(away), extras.away);
-  const season = seasonLabel(seasonsFor(now, 1)[0]);
+  const season = currentSeason.label;
   const homeHalves = goalsByHalf(matches, home, seasonStart);
   const awayHalves = goalsByHalf(matches, away, seasonStart);
   const halvesMax = Math.max(
@@ -794,10 +797,16 @@ export default function MatchupReport({
           Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
           Alemanha e Áustria em 2025/26). As barras usam a mesma escala nas duas equipas.
         </p>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <HalvesCard team={home} halves={homeHalves} max={halvesMax} />
-          <HalvesCard team={away} halves={awayHalves} max={halvesMax} />
-        </div>
+        {homeHalves.games === 0 && awayHalves.games === 0 && (homeGames.length > 0 || awayGames.length > 0) ? (
+          <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xs text-neutral-500">
+            Os dados desta liga não têm o resultado ao intervalo, por isso não há a divisão por partes.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <HalvesCard team={home} halves={homeHalves} max={halvesMax} />
+            <HalvesCard team={away} halves={awayHalves} max={halvesMax} />
+          </div>
+        )}
       </div>
 
       <div>

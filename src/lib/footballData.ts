@@ -7,6 +7,7 @@ import {
   isNewLayout,
   matchesFromMain,
   matchesFromNew,
+  seasonRange,
   upcomingFrom,
   withRounds,
 } from "./footballDataUk";
@@ -42,7 +43,41 @@ export const LEAGUES = [
   { code: "sco.1", fd: "SC0", label: "Escócia · Premiership" },
   { code: "tr.1", fd: "T1", label: "Turquia · Süper Lig" },
   { code: "gr.1", fd: "G1", label: "Grécia · Super League" },
+  { code: "ro.1", fd: "ROU", label: "Roménia · Superliga" },
+  { code: "pl.1", fd: "POL", label: "Polónia · Ekstraklasa" },
+  { code: "dk.1", fd: "DNK", label: "Dinamarca · Superliga" },
+  { code: "ch.1", fd: "SWZ", label: "Suíça · Super League" },
+  { code: "mx.1", fd: "MEX", label: "México · Liga MX" },
+  { code: "jp.1", fd: "JPN", label: "Japão · J1 League" },
+  { code: "br.1", fd: "BRA", label: "Brasil · Série A" },
+  { code: "ar.1", fd: "ARG", label: "Argentina · Liga Profesional" },
+  { code: "us.1", fd: "USA", label: "EUA · MLS" },
+  { code: "no.1", fd: "NOR", label: "Noruega · Eliteserien" },
+  { code: "se.1", fd: "SWE", label: "Suécia · Allsvenskan" },
+  { code: "fi.1", fd: "FIN", label: "Finlândia · Veikkausliiga" },
+  { code: "ie.1", fd: "IRL", label: "Irlanda · Premier Division" },
+  { code: "cn.1", fd: "CHN", label: "China · Super League" },
 ] as const;
+
+// Leagues the calendar project (openfootball) does not have at all: they are
+// read from football-data.co.uk only.
+const ONLY_FOOTBALL_DATA = new Set(["ro.1", "pl.1", "dk.1", "ch.1", "mx.1", "jp.1", "br.1", "ar.1", "us.1", "no.1", "se.1", "fi.1", "ie.1", "cn.1"]);
+
+// Seasons that run over a calendar year (March to November) rather than from
+// summer to spring. Japan is not here: it moved to August to May in 2026/27.
+const CALENDAR_YEAR = new Set(["br.1", "ar.1", "us.1", "no.1", "se.1", "fi.1", "ie.1", "cn.1"]);
+
+// One division of a file that holds several.
+const DIVISION: Record<string, string> = { "ch.1": "Super League" };
+
+// Whether the league has games still to come in the data at all: the files of
+// some countries only have results.
+export function hasFixtures(code: string): boolean {
+  const league = LEAGUES.find((l) => l.code === code);
+  return league ? !isNewLayout(league.fd) : false;
+}
+
+export const seasonKindOf = (code: string): "summer" | "calendar" => (CALENDAR_YEAR.has(code) ? "calendar" : "summer");
 
 const SEASONS_BACK = 3;
 // Head to head goes further back than the model does: the seasons the model
@@ -60,8 +95,10 @@ interface RawMatch {
   score?: { ft?: [number, number]; ht?: [number, number] };
 }
 
-// "2026-27" for a date in September 2026; a season starts around July.
-export function seasonsFor(now: Date, count = SEASONS_BACK): string[] {
+// "2026-27" for a date in September 2026 (a season starts around July), newest
+// first; for a calendar-year league it is "2026".
+export function seasonsFor(now: Date, count = SEASONS_BACK, kind: "summer" | "calendar" = "summer"): string[] {
+  if (kind === "calendar") return Array.from({ length: count }, (_, i) => String(now.getFullYear() - i));
   const start = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return Array.from({ length: count }, (_, i) => {
     const y = start - i;
@@ -69,10 +106,22 @@ export function seasonsFor(now: Date, count = SEASONS_BACK): string[] {
   });
 }
 
-// The first day of the current season ("2026-07-01"): what counts as "this
-// season" when only its own games are wanted.
-export function seasonStartDate(now: Date): string {
-  return `${seasonsFor(now, 1)[0].slice(0, 4)}-07-01`;
+export interface SeasonInfo {
+  id: string; // "2026-27" or "2026"
+  from: string; // first day
+  to: string; // last day
+  label: string; // "26/27" or "2026"
+}
+
+export function seasonInfo(id: string): SeasonInfo {
+  return { id, ...seasonRange(id), label: /^\d{4}$/.test(id) ? id : seasonLabel(id) };
+}
+
+// The season before this one.
+export function previousSeason(season: SeasonInfo): SeasonInfo {
+  if (/^\d{4}$/.test(season.id)) return seasonInfo(String(Number(season.id) - 1));
+  const y = Number(season.id.slice(0, 4)) - 1;
+  return seasonInfo(`${y}-${String((y + 1) % 100).padStart(2, "0")}`);
 }
 
 // "2026-27" -> "26/27"
@@ -118,54 +167,74 @@ export interface LeagueData {
   history: PlayedMatch[];
   // The oldest season with data, "2018/19", or null if only the recent ones.
   historyFrom: string | null;
-  // The calendar only has the next few days' games, not the whole season by
-  // rounds (leagues read from football-data.co.uk).
-  calendarDays: boolean;
+  // The season the league is in (the newest one with games).
+  season: SeasonInfo;
+  // What the calendar holds: the whole season by "rounds", only the next few
+  // "days" (football-data.co.uk), or "none" (results only, no games to come).
+  calendar: "rounds" | "days" | "none";
 }
 
-// "2018-19" -> "2018/19"
-export const seasonSpan = (season: string): string => `${season.slice(0, 4)}/${season.slice(5)}`;
+// "2018-19" -> "2018/19"; a calendar year stays "2024".
+export const seasonSpan = (season: string): string => (/^\d{4}$/.test(season) ? season : `${season.slice(0, 4)}/${season.slice(5)}`);
 
 // The league read from football-data.co.uk: results of the last seasons from its
 // files, and as calendar the games of the season plus the next days' fixtures
-// (grouped by the days they are played, as these files have no rounds). null if
-// the current season has no games there.
+// (grouped by the days they are played, as these files have no rounds; some
+// countries have no fixtures at all). The current season is the newest one with
+// games: a new one has none until it starts. null if there are no games.
 async function loadFromFootballData(
-  fd: string,
+  league: { code: string; fd: string },
   now: Date,
   options: { history?: boolean }
 ): Promise<LeagueData | null> {
-  const wanted = seasonsFor(now);
-  const older = options.history ? seasonsFor(now, HISTORY_TOTAL).slice(SEASONS_BACK) : [];
-  const all = [...wanted, ...older];
+  const fd = league.fd;
+  const newLayout = isNewLayout(fd);
+  const ids = seasonsFor(now, HISTORY_TOTAL, seasonKindOf(league.code)); // newest first
 
   // The "new layout" file holds every season, so it is read once.
-  const bySeason = new Map<string, PlayedMatch[]>();
-  if (isNewLayout(fd)) {
-    const rows = await fetchResults(fd, wanted[0]);
-    const everything = rows ? matchesFromNew(rows) : [];
-    for (const season of all) bySeason.set(season, inSeason(everything, season));
-  } else {
-    const files = await Promise.all(all.map((season) => fetchResults(fd, season)));
-    files.forEach((rows, i) => bySeason.set(all[i], rows ? matchesFromMain(rows) : []));
+  let everything: PlayedMatch[] = [];
+  if (newLayout) {
+    const rows = await fetchResults(fd, ids[0]);
+    everything = rows ? matchesFromNew(rows, DIVISION[league.code]) : [];
   }
+  const bySeason = new Map<string, PlayedMatch[]>();
+  const games = async (id: string): Promise<PlayedMatch[]> => {
+    let list = bySeason.get(id);
+    if (!list) {
+      if (newLayout) list = inSeason(everything, id);
+      else {
+        const rows = await fetchResults(fd, id);
+        list = rows ? matchesFromMain(rows) : [];
+      }
+      bySeason.set(id, list);
+    }
+    return list;
+  };
 
-  const current = bySeason.get(wanted[0]) ?? [];
-  if (current.length === 0) return null;
+  let at = -1;
+  for (let i = 0; i < 2 && at < 0; i++) if ((await games(ids[i])).length > 0) at = i;
+  if (at < 0) return null;
+  const wanted = ids.slice(at, at + SEASONS_BACK);
+  const older = options.history ? ids.slice(at + SEASONS_BACK) : [];
+  await Promise.all([...wanted, ...older].map(games));
 
+  const current = await games(ids[at]);
   const matches = wanted
-    .flatMap((season) => bySeason.get(season) ?? [])
+    .flatMap((id) => bySeason.get(id) ?? [])
     .sort((a, b) => a.date.localeCompare(b.date));
-  const seasons = wanted.filter((season) => (bySeason.get(season) ?? []).length > 0);
+  const seasons = wanted.filter((id) => (bySeason.get(id) ?? []).length > 0);
 
   // The season's calendar: what was played, and the games coming that the
   // results do not have yet (some already played, whose result is still missing).
-  const fixtures: Fixture[] = current.map((m) => ({ date: m.date, team1: m.team1, team2: m.team2, ft: m.ft }));
-  const played = new Set(current.map((m) => `${m.date}|${m.team1}|${m.team2}`));
-  const fixtureRows = isNewLayout(fd) ? null : await fetchFixtures();
-  for (const u of fixtureRows ? upcomingFrom(fixtureRows, fd) : []) {
-    if (played.has(`${u.date}|${u.team1}|${u.team2}`)) continue;
-    fixtures.push({ date: u.date, team1: u.team1, team2: u.team2, ft: null, time: u.time });
+  let fixtures: Fixture[] = current.map((m) => ({ date: m.date, team1: m.team1, team2: m.team2, ft: m.ft }));
+  if (!newLayout && at === 0) {
+    const played = new Set(current.map((m) => `${m.date}|${m.team1}|${m.team2}`));
+    const fixtureRows = await fetchFixtures();
+    for (const u of fixtureRows ? upcomingFrom(fixtureRows, fd) : []) {
+      if (played.has(`${u.date}|${u.team1}|${u.team2}`)) continue;
+      fixtures.push({ date: u.date, team1: u.team1, team2: u.team2, ft: null, time: u.time });
+    }
+    fixtures = withRounds(fixtures);
   }
   const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))].sort((a, b) => a.localeCompare(b));
 
@@ -173,23 +242,24 @@ async function loadFromFootballData(
   let oldest = seasons.at(-1) ?? null;
   if (older.length > 0) {
     const canon = canonicalNames([...new Set([...teams, ...matches.flatMap((m) => [m.team1, m.team2])])]);
-    for (const season of older) {
-      const games = bySeason.get(season) ?? [];
-      if (games.length === 0) continue;
-      oldest = season;
-      for (const m of games) history.push({ ...m, team1: canon(m.team1), team2: canon(m.team2) });
+    for (const id of older) {
+      const list = bySeason.get(id) ?? [];
+      if (list.length === 0) continue;
+      oldest = id;
+      for (const m of list) history.push({ ...m, team1: canon(m.team1), team2: canon(m.team2) });
     }
   }
 
   return {
     matches,
     teams,
-    fixtures: withRounds(fixtures),
+    fixtures,
     latest: matches.at(-1)?.date ?? null,
     seasons,
     history,
     historyFrom: oldest ? seasonSpan(oldest) : null,
-    calendarDays: true,
+    season: seasonInfo(ids[at]),
+    calendar: newLayout ? "none" : "days",
   };
 }
 
@@ -201,13 +271,16 @@ export async function loadLeague(
   const league = LEAGUES.find((l) => l.code === code);
   if (!league) return null;
 
+  // Not in the calendar project at all: only the other source has it.
+  if (ONLY_FOOTBALL_DATA.has(code)) return loadFromFootballData(league, now, options);
+
   const wanted = seasonsFor(now);
   const files = await Promise.all(wanted.map((season) => fetchSeason(season, code)));
 
   // No file of the current season: read the league from the other source. If
   // that fails too, what there is of the older seasons is still used.
   if (!files[0]) {
-    const other = await loadFromFootballData(league.fd, now, options);
+    const other = await loadFromFootballData(league, now, options);
     if (other) return other;
   }
 
@@ -277,21 +350,7 @@ export async function loadLeague(
     seasons,
     history,
     historyFrom: oldest ? seasonSpan(oldest) : null,
-    calendarDays: false,
-  };
-}
-
-// The dates of this season so far, or of the whole last one, and its label.
-export function seasonWindow(now: Date, which: "atual" | "passada"): { from: string; to: string; label: string } {
-  const current = seasonsFor(now, 1)[0];
-  const startYear = Number(current.slice(0, 4));
-  if (which === "atual") {
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    return { from: `${startYear}-07-01`, to: today, label: seasonLabel(current) };
-  }
-  return {
-    from: `${startYear - 1}-07-01`,
-    to: `${startYear}-06-30`,
-    label: seasonLabel(seasonsFor(now, 2)[1]),
+    season: seasonInfo(seasons[0]),
+    calendar: "rounds",
   };
 }
