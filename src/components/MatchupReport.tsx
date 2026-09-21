@@ -111,6 +111,7 @@ function TeamCard({
   games,
   venue,
   season,
+  pending,
 }: {
   name: string;
   role: string;
@@ -118,6 +119,8 @@ function TeamCard({
   games: TeamGame[];
   venue: "home" | "away";
   season: string;
+  // Games whose date has passed but whose result is not in the data yet.
+  pending: Fixture[];
 }) {
   const typed = games.filter((g) => g.competition !== undefined).length;
   const last5 = games.slice(0, 5);
@@ -130,9 +133,32 @@ function TeamCard({
       <h3 className="mb-2 text-base font-semibold text-neutral-100">{name}</h3>
 
       <div className="flex flex-wrap gap-1.5">
-        {last5.length === 0 && (
+        {last5.length === 0 && pending.length === 0 && (
           <span className="text-xs text-neutral-500">Ainda sem jogos esta época.</span>
         )}
+        {pending.map((f) => (
+          // A game already played whose result the data does not have yet.
+          <span key={`pending-${f.date}-${f.team1}`} className="group relative">
+            <span
+              tabIndex={0}
+              className="flex h-7 min-w-7 cursor-help items-center justify-center rounded-md border border-dashed border-neutral-500 px-1.5 text-xs font-bold text-neutral-300 outline-none ring-white/60 focus-visible:ring-2"
+            >
+              ?
+            </span>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
+            >
+              <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {shortDate(f.date)} · {f.team1 === name ? "em casa" : "fora"}
+              </span>
+              <span className="block text-xs text-neutral-200">
+                {f.team1} <span className="font-bold text-neutral-100">?–?</span> {f.team2}
+              </span>
+              <span className="block text-[10px] text-amber-400">resultado ainda não nos dados</span>
+            </span>
+          </span>
+        ))}
         {last5.map((g) => (
           // Opens straight away on hover (and on focus, for touch), unlike the
           // browser's own tooltip, and spells the game out home team first.
@@ -161,11 +187,17 @@ function TeamCard({
             </span>
           </span>
         ))}
-        {last5.length > 0 && (
+        {(last5.length > 0 || pending.length > 0) && (
           <span className="self-center pl-1 text-[11px] text-neutral-500">últimos 5 (mais recente primeiro)</span>
         )}
       </div>
 
+      {pending.length > 0 && (
+        <p className="mt-2 text-[11px] text-amber-400">
+          ? = jogo já disputado sem resultado nos dados (a fonte atrasa-se alguns dias). Os números abaixo não
+          o contam.
+        </p>
+      )}
       {typed > 0 && (
         <p className="mt-2 text-[11px] text-amber-500/80">
           Inclui {typed} {typed === 1 ? "jogo acrescentado" : "jogos acrescentados"} por ti.
@@ -551,6 +583,11 @@ export default function MatchupReport({
     awayHalves.firstFor, awayHalves.firstAgainst, awayHalves.secondFor, awayHalves.secondAgainst
   );
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  // Past games of the season with no result in the data yet, most recent first.
+  const pendingOf = (team: string) =>
+    seasonOf(fixtures, team)
+      .filter((f) => !f.ft && f.date < today)
+      .reverse();
 
   // Head to head looks at every season in the data.
   const meetings = headToHead(matches, home, away);
@@ -642,8 +679,8 @@ export default function MatchupReport({
         </div>
 
         <div className="space-y-4">
-          <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={season} />
-          <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={season} />
+          <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={season} pending={pendingOf(home)} />
+          <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={season} pending={pendingOf(away)} />
 
           <div className={CARD}>
             <h3 className="mb-2 text-sm font-semibold text-neutral-300">Confrontos diretos</h3>
