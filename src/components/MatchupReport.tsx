@@ -535,7 +535,13 @@ function SuggestedBet({
   );
 }
 
-function buildMarkets(prediction: Prediction): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
+// `withHalfTime` is false for leagues whose data has no half-time score: the
+// half-time chances would then rest on a default share of goals in the first
+// half, not on the league, so they are left out.
+function buildMarkets(
+  prediction: Prediction,
+  withHalfTime: boolean
+): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
   const overRows = OVER_LINES.filter((l) => l <= 3.5).flatMap((line) => [
@@ -562,16 +568,20 @@ function buildMarkets(prediction: Prediction): { groups: { title: string; rows: 
         { label: "Não", p: 1 - prediction.bothScore },
       ],
     },
-    {
-      title: "Ao intervalo",
-      rows: [
-        { label: "Casa ganha ao intervalo", p: ht.home },
-        { label: "Empate ao intervalo", p: ht.draw },
-        { label: "Fora ganha ao intervalo", p: ht.away },
-        { label: "Mais de 0,5 golos na 1.ª parte", p: ht.over05 },
-        { label: "Mais de 1,5 golos na 1.ª parte", p: ht.over15 },
-      ],
-    },
+    ...(withHalfTime
+      ? [
+          {
+            title: "Ao intervalo",
+            rows: [
+              { label: "Casa ganha ao intervalo", p: ht.home },
+              { label: "Empate ao intervalo", p: ht.draw },
+              { label: "Fora ganha ao intervalo", p: ht.away },
+              { label: "Mais de 0,5 golos na 1.ª parte", p: ht.over05 },
+              { label: "Mais de 1,5 golos na 1.ª parte", p: ht.over15 },
+            ],
+          },
+        ]
+      : []),
     {
       title: "Resultados exatos mais prováveis",
       rows: prediction.topScores.map((s) => ({ label: `${s.home}-${s.away}`, p: s.p })),
@@ -623,7 +633,9 @@ export default function MatchupReport({
   const adjusted = isAdjusted(adjust.home, adjust.away) || venueWeight > 0;
   const prediction = predict(matches, home, away, now, strengthRatio(adjust.home, adjust.away), venueWeight);
   const unadjusted = adjusted ? predict(matches, home, away, now) : prediction;
-  const { groups, odd } = buildMarkets(prediction);
+  // Some leagues come without the half-time score.
+  const hasHalfTime = matches.some((m) => m.ht !== null);
+  const { groups, odd } = buildMarkets(prediction, hasHalfTime);
 
   // The teams' own records count only this season (from 1 July); the estimate
   // above still leans on the earlier seasons, which it needs.
@@ -793,13 +805,16 @@ export default function MatchupReport({
 
       <div>
         <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · época {season}</h2>
-        <p className="mb-3 text-xs text-neutral-500">
-          Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
-          Alemanha e Áustria em 2025/26). As barras usam a mesma escala nas duas equipas.
-        </p>
-        {homeHalves.games === 0 && awayHalves.games === 0 && (homeGames.length > 0 || awayGames.length > 0) ? (
+        {hasHalfTime && (
+          <p className="mb-3 text-xs text-neutral-500">
+            Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
+            Alemanha e Áustria em 2025/26). As barras usam a mesma escala nas duas equipas.
+          </p>
+        )}
+        {!hasHalfTime ? (
           <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xs text-neutral-500">
-            Os dados desta liga não têm o resultado ao intervalo, por isso não há a divisão por partes.
+            Os dados desta liga não têm o resultado ao intervalo, por isso não há a divisão por partes nem os mercados
+            ao intervalo.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
