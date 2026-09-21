@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/requireAdmin";
 import StatRanking from "@/components/StatRanking";
+import MinuteAnalysis from "@/components/MinuteAnalysis";
 import PerformanceCalendar from "@/components/PerformanceCalendar";
 import { buildAnalysis } from "@/lib/analysis";
+import { buildMinuteAnalysis } from "@/lib/minuteAnalysis";
 import { MULTIPLE_SELECT, withMultiples, type MultipleRow } from "@/lib/multiples";
 import type { PickImageItem } from "@/components/PickImages";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
@@ -98,6 +100,7 @@ export default async function AnalisePage() {
   } = withMultiples(dayStats, multipleRows ?? []);
 
   const hasPerformanceData = topTeams.length > 0 || hasResolvedMultiple;
+  const minutes = buildMinuteAnalysis(all);
 
   return (
     <div>
@@ -116,6 +119,13 @@ export default async function AnalisePage() {
             <StatRanking title="Competições" rows={topCompetitions} />
             <StatRanking title="Tipos de aposta" rows={topCategories} />
           </div>
+          {minutes.resolved + minutes.withoutMinute > 0 && (
+            <MinuteAnalysis
+              buckets={minutes.buckets}
+              best={minutes.best}
+              withoutMinute={minutes.withoutMinute}
+            />
+          )}
           <PerformanceCalendar
             dayStats={calendarStats}
             ticketsByDay={ticketsByDay}
