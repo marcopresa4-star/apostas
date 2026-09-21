@@ -1,0 +1,296 @@
+// A small goals model for "what if these two teams played each other".
+// Everything here is plain maths on past results, so it can be tested on its
+// own: the data comes from footballData.ts.
+//
+// The idea is the classic Poisson one: each team scores a number of goals that
+// follows a Poisson law, whose average depends on how well that team attacks,
+// how well the other one defends, and on playing at home. The two averages give
+// the chance of every possible score, and every market (win/draw/loss, over
+// 2.5, both teams score...) is a sum over those scores.
+
+export interface PlayedMatch {
+  date: string; // YYYY-MM-DD
+  team1: string; // home
+  team2: string; // away
+  ft: [number, number];
+  ht: [number, number] | null;
+}
+
+// A result counts half as much every this many days, so this season weighs more
+// than last one. Both numbers below come from testing the model on the games of
+// 2025/26 (each predicted from earlier games only): a long memory and some
+// caution predicted results best, and shorter memories did worse.
+const HALF_LIFE_DAYS = 365;
+// A team's numbers are pulled towards the league average as if it had already
+// played this many average games, so a few matches cannot make it look
+// unbeatable or hopeless.
+const PRIOR_GAMES = 8;
+// Dixon-Coles: plain Poisson gives too few 0-0 and 1-1 and too many 1-0 / 0-1.
+const RHO = -0.08;
+const MAX_GOALS = 10;
+
+const DAY_MS = 86_400_000;
+
+function weightOf(date: string, now: Date): number {
+  const age = (now.getTime() - new Date(`${date}T12:00:00`).getTime()) / DAY_MS;
+  return 0.5 ** (Math.max(0, age) / HALF_LIFE_DAYS);
+}
+
+export interface LeagueRates {
+  home: number; // average goals by the home side
+  away: number; // average goals by the away side
+  perTeam: number; // average goals per team per game
+  // Share of a game's goals that come before half time.
+  firstHalfShare: number;
+}
+
+export function leagueRates(matches: PlayedMatch[], now: Date): LeagueRates {
+  let w = 0;
+  let home = 0;
+  let away = 0;
+  let htGoals = 0;
+  let ftGoalsWithHt = 0;
+  for (const m of matches) {
+    const weight = weightOf(m.date, now);
+    w += weight;
+    home += weight * m.ft[0];
+    away += weight * m.ft[1];
+    if (m.ht) {
+      htGoals += weight * (m.ht[0] + m.ht[1]);
+      ftGoalsWithHt += weight * (m.ft[0] + m.ft[1]);
+    }
+  }
+  if (w === 0) return { home: 1.4, away: 1.1, perTeam: 1.25, firstHalfShare: 0.44 };
+  return {
+    home: home / w,
+    away: away / w,
+    perTeam: (home + away) / (2 * w),
+    firstHalfShare: ftGoalsWithHt > 0 ? htGoals / ftGoalsWithHt : 0.44,
+  };
+}
+
+export interface Strength {
+  attack: number; // 1 = league average
+  defense: number; // 1 = league average, above 1 concedes more
+  games: number;
+}
+
+export function strengthOf(
+  matches: PlayedMatch[],
+  team: string,
+  rates: LeagueRates,
+  now: Date
+): Strength {
+  let w = 0;
+  let scored = 0;
+  let conceded = 0;
+  let games = 0;
+  for (const m of matches) {
+    const isHome = m.team1 === team;
+    if (!isHome && m.team2 !== team) continue;
+    const weight = weightOf(m.date, now);
+    w += weight;
+    scored += weight * (isHome ? m.ft[0] : m.ft[1]);
+    conceded += weight * (isHome ? m.ft[1] : m.ft[0]);
+    games++;
+  }
+  const g = rates.perTeam;
+  return {
+    attack: (scored + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
+    defense: (conceded + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
+    games,
+  };
+}
+
+function poisson(k: number, lambda: number): number {
+  let p = Math.exp(-lambda);
+  for (let i = 1; i <= k; i++) p *= lambda / i;
+  return p;
+}
+
+function tau(x: number, y: number, lh: number, la: number): number {
+  if (x === 0 && y === 0) return 1 - lh * la * RHO;
+  if (x === 0 && y === 1) return 1 + lh * RHO;
+  if (x === 1 && y === 0) return 1 + la * RHO;
+  if (x === 1 && y === 1) return 1 - RHO;
+  return 1;
+}
+
+// grid[h][a] = chance the home side scores h and the away side a.
+function scoreGrid(lh: number, la: number, correct: boolean): number[][] {
+  const grid: number[][] = [];
+  let total = 0;
+  for (let h = 0; h <= MAX_GOALS; h++) {
+    grid[h] = [];
+    for (let a = 0; a <= MAX_GOALS; a++) {
+      const p = poisson(h, lh) * poisson(a, la) * (correct ? tau(h, a, lh, la) : 1);
+      grid[h][a] = p;
+      total += p;
+    }
+  }
+  // Goals beyond MAX_GOALS are negligible; this only removes the rounding.
+  return grid.map((row) => row.map((p) => p / total));
+}
+
+interface Outcome {
+  home: number;
+  draw: number;
+  away: number;
+}
+
+function outcomes(grid: number[][]): Outcome {
+  let home = 0;
+  let draw = 0;
+  let away = 0;
+  grid.forEach((row, h) =>
+    row.forEach((p, a) => {
+      if (h > a) home += p;
+      else if (h === a) draw += p;
+      else away += p;
+    })
+  );
+  return { home, draw, away };
+}
+
+function overLine(grid: number[][], line: number): number {
+  let p = 0;
+  grid.forEach((row, h) => row.forEach((q, a) => (h + a > line ? (p += q) : 0)));
+  return p;
+}
+
+export const OVER_LINES = [0.5, 1.5, 2.5, 3.5, 4.5] as const;
+
+export interface Prediction {
+  lambdaHome: number; // expected goals
+  lambdaAway: number;
+  fullTime: Outcome;
+  over: Record<string, number>; // "2.5" -> chance of MORE than 2.5 goals
+  bothScore: number;
+  topScores: { home: number; away: number; p: number }[];
+  halfTime: Outcome & { over05: number; over15: number };
+  gamesHome: number;
+  gamesAway: number;
+}
+
+export function predict(
+  matches: PlayedMatch[],
+  home: string,
+  away: string,
+  now: Date
+): Prediction {
+  const rates = leagueRates(matches, now);
+  const h = strengthOf(matches, home, rates, now);
+  const a = strengthOf(matches, away, rates, now);
+
+  const lambdaHome = rates.home * h.attack * a.defense;
+  const lambdaAway = rates.away * a.attack * h.defense;
+
+  const grid = scoreGrid(lambdaHome, lambdaAway, true);
+
+  const over: Record<string, number> = {};
+  for (const line of OVER_LINES) over[String(line)] = overLine(grid, line);
+
+  let bothScore = 0;
+  const scores: { home: number; away: number; p: number }[] = [];
+  grid.forEach((row, hg) =>
+    row.forEach((p, ag) => {
+      if (hg > 0 && ag > 0) bothScore += p;
+      scores.push({ home: hg, away: ag, p });
+    })
+  );
+  scores.sort((x, y) => y.p - x.p);
+
+  // First half: the same goals, scaled by the share of goals seen before the
+  // break in this league. A rougher estimate than the full-time one.
+  const htGrid = scoreGrid(lambdaHome * rates.firstHalfShare, lambdaAway * rates.firstHalfShare, false);
+
+  return {
+    lambdaHome,
+    lambdaAway,
+    fullTime: outcomes(grid),
+    over,
+    bothScore,
+    topScores: scores.slice(0, 6),
+    halfTime: {
+      ...outcomes(htGrid),
+      over05: overLine(htGrid, 0.5),
+      over15: overLine(htGrid, 1.5),
+    },
+    gamesHome: h.games,
+    gamesAway: a.games,
+  };
+}
+
+// The odd at which a bet on something with chance p would break even.
+export function fairOdd(p: number): number {
+  return p > 0 ? 1 / p : Infinity;
+}
+
+// ---------------------------------------------------------------------------
+// Plain records: form, averages and head to head.
+// ---------------------------------------------------------------------------
+
+export interface TeamGame {
+  date: string;
+  opponent: string;
+  home: boolean;
+  gf: number;
+  ga: number;
+  result: "V" | "E" | "D";
+}
+
+// The team's games, most recent first.
+export function gamesOf(matches: PlayedMatch[], team: string): TeamGame[] {
+  const out: TeamGame[] = [];
+  for (const m of matches) {
+    const isHome = m.team1 === team;
+    if (!isHome && m.team2 !== team) continue;
+    const gf = isHome ? m.ft[0] : m.ft[1];
+    const ga = isHome ? m.ft[1] : m.ft[0];
+    out.push({
+      date: m.date,
+      opponent: isHome ? m.team2 : m.team1,
+      home: isHome,
+      gf,
+      ga,
+      result: gf > ga ? "V" : gf === ga ? "E" : "D",
+    });
+  }
+  return out.sort((x, y) => y.date.localeCompare(x.date));
+}
+
+export interface Summary {
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gfPerGame: number;
+  gaPerGame: number;
+  bothScorePct: number;
+  over25Pct: number;
+  cleanSheetPct: number;
+}
+
+export function summarize(games: TeamGame[]): Summary | null {
+  const n = games.length;
+  if (n === 0) return null;
+  const count = (test: (g: TeamGame) => boolean) => games.filter(test).length;
+  return {
+    games: n,
+    wins: count((g) => g.result === "V"),
+    draws: count((g) => g.result === "E"),
+    losses: count((g) => g.result === "D"),
+    gfPerGame: games.reduce((s, g) => s + g.gf, 0) / n,
+    gaPerGame: games.reduce((s, g) => s + g.ga, 0) / n,
+    bothScorePct: (count((g) => g.gf > 0 && g.ga > 0) / n) * 100,
+    over25Pct: (count((g) => g.gf + g.ga > 2) / n) * 100,
+    cleanSheetPct: (count((g) => g.ga === 0) / n) * 100,
+  };
+}
+
+// Meetings between the two teams, in either order, most recent first.
+export function headToHead(matches: PlayedMatch[], a: string, b: string): PlayedMatch[] {
+  return matches
+    .filter((m) => (m.team1 === a && m.team2 === b) || (m.team1 === b && m.team2 === a))
+    .sort((x, y) => y.date.localeCompare(x.date));
+}

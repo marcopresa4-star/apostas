@@ -41,6 +41,14 @@ const NAV_ITEMS = [
     adminOnly: true,
   },
   {
+    href: "/estatisticas",
+    label: "Estatísticas",
+    icon: "🧮",
+    chip: "bg-amber-500/15 text-amber-400",
+    active: "bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg shadow-amber-600/30",
+    adminOnly: true,
+  },
+  {
     href: "/comunidade",
     label: "Comunidade",
     icon: "🌐",
