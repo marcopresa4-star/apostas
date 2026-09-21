@@ -162,15 +162,19 @@ function sameTeam(displayed: string, variants: string[]): boolean {
   });
 }
 
-// `displayed` are the two team names in the embed, in either order.
+// `displayed` are the two team names in the embed, in either order. A side
+// with no variants (null) is one whose slug was taught by hand, so whatever
+// name Sportscore shows for it is accepted.
 export function teamsMatch(
   displayed: [string, string],
-  homeVariants: string[],
-  awayVariants: string[]
+  homeVariants: string[] | null,
+  awayVariants: string[] | null
 ): boolean {
   const [a, b] = displayed;
+  const fits = (name: string, variants: string[] | null) =>
+    variants === null || sameTeam(name, variants);
   return (
-    (sameTeam(a, homeVariants) && sameTeam(b, awayVariants)) ||
-    (sameTeam(a, awayVariants) && sameTeam(b, homeVariants))
+    (fits(a, homeVariants) && fits(b, awayVariants)) ||
+    (fits(a, awayVariants) && fits(b, homeVariants))
   );
 }

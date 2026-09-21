@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { searchEntityRows } from "@/lib/entityOptions";
 import type { BetStatus, BetType, PickStage } from "@/lib/database.types";
 import { multipleStatus } from "@/lib/multiples";
+import { assignSlugs, parseSportscoreMatch } from "@/lib/sportscoreLink";
+import { slugify } from "@/lib/slugify";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -817,5 +819,48 @@ export async function setMultiplePublished(
 
   revalidatePath("/comunidade");
   revalidateAll();
+  return { ok: true };
+}
+
+// Teaches the live widget what Sportscore calls two clubs, from the address of
+// one of its match pages (or its slug). Saved by the clubs' names, so every
+// later game of those clubs finds its widget, bets and hand-added games alike.
+// `homeNames` / `awayNames` are a club's name followed by its other names; the
+// first one is what the lesson is saved under.
+export async function saveSportscoreLink(
+  homeNames: string[],
+  awayNames: string[],
+  link: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const parsed = parseSportscoreMatch(link);
+  if (!parsed) {
+    return {
+      ok: false,
+      error: 'Não reconheci o link. Cola o endereço da página do jogo no Sportscore (tem "-vs-" no nome).',
+    };
+  }
+
+  const home = homeNames.map((n) => n.trim()).filter(Boolean).slice(0, 6);
+  const away = awayNames.map((n) => n.trim()).filter(Boolean).slice(0, 6);
+  if (home.length === 0 || away.length === 0) {
+    return { ok: false, error: "Faltam os nomes das equipas." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Não autenticado." };
+
+  const slugs = assignSlugs(home, away, parsed.slugs);
+  const { error } = await supabase.from("sportscore_teams").upsert(
+    [
+      { user_id: user.id, name_key: slugify(home[0]), slug: slugs.home },
+      { user_id: user.id, name_key: slugify(away[0]), slug: slugs.away },
+    ],
+    { onConflict: "user_id,name_key" }
+  );
+  if (error) return { ok: false, error: "Não foi possível guardar. Tenta novamente." };
+
   return { ok: true };
 }
