@@ -1,6 +1,7 @@
 import { fairOdd, predict, type Fixture, type Prediction } from "./footballModel";
 import type { LeagueData } from "./footballData";
 import { upcomingRounds } from "./rounds";
+import { betReasons } from "./betReasons";
 import { VALUE_MARGIN, baseRates, candidatesFor, type BaseRates, type Candidate, type PickGroup } from "./recommendation";
 
 // Fewer games than this in the data for a team and its games are left out.
@@ -39,7 +40,10 @@ export interface TopBet {
   round: string;
   fixture: Fixture;
   group: PickGroup;
+  key: string;
   label: string;
+  // Why it is a good candidate, in figures worked out from the data.
+  reasons: string[];
   p: number;
   fairOdd: number;
   // The odd from which it would be worth it: the fair odd of the chance cut back
@@ -84,7 +88,20 @@ export function topBets(
         round: round.name,
         fixture,
         group: best.group,
+        key: best.key,
         label: best.label,
+        reasons: betReasons({
+          matches: league.data.matches,
+          now,
+          home: fixture.team1,
+          away: fixture.team2,
+          prediction,
+          group: best.group,
+          key: best.key,
+          label: best.label,
+          p: best.p,
+          base: best.base,
+        }),
         p: best.p,
         fairOdd: fairOdd(best.p),
         minOdd: fairOdd(best.p * TOP_HAIRCUT) * (1 + VALUE_MARGIN),

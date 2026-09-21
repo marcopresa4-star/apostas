@@ -16,7 +16,7 @@ const GROUP = {
 export default function TopBetsTable({ bets }: { bets: TopBet[] }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
-      <table className="w-full min-w-[46rem] text-sm">
+      <table className="w-full min-w-[66rem] text-sm">
         <thead>
           <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
             <th className="px-3 py-2 font-semibold">#</th>
@@ -25,6 +25,7 @@ export default function TopBetsTable({ bets }: { bets: TopBet[] }) {
             <th className="px-3 py-2 text-right font-semibold">Probabilidade</th>
             <th className="px-3 py-2 text-right font-semibold">Odd justa</th>
             <th className="px-3 py-2 text-right font-semibold">Compensa a partir de</th>
+            <th className="px-3 py-2 font-semibold">Porquê</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800/70">
@@ -67,6 +68,13 @@ export default function TopBetsTable({ bets }: { bets: TopBet[] }) {
                 </td>
                 <td className="px-3 py-2.5 text-right text-neutral-300">{formatOdd(b.fairOdd)}</td>
                 <td className="px-3 py-2.5 text-right font-semibold text-emerald-400">{formatOdd(b.minOdd)}</td>
+                <td className="w-[26rem] px-3 py-2.5">
+                  <ul className="list-disc space-y-1 pl-4 text-[11px] leading-snug text-neutral-400 marker:text-neutral-600">
+                    {b.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </td>
               </tr>
             );
           })}

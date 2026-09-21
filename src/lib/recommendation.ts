@@ -68,6 +68,9 @@ const num = (n: number) => n.toFixed(1).replace(".", ",");
 // league's rate for the markets it is less sure about (see TRUST).
 export interface Candidate {
   group: PickGroup;
+  // What kind of bet it is: "home", "away", "1x", "x2", "btts:yes", "btts:no",
+  // "over:2.5", "under:2.5"...
+  key: string;
   label: string;
   p: number;
   base: number; // how often it happens in the league
@@ -82,10 +85,11 @@ export function candidatesFor(
 ): Candidate[] {
   const ft = prediction.fullTime;
   const candidates: Candidate[] = [
-    { group: "result", label: `Vitória de ${home}`, p: ft.home, base: base.home, won: ([h, a]) => h > a },
-    { group: "result", label: `Vitória de ${away}`, p: ft.away, base: base.away, won: ([h, a]) => a > h },
+    { group: "result", key: "home", label: `Vitória de ${home}`, p: ft.home, base: base.home, won: ([h, a]) => h > a },
+    { group: "result", key: "away", label: `Vitória de ${away}`, p: ft.away, base: base.away, won: ([h, a]) => a > h },
     {
       group: "result",
+      key: "1x",
       label: `${home} ou empate (1X)`,
       p: ft.home + ft.draw,
       base: base.home + base.draw,
@@ -93,14 +97,16 @@ export function candidatesFor(
     },
     {
       group: "result",
+      key: "x2",
       label: `${away} ou empate (X2)`,
       p: ft.away + ft.draw,
       base: base.away + base.draw,
       won: ([h, a]) => a >= h,
     },
-    { group: "btts", label: "Ambas marcam: sim", p: prediction.bothScore, base: base.btts, won: ([h, a]) => h > 0 && a > 0 },
+    { group: "btts", key: "btts:yes", label: "Ambas marcam: sim", p: prediction.bothScore, base: base.btts, won: ([h, a]) => h > 0 && a > 0 },
     {
       group: "btts",
+      key: "btts:no",
       label: "Ambas marcam: não",
       p: 1 - prediction.bothScore,
       base: 1 - base.btts,
@@ -110,8 +116,8 @@ export function candidatesFor(
   for (const line of [1.5, 2.5, 3.5]) {
     const over = prediction.over[String(line)];
     candidates.push(
-      { group: "goals", label: `Mais de ${num(line)} golos`, p: over, base: base.over[String(line)], won: ([h, a]) => h + a > line },
-      { group: "goals", label: `Menos de ${num(line)} golos`, p: 1 - over, base: 1 - base.over[String(line)], won: ([h, a]) => h + a < line }
+      { group: "goals", key: `over:${line}`, label: `Mais de ${num(line)} golos`, p: over, base: base.over[String(line)], won: ([h, a]) => h + a > line },
+      { group: "goals", key: `under:${line}`, label: `Menos de ${num(line)} golos`, p: 1 - over, base: 1 - base.over[String(line)], won: ([h, a]) => h + a < line }
     );
   }
 
