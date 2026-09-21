@@ -206,8 +206,12 @@ function GameRow({ fixture, team, today }: { fixture: Fixture; team: string; tod
 // game of the season on request.
 function TeamSeason({ team, fixtures, today }: { team: string; fixtures: Fixture[]; today: string }) {
   const all = seasonOf(fixtures, team);
-  const last = all.filter((f) => f.ft).slice(-10).reverse();
-  const next = all.filter((f) => !f.ft).slice(0, 3);
+  // A game whose date has passed but has no result yet belongs with the past
+  // ones (marked "?"): the data is a few days behind, not the game still to come.
+  const isPast = (f: Fixture) => f.ft !== null || f.date < today;
+  const last = all.filter(isPast).slice(-10).reverse();
+  const behind = last.some((f) => !f.ft);
+  const next = all.filter((f) => !isPast(f)).slice(0, 3);
   const heading = "mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500";
   return (
     <div className={CARD}>
@@ -222,6 +226,12 @@ function TeamSeason({ team, fixtures, today }: { team: string; fixtures: Fixture
             <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
           ))}
         </div>
+      )}
+
+      {behind && (
+        <p className="mt-1.5 text-[11px] text-amber-400">
+          ? = resultado ainda não nos dados: a fonte atualiza-se com alguns dias de atraso.
+        </p>
       )}
 
       <p className={`${heading} mt-4`}>Próximos jogos</p>
