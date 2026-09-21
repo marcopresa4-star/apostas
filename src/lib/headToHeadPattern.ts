@@ -21,13 +21,16 @@ export interface H2HPattern {
   // games with `away` at home.
   homeAtHome: VenueSplit | null;
   awayAtHome: VenueSplit | null;
+  // Games at a neutral venue, where nobody played at home: they are left out of
+  // the two splits above and counted here, as results for `home` and `away`.
+  neutral: { games: number; homeWins: number; draws: number; awayWins: number } | null;
   goalsPerGame: number;
   over25: number;
   btts: number;
   draws: number; // share
   // The last meetings, as results for `home` ("V" won, "E" drew, "D" lost, score
   // with its goals first), most recent first.
-  recent: { date: string; homeWasHost: boolean; result: "V" | "E" | "D"; score: string }[];
+  recent: { date: string; homeWasHost: boolean; neutral: boolean; result: "V" | "E" | "D"; score: string }[];
   // Sentences about what stands out, only for what has enough games behind it.
   notes: string[];
 }
@@ -37,7 +40,7 @@ const RECENT = 6;
 const MIN_FOR_NOTE = 3;
 
 function split(meetings: PlayedMatch[], host: string, guest: string): VenueSplit | null {
-  const games = meetings.filter((m) => m.team1 === host && m.team2 === guest);
+  const games = meetings.filter((m) => m.team1 === host && m.team2 === guest && !m.neutral);
   const n = games.length;
   if (n === 0) return null;
   const count = (test: (m: PlayedMatch) => boolean) => games.filter(test).length;
@@ -55,6 +58,9 @@ function split(meetings: PlayedMatch[], host: string, guest: string): VenueSplit
 
 const one = (x: number) => x.toFixed(1).replace(".", ",");
 const times = (n: number) => (n === 1 ? "1 vez" : `${n} vezes`);
+// "2 vezes ganhou e 3 vezes empatou", leaving out what did not happen.
+const both = (a: number, aVerb: string, b: number, bVerb: string) =>
+  [a > 0 ? `${times(a)} ${aVerb}` : "", b > 0 ? `${times(b)} ${bVerb}` : ""].filter(Boolean).join(" e ");
 
 // `meetings` most recent first.
 export function h2hPattern(meetings: PlayedMatch[], home: string, away: string): H2HPattern {
@@ -70,10 +76,21 @@ export function h2hPattern(meetings: PlayedMatch[], home: string, away: string):
   const recent = meetings.slice(0, RECENT).map((m) => ({
     date: m.date,
     homeWasHost: m.team1 === home,
+    neutral: m.neutral === true,
     result: resultFor(m, home),
     // Goals of `home` first, wherever it played.
     score: m.team1 === home ? `${m.ft[0]}–${m.ft[1]}` : `${m.ft[1]}–${m.ft[0]}`,
   }));
+
+  const neutralGames = meetings.filter((m) => m.neutral);
+  const neutral = neutralGames.length
+    ? {
+        games: neutralGames.length,
+        homeWins: neutralGames.filter((m) => resultFor(m, home) === "V").length,
+        draws: neutralGames.filter((m) => resultFor(m, home) === "E").length,
+        awayWins: neutralGames.filter((m) => resultFor(m, home) === "D").length,
+      }
+    : null;
 
   const count = (test: (m: PlayedMatch) => boolean) => meetings.filter(test).length;
   const over25 = total ? count((m) => m.ft[0] + m.ft[1] > 2) / total : 0;
@@ -89,9 +106,9 @@ export function h2hPattern(meetings: PlayedMatch[], home: string, away: string):
     if (s.hostWins === s.games) notes.push(`${host} ganhou os ${s.games} jogos que fez em casa frente a ${guest}.`);
     else if (s.guestWins === s.games) notes.push(`${guest} ganhou os ${s.games} jogos que fez fora frente a ${host}.`);
     else if (s.guestWins === 0)
-      notes.push(`${host} não perde em casa frente a ${guest} em ${s.games} jogos (${times(s.hostWins)} ganhou e ${times(s.draws)} empatou).`);
+      notes.push(`${host} não perde em casa frente a ${guest} em ${s.games} jogos (${both(s.hostWins, "ganhou", s.draws, "empatou")}).`);
     else if (s.hostWins === 0)
-      notes.push(`${host} não ganha em casa frente a ${guest} em ${s.games} jogos (${times(s.draws)} empatou e ${times(s.guestWins)} perdeu).`);
+      notes.push(`${host} não ganha em casa frente a ${guest} em ${s.games} jogos (${both(s.draws, "empatou", s.guestWins, "perdeu")}).`);
   };
   venueNote(homeAtHome, home, away);
   venueNote(awayAtHome, away, home);
@@ -131,5 +148,5 @@ export function h2hPattern(meetings: PlayedMatch[], home: string, away: string):
       notes.push(`As duas equipas só marcaram em ${count((m) => m.ft[0] > 0 && m.ft[1] > 0)} dos ${total} jogos: costuma haver uma que fica em branco.`);
   }
 
-  return { total, homeAtHome, awayAtHome, goalsPerGame, over25, btts, draws, recent, notes: notes.slice(0, 6) };
+  return { total, homeAtHome, awayAtHome, neutral, goalsPerGame, over25, btts, draws, recent, notes: notes.slice(0, 6) };
 }

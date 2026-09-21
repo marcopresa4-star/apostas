@@ -16,6 +16,8 @@ export interface PlayedMatch {
   ht: [number, number] | null;
   // Only where the data mixes competitions (national teams).
   competition?: string;
+  // Played at a neutral venue: nobody was really at home (national teams).
+  neutral?: boolean;
 }
 
 // A result counts half as much every this many days, so this season weighs more
@@ -305,6 +307,8 @@ export interface TeamGame {
   result: "V" | "E" | "D";
   // Only for games added by hand (cups, Europe...); the league is the default.
   competition?: string;
+  // Played at a neutral venue: `home` is then only the side listed first.
+  neutral?: boolean;
 }
 
 // The team's games, most recent first.
@@ -322,6 +326,7 @@ export function gamesOf(matches: PlayedMatch[], team: string): TeamGame[] {
       gf,
       ga,
       result: gf > ga ? "V" : gf === ga ? "E" : "D",
+      ...(m.neutral ? { neutral: true } : {}),
     });
   }
   return out.sort((x, y) => y.date.localeCompare(x.date));

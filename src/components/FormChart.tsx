@@ -89,7 +89,7 @@ export default function FormChart({ name, games }: { name: string; games: TeamGa
                   >
                     <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
                       {dayMonth(g.date)} · {g.competition ? `${g.competition} · ` : ""}
-                      {g.home ? "em casa" : "fora"}
+                      {g.neutral ? "campo neutro" : g.home ? "em casa" : "fora"}
                     </span>
                     <span className="block text-xs text-neutral-200">
                       {g.home ? name : g.opponent}{" "}
@@ -134,7 +134,7 @@ export default function FormChart({ name, games }: { name: string; games: TeamGa
               <tr key={`t-${g.date}-${g.opponent}`}>
                 <td className="py-0.5 pr-2">{dayMonth(g.date)}</td>
                 <td className="py-0.5 pr-2">
-                  {g.opponent} ({g.home ? "casa" : "fora"})
+                  {g.opponent} ({g.neutral ? "neutro" : g.home ? "casa" : "fora"})
                 </td>
                 <td className="py-0.5 pr-2">{g.gf}</td>
                 <td className="py-0.5 pr-2">{g.ga}</td>

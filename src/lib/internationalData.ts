@@ -59,6 +59,7 @@ export const toPlayed = (g: IntlGame): PlayedMatch => ({
   ft: [g.hg, g.ag],
   ht: null,
   competition: g.tournament,
+  ...(g.neutral ? { neutral: true } : {}),
 });
 
 const DAY_MS = 86_400_000;

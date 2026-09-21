@@ -82,6 +82,19 @@ export default function H2HPatternCard({
         <VenueBlock host={home} guest={away} split={pattern.homeAtHome} />
         <VenueBlock host={away} guest={home} split={pattern.awayAtHome} />
       </div>
+      {pattern.neutral && (
+        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            Em campo neutro · {pattern.neutral.games} {pattern.neutral.games === 1 ? "jogo" : "jogos"}
+          </p>
+          <p className="mt-1 text-xs text-neutral-300">
+            {home} {pattern.neutral.homeWins} · empates {pattern.neutral.draws} · {away} {pattern.neutral.awayWins}
+          </p>
+          <p className="mt-1 text-[11px] text-neutral-500">
+            Nestes jogos (Mundial, fases finais) ninguém jogou em casa, por isso não entram nos dois quadros de cima.
+          </p>
+        </div>
+      )}
 
       <div className="mt-3">
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -95,12 +108,14 @@ export default function H2HPatternCard({
               </span>
               <span className="text-[10px] leading-none text-neutral-300">{r.score}</span>
               <span className="text-[10px] leading-none text-neutral-500">
-                {r.homeWasHost ? "casa" : "fora"} · {shortDate(r.date)}
+                {r.neutral ? "neutro" : r.homeWasHost ? "casa" : "fora"} · {shortDate(r.date)}
               </span>
             </span>
           ))}
         </div>
-        <p className="mt-1 text-[11px] text-neutral-500">Golos de {home} primeiro, seja em casa ou fora.</p>
+        <p className="mt-1 text-[11px] text-neutral-500">
+          Golos de {home} primeiro, seja em casa, fora ou em campo neutro.
+        </p>
       </div>
 
       <div className="mt-3">

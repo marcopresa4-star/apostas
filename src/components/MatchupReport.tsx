@@ -126,7 +126,7 @@ function ResultChip({ game, name }: { game: TeamGame; name: string }) {
       >
         <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
           {shortDate(game.date)} · {game.competition ? `${game.competition} · ` : ""}
-          {game.home ? "em casa" : "fora"}
+          {game.neutral ? "campo neutro" : game.home ? "em casa" : "fora"}
         </span>
         <span className="block text-xs text-neutral-200">
           {game.home ? name : game.opponent}{" "}
@@ -162,7 +162,8 @@ function TeamCard({
 }) {
   const typed = games.filter((g) => g.competition !== undefined).length;
   const last5 = games.slice(0, 5);
-  const atVenue = games.filter((g) => g.home === (venue === "home"));
+  // (A game at a neutral venue was not played at home or away.)
+  const atVenue = games.filter((g) => g.home === (venue === "home") && !g.neutral);
   return (
     <div className={CARD}>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -805,6 +806,7 @@ export default function MatchupReport({
                         {m.competition && (
                           <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-amber-500/80">
                             {m.competition}
+                            {m.neutral ? " · neutro" : ""}
                           </span>
                         )}
                       </span>
