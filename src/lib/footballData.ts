@@ -1,4 +1,4 @@
-import type { PlayedMatch } from "./footballModel";
+import type { Fixture, PlayedMatch } from "./footballModel";
 
 // Free results of the main European leagues from the openfootball project
 // (public domain JSON on GitHub, no key): date, teams, full-time and half-time
@@ -86,6 +86,8 @@ export interface LeagueData {
   matches: PlayedMatch[];
   // The teams of the latest season available.
   teams: string[];
+  // Every game of that season, played or still to come.
+  fixtures: Fixture[];
   // Date of the most recent result.
   latest: string | null;
   seasons: string[];
@@ -100,6 +102,7 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
   const seasons: string[] = [];
   const matches: PlayedMatch[] = [];
   let teams: string[] = [];
+  let fixtures: Fixture[] = [];
 
   files.forEach((file, i) => {
     if (!file) return;
@@ -107,6 +110,12 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
     // The first season that exists is the latest one: its teams are the current ones.
     if (teams.length === 0) {
       teams = [...new Set(file.flatMap((m) => [m.team1, m.team2]))].sort((a, b) => a.localeCompare(b));
+      fixtures = file.map((m) => ({
+        date: m.date,
+        team1: m.team1,
+        team2: m.team2,
+        ft: m.score?.ft ?? null,
+      }));
     }
     for (const m of file) {
       if (!m.score?.ft) continue;
@@ -122,5 +131,5 @@ export async function loadLeague(code: string, now: Date): Promise<LeagueData | 
 
   if (seasons.length === 0) return null;
   matches.sort((a, b) => a.date.localeCompare(b.date));
-  return { matches, teams, latest: matches.at(-1)?.date ?? null, seasons };
+  return { matches, teams, fixtures, latest: matches.at(-1)?.date ?? null, seasons };
 }

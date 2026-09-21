@@ -57,6 +57,7 @@ export default async function EstatisticasPage({
           latest={data.latest}
           swapHref={swapHref}
           now={now}
+          fixtures={data.fixtures}
         />
       )}
 

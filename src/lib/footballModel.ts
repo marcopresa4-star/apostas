@@ -294,3 +294,58 @@ export function headToHead(matches: PlayedMatch[], a: string, b: string): Played
     .filter((m) => (m.team1 === a && m.team2 === b) || (m.team1 === b && m.team2 === a))
     .sort((x, y) => y.date.localeCompare(x.date));
 }
+
+// ---------------------------------------------------------------------------
+// A team's season, game by game (played or still to come).
+// ---------------------------------------------------------------------------
+
+export interface Fixture {
+  date: string;
+  team1: string;
+  team2: string;
+  ft: [number, number] | null; // null while not played (or not in the data yet)
+}
+
+// The team's games of the season in date order.
+export function seasonOf(fixtures: Fixture[], team: string): Fixture[] {
+  return fixtures
+    .filter((f) => f.team1 === team || f.team2 === team)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function resultFor(fixture: Fixture, team: string): "V" | "E" | "D" | null {
+  if (!fixture.ft) return null;
+  const mine = fixture.team1 === team ? fixture.ft[0] : fixture.ft[1];
+  const theirs = fixture.team1 === team ? fixture.ft[1] : fixture.ft[0];
+  return mine > theirs ? "V" : mine === theirs ? "E" : "D";
+}
+
+// ---------------------------------------------------------------------------
+// When a team scores and concedes: the free data has no goal minutes, only the
+// score at half time and at the end, so this is by half.
+// ---------------------------------------------------------------------------
+
+export interface GoalsByHalf {
+  games: number; // games with a half time score
+  firstFor: number;
+  firstAgainst: number;
+  secondFor: number;
+  secondAgainst: number;
+}
+
+export function goalsByHalf(matches: PlayedMatch[], team: string, since: string): GoalsByHalf {
+  const out: GoalsByHalf = { games: 0, firstFor: 0, firstAgainst: 0, secondFor: 0, secondAgainst: 0 };
+  for (const m of matches) {
+    if (m.date < since || !m.ht) continue;
+    const isHome = m.team1 === team;
+    if (!isHome && m.team2 !== team) continue;
+    const [htFor, htAgainst] = isHome ? m.ht : [m.ht[1], m.ht[0]];
+    const [ftFor, ftAgainst] = isHome ? m.ft : [m.ft[1], m.ft[0]];
+    out.games++;
+    out.firstFor += htFor;
+    out.firstAgainst += htAgainst;
+    out.secondFor += ftFor - htFor;
+    out.secondAgainst += ftAgainst - htAgainst;
+  }
+  return out;
+}

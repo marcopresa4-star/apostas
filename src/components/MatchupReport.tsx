@@ -7,9 +7,14 @@ import {
   OVER_LINES,
   fairOdd,
   gamesOf,
+  goalsByHalf,
   headToHead,
   predict,
+  resultFor,
+  seasonOf,
   summarize,
+  type Fixture,
+  type GoalsByHalf,
   type PlayedMatch,
   type Prediction,
   type Summary,
@@ -126,12 +131,30 @@ function TeamCard({
           <span className="text-xs text-neutral-500">Ainda sem jogos esta época.</span>
         )}
         {last5.map((g) => (
-          <span
-            key={`${g.date}-${g.opponent}`}
-            title={`${shortDate(g.date)} · ${g.home ? "casa" : "fora"} vs ${g.opponent}: ${g.gf}-${g.ga}`}
-            className={`flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-xs font-bold ${CHIP[g.result]}`}
-          >
-            {g.result}
+          // Opens straight away on hover (and on focus, for touch), unlike the
+          // browser's own tooltip, and spells the game out home team first.
+          <span key={`${g.date}-${g.opponent}`} className="group relative">
+            <span
+              tabIndex={0}
+              className={`flex h-7 min-w-7 cursor-help items-center justify-center rounded-md px-1.5 text-xs font-bold outline-none ring-white/60 focus-visible:ring-2 ${CHIP[g.result]}`}
+            >
+              {g.result}
+            </span>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
+            >
+              <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+                {shortDate(g.date)} · {g.home ? "em casa" : "fora"}
+              </span>
+              <span className="block text-xs text-neutral-200">
+                {g.home ? name : g.opponent}{" "}
+                <span className="font-bold text-neutral-100">
+                  {g.home ? `${g.gf}–${g.ga}` : `${g.ga}–${g.gf}`}
+                </span>{" "}
+                {g.home ? g.opponent : name}
+              </span>
+            </span>
           </span>
         ))}
         {last5.length > 0 && (
@@ -144,6 +167,131 @@ function TeamCard({
         title={venue === "home" ? "Esta época em casa" : "Esta época fora"}
         summary={summarize(atVenue)}
       />
+    </div>
+  );
+}
+
+const dayMonth = (date: string) => date.slice(8, 10) + "/" + date.slice(5, 7);
+
+const SCORE_STYLE = {
+  V: "bg-emerald-600/30 text-emerald-300",
+  E: "bg-amber-500/25 text-amber-300",
+  D: "bg-red-600/30 text-red-300",
+} as const;
+
+function GameRow({ fixture, team, today }: { fixture: Fixture; team: string; today: string }) {
+  const result = resultFor(fixture, team);
+  // Still no result although the date has passed: the data is a few days behind.
+  const score = fixture.ft ? `${fixture.ft[0]}-${fixture.ft[1]}` : fixture.date < today ? "?" : "-";
+  const name = (n: string) =>
+    n === team ? "font-semibold text-neutral-100" : "text-neutral-400";
+  return (
+    <div className="grid grid-cols-[2.6rem_1fr_3.2rem_1fr] items-center gap-2 py-1 text-xs">
+      <span className="text-neutral-500">{dayMonth(fixture.date)}</span>
+      <span className={`truncate text-right ${name(fixture.team1)}`}>{fixture.team1}</span>
+      <span
+        className={`rounded px-1 py-0.5 text-center font-semibold ${
+          result ? SCORE_STYLE[result] : "bg-neutral-800 text-neutral-500"
+        }`}
+      >
+        {score}
+      </span>
+      <span className={`truncate ${name(fixture.team2)}`}>{fixture.team2}</span>
+    </div>
+  );
+}
+
+// One team's league season, in the way of the classic results tables: the last
+// games with the score coloured by the team's result, the next ones, and every
+// game of the season on request.
+function TeamSeason({ team, fixtures, today }: { team: string; fixtures: Fixture[]; today: string }) {
+  const all = seasonOf(fixtures, team);
+  const last = all.filter((f) => f.ft).slice(-10).reverse();
+  const next = all.filter((f) => !f.ft).slice(0, 3);
+  const heading = "mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500";
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-base font-semibold text-neutral-100">{team}</h3>
+
+      <p className={heading}>Últimos jogos da liga</p>
+      {last.length === 0 ? (
+        <p className="text-xs text-neutral-500">Ainda sem jogos esta época.</p>
+      ) : (
+        <div className="divide-y divide-neutral-800/60">
+          {last.map((f) => (
+            <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
+          ))}
+        </div>
+      )}
+
+      <p className={`${heading} mt-4`}>Próximos jogos</p>
+      {next.length === 0 ? (
+        <p className="text-xs text-neutral-500">Sem mais jogos da liga nos dados.</p>
+      ) : (
+        <div className="divide-y divide-neutral-800/60">
+          {next.map((f) => (
+            <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
+          ))}
+        </div>
+      )}
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-amber-400 hover:underline">
+          Ver todos os jogos da época ({all.length})
+        </summary>
+        <div className="mt-2 divide-y divide-neutral-800/60">
+          {all.map((f) => (
+            <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// Goals scored (green) and conceded (red) in each half, bars on one scale for
+// both teams so they can be compared.
+function HalfBars({ label, scored, conceded, max }: { label: string; scored: number; conceded: number; max: number }) {
+  const bar = (n: number, color: string) => (
+    <div className="flex items-center gap-2">
+      <span className="w-4 text-right text-xs font-medium text-neutral-200">{n}</span>
+      <div className="h-2 flex-1">
+        {n > 0 && <div className={`h-full rounded-full ${color}`} style={{ width: `${(n / max) * 100}%` }} />}
+      </div>
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-[4.5rem_1fr] items-center gap-3 rounded-lg bg-neutral-950 px-3 py-2">
+      <span className="text-xs font-semibold text-neutral-300">{label}</span>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="w-12 shrink-0 text-[11px] text-neutral-500">Marcados</span>
+          <div className="flex-1">{bar(scored, "bg-emerald-500")}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-12 shrink-0 text-[11px] text-neutral-500">Sofridos</span>
+          <div className="flex-1">{bar(conceded, "bg-red-500")}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HalvesCard({ team, halves, max }: { team: string; halves: GoalsByHalf; max: number }) {
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-base font-semibold text-neutral-100">{team}</h3>
+      {halves.games === 0 ? (
+        <p className="text-xs text-neutral-500">Ainda sem jogos esta época.</p>
+      ) : (
+        <div className="space-y-2">
+          <HalfBars label="1.ª parte" scored={halves.firstFor} conceded={halves.firstAgainst} max={max} />
+          <HalfBars label="2.ª parte" scored={halves.secondFor} conceded={halves.secondAgainst} max={max} />
+          <p className="text-[11px] text-neutral-500">
+            {halves.games} {halves.games === 1 ? "jogo" : "jogos"} desta época.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -253,6 +401,7 @@ export default function MatchupReport({
   latest,
   swapHref,
   now,
+  fixtures,
 }: {
   matches: PlayedMatch[];
   home: string;
@@ -261,6 +410,7 @@ export default function MatchupReport({
   latest: string | null;
   swapHref: string;
   now: Date;
+  fixtures: Fixture[];
 }) {
   const prediction = predict(matches, home, away, now);
   const { groups, odd } = buildMarkets(prediction);
@@ -272,6 +422,14 @@ export default function MatchupReport({
   const homeGames = thisSeason(home);
   const awayGames = thisSeason(away);
   const season = seasonLabel(seasonsFor(now, 1)[0]);
+  const homeHalves = goalsByHalf(matches, home, seasonStart);
+  const awayHalves = goalsByHalf(matches, away, seasonStart);
+  const halvesMax = Math.max(
+    1,
+    homeHalves.firstFor, homeHalves.firstAgainst, homeHalves.secondFor, homeHalves.secondAgainst,
+    awayHalves.firstFor, awayHalves.firstAgainst, awayHalves.secondFor, awayHalves.secondAgainst
+  );
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   // Head to head looks at every season in the data.
   const meetings = headToHead(matches, home, away);
@@ -376,6 +534,29 @@ export default function MatchupReport({
               </>
             )}
           </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · época {season}</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
+          Alemanha e Áustria em 2025/26). As barras usam a mesma escala nas duas equipas.
+        </p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <HalvesCard team={home} halves={homeHalves} max={halvesMax} />
+          <HalvesCard team={away} halves={awayHalves} max={halvesMax} />
+        </div>
+      </div>
+
+      <div>
+        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos da liga · época {season}</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Só os jogos da liga: as taças e as provas europeias não estão nos dados gratuitos.
+        </p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <TeamSeason team={home} fixtures={fixtures} today={today} />
+          <TeamSeason team={away} fixtures={fixtures} today={today} />
         </div>
       </div>
 
