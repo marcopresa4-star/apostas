@@ -116,6 +116,7 @@ export default async function EstatisticasPage({
         fora={fora}
         adjust={raw as unknown as AdjustValues}
         restHint={{ casa: restHint(casa, autoRest.home), fora: restHint(fora, autoRest.away) }}
+        restAuto={{ casa: autoRest.home?.days ?? null, fora: autoRest.away?.days ?? null }}
         extras={extras}
         matchDate={askedDate}
         scheduledDate={scheduled}

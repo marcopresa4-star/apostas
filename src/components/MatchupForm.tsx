@@ -34,6 +34,7 @@ export default function MatchupForm({
   fora,
   adjust,
   restHint,
+  restAuto,
   extras,
   matchDate,
   scheduledDate,
@@ -46,6 +47,8 @@ export default function MatchupForm({
   adjust: AdjustValues;
   // What the data says about each team's last game, to help fill in the rest days.
   restHint: { casa: string; fora: string };
+  // The days of rest worked out for the game's date, if it is known.
+  restAuto: { casa: number | null; fora: number | null };
   // Games of other competitions typed in by hand, for each team.
   extras: { casa: ExtraGame[]; fora: ExtraGame[] };
   // The date of the game as asked for, and the one the calendar gives for these
@@ -59,6 +62,12 @@ export default function MatchupForm({
     extras.fora.length > 0 ||
     matchDate !== "";
   const formRef = useRef<HTMLFormElement>(null);
+
+  // The hints, the game's date and the rest days all depend on the teams that
+  // were asked for, so picking a team asks for them straight away.
+  function changeTeam() {
+    formRef.current?.requestSubmit();
+  }
 
   function changeLeague() {
     const form = formRef.current;
@@ -95,7 +104,7 @@ export default function MatchupForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm text-neutral-300">Equipa da casa</label>
-              <select key={`casa-${liga}`} name="casa" defaultValue={casa} className={SELECT}>
+              <select key={`casa-${liga}`} name="casa" defaultValue={casa} onChange={changeTeam} className={SELECT}>
                 <option value="">Escolhe a equipa...</option>
                 {teams.map((t) => (
                   <option key={t} value={t}>
@@ -106,7 +115,7 @@ export default function MatchupForm({
             </div>
             <div>
               <label className="mb-1 block text-sm text-neutral-300">Equipa de fora</label>
-              <select key={`fora-${liga}`} name="fora" defaultValue={fora} className={SELECT}>
+              <select key={`fora-${liga}`} name="fora" defaultValue={fora} onChange={changeTeam} className={SELECT}>
                 <option value="">Escolhe a equipa...</option>
                 {teams.map((t) => (
                   <option key={t} value={t}>
@@ -179,7 +188,14 @@ export default function MatchupForm({
                 ))}
               </select>
 
-              <span className="pt-2 text-neutral-300">Dias de descanso</span>
+              <span className="pt-2 text-neutral-300">
+                Dias de descanso
+                {(matchDate || scheduledDate) && (
+                  <span className="block text-[11px] text-neutral-500">
+                    até ao jogo de {(matchDate || scheduledDate).slice(8, 10)}/{(matchDate || scheduledDate).slice(5, 7)}
+                  </span>
+                )}
+              </span>
               <div>
                 <input
                   type="number"
@@ -187,7 +203,7 @@ export default function MatchupForm({
                   min="0"
                   max="30"
                   defaultValue={adjust.descanso_casa}
-                  placeholder="?"
+                  placeholder={restAuto.casa !== null ? `auto: ${restAuto.casa}` : "?"}
                   className={SELECT}
                 />
                 {restHint.casa && <p className="mt-1 text-[11px] text-neutral-500">{restHint.casa}</p>}
@@ -199,7 +215,7 @@ export default function MatchupForm({
                   min="0"
                   max="30"
                   defaultValue={adjust.descanso_fora}
-                  placeholder="?"
+                  placeholder={restAuto.fora !== null ? `auto: ${restAuto.fora}` : "?"}
                   className={SELECT}
                 />
                 {restHint.fora && <p className="mt-1 text-[11px] text-neutral-500">{restHint.fora}</p>}
