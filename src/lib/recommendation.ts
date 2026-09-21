@@ -64,20 +64,23 @@ export function baseRates(matches: PlayedMatch[]): BaseRates {
 
 const num = (n: number) => n.toFixed(1).replace(".", ",");
 
-export function recommend(
+// A bet the model can price, with its chance already pulled back towards the
+// league's rate for the markets it is less sure about (see TRUST).
+export interface Candidate {
+  group: PickGroup;
+  label: string;
+  p: number;
+  base: number; // how often it happens in the league
+  won: (score: [number, number]) => boolean;
+}
+
+export function candidatesFor(
   prediction: Prediction,
   base: BaseRates,
   home: string,
   away: string
-): Pick[] {
+): Candidate[] {
   const ft = prediction.fullTime;
-  type Candidate = {
-    group: PickGroup;
-    label: string;
-    p: number;
-    base: number;
-    won: (score: [number, number]) => boolean;
-  };
   const candidates: Candidate[] = [
     { group: "result", label: `Vitória de ${home}`, p: ft.home, base: base.home, won: ([h, a]) => h > a },
     { group: "result", label: `Vitória de ${away}`, p: ft.away, base: base.away, won: ([h, a]) => a > h },
@@ -112,8 +115,16 @@ export function recommend(
     );
   }
 
-  const ranked = candidates
-    .map((c) => ({ ...c, p: c.base + TRUST[c.group] * (c.p - c.base) }))
+  return candidates.map((c) => ({ ...c, p: c.base + TRUST[c.group] * (c.p - c.base) }));
+}
+
+export function recommend(
+  prediction: Prediction,
+  base: BaseRates,
+  home: string,
+  away: string
+): Pick[] {
+  const ranked = candidatesFor(prediction, base, home, away)
     .filter((c) => c.p >= MIN_P && c.p <= MAX_P && c.p - c.base >= MIN_LIFT)
     .sort((a, b) => b.p - b.base - (a.p - a.base));
 
