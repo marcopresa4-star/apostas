@@ -6,7 +6,7 @@ import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
 import { liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
-import { parseLiveMatch, type LiveGameState } from "@/lib/sportscoreLive";
+import { checkLive, parseLiveMatch, type LiveGameState } from "@/lib/sportscoreLive";
 import { teamsMatch } from "@/lib/sportscoreSlug";
 import { useNow } from "@/lib/useNow";
 import { fairOdd } from "@/lib/footballModel";
@@ -92,7 +92,21 @@ const SPORTSCORE_MATCH = "https://sportscore.com/api/widget/match/?sport=footbal
 type SyncInfo =
   | { kind: "notfound" }
   | { kind: "error" }
-  | { kind: "ok"; state: LiveGameState; at: number };
+  | { kind: "stale"; state: LiveGameState; ageMs: number; at: number }
+  | { kind: "ok"; state: LiveGameState; at: number; notes: string[]; ageMs: number | null };
+
+const STAT_NAMES: Record<string, string> = {
+  "Ball Possession": "Posse de bola",
+  "Shots on Target": "Remates à baliza",
+  "Shots off Target": "Remates fora",
+  "Corner Kicks": "Cantos",
+  Corners: "Cantos",
+  Attacks: "Ataques",
+  "Dangerous Attacks": "Ataques perigosos",
+  Fouls: "Faltas",
+  Offsides: "Foras de jogo",
+  Saves: "Defesas",
+};
 
 // Waits for the browser to say what was saved for this game (it cannot be known
 // on the server), then starts the calculator from it.
@@ -159,22 +173,31 @@ function Calculator({
     if (!sync || !syncOn) return;
     let stop = false;
     let probed = false;
+    // Sportscore refreshes a game when it is asked for, so old data is often
+    // followed by fresh data a moment later: a stale reading is retried a few times.
+    let retries = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
     const read = async (slug: string): Promise<LiveGameState | null> => {
       const res = await fetch(SPORTSCORE_MATCH + encodeURIComponent(slug), { cache: "no-store" });
       return res.ok ? parseLiveMatch(await res.json()) : null;
     };
-    // A game whose slug is not known: the likely ones are tried until one is the
-    // right game (the reserve side of a club has a slug too).
+    // A game whose slug is not known: the likely ones are tried, and of those that
+    // are the right game (the reserve side of a club has a slug too) the one with
+    // the freshest data wins, since Sportscore can hold the same game twice and
+    // one of them stop being updated.
     const find = async (): Promise<string | null> => {
+      let best: { slug: string; at: number } | null = null;
       for (const pair of sync.pairs.slice(0, 12)) {
         if (stop) return null;
         const state = await read(pair.slug).catch(() => null);
         if (!state) continue;
         const homeVariants = pair.home === sync.hints.home ? null : sync.homeVariants;
         const awayVariants = pair.away === sync.hints.away ? null : sync.awayVariants;
-        if (teamsMatch([state.homeName, state.awayName], homeVariants, awayVariants)) return pair.slug;
+        if (!teamsMatch([state.homeName, state.awayName], homeVariants, awayVariants)) continue;
+        const at = state.updatedAt ?? 0;
+        if (best === null || at > best.at) best = { slug: pair.slug, at };
       }
-      return null;
+      return best?.slug ?? null;
     };
     const apply = (state: LiveGameState) => {
       if (state.homeGoals !== null) setHomeGoals(String(state.homeGoals));
@@ -207,8 +230,20 @@ function Calculator({
           setSyncInfo({ kind: "error" });
           return;
         }
-        apply(state);
-        setSyncInfo({ kind: "ok", state, at: Date.now() });
+        // Data that stopped being refreshed is not used: it would put the game at a
+        // minute it left long ago.
+        const checked = checkLive(state, Date.now());
+        if (checked.stale) {
+          setSyncInfo({ kind: "stale", state, ageMs: checked.ageMs ?? 0, at: Date.now() });
+          if (retries < 3) {
+            retries++;
+            timers.push(setTimeout(() => void poll(), 6000));
+          }
+          return;
+        }
+        retries = 0;
+        apply(checked.state);
+        setSyncInfo({ kind: "ok", state: checked.state, at: Date.now(), notes: checked.notes, ageMs: checked.ageMs });
       } catch {
         if (!stop) setSyncInfo({ kind: "error" });
       }
@@ -221,6 +256,7 @@ function Calculator({
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       stop = true;
+      timers.forEach(clearTimeout);
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
@@ -327,6 +363,7 @@ function Calculator({
 
   const seconds = syncInfo?.kind === "ok" && now ? Math.max(0, Math.round((now.getTime() - syncInfo.at) / 1000)) : null;
   const liveState = syncInfo?.kind === "ok" ? syncInfo.state : null;
+  const staleInfo = syncInfo?.kind === "stale" ? syncInfo : null;
   const redCards = liveState ? liveState.reds.home + liveState.reds.away : 0;
 
   return (
@@ -365,14 +402,49 @@ function Calculator({
                   Estado que não conheço: &quot;{liveState.raw.statusText || liveState.raw.status}&quot;. Escreve à mão.
                 </span>
               )}
-              {seconds !== null && <span className="text-neutral-500"> · atualizado há {seconds}s</span>}
+              {seconds !== null && <span className="text-neutral-500"> · lido há {seconds}s</span>}
+              {syncInfo?.kind === "ok" && syncInfo.ageMs !== null && syncInfo.ageMs > 90_000 && (
+                <span className="text-neutral-500"> · dados do Sportscore de há {Math.round(syncInfo.ageMs / 60_000)} min</span>
+              )}
             </p>
+          )}
+          {syncOn && staleInfo && (
+            <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
+              Os dados que o Sportscore tem deste jogo estão atrasados (de há {Math.round(staleInfo.ageMs / 60_000)} min) e
+              dizem &quot;{staleInfo.state.raw.statusText || staleInfo.state.raw.status}&quot;. Ignoro-os: escreve o resultado
+              e o minuto à mão, ou tenta de novo daqui a um minuto.
+            </p>
+          )}
+          {syncOn && syncInfo?.kind === "ok" && syncInfo.notes.length > 0 && (
+            <p className="mt-1.5 text-[11px] text-amber-400">{syncInfo.notes.join(" ")}</p>
           )}
           {syncOn && redCards > 0 && liveState && (
             <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
               Cartões vermelhos: {homeName} {liveState.reds.home}, {awayName} {liveState.reds.away}. O modelo não conta
               cartões vermelhos, por isso as probabilidades abaixo são menos fiáveis.
             </p>
+          )}
+          {syncOn && liveState && liveState.stats.length > 0 && (
+            <div className="mt-2 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                Estatísticas do jogo ({homeName} – {awayName})
+              </p>
+              <dl className="mt-1 grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 text-[11px]">
+                {liveState.stats.map((row) => (
+                  <div key={row.label} className="contents">
+                    <dt className="text-neutral-500">{STAT_NAMES[row.label] ?? row.label}</dt>
+                    <dd className="text-right text-neutral-200">
+                      {row.home}
+                      {row.suffix} – {row.away}
+                      {row.suffix}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-1 text-[10px] text-neutral-600">
+                Só para ver: o modelo não usa estas estatísticas (não as consigo testar).
+              </p>
+            </div>
           )}
           {syncOn && liveState && (
             <p className="mt-1.5 text-[11px] text-neutral-500">
