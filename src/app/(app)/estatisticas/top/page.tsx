@@ -35,9 +35,9 @@ export default async function TopPage({
     "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500";
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
-      <p className="mb-4 text-sm text-neutral-500">
+      <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         As apostas mais prováveis da jornada mais próxima de cada liga, uma por jogo, que ainda assim paguem pelo menos
         a odd mínima.
       </p>
@@ -88,7 +88,7 @@ export default async function TopPage({
         </>
       )}
 
-      <div className="mt-4 space-y-2 text-xs leading-relaxed text-neutral-500">
+      <div className="mt-4 max-w-4xl space-y-2 text-xs leading-relaxed text-neutral-500">
         <p>
           <span className="font-medium text-neutral-400">A odd é a do modelo, não a da casa.</span> Não temos as odds
           das casas de apostas. A <span className="font-medium text-neutral-400">odd justa</span> é 1 a dividir pela

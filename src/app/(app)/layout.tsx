@@ -19,7 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommunityUnseenProvider enabled={!isAdmin}>
         <Sidebar userEmail={user?.email ?? null} isAdmin={isAdmin} />
         <div className="flex min-h-screen flex-col md:pl-56">
-          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">{children}</main>
+          {/* A page holding a wide table marks itself with data-wide to get more room. */}
+          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 has-[[data-wide]]:max-w-[96rem]">{children}</main>
         </div>
       </CommunityUnseenProvider>
     </div>
