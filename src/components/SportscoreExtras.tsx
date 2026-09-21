@@ -4,32 +4,25 @@ import { useState } from "react";
 
 const BASE = "https://sportscore.com/embed";
 
-type Tab = "lineups" | "standings" | "recent";
+type Tab = "lineups" | "standings";
 
 // More of the free Sportscore embeds, under a game's widget: the lineups of the
-// match, the league table, and each team's recent results. Closed until you ask
-// for one, so a widget stays as short as before and nothing extra loads.
+// match and the league table. Closed until you ask for one, so a widget stays
+// as short as before and nothing extra loads. (A team's own page was tried and
+// dropped: it lists either the next games or the recent results, never both,
+// so for most teams it only showed the games still to come.)
 export default function SportscoreExtras({
   matchSlug,
-  homeSlug,
-  awaySlug,
   competitionSlug,
-  homeName,
-  awayName,
 }: {
   matchSlug: string;
-  homeSlug: string | null;
-  awaySlug: string | null;
   // Left out when Sportscore has no standings under the competition's name.
   competitionSlug: string | null;
-  homeName: string;
-  awayName: string;
 }) {
   const [open, setOpen] = useState<Tab | null>(null);
 
   const tabs: { id: Tab; label: string }[] = [{ id: "lineups", label: "Onzes" }];
   if (competitionSlug) tabs.push({ id: "standings", label: "Classificação" });
-  if (homeSlug && awaySlug) tabs.push({ id: "recent", label: "Jogos recentes" });
 
   const frame = (path: string, title: string, height: string) => (
     <iframe
@@ -67,14 +60,6 @@ export default function SportscoreExtras({
       {open === "standings" && competitionSlug && (
         <div className="mt-2">
           {frame(`standings/football/${competitionSlug}`, "Classificação", "h-[560px]")}
-        </div>
-      )}
-      {open === "recent" && homeSlug && awaySlug && (
-        <div className="mt-2 space-y-2">
-          <p className="text-xs font-medium text-neutral-400">{homeName}</p>
-          {frame(`fixtures/football/team/${homeSlug}`, `Jogos de ${homeName}`, "h-[360px]")}
-          <p className="text-xs font-medium text-neutral-400">{awayName}</p>
-          {frame(`fixtures/football/team/${awaySlug}`, `Jogos de ${awayName}`, "h-[360px]")}
         </div>
       )}
     </div>

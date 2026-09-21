@@ -18,8 +18,6 @@ type Resolved = {
   key: string;
   slug: string | null;
   blocked?: boolean;
-  homeSlug?: string | null;
-  awaySlug?: string | null;
   competitionSlug?: string | null;
 };
 
@@ -58,10 +56,8 @@ export default function SportscoreWidget({
     : current
       ? current.slug
       : undefined;
-  // When the server could not check anything the teams are looked up by their
-  // typed names too, and there is no way to know the league's slug.
-  const homeSlug = current?.blocked ? slugify(homeTeam) : (current?.homeSlug ?? null);
-  const awaySlug = current?.blocked ? slugify(awayTeam) : (current?.awaySlug ?? null);
+  // When the server could not check anything there is no way to know the
+  // league's slug, so the table is left out.
   const competitionSlug = current?.blocked ? null : (current?.competitionSlug ?? null);
 
   return (
@@ -80,14 +76,7 @@ export default function SportscoreWidget({
             className="h-[900px] w-full border-0"
             style={{ overflow: "hidden" }}
           />
-          <SportscoreExtras
-            matchSlug={slug}
-            homeSlug={homeSlug}
-            awaySlug={awaySlug}
-            competitionSlug={competitionSlug}
-            homeName={homeTeam}
-            awayName={awayTeam}
-          />
+          <SportscoreExtras matchSlug={slug} competitionSlug={competitionSlug} />
         </>
       ) : (
         <div className="px-4 py-10 text-center text-sm text-neutral-400">

@@ -5,10 +5,9 @@ import { slugify } from "@/lib/slugify";
 // variants against its embed endpoint, which answers 404 for unknown slugs and
 // 200 once both teams (and a match between them) exist. A 200 is not proof of
 // the right teams though (a slug can belong to a reserve side), so the names
-// the embed shows are checked too. It also reports the slugs of the two teams
-// and of the competition, which the extra blocks under a widget (lineups,
-// standings, recent results) are looked up by. Sits behind the login proxy
-// like every other route.
+// the embed shows are checked too. It also reports the competition's slug,
+// which the standings under a widget are looked up by. Sits behind the login
+// proxy like every other route.
 const EMBED = "https://sportscore.com/embed/match/football";
 const STANDINGS = "https://sportscore.com/embed/standings/football";
 const CONCURRENCY = 6;
@@ -18,13 +17,11 @@ const MISS_TTL_MS = 60 * 1000;
 
 interface Resolved {
   slug: string | null;
-  homeSlug: string | null;
-  awaySlug: string | null;
   // null when Sportscore has no standings under the competition's name.
   competitionSlug: string | null;
 }
 
-const NOT_FOUND: Resolved = { slug: null, homeSlug: null, awaySlug: null, competitionSlug: null };
+const NOT_FOUND: Resolved = { slug: null, competitionSlug: null };
 
 const cache = new Map<string, { result: Resolved; expires: number }>();
 
@@ -149,8 +146,6 @@ export async function GET(request: Request) {
   const result: Resolved = found
     ? {
         slug: `${found.home}-vs-${found.away}`,
-        homeSlug: found.home,
-        awaySlug: found.away,
         competitionSlug: await competitionSlugFor(found.competition),
       }
     : NOT_FOUND;
