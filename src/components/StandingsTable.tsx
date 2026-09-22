@@ -13,8 +13,16 @@ export interface StandingsLine {
   rating: Rating;
 }
 
-// The season's table with each team's attack, defence and overall strength.
-export default function StandingsTable({ lines }: { lines: StandingsLine[] }) {
+// The season's table with each team's attack, defence and overall strength. The
+// two teams of a game being looked at can be `highlight`ed (home in green, away in
+// blue, the colours of the chances above them).
+export default function StandingsTable({
+  lines,
+  highlight,
+}: {
+  lines: StandingsLine[];
+  highlight?: { home: string; away: string };
+}) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
       <table className="w-full min-w-[52rem] text-sm">
@@ -42,10 +50,32 @@ export default function StandingsTable({ lines }: { lines: StandingsLine[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800/70">
-          {lines.map(({ standing: s, rating: r }, i) => (
-            <tr key={s.team}>
+          {lines.map(({ standing: s, rating: r }, i) => {
+            const side = highlight?.home === s.team ? "home" : highlight?.away === s.team ? "away" : null;
+            return (
+            <tr
+              key={s.team}
+              className={
+                side === "home"
+                  ? "bg-emerald-500/15 shadow-[inset_3px_0_0_0_var(--color-emerald-500)]"
+                  : side === "away"
+                    ? "bg-sky-500/15 shadow-[inset_3px_0_0_0_var(--color-sky-500)]"
+                    : ""
+              }
+            >
               <td className="px-2 py-2 text-neutral-500">{i + 1}</td>
-              <td className="px-2 py-2 font-medium text-neutral-100">{s.team}</td>
+              <td className="px-2 py-2 font-medium text-neutral-100">
+                {s.team}
+                {side && (
+                  <span
+                    className={`ml-2 rounded px-1 text-[9px] font-semibold uppercase ${
+                      side === "home" ? "bg-emerald-950 text-emerald-300" : "bg-sky-950 text-sky-300"
+                    }`}
+                  >
+                    {side === "home" ? "casa" : "fora"}
+                  </span>
+                )}
+              </td>
               <td className="px-2 py-2 text-right text-neutral-300">{s.played}</td>
               <td className="px-2 py-2 text-right text-neutral-300">{s.wins}</td>
               <td className="px-2 py-2 text-right text-neutral-300">{s.draws}</td>
@@ -76,7 +106,8 @@ export default function StandingsTable({ lines }: { lines: StandingsLine[] }) {
                 {num(r.goalDiff)}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

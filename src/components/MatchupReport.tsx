@@ -2,6 +2,8 @@ import Link from "next/link";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
+import StandingsTable, { type StandingsLine } from "./StandingsTable";
+import { buildStandings, ratings } from "@/lib/standings";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
 import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
@@ -654,6 +656,15 @@ export default function MatchupReport({
   const unadjusted = adjusted ? (predictFn ? predictFn(1) : predict(matches, home, away, now)) : prediction;
   const avg = international ? "média das seleções" : "média da liga";
   const period = international ? currentSeason.label : `época ${currentSeason.label}`;
+  // The league table with each team's strength, the two teams standing out (not for
+  // national teams, which have no league).
+  const table = international ? [] : buildStandings(fixtures);
+  const strengths = new Map(ratings(matches, table.map((row) => row.team), now).rows.map((row) => [row.team, row]));
+  const standingsLines: StandingsLine[] = table.flatMap((standing) => {
+    const rating = strengths.get(standing.team);
+    return rating ? [{ standing, rating }] : [];
+  });
+
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null);
   const { groups, odd } = buildMarkets(prediction, hasHalfTime);
@@ -824,6 +835,52 @@ export default function MatchupReport({
           </div>
         </div>
       </div>
+
+      {standingsLines.length > 0 && (
+        <div>
+          <h2 className="mb-1 text-sm font-semibold text-neutral-300">Classificação e força · {period}</h2>
+          <p className="mb-3 text-xs text-neutral-500">
+            A tabela soma os jogos desta época que a fonte já tem (até {latest ? shortDate(latest) : "?"}), por isso pode
+            faltar um jogo; em ligas com fases finais ou grupos não é a oficial. <span className="text-neutral-400">Ataque</span> e{" "}
+            <span className="text-neutral-400">defesa</span> comparam cada equipa com a média da liga (1,00): atacar acima
+            de 1 e defender abaixo de 1 é bom. A <span className="text-neutral-400">força</span> é a diferença de golos
+            esperada por jogo contra uma equipa média.
+          </p>
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {([["home", home], ["away", away]] as const).map(([side, team]) => {
+              const at = standingsLines.findIndex((l) => l.standing.team === team);
+              const line = at >= 0 ? standingsLines[at] : null;
+              return (
+                <div
+                  key={side}
+                  className={`rounded-xl border p-3 ${
+                    side === "home" ? "border-emerald-800/60 bg-emerald-950/20" : "border-sky-800/60 bg-sky-950/20"
+                  }`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                    {side === "home" ? "Casa" : "Fora"}
+                  </p>
+                  <p className="text-sm font-semibold text-neutral-100">{team}</p>
+                  {line ? (
+                    <p className="mt-1 text-xs text-neutral-300">
+                      {at + 1}.º lugar · {line.standing.points} pontos em {line.standing.played} jogos · ataque{" "}
+                      <span className="font-medium text-neutral-100">{line.rating.attack.toFixed(2).replace(".", ",")}</span> · defesa{" "}
+                      <span className="font-medium text-neutral-100">{line.rating.defense.toFixed(2).replace(".", ",")}</span> · força{" "}
+                      <span className="font-medium text-neutral-100">
+                        {line.rating.goalDiff > 0 ? "+" : ""}
+                        {line.rating.goalDiff.toFixed(2).replace(".", ",")}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-neutral-500">Ainda sem jogos nesta época na tabela.</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <StandingsTable lines={standingsLines} highlight={{ home, away }} />
+        </div>
+      )}
 
       <H2HPatternCard
         pattern={h2hPattern(meetings, home, away)}
