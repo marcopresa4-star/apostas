@@ -15,7 +15,9 @@ import { OVER_LINES, fairOdd, type PlayedMatch, type Prediction } from "./footba
 
 export type PickGroup = "result" | "goals" | "btts";
 
-const TRUST: Record<PickGroup, number> = { result: 1, goals: 0.5, btts: 0.5 };
+// How much the model's own chance counts for each kind of market, the rest
+// pulled towards the league's own rate (see the note at the top of this file).
+export const TRUST: Record<PickGroup, number> = { result: 1, goals: 0.5, btts: 0.5 };
 
 // A bet is only offered if it is not a sure thing that pays nothing (over 0.5
 // goals) nor a long shot.

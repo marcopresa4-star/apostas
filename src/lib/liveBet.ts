@@ -57,6 +57,8 @@ export function liveCandidates(
 // long shot, not a suggestion.
 const TOO_SURE = 0.97;
 const TOO_UNLIKELY = 0.35;
+// From this minute on, there is too little game left for a suggestion to mean much.
+export const LAST_MINUTES = 88;
 
 // The chance is cut back before working out from which odd a bet is worth it.
 // Tested at half time on 6,062 games of 2025/26 (the main bet of each game): what

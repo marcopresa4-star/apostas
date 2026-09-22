@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
-import { liveCandidates, suggestLive } from "@/lib/liveBet";
+import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { checkLive, parseLiveMatch, type LiveGameState } from "@/lib/sportscoreLive";
 import { teamsMatch } from "@/lib/sportscoreSlug";
@@ -295,8 +295,9 @@ function Calculator({
       awayGoals: a,
       lh,
       la,
+      firstHalfShare,
     });
-  }, [gameKey, href, home, away, m, running, h, a, lh, la]);
+  }, [gameKey, href, home, away, m, running, h, a, lh, la, firstHalfShare]);
 
   const total = h + a;
   const homeName = home || "Casa";
@@ -345,7 +346,7 @@ function Calculator({
   ];
   // The suggested bet: in the last minutes there is nothing left to suggest.
   const suggestion =
-    m >= 88
+    m >= LAST_MINUTES
       ? { main: null, others: [] }
       : suggestLive(liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a }), {
           minOdd: Number(minOdd),
@@ -615,7 +616,7 @@ function Calculator({
           </label>
         </div>
 
-        {m >= 88 ? (
+        {m >= LAST_MINUTES ? (
           <p className="text-sm text-neutral-400">O jogo está nos descontos: já pouco pode acontecer, sem sugestão.</p>
         ) : !suggestion.main ? (
           <p className="text-sm text-neutral-400">

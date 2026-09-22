@@ -71,6 +71,9 @@ const SCOPES: { value: string; label: string }[] = [
   { value: "historico", label: "Histórico" },
 ];
 
+// Accent- and case-insensitive: "sao paulo" finds "São Paulo".
+const norm = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
 function sameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
 }
@@ -108,12 +111,14 @@ function formatDateHeader(dateStr: string) {
 export default async function ApostasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; scope?: string }>;
+  searchParams: Promise<{ status?: string; scope?: string; q?: string }>;
 }) {
   await requireAdmin();
-  const { status, scope } = await searchParams;
+  const { status, scope, q } = await searchParams;
   const activeFilter = FILTERS.some((f) => f.value === status) ? status! : "all";
   const activeScope = SCOPES.some((s) => s.value === scope) ? scope! : "hoje";
+  const query = (q ?? "").trim();
+  const needle = query ? norm(query) : "";
 
   function buildHref(overrides: { status?: string; scope?: string }) {
     const nextStatus = overrides.status ?? activeFilter;
@@ -121,6 +126,7 @@ export default async function ApostasPage({
     const params = new URLSearchParams();
     if (nextStatus !== "all") params.set("status", nextStatus);
     if (nextScope !== "hoje") params.set("scope", nextScope);
+    if (query) params.set("q", query);
     const qs = params.toString();
     return qs ? `/apostas?${qs}` : "/apostas";
   }
@@ -170,6 +176,19 @@ export default async function ApostasPage({
 
   const todayISO = todayISODate();
 
+  // A ticket matches the search if the search text turns up in its teams,
+  // competition, or any of its (already filtered) picks.
+  function ticketMatches(ticket: { competition: { name: string } | null; home_team: { name: string } | null; away_team: { name: string } | null; picks: Pick[] }): boolean {
+    if (!needle) return true;
+    const haystacks = [
+      ticket.competition?.name,
+      ticket.home_team?.name,
+      ticket.away_team?.name,
+      ...ticket.picks.flatMap((p) => [p.selection, p.category?.name]),
+    ];
+    return haystacks.some((h) => h && norm(h).includes(needle));
+  }
+
   const displayTickets = (tickets ?? [])
     .filter((ticket) =>
       activeScope === "hoje" ? ticket.match_date >= todayISO : ticket.match_date < todayISO
@@ -180,7 +199,7 @@ export default async function ApostasPage({
         (p) => p.bet_type === "pre_jogo" && (activeFilter === "all" || p.status === activeFilter)
       ),
     }))
-    .filter((ticket) => ticket.picks.length > 0);
+    .filter((ticket) => ticket.picks.length > 0 && ticketMatches(ticket));
 
   const groups: { date: string; tickets: typeof displayTickets }[] = [];
   for (const ticket of displayTickets) {
@@ -197,11 +216,22 @@ export default async function ApostasPage({
     multiple: m,
     status: multipleStatus(m.legs),
   }));
+  function multipleMatches(multiple: MultipleRow): boolean {
+    if (!needle) return true;
+    const haystacks = multiple.legs.flatMap((leg) => [
+      leg.competition?.name,
+      leg.home_team?.name,
+      leg.away_team?.name,
+      leg.selection,
+    ]);
+    return haystacks.some((h) => h && norm(h).includes(needle));
+  }
+
   const displayMultiples = allMultiples
     .filter(({ multiple, status }) => {
       const last = lastLegDate(multiple.legs);
       const inScope = activeScope === "hoje" ? last >= todayISO : last < todayISO;
-      return inScope && (activeFilter === "all" || status === activeFilter);
+      return inScope && (activeFilter === "all" || status === activeFilter) && multipleMatches(multiple);
     })
     .sort((a, b) => {
       const order = firstLegKickoff(a.multiple.legs).localeCompare(firstLegKickoff(b.multiple.legs));
@@ -279,6 +309,23 @@ export default async function ApostasPage({
         ))}
       </div>
 
+      <form method="get" action="/apostas" className="mb-4 flex max-w-sm items-center gap-2">
+        <input type="hidden" name="status" value={activeFilter} />
+        <input type="hidden" name="scope" value={activeScope} />
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Procurar por equipa, competição ou aposta..."
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
+        />
+        {query && (
+          <Link href={buildHref({})} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
+            Limpar
+          </Link>
+        )}
+      </form>
+
       <div className="mb-5 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <Link
@@ -307,13 +354,31 @@ export default async function ApostasPage({
           <p aria-hidden className="mb-2 text-3xl">
             🎟️
           </p>
-          {activeScope === "hoje"
-            ? "Sem apostas para hoje ou próximos dias."
-            : "Ainda não tens apostas no histórico."}{" "}
-          <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
-            Regista uma aposta
-          </Link>
-          .
+          {query ? (
+            <>
+              Nada encontrado para &quot;{query}&quot;.{" "}
+              <Link href={buildHref({})} className="text-emerald-400 hover:underline">
+                Limpar a pesquisa
+              </Link>
+              .
+            </>
+          ) : activeScope === "hoje" ? (
+            <>
+              Sem apostas para hoje ou próximos dias.{" "}
+              <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
+                Regista uma aposta
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              Ainda não tens apostas no histórico.{" "}
+              <Link href="/apostas/nova" className="text-emerald-400 hover:underline">
+                Regista uma aposta
+              </Link>
+              .
+            </>
+          )}
         </div>
       )}
 

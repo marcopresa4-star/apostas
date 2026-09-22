@@ -15,6 +15,9 @@ export interface SavedGame {
   awayGoals: number;
   lh: string; // expected goals, as typed
   la: string;
+  // Share of goals before half time, for the live model; missing on games saved
+  // before this existed (0.44, the typical share, is used then).
+  firstHalfShare?: number;
   updated: number; // last time anything changed (ms)
 }
 

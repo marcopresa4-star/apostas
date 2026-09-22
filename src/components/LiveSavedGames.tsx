@@ -10,7 +10,24 @@ import {
   gamesFrom,
   rawSnapshot,
   removeGame,
+  type SavedGame,
 } from "@/lib/liveStore";
+import { predictLive } from "@/lib/liveModel";
+import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
+import { formatOdd } from "@/lib/multiples";
+
+const pct = (p: number) => `${Math.round(p * 100)}%`;
+
+// The suggested bet for a saved game right now, the same way the calculator
+// itself works it out, from what was typed the last time it was open.
+function suggestionFor(g: SavedGame, minute: number): { label: string; p: number } | null {
+  const lh = Number(g.lh.replace(",", "."));
+  const la = Number(g.la.replace(",", "."));
+  if (!Number.isFinite(lh) || !Number.isFinite(la) || minute >= LAST_MINUTES) return null;
+  const p = predictLive({ lambdaHome: lh, lambdaAway: la, firstHalfShare: g.firstHalfShare ?? 0.44, minute, homeGoals: g.homeGoals, awayGoals: g.awayGoals });
+  const { main } = suggestLive(liveCandidates(p, { home: g.home, away: g.away, homeGoals: g.homeGoals, awayGoals: g.awayGoals }), { minOdd: 1.5 });
+  return main ? { label: main.label, p: main.p } : null;
+}
 
 // The games watched in this browser, to pick one up again with a click. Nothing
 // opens by itself: coming back to the page shows an empty calculator and this list.
@@ -51,6 +68,7 @@ export default function LiveSavedGames() {
         {games.map((g) => {
           const minute = now ? clockMinute(g, now.getTime()) : g.minute;
           const over = g.running && minute >= OVER_MINUTES;
+          const suggestion = over ? null : suggestionFor(g, minute);
           return (
             <li key={g.key} className="flex items-center justify-between gap-3 py-2">
               <Link href={g.href} className="min-w-0 flex-1 hover:text-amber-300">
@@ -61,6 +79,11 @@ export default function LiveSavedGames() {
                   {g.homeGoals}–{g.awayGoals} · {over ? "provavelmente terminou" : `${minute}'`}
                   {g.running && !over && <span className="ml-1.5 text-amber-400">· minuto a andar</span>}
                 </p>
+                {suggestion && (
+                  <p className="truncate text-xs text-emerald-400">
+                    Sugestão: {suggestion.label} · {pct(suggestion.p)} · odd justa {formatOdd(1 / suggestion.p)}
+                  </p>
+                )}
               </Link>
               <button
                 type="button"
