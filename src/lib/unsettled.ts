@@ -14,6 +14,15 @@ export interface OpenBet {
   selection: string;
   odd: number | null;
   live: boolean;
+  // The two teams' own names plus any other names they go by, for matching
+  // against the free result data.
+  homeNames: string[];
+  awayNames: string[];
+  // Looked up in the data we already have, when the game is old enough to be
+  // in it: the real final score (home first), and, only for the plainest
+  // wordings, whether the bet came off. Both null until looked up or not found.
+  actualScore?: [number, number] | null;
+  suggestion?: "green" | "red" | null;
 }
 
 // The open bets whose game is already over (by hand or by the clock), the

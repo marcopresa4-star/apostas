@@ -9,6 +9,8 @@ import LiveAlerts from "@/components/LiveAlerts";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import GameStartNotifications from "@/components/GameStartNotifications";
 import UnsettledBets from "@/components/UnsettledBets";
+import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
+import { findFinalScore, parseOutcome } from "@/lib/betOutcome";
 import type { OpenBet } from "@/lib/unsettled";
 import type { PickImageItem } from "@/components/PickImages";
 import type { ComboCountry } from "@/components/EntityCombobox";
@@ -66,6 +68,11 @@ interface WatchedMatchRow {
   away_team: string;
   home_aliases: string | null;
   away_aliases: string | null;
+}
+
+// Other names a club goes by, kept separated by " | " in the teams table.
+function splitAliases(aliases: string | null | undefined): string[] {
+  return aliases ? aliases.split("|").map((a) => a.trim()).filter(Boolean) : [];
 }
 
 function todayISODate() {
@@ -270,6 +277,8 @@ export default async function DashboardPage() {
           selection: p.selection,
           odd: p.entry_odd ?? p.odd,
           live: p.bet_type === "live",
+          homeNames: t.home_team ? [t.home_team.name, ...splitAliases(t.home_team.aliases)] : [],
+          awayNames: t.away_team ? [t.away_team.name, ...splitAliases(t.away_team.aliases)] : [],
         }))
     ),
     // A multiple already decided (a lost game) is not waiting for anything.
@@ -290,9 +299,29 @@ export default async function DashboardPage() {
             selection: leg.selection,
             odd: leg.odd,
             live: multiple.bet_type === "live",
+            homeNames: leg.home_team ? [leg.home_team.name, ...splitAliases(leg.home_team.aliases)] : [],
+            awayNames: leg.away_team ? [leg.away_team.name, ...splitAliases(leg.away_team.aliases)] : [],
           }))
       ),
   ];
+
+  // A game old enough that the free data might already have its result: only
+  // then is it worth loading every league to look for it. Most Dashboard visits
+  // have nothing this old, so this stays skipped.
+  const maybePlayed = openBets.some((b) => b.match_date <= todayISO);
+  if (maybePlayed) {
+    const leagueNow = new Date();
+    const leagues = await Promise.all(
+      LEAGUES.filter((l) => !isInternational(l.code)).map((l) => loadLeague(l.code, leagueNow))
+    );
+    const allMatches = leagues.flatMap((d) => d?.matches ?? []);
+    for (const bet of openBets) {
+      if (bet.match_date > todayISO || bet.homeNames.length === 0 || bet.awayNames.length === 0) continue;
+      const score = findFinalScore({ date: bet.match_date, homeNames: bet.homeNames, awayNames: bet.awayNames }, allMatches);
+      bet.actualScore = score;
+      bet.suggestion = score ? parseOutcome(bet.selection, bet.homeNames, bet.awayNames, score) : null;
+    }
+  }
 
   // From md up the app content is a narrow centered column; the Dashboard
   // wants the whole area next to the sidebar instead. It is as wide as the

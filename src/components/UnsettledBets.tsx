@@ -31,6 +31,26 @@ function Row({ bet }: { bet: OpenBet }) {
           {bet.kind === "leg" && <span className="ml-1.5 rounded bg-violet-950 px-1 text-[10px] font-semibold text-violet-300">MÚLTIPLA</span>}
           {bet.live && <span className="ml-1.5 rounded bg-sky-950 px-1 text-[10px] font-semibold text-sky-300">LIVE</span>}
         </p>
+        {bet.actualScore && (
+          <p className="mt-0.5 text-xs">
+            <span className="text-neutral-400">
+              Resultado real: <span className="font-medium text-neutral-200">{bet.actualScore[0]}–{bet.actualScore[1]}</span>
+            </span>
+            {bet.suggestion && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => mark(bet.suggestion!)}
+                title="Marca a aposta com este resultado"
+                className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold text-white disabled:opacity-50 ${
+                  bet.suggestion === "green" ? "bg-emerald-700 hover:bg-emerald-600" : "bg-red-700 hover:bg-red-600"
+                }`}
+              >
+                Sugestão: {bet.suggestion === "green" ? "Green" : "Red"} · aplicar
+              </button>
+            )}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {STATUS_OPTIONS.map((opt) => (

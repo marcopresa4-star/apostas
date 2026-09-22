@@ -9,6 +9,7 @@ const TABS = [
   { href: "/estatisticas/top", label: "Top apostas" },
   { href: "/estatisticas/classificacao", label: "Classificação e força" },
   { href: "/estatisticas/fiabilidade", label: "Fiabilidade" },
+  { href: "/estatisticas/simulacao", label: "Simulação da época" },
   { href: "/estatisticas/live", label: "Calculadora live" },
 ];
 
