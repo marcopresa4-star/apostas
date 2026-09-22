@@ -8,6 +8,16 @@ import {
   type PlayedMatch,
 } from "./footballModel";
 
+// One of a team's last games, for the form chips: what it was and how it went.
+export interface FormGame {
+  result: "V" | "E" | "D";
+  date: string;
+  opponent: string;
+  home: boolean; // whether the team was at home
+  gf: number;
+  ga: number;
+}
+
 export interface StandingRow {
   team: string;
   played: number;
@@ -18,8 +28,8 @@ export interface StandingRow {
   ga: number;
   gd: number;
   points: number;
-  // The last five results, most recent first.
-  form: ("V" | "E" | "D")[];
+  // The last five games, most recent first.
+  form: FormGame[];
 }
 
 // The league table of the season from its played games (3 points for a win, 1
@@ -34,13 +44,15 @@ export function buildStandings(fixtures: Fixture[]): StandingRow[] {
     let losses = 0;
     let gf = 0;
     let ga = 0;
-    const results: ("V" | "E" | "D")[] = [];
+    const results: FormGame[] = [];
     for (const f of played) {
       const home = f.team1 === team;
-      gf += home ? f.ft![0] : f.ft![1];
-      ga += home ? f.ft![1] : f.ft![0];
+      const scored = home ? f.ft![0] : f.ft![1];
+      const conceded = home ? f.ft![1] : f.ft![0];
+      gf += scored;
+      ga += conceded;
       const r = resultFor(f, team)!;
-      results.push(r);
+      results.push({ result: r, date: f.date, opponent: home ? f.team2 : f.team1, home, gf: scored, ga: conceded });
       if (r === "V") wins++;
       else if (r === "E") draws++;
       else losses++;
