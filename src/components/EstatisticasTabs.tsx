@@ -11,6 +11,7 @@ const TABS = [
   { href: "/estatisticas/fiabilidade", label: "Fiabilidade" },
   { href: "/estatisticas/simulacao", label: "Simulação da época" },
   { href: "/estatisticas/live", label: "Calculadora live" },
+  { href: "/estatisticas/ao-vivo", label: "Ao vivo agora" },
 ];
 
 export default function EstatisticasTabs() {
