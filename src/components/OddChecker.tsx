@@ -7,12 +7,16 @@ export interface OddMarket {
   group: string;
   label: string;
   p: number;
+  // The model's market key ("home", "over:2.5", "btts:yes", "next:home"...):
+  // when the bookmaker's real odd for it is known, it is priced automatically.
+  key?: string;
 }
 
 // Type the odd a bookmaker offers for one of the markets and see how it
 // compares with the model: the chance the odd implies against the model's, and
-// how much a bet at that odd would win or lose on average.
-export default function OddChecker({ markets }: { markets: OddMarket[] }) {
+// how much a bet at that odd would win or lose on average. `realByKey` fills
+// the comparison in by itself wherever the real odd is known.
+export default function OddChecker({ markets, realByKey }: { markets: OddMarket[]; realByKey?: Record<string, number> }) {
   // The chosen market is kept by its name: the list can change under it (the
   // live calculator's lines move with the score).
   const [chosen, setChosen] = useState<string | null>(null);
@@ -24,6 +28,10 @@ export default function OddChecker({ markets }: { markets: OddMarket[] }) {
   const valid = Number.isFinite(odd) && odd > 1;
   // Average result of a 1 unit bet: win (odd - 1) with chance p, lose 1 otherwise.
   const value = valid ? market.p * odd - 1 : null;
+  // The bookmaker's real odd for this market, when it was read (live or
+  // pre-match): priced without typing anything.
+  const real = market.key && realByKey ? realByKey[market.key] : undefined;
+  const realValue = real !== undefined ? market.p * real - 1 : null;
 
   const groups = [...new Set(markets.map((m) => m.group))];
   const percent = (p: number) => `${(p * 100).toFixed(1).replace(".", ",")}%`;
@@ -32,7 +40,9 @@ export default function OddChecker({ markets }: { markets: OddMarket[] }) {
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Comparar com a odd da casa</h3>
       <p className="mb-3 text-xs text-neutral-500">
-        Escolhe o mercado e escreve a odd que a casa de apostas oferece.
+        {realByKey && Object.keys(realByKey).length > 0
+          ? "Odds reais lidas da casa (comparação automática). Para outra odd, escolhe o mercado e escreve-a."
+          : "Escolhe o mercado e escreve a odd que a casa de apostas oferece."}
       </p>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr]">
@@ -69,6 +79,17 @@ export default function OddChecker({ markets }: { markets: OddMarket[] }) {
           · odd justa{" "}
           <span className="font-medium text-neutral-100">{formatOdd(1 / market.p)}</span>
         </p>
+        {real !== undefined && realValue !== null && (
+          <p className="mt-1">
+            Na casa: <span className="font-medium text-neutral-100">{formatOdd(real)}</span> (implica{" "}
+            {percent(1 / real)}) ·{" "}
+            <span className={`font-medium ${realValue >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {realValue >= 0
+                ? `compensa: +${percent(realValue)} em média`
+                : `não compensa: ${percent(realValue)} em média`}
+            </span>
+          </p>
+        )}
         {valid && value !== null && (
           <>
             <p className="mt-1">

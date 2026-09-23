@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { searchEntityRows } from "@/lib/entityOptions";
+import { parseSofascoreId } from "@/lib/sofascore";
 
 function revalidateAll() {
   revalidatePath("/");
@@ -155,6 +156,20 @@ export async function addWatchedMatch(
   const home = homeTeam.trim();
   const away = awayTeam.trim();
   if (!home || !away) throw new Error("Indica as duas equipas.");
+
+  // No duplicates: pinning, re-adding and the + Dashboard button all land
+  // here. Same SofaScore event (by id, whatever the link shape) is refused.
+  const newId = sofascoreUrl ? parseSofascoreId(sofascoreUrl) : null;
+  if (newId !== null) {
+    const { data: existing } = await supabase
+      .from("watched_matches")
+      .select("sofascore_url")
+      .eq("user_id", user.id);
+    if ((existing ?? []).some((w) => parseSofascoreId(String(w.sofascore_url ?? "")) === newId)) {
+      revalidateAll();
+      return;
+    }
+  }
 
   const { error } = await supabase.from("watched_matches").insert({
     user_id: user.id,

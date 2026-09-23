@@ -40,6 +40,9 @@ const MAX_PICKS = 3;
 
 export interface Pick {
   group: PickGroup;
+  // The candidate kind ("home", "over:2.5", "btts:yes"...): maps a suggestion
+  // to the bookmaker's real odd for the profit check.
+  key: string;
   label: string;
   p: number; // the model's chance
   base: number; // how often it happens in this league
@@ -153,6 +156,7 @@ export function recommend(
     used.add(c.group);
     picks.push({
       group: c.group,
+      key: c.key,
       label: c.label,
       p: c.p,
       base: c.base,

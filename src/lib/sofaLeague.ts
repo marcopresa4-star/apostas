@@ -13,14 +13,20 @@ import {
   seasonFixtures,
   seasonResults,
   seasonStandings,
+  seasonStandingsTables,
   seasonTeamNames,
   tournamentSeasons,
   eventGoalMinutes,
+  teamEvents,
+  searchTeams,
+  lisbonParts,
   alignScore,
+  type SofaMap,
   type SofaSeason,
 } from "./sofaHistory";
 import { sofaRaw } from "./sofaRaw";
 import { parseSofascoreId } from "./sofascore";
+import { cacheGet, cacheSet, DAY_MS, HOUR_MS } from "./sofaCache";
 // SofaScore season year ("26/27", "2026") -> the file-style id the rest of the
 // app reasons about ("2026-27", "2026").
 function fileSeasonId(year: string, code: string): string {
@@ -37,6 +43,34 @@ export interface SofaLeague {
   unlinked: string[];
   // Season names as SofaScore spells them, newest first.
   seasonNames: string[];
+  // Official standings tables of the current season (leagues with conferences
+  // get one each): official W/D/L/points with local spellings, for the table
+  // selector. Strength columns still come from our own ratings.
+  tables: { name: string; rows: OfficialStanding[] }[];
+}
+
+export interface OfficialStanding {
+  position: number;
+  team: string;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  gf: number;
+  ga: number;
+  points: number;
+}
+
+// The SofaScore event id rides on each fixture (as `sid`) so later reads —
+// a finished game's real odds for the profit check — can find the game.
+// Fixture itself is untouched (shared model type).
+export interface SofaFixtureWithId extends Fixture {
+  sid: number;
+}
+
+export function fixtureEventId(f: Fixture): number | null {
+  const sid = (f as Partial<SofaFixtureWithId>).sid;
+  return typeof sid === "number" && Number.isInteger(sid) && sid > 0 ? sid : null;
 }
 
 export async function loadSofaLeague(
@@ -54,13 +88,18 @@ export async function loadSofaLeague(
   const seasons: SofaSeason[] = await tournamentSeasons(supabase, userId, uniqueId).catch(() => []);
   if (seasons.length === 0) return null;
 
-  // The season being played: first with any fixtures at all (a future season
-  // may already exist but hold no games). Skipped when only results matter.
+  // The season being played: the newest season with any fixtures at all (a
+  // future season may already exist but hold no games, then the previous one
+  // wins). Only the two newest seasons qualify: archived seasons can outlive
+  // the current one's structure (MLS 2026 lists no rounds while 2018 still
+  // serves full fixtures), and picking one freezes the league in the past. A
+  // newest season with no games at all is a data hole, handled by the
+  // team-events fallback below. Skipped when only results matter.
   let currentIdx = 0;
   const fixturesBySeason = new Map<number, Awaited<ReturnType<typeof seasonFixtures>>>();
   if (wantFixtures) {
     const today = todayISO(new Date());
-    for (let i = 0; i < seasons.length; i++) {
+    for (let i = 0; i < Math.min(2, seasons.length); i++) {
       const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today).catch(() => []);
       fixturesBySeason.set(seasons[i].id, fx);
       if (fx.length > 0) {
@@ -74,7 +113,8 @@ export async function loadSofaLeague(
 
   // Local spellings: linked names convert, the rest stays in SofaScore
   // spelling and is flagged (never silently dropped).
-  const teamMaps = await loadMaps(supabase, userId, "team");  const toLocal = new Map<string, string>();
+  const teamMaps = await loadMaps(supabase, userId, "team");
+  const toLocal = new Map<string, string>();
   for (const m of teamMaps) {
     if (m.local_name) toLocal.set(m.name, m.local_name);
   }
@@ -85,29 +125,70 @@ export async function loadSofaLeague(
     unlinked.add(name);
     return name;
   };
+  const convertFixture = (f: Fixture & Partial<SofaFixtureWithId>): SofaFixtureWithId => ({
+    date: f.date,
+    team1: convert(f.team1),
+    team2: convert(f.team2),
+    ft: f.ft ?? null,
+    round: typeof f.round === "string" ? f.round : "",
+    time: f.time ?? undefined,
+    sid: typeof f.sid === "number" ? f.sid : 0,
+  });
 
   const convertMatch = (m: PlayedMatch): PlayedMatch => ({ ...m, team1: convert(m.team1), team2: convert(m.team2) });
+
+  // Seasons with no rounds on SofaScore (MLS 2026 lists none): the round path
+  // above finds no fixtures and no results for the season being played.
+  // Collect it from the teams' own event lists instead (league games only).
+  let fallback: { results: PlayedMatch[]; fixtures: Fixture[] } | null = null;
+  if (currentFx.length === 0) {
+    const rows = await seasonStandings(supabase, userId, uniqueId, current.id, true).catch(() => []);
+    const names = [...new Set(rows.map((r) => r.team))];
+    const { resolved: teamIdByName } = await resolveLeagueTeamIds(supabase, userId, teamMaps, names).catch(
+      () => ({ resolved: new Map<string, number>(), missing: names })
+    );
+    if (teamIdByName.size > 0) {
+      fallback = await seasonEventsFromTeams(supabase, userId, uniqueId, current.id, teamIdByName).catch(
+        () => null
+      );
+    }
+  }
 
   // The model reads the last three seasons with games.
   const wanted = seasons.slice(currentIdx, currentIdx + 3);
   const matchLists = await Promise.all(
     wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, true).catch(() => [] as PlayedMatch[]))
   );
-  const matches = matchLists
-    .flat()
+  const seenMatch = new Set(
+    matchLists.flat().map((m) => `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`)
+  );
+  const fallbackMatches = (fallback?.results ?? [])
     .map(convertMatch)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .filter((m) => {
+      const key = `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`;
+      if (seenMatch.has(key)) return false;
+      seenMatch.add(key);
+      return true;
+    });
+  const matches = [...matchLists.flat().map(convertMatch), ...fallbackMatches].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  );
 
-  const fixtures: Fixture[] = wantFixtures
-    ? currentFx.map((f) => ({
-        date: f.date,
-        team1: convert(f.team1),
-        team2: convert(f.team2),
-        ft: f.ft ? ([f.ft[0], f.ft[1]] as [number, number]) : null,
-        round: `Matchday ${f.round}`,
-        time: f.time ?? undefined,
-      }))
-    : [];
+  const fixtures: Fixture[] = !wantFixtures
+    ? []
+    : currentFx.length > 0
+      ? currentFx.map(
+          (f): SofaFixtureWithId => ({
+            date: f.date,
+            team1: convert(f.team1),
+            team2: convert(f.team2),
+            ft: f.ft ? ([f.ft[0], f.ft[1]] as [number, number]) : null,
+            round: `Matchday ${f.round}`,
+            time: f.time ?? undefined,
+            sid: f.id,
+          })
+        )
+      : (fallback?.fixtures ?? []).map((f) => convertFixture(f));
 
   const order: string[] = [];
   const teamSource = wantFixtures ? fixtures : matches;
@@ -137,7 +218,34 @@ export async function loadSofaLeague(
     season: seasonInfo(fileSeasonId(current.year, code)),
     calendar: "rounds",
   };
-  return { data, unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)), seasonNames: seasons.map((s) => s.name) };
+  // Official standings tables of the current season (most teams first, so the
+  // overall table leads where conferences exist). One cached read.
+  let tables: { name: string; rows: OfficialStanding[] }[] = [];
+  try {
+    const st = await seasonStandingsTables(supabase, userId, uniqueId, current.id, true).catch(
+      () => []
+    );
+    tables = st
+      .filter((t) => t.rows.length > 0)
+      .map((t) => ({
+        name: t.name,
+        rows: t.rows.map((r) => ({
+          position: r.position,
+          team: convert(r.team),
+          played: r.played,
+          wins: r.wins,
+          draws: r.draws,
+          losses: r.losses,
+          gf: r.goalsFor,
+          ga: r.goalsAgainst,
+          points: r.points,
+        })),
+      }))
+      .sort((a, b) => b.rows.length - a.rows.length);
+  } catch {
+    // No official tables: the page falls back to counting our own fixtures.
+  }
+  return { data, unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)), seasonNames: seasons.map((s) => s.name), tables };
 }
 
 // Finds the mapped league holding both clubs, from their local spellings
@@ -264,6 +372,175 @@ export async function resolveSofaLink(
     fora,
     warnings,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Fallback for seasons with no rounds on SofaScore (MLS 2026 lists none, so
+// the round path finds no fixtures and no results): collect the season from
+// each linked team's own event list instead. Only games of this tournament
+// count (cups and friendlies are filtered by unique id + season id).
+// ---------------------------------------------------------------------------
+
+type Json = Record<string, unknown>;
+
+interface TeamSeasonGame {
+  id: number;
+  date: string;
+  time: string | null;
+  team1: string;
+  team2: string;
+  ft: [number, number] | null;
+}
+
+function clubTeamEvent(e: Json, uniqueId: number, seasonId: number): TeamSeasonGame | null {
+  const tournament = (e.tournament ?? {}) as Json;
+  const unique = (tournament.uniqueTournament ?? {}) as Json;
+  if (unique.id !== uniqueId) return null;
+  const season = (e.season ?? {}) as Json;
+  if (season.id !== seasonId) return null;
+  const id = typeof e.id === "number" ? e.id : null;
+  const home = ((e.homeTeam ?? {}) as Json).name;
+  const away = ((e.awayTeam ?? {}) as Json).name;
+  const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
+  if (id === null || typeof home !== "string" || typeof away !== "string" || start === null) return null;
+  const status = ((e.status ?? {}) as Json).type;
+  const hs = ((e.homeScore ?? {}) as Json);
+  const as = ((e.awayScore ?? {}) as Json);
+  const hg = typeof hs.current === "number" ? hs.current : null;
+  const ag = typeof as.current === "number" ? as.current : null;
+  if (status === "finished" && hg !== null && ag !== null) {
+    const { date, time } = lisbonParts(start);
+    return { id, date, time, team1: home, team2: away, ft: [hg, ag] };
+  }
+  if (status === "notstarted") {
+    const { date, time } = lisbonParts(start);
+    return { id, date, time, team1: home, team2: away, ft: null };
+  }
+  return null;
+}
+
+async function teamEventList(
+  supabase: SupabaseClient,
+  userId: string,
+  teamId: number,
+  direction: "last" | "next"
+): Promise<Json[]> {
+  const key = `teamevents:${teamId}:${direction}:0`;
+  const hit = await cacheGet(supabase, userId, key, direction === "last" ? 3 * DAY_MS : HOUR_MS);
+  if (hit && typeof hit === "object" && !Array.isArray(hit)) {
+    const events = (hit as { events?: unknown }).events;
+    if (Array.isArray(events)) return events.filter((e): e is Json => typeof e === "object" && e !== null);
+  }
+  const body = await teamEvents(teamId, direction, 0);
+  await cacheSet(supabase, userId, key, body);
+  return body.events;
+}
+
+const PT_MONTHS = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+// Team ids via SofaScore's own search (cached 30 days: ids never change).
+// The links cannot be trusted by name here (their stored spelling is the
+// user's, not the standings'), so search is authoritative; an alignment
+// sanity check keeps an obvious mismatch out.
+async function searchTeamId(
+  supabase: SupabaseClient,
+  userId: string,
+  name: string
+): Promise<number | null> {
+  const key = `teamid:${slugify(name)}`;
+  const hit = await cacheGet(supabase, userId, key, 30 * DAY_MS);
+  if (typeof hit === "number" && hit > 0) return hit;
+  const cands = await searchTeams(name, 5).catch(() => []);
+  const best = cands.find((c) => !c.national && c.sport === "football") ?? cands[0] ?? null;
+  if (!best || alignScore(name, best.name) < 2) return null;
+  await cacheSet(supabase, userId, key, best.id);
+  return best.id;
+}
+
+// Standings names -> SofaScore team ids: the links' own ids where a row
+// matches (exact or slug), own-search for the rest. Missing names stay
+// missing (their games still surface through the opponents' lists).
+export async function resolveLeagueTeamIds(
+  supabase: SupabaseClient,
+  userId: string,
+  teamMaps: SofaMap[],
+  standingsNames: string[]
+): Promise<{ resolved: Map<string, number>; missing: string[] }> {
+  const resolved = new Map<string, number>();
+  for (const name of standingsNames) {
+    const slug = slugify(name);
+    const map = teamMaps.find(
+      (m) =>
+        m.sofascore_id > 0 &&
+        (m.name === name || slugify(m.name) === slug || m.slug === slug || m.name_key === slug)
+    );
+    if (map) resolved.set(name, map.sofascore_id);
+  }
+  const missing = standingsNames.filter((n) => !resolved.has(n));
+  const found = await Promise.all(
+    missing.map(async (n) => ({ n, id: await searchTeamId(supabase, userId, n).catch(() => null) }))
+  );
+  for (const f of found) if (f.id) resolved.set(f.n, f.id);
+  return { resolved, missing: standingsNames.filter((n) => !resolved.has(n)) };
+}
+
+export async function seasonEventsFromTeams(
+  supabase: SupabaseClient,
+  userId: string,
+  uniqueId: number,
+  seasonId: number,
+  teamIdByName: Map<string, number>
+): Promise<{ results: PlayedMatch[]; fixtures: SofaFixtureWithId[] }> {
+  const seen = new Set<number>();
+  const results: PlayedMatch[] = [];
+  const fixtures: SofaFixtureWithId[] = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const lists = await Promise.all(
+    [...teamIdByName.values()].map(async (teamId) => {
+      const [last, next] = await Promise.all([
+        teamEventList(supabase, userId, teamId, "last").catch(() => [] as Json[]),
+        teamEventList(supabase, userId, teamId, "next").catch(() => [] as Json[]),
+      ]);
+      return [...last, ...next];
+    })
+  );
+  for (const e of lists.flat()) {
+    const g = clubTeamEvent(e, uniqueId, seasonId);
+    if (!g || seen.has(g.id)) continue;
+    seen.add(g.id);
+    // Finished games feed both the model and the table/calendar (like a
+    // round fixture with a result); upcoming ones only the calendar.
+    const month = Number(g.date.slice(5, 7));
+    const round = PT_MONTHS[month - 1] ?? "";
+    if (g.ft) {
+      results.push({ date: g.date, team1: g.team1, team2: g.team2, ft: g.ft, ht: null });
+      fixtures.push({
+        date: g.date,
+        team1: g.team1,
+        team2: g.team2,
+        ft: g.ft,
+        round,
+        time: g.time ?? undefined,
+        sid: g.id,
+      });
+    } else if (g.date >= today) {
+      fixtures.push({
+        date: g.date,
+        team1: g.team1,
+        team2: g.team2,
+        ft: null,
+        round,
+        time: g.time ?? undefined,
+        sid: g.id,
+      });
+    }
+  }
+  results.sort((a, b) => a.date.localeCompare(b.date));
+  fixtures.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+  return { results, fixtures };
 }
 
 export interface GoalTiming {

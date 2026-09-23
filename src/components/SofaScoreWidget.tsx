@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { LiveGameState } from "@/lib/sportscoreLive";
+import { predictLive } from "@/lib/liveModel";
 
 interface MomentumPoint {
   minute: number;
@@ -23,6 +24,9 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
   const H = 150;
   const PAD = 28;
   if (shots.length === 0) return null;
+  // Bar heights are xG where the feed carries it, else plain shot counts
+  // (shotmaps without xG values, e.g. women's games).
+  const hasXg = shots.some((s) => s.xg !== null);
   const BLOCKS = [0, 15, 30, 45, 60, 75];
   const rows = BLOCKS.map((start) => {
     const inBlock = shots.filter((s) => s.minute >= start && (start === 75 ? s.minute <= 130 : s.minute < start + 15));
@@ -30,13 +34,14 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
       const own = inBlock.filter((s) => s.home === isHome);
       return {
         shots: own.length,
-        xg: own.reduce((n, s) => n + s.xg, 0),
+        xg: own.reduce((n, s) => n + (s.xg ?? 0), 0),
         goals: own.filter((s) => s.goal).length,
       };
     };
     return { start, home: of(true), away: of(false) };
   });
-  const top = Math.max(0.5, ...rows.flatMap((r) => [r.home.xg, r.away.xg]));
+  const value = (r: { shots: number; xg: number }): number => (hasXg ? r.xg : r.shots);
+  const top = Math.max(hasXg ? 0.5 : 1, ...rows.flatMap((r) => [value(r.home), value(r.away)]));
   const slot = (W - PAD * 2) / BLOCKS.length;
   const barW = Math.min(34, slot / 2 - 6);
   const y = (v: number) => H - PAD - (v / top) * (H - PAD * 2 - 18);
@@ -45,7 +50,7 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
     <div className="px-4 py-3">
       <div className="mb-1 flex items-center justify-between text-xs">
         <span className="font-medium text-sky-300">{home}</span>
-        <span className="text-neutral-500">Pressão (remates e xG por 15&apos;)</span>
+        <span className="text-neutral-500">Pressão ({hasXg ? "remates e xG" : "remates"} por 15&apos;)</span>
         <span className="font-medium text-red-300">{away}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Pressão de ${home} contra ${away} por período`}>
@@ -56,11 +61,11 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
           const cx = PAD + slot * i + slot / 2;
           return (
             <g key={r.start}>
-              {r.home.xg > 0 && (
-                <rect x={cx - barW - 2} y={y(r.home.xg)} width={barW} height={Math.max(1.5, H - PAD - y(r.home.xg))} rx="2" fill="#38bdf8" opacity="0.85" />
+              {value(r.home) > 0 && (
+                <rect x={cx - barW - 2} y={y(value(r.home))} width={barW} height={Math.max(1.5, H - PAD - y(value(r.home)))} rx="2" fill="#38bdf8" opacity="0.85" />
               )}
-              {r.away.xg > 0 && (
-                <rect x={cx + 2} y={y(r.away.xg)} width={barW} height={Math.max(1.5, H - PAD - y(r.away.xg))} rx="2" fill="#f87171" opacity="0.85" />
+              {value(r.away) > 0 && (
+                <rect x={cx + 2} y={y(value(r.away))} width={barW} height={Math.max(1.5, H - PAD - y(value(r.away)))} rx="2" fill="#f87171" opacity="0.85" />
               )}
               <text x={cx} y={H - 6} textAnchor="middle" fontSize="10" fill="#737373">
                 {label(r.start)}
@@ -71,7 +76,7 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
                 </text>
               )}
               {(r.home.shots > 0 || r.away.shots > 0) && (
-                <text x={cx} y={y(Math.max(r.home.xg, r.away.xg)) - 4} textAnchor="middle" fontSize="9" fill="#a3a3a3">
+                <text x={cx} y={y(Math.max(value(r.home), value(r.away))) - 4} textAnchor="middle" fontSize="9" fill="#a3a3a3">
                   {r.home.shots + r.away.shots} rem.
                 </text>
               )}
@@ -79,6 +84,157 @@ function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; a
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+// Share of the attack momentum in the last minutes: who has been pressing.
+// Null without momentum data.
+function pressureShare(points: MomentumPoint[], minutes = 10): { home: number; away: number } | null {
+  if (points.length === 0) return null;
+  const last = Math.max(...points.map((p) => p.minute));
+  const window = points.filter((p) => p.minute >= last - minutes);
+  if (window.length === 0) return null;
+  let pos = 0;
+  let neg = 0;
+  for (const p of window) {
+    if (p.value > 0) pos += p.value;
+    else neg -= p.value;
+  }
+  const tot = pos + neg;
+  if (tot <= 0) return { home: 50, away: 50 };
+  return { home: (pos / tot) * 100, away: (neg / tot) * 100 };
+}
+
+interface Prematch {
+  home: number;
+  away: number;
+  firstHalfShare: number;
+  avgGoals: number | null;
+  fromModel: boolean;
+}
+
+// The goal alert: chance of at least one more goal (live model on the
+// pre-match expectation), who has been pressing, and why — each reason only
+// appears when its data exists.
+function GoalAlert({
+  eventId,
+  state,
+  momentum,
+  recent,
+  homeName,
+  awayName,
+}: {
+  eventId: number;
+  state: LiveGameState;
+  momentum: MomentumPoint[];
+  recent: Incident[];
+  homeName: string;
+  awayName: string;
+}) {
+  const [pre, setPre] = useState<Prematch | null>(null);
+  useEffect(() => {
+    let stop = false;
+    setPre(null);
+    fetch(`/api/sofascore/prematch?id=${eventId}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body: Prematch | null) => {
+        if (!stop && body && typeof body.home === "number") setPre(body);
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [eventId]);
+
+  if (!pre || (state.phase !== "live" && state.phase !== "halftime")) return null;
+  const minute = state.minute ?? 0;
+  const h = state.homeGoals ?? 0;
+  const a = state.awayGoals ?? 0;
+  const p = predictLive({
+    lambdaHome: pre.home,
+    lambdaAway: pre.away,
+    firstHalfShare: pre.firstHalfShare,
+    minute,
+    homeGoals: h,
+    awayGoals: a,
+    redsHome: state.reds.home,
+    redsAway: state.reds.away,
+  });
+  const pGoal = 1 - p.nextGoal.none;
+  const homeAgain = p.scoresAgain.home;
+  const awayAgain = p.scoresAgain.away;
+  const pct = (v: number) => Math.round(v * 100);
+  const hotSide = homeAgain >= 0.7 ? homeName : awayAgain >= 0.7 ? awayName : null;
+  const hot = hotSide !== null;
+  const pressure = pressureShare(momentum);
+  const pressingHome = pressure ? pressure.home >= pressure.away : true;
+  const pressingTeam = pressingHome ? homeName : awayName;
+  const pressingLambda = pressingHome ? pre.home : pre.away;
+  const lastGoal = recent.filter((r) => r.kind === "goal").sort((x, y) => y.minute - x.minute)[0];
+  const left = Math.max(0, 90 - minute);
+  const reasons: string[] = [];
+  if (pre.fromModel && pre.avgGoals !== null) reasons.push(`Liga com ${pre.avgGoals.toFixed(1).replace(".", ",")} golos por jogo`);
+  if (pre.fromModel) reasons.push(`Ataque forte pré-jogo (${pressingLambda.toFixed(2).replace(".", ",")} golos esperados para ${pressingTeam})`);
+  if (pressure) reasons.push(`Últimos 10' a ${Math.round(pressingHome ? pressure.home : pressure.away)}% para ${pressingTeam}`);
+  if (lastGoal && minute - lastGoal.minute >= 0 && minute - lastGoal.minute < 45) {
+    const ago = minute - lastGoal.minute;
+    reasons.push(ago === 0 ? `Golo agora mesmo (${lastGoal.text})` : `Último golo há ${ago} min (${lastGoal.text})`);
+  }
+  if (state.reds.home + state.reds.away > 0) reasons.push("Com menos um em campo (já contado nas contas)");
+  if (!pre.fromModel) reasons.push("Sem dados destas equipas: base em valores típicos");
+
+  return (
+    <div className={`border-b border-neutral-800 px-4 py-3 ${hot ? "bg-red-950/30" : ""}`}>
+      <p className="mb-1.5 text-xs font-semibold text-neutral-300">
+        {hot ? `🔥 Alerta de golo (${hotSide})` : "⚽ Quem marca"}
+      </p>
+      {(
+        [
+          [homeName, homeAgain, "bg-sky-500", "text-sky-300"],
+          [awayName, awayAgain, "bg-red-500", "text-red-300"],
+        ] as const
+      ).map(([team, value, bar, text]) => (
+        <div key={team} className="mb-1.5">
+          <div className="mb-0.5 flex items-baseline justify-between gap-2">
+            <span className={`min-w-0 truncate text-xs font-medium ${text}`}>{team}</span>
+            <span className="shrink-0 text-sm font-extrabold tabular-nums text-neutral-100">
+              {pct(value)}%
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-neutral-800">
+            <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct(value)}%` }} />
+          </div>
+        </div>
+      ))}
+      <p className="mt-1 text-[11px] text-neutral-500">
+        Mais 1 golo (qualquer lado): <span className="font-medium text-neutral-300">{Math.round(pGoal * 100)}%</span>
+        {left > 0 ? ` · faltam ~${left} min` : ""}
+      </p>
+      {pressure && (
+        <div className="mt-2">
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-neutral-800">
+            <div className="bg-sky-500" style={{ width: `${pressure.home}%` }} />
+            <div className="bg-red-500" style={{ width: `${pressure.away}%` }} />
+          </div>
+          <p className="mt-1 text-[11px] text-neutral-500">
+            Pressão <span className="font-medium text-neutral-300">{Math.round(Math.max(pressure.home, pressure.away))}%</span>{" "}
+            {pressingTeam}
+          </p>
+        </div>
+      )}
+      {reasons.length > 0 && (
+        <details className="mt-1.5">
+          <summary className="cursor-pointer text-[11px] font-medium text-amber-400 hover:underline">
+            Porquê
+          </summary>
+          <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-neutral-400">
+            {reasons.map((r, i) => (
+              <li key={i}>• {r}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -241,7 +397,7 @@ function Lineups({
 interface XgShot {
   minute: number;
   home: boolean;
-  xg: number;
+  xg: number | null;
   goal: boolean;
 }
 
@@ -272,7 +428,10 @@ function XgChart({
   const H = 200;
   const PAD = 28;
   if (shots.length === 0) return null;
-  const total = (isHome: boolean) => shots.filter((s) => s.home === isHome).reduce((n, s) => n + s.xg, 0);
+  // Without any xG values there is no race to draw (the pressure chart below
+  // still works on shot counts).
+  if (!shots.some((s) => s.xg !== null)) return null;
+  const total = (isHome: boolean) => shots.filter((s) => s.home === isHome).reduce((n, s) => n + (s.xg ?? 0), 0);
   const totalHome = total(true);
   const totalAway = total(false);
   const top = Math.max(1, totalHome, totalAway, expectedHome ?? 0, expectedAway ?? 0) * 1.08;
@@ -285,7 +444,7 @@ function XgChart({
     let acc = 0;
     for (const s of shots) {
       if (s.home !== isHome) continue;
-      acc += s.xg;
+      acc += s.xg ?? 0;
       d += ` H${x(s.minute).toFixed(1)} V${y(acc).toFixed(1)}`;
     }
     d += ` H${x(lastMinute).toFixed(1)}`;
@@ -293,12 +452,12 @@ function XgChart({
   };
   // Cumulative xG of one side up to (and including) a minute.
   const atMinute = (isHome: boolean, m: number): number =>
-    shots.filter((s) => s.home === isHome && s.minute <= m).reduce((n, s) => n + s.xg, 0);
+    shots.filter((s) => s.home === isHome && s.minute <= m).reduce((n, s) => n + (s.xg ?? 0), 0);
   // Where each side's line sits at the end (for the value dots).
   const endOf = (isHome: boolean): { m: number; v: number } => {
     const own = shots.filter((s) => s.home === isHome);
     const last = own[own.length - 1];
-    return { m: last ? last.minute : 0, v: own.reduce((n, s) => n + s.xg, 0) };
+    return { m: last ? last.minute : 0, v: own.reduce((n, s) => n + (s.xg ?? 0), 0) };
   };
   const endHome = endOf(true);
   const endAway = endOf(false);
@@ -588,6 +747,16 @@ export default function SofaScoreWidget({
   const [momentum, setMomentum] = useState<MomentumPoint[] | null>(null);
   const [stats, setStats] = useState<StatRow[] | null>(null);
   const [xg, setXg] = useState<XgShot[] | null>(null);
+  // Fake-3D tilt of the 2D tracker (the embed is cross-origin: its inside
+  // cannot be re-rendered, only tilted). Persisted in this browser.
+  const [tilt, setTilt] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("apostas:pitch3d") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [lineups, setLineups] = useState<{
     home: LineupSide | null;
     away: LineupSide | null;
@@ -684,8 +853,10 @@ export default function SofaScoreWidget({
     state && state.homeGoals !== null && state.awayGoals !== null
       ? `${state.homeGoals}–${state.awayGoals}`
       : null;
+  const xgShots = xg ?? [];
+  const hasXg = xgShots.some((s) => s.xg !== null);
   const xgTotal = (isHome: boolean): number =>
-    (xg ?? []).filter((s) => s.home === isHome).reduce((n, s) => n + s.xg, 0);
+    xgShots.filter((s) => s.home === isHome).reduce((n, s) => n + (s.xg ?? 0), 0);
   const phase =
     !state || state.phase === "live"
       ? state?.minute !== null && state?.minute !== undefined
@@ -714,7 +885,7 @@ export default function SofaScoreWidget({
           ) : (
             <span className="text-sm font-semibold text-neutral-500">vs</span>
           )}
-          {xg !== null && xg.length > 0 && (
+          {xg !== null && xg.length > 0 && hasXg && (
             <span className="text-[10px] tabular-nums text-neutral-500">
               xG {xgTotal(true).toFixed(2).replace(".", ",")}–{xgTotal(false).toFixed(2).replace(".", ",")}
             </span>
@@ -744,19 +915,56 @@ export default function SofaScoreWidget({
         </div>
       </div>
 
+      {state && (state.phase === "live" || state.phase === "halftime") && (
+        <GoalAlert
+          eventId={eventId}
+          state={state}
+          momentum={momentum ?? []}
+          recent={recent}
+          homeName={homeName}
+          awayName={awayName}
+        />
+      )}
+
       {hasTracker !== false && (
-        <div className="relative border-b border-neutral-800 bg-black">
+        <div className="relative overflow-hidden border-b border-neutral-800 bg-black" style={{ perspective: "1100px" }}>
           <iframe
             src={`https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
             title={`SofaScore live tracker · evento ${eventId}`}
-            className="h-[320px] w-full border-0"
-            style={{ overflow: "hidden" }}
+            className="h-[320px] w-full border-0 transition-transform duration-500"
+            style={{
+              overflow: "hidden",
+              transform: tilt ? "rotateX(24deg) scale(0.98)" : undefined,
+              transformOrigin: "center bottom",
+            }}
           />
           {/* Vignette + live pill float above the embed (it is cross-origin,
               so its inside cannot be restyled — this frames it instead). */}
           <div aria-hidden className="pointer-events-none absolute inset-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.55)]" />
+          <button
+            type="button"
+            onClick={() => {
+              setTilt((v) => {
+                const next = !v;
+                try {
+                  window.localStorage.setItem("apostas:pitch3d", next ? "1" : "0");
+                } catch {
+                  // Private mode: preference just doesn't persist.
+                }
+                return next;
+              });
+            }}
+            title={tilt ? "Voltar ao mapa plano" : "Ver o campo inclinado (efeito 3D)"}
+            className={`absolute top-2 right-2 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 backdrop-blur-sm transition ${
+              tilt
+                ? "bg-sky-500/20 text-sky-300 ring-sky-500/40"
+                : "bg-black/70 text-neutral-400 ring-neutral-700 hover:text-neutral-200"
+            }`}
+          >
+            ⤢ 3D
+          </button>
           {state?.phase === "live" && (
             <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-red-300 ring-1 ring-red-500/40 backdrop-blur-sm">
               <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />

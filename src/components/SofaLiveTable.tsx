@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import type { Summary } from "@/lib/footballModel";
+import { addWatchedMatch } from "@/app/(app)/actions";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
@@ -133,6 +134,9 @@ export default function SofaLiveTable({
   const [dir, setDir] = useState<1 | -1>(1);
   const [query, setQuery] = useState("");
   const [favOnly, setFavOnly] = useState(false);
+  const [added, setAdded] = useState<Set<number>>(new Set());
+  const [pendingId, setPendingId] = useState<number | null>(null);
+  const [, startTransition] = useTransition();
   const [favLeagues, setFavLeagues] = useState<Set<string>>(() =>
     typeof window === "undefined" ? new Set() : loadSet(FAV_LEAGUES_KEY)
   );
@@ -193,8 +197,9 @@ export default function SofaLiveTable({
     });
   };
 
-  const togglePin = (id: number) => {
-    const key = String(id);
+  const togglePin = (game: SofaLiveEntry) => {
+    const key = String(game.id);
+    const pinning = !pinned.has(key);
     setPinned((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -206,6 +211,19 @@ export default function SofaLiveTable({
       }
       return next;
     });
+    // Pinning also puts the game on the Dashboard (its own Remover ✕ takes it
+    // off again; unpinning here only unsorts). Duplicates are refused server-side.
+    if (pinning) {
+      setPendingId(game.id);
+      startTransition(async () => {
+        try {
+          await addWatchedMatch(game.home, game.away, null, null, `id:${game.id}`);
+          setAdded((prev) => new Set(prev).add(game.id));
+        } finally {
+          setPendingId(null);
+        }
+      });
+    }
   };
 
   const q = query.trim().toLowerCase();
@@ -280,8 +298,8 @@ export default function SofaLiveTable({
                 <td className="py-2.5 pr-0 pl-3">
                   <button
                     type="button"
-                    onClick={() => togglePin(g.id)}
-                    title={isPinned ? "Desafixar" : "Afixar no topo"}
+                    onClick={() => togglePin(g)}
+                    title={isPinned ? "Desafixar do topo" : "Afixar no topo desta lista (só aqui, não vai para a Dashboard)"}
                     className={`text-sm transition ${isPinned ? "text-amber-400" : "text-neutral-700 hover:text-neutral-400"}`}
                   >
                     📌
@@ -316,7 +334,32 @@ export default function SofaLiveTable({
                 <Stats s={s?.away ?? null} />
                 <td className="px-2 py-2.5">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
                 <td className="px-2 py-2.5">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  {added.has(g.id) ? (
+                    <Link href="/" title="Ver na Dashboard" className="text-xs font-medium text-emerald-400 hover:underline">
+                      ✓ Na Dashboard
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={pendingId === g.id}
+                      onClick={() => {
+                        setPendingId(g.id);
+                        startTransition(async () => {
+                          try {
+                            await addWatchedMatch(g.home, g.away, null, null, `id:${g.id}`);
+                            setAdded((prev) => new Set(prev).add(g.id));
+                          } finally {
+                            setPendingId(null);
+                          }
+                        });
+                      }}
+                      title="Passar para a Dashboard"
+                      className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
+                    >
+                      {pendingId === g.id ? "…" : "+ Dashboard"}
+                    </button>
+                  )}
                   <Link href={href} className="text-xs font-medium text-amber-400 hover:underline">
                     Analisar →
                   </Link>

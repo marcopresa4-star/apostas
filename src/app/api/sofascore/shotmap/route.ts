@@ -6,7 +6,9 @@ const SCRAPER = process.env.SOFASCORE_SCRAPER_URL ?? "http://127.0.0.1:9323";
 export interface XgShot {
   minute: number;
   home: boolean;
-  xg: number;
+  // Null where SofaScore's shotmap carries no xG (women's games and other
+  // low-coverage competitions): the shot still counts for pressure charts.
+  xg: number | null;
   goal: boolean;
 }
 
@@ -33,8 +35,8 @@ export async function GET(request: Request) {
         if (typeof s !== "object" || s === null) return [];
         const shot = s as Record<string, unknown>;
         const minute = typeof shot.time === "number" ? shot.time : null;
-        const xg = typeof shot.xg === "number" ? shot.xg : null;
-        if (minute === null || xg === null || minute < 0 || minute > 130 || xg < 0 || xg > 2) return [];
+        if (minute === null || minute < 0 || minute > 130) return [];
+        const xg = typeof shot.xg === "number" && shot.xg >= 0 && shot.xg <= 2 ? shot.xg : null;
         return [{ minute, home: shot.isHome === true, xg, goal: shot.shotType === "goal" }];
       })
     : [];

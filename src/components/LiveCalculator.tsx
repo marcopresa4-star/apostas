@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import { predictLive } from "@/lib/liveModel";
+import { oddsKeyFor, type ParsedOdds } from "@/lib/oddsParse";
 import { liveSummary } from "@/lib/liveSummary";
 import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
@@ -32,6 +33,9 @@ interface Row {
   label: string;
   p: number;
   note?: string;
+  // The model's market key ("home", "over:1.5", "btts:yes"...): links the row
+  // to the bookmaker's real odd.
+  key?: string;
 }
 
 function Table({ title, rows }: { title: string; rows: Row[] }) {
@@ -162,6 +166,8 @@ function Calculator({
   // reading overwrites what is typed, so the box below turns it off.
   const [syncOn, setSyncOn] = useState(true);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
+  // The bookmaker's real odds for this event, refreshed with the minute poll.
+  const [realOdds, setRealOdds] = useState<ParsedOdds | null>(null);
   const now = useNow(5000);
   // The game read from SofaScore, once a minute via the local scraper: score,
   // minute and cards. Every reading overwrites what is typed, so the box
@@ -222,6 +228,19 @@ function Calculator({
         setSyncInfo({ kind: "ok", state: checked.state, at: Date.now(), notes: checked.notes, ageMs: checked.ageMs });
       } catch {
         if (!stop) setSyncInfo({ kind: "error" });
+      }
+      // Real odds ride along (no page navigation involved, so this is fast);
+      // a game the bookmakers skip just keeps manual entry.
+      try {
+        const odds = await fetch(`/api/sofascore/odds?id=${encodeURIComponent(String(sofaEventId))}`, {
+          cache: "no-store",
+        });
+        if (!stop && odds.ok) {
+          const parsed = (await odds.json()) as ParsedOdds;
+          if (parsed && Array.isArray(parsed.markets)) setRealOdds(parsed);
+        }
+      } catch {
+        // Odds unavailable: manual entry stays.
       }
     };
     void poll();
@@ -293,8 +312,8 @@ function Calculator({
     const line = total + k + 0.5;
     const over = p.over[String(line)];
     goalRows.push(
-      { label: `Mais de ${dot(line)} golos`, p: over, note: `faltam ${k + 1}` },
-      { label: `Menos de ${dot(line)} golos`, p: 1 - over }
+      { label: `Mais de ${dot(line)} golos`, p: over, note: `faltam ${k + 1}`, key: `over:${line}` },
+      { label: `Menos de ${dot(line)} golos`, p: 1 - over, key: `under:${line}` }
     );
   }
   const bothDone = h > 0 && a > 0;
@@ -303,28 +322,28 @@ function Calculator({
     {
       title: "Resultado final",
       rows: [
-        { label: `${homeName} vence`, p: p.fullTime.home },
-        { label: "Empate", p: p.fullTime.draw },
-        { label: `${awayName} vence`, p: p.fullTime.away },
-        { label: `${homeName} ou empate (1X)`, p: p.fullTime.home + p.fullTime.draw },
-        { label: `${awayName} ou empate (X2)`, p: p.fullTime.away + p.fullTime.draw },
-        { label: "Sem empate (12)", p: p.fullTime.home + p.fullTime.away },
+        { label: `${homeName} vence`, p: p.fullTime.home, key: "home" },
+        { label: "Empate", p: p.fullTime.draw, key: "draw" },
+        { label: `${awayName} vence`, p: p.fullTime.away, key: "away" },
+        { label: `${homeName} ou empate (1X)`, p: p.fullTime.home + p.fullTime.draw, key: "1x" },
+        { label: `${awayName} ou empate (X2)`, p: p.fullTime.away + p.fullTime.draw, key: "x2" },
+        { label: "Sem empate (12)", p: p.fullTime.home + p.fullTime.away, key: "12" },
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
     {
       title: "Ambas marcam",
       rows: [
-        { label: "Sim", p: p.bothScore, note: bothDone ? "já marcaram os dois" : undefined },
-        { label: "Não", p: 1 - p.bothScore },
+        { label: "Sim", p: p.bothScore, note: bothDone ? "já marcaram os dois" : undefined, key: "btts:yes" },
+        { label: "Não", p: 1 - p.bothScore, key: "btts:no" },
       ],
     },
     {
       title: "Próximo golo",
       rows: [
-        { label: `${homeName}`, p: p.nextGoal.home },
-        { label: `${awayName}`, p: p.nextGoal.away },
-        { label: "Nenhum até ao fim", p: p.nextGoal.none },
+        { label: `${homeName}`, p: p.nextGoal.home, key: "next:home" },
+        { label: `${awayName}`, p: p.nextGoal.away, key: "next:away" },
+        { label: "Nenhum até ao fim", p: p.nextGoal.none, key: "next:none" },
       ],
     },
   ];
@@ -337,9 +356,23 @@ function Calculator({
         });
   // The suggestion first, so the odd comparer opens on it.
   const oddMarkets: OddMarket[] = [
-    ...(suggestion.main ? [{ group: "Aposta sugerida", label: suggestion.main.label, p: suggestion.main.p }] : []),
-    ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p }))),
+    ...(suggestion.main
+      ? [{ group: "Aposta sugerida", label: suggestion.main.label, p: suggestion.main.p, key: suggestion.main.key }]
+      : []),
+    ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key }))),
   ];
+  // The bookmaker's real odds by model key, for the automatic comparison.
+  const realByKey: Record<string, number> = {};
+  if (realOdds) {
+    const byOddsKey: Record<string, number> = {};
+    for (const m of realOdds.markets) for (const c of m.choices) byOddsKey[c.key] = c.odd;
+    for (const m of oddMarkets) {
+      if (!m.key) continue;
+      const oddsKey = oddsKeyFor(m.key, homeName, awayName);
+      const odd = oddsKey ? byOddsKey[oddsKey] : undefined;
+      if (odd !== undefined) realByKey[m.key] = odd;
+    }
+  }
 
   const step = (setter: (v: string) => void, current: number, by: number, min: number, max: number) =>
     setter(String(Math.min(max, Math.max(min, current + by))));
@@ -692,7 +725,7 @@ function Calculator({
         ))}
       </div>
 
-      <OddChecker markets={oddMarkets} />
+      <OddChecker markets={oddMarkets} realByKey={realByKey} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
         Parte dos golos que cada equipa devia marcar no jogo todo e tira a parte que já passou, dando mais peso à 2.ª

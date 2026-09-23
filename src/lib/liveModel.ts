@@ -78,6 +78,8 @@ export interface LivePrediction {
   // Expected goals still to come for each side.
   remainingHome: number;
   remainingAway: number;
+  // Chance each side scores again before the end (marginal scoreless).
+  scoresAgain: { home: number; away: number };
   // Final result, given the current score.
   fullTime: { home: number; draw: number; away: number };
   // Chance of MORE than `line` goals in the whole game (line = 0.5, 1.5, ...).
@@ -193,9 +195,18 @@ export function predictLive(
   // Who scores next: in proportion to what each is still expected to score.
   const rate = remainingHome + remainingAway;
   const noGoal = norm(none);
+  // Each side's chance of scoring again: its scoreless marginal, normalized
+  // with the same total as everything else.
+  let homeZero = 0;
+  let awayZero = 0;
+  for (let j = 0; j <= MAX_GOALS; j++) {
+    homeZero += homePmf[0] * awayPmf[j] * (j === 0 ? zeroNow : 1);
+    awayZero += awayPmf[0] * homePmf[j] * (j === 0 ? zeroNow : 1);
+  }
   return {
     remainingHome,
     remainingAway,
+    scoresAgain: { home: 1 - norm(homeZero), away: 1 - norm(awayZero) },
     finalScores: finals
       .sort((x, y) => y.p - x.p)
       .slice(0, 6)

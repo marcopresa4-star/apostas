@@ -7,7 +7,7 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 
 // Leagues that split into phases or groups: a table adding up every game is not the official one.
 const PHASED = new Set(["ro.1", "dk.1", "ch.1", "sco.1", "be.1", "at.1", "mx.1", "ar.1", "us.1", "tr.1", "gr.1", "eu.1", "eu.2", "eu.3"]);
-import { buildStandings, ratings } from "@/lib/standings";
+import { buildStandings, formOf, ratings } from "@/lib/standings";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
@@ -22,6 +22,7 @@ export default async function ClassificacaoPage({
   const params = await searchParams;
   const liga = first(params.liga);
   const order = first(params.ordem) === "forca" ? "forca" : "pontos";
+  const tabela = first(params.tabela);
   const fonteParam = first(params.fonte);
 
   // National teams have no table.
@@ -39,32 +40,69 @@ export default async function ClassificacaoPage({
   const useSofa = (fonteParam === "sofa" || (fonteParam === "" && tournamentMap)) && league !== null && tournamentMap != null && user !== null;
 
   let data: Awaited<ReturnType<typeof loadLeague>> = null;
-  let sofa: { seasons: string[]; games: number; latest: string | null; unlinked: string[] } | null = null;
+  let sofa: {
+    seasons: string[];
+    games: number;
+    latest: string | null;
+    unlinked: string[];
+    tables: { name: string; rows: { position: number; team: string; played: number; wins: number; draws: number; losses: number; gf: number; ga: number; points: number }[] }[];
+  } | null = null;
   if (league) {
     if (useSofa) {
       const loaded = await loadSofaLeague(supabase, user!.id, league.code).catch(() => null);
       if (loaded) {
         data = loaded.data;
-        sofa = { seasons: loaded.seasonNames.slice(0, 3), games: loaded.data.matches.length, latest: loaded.data.latest, unlinked: loaded.unlinked };
+        sofa = { seasons: loaded.seasonNames.slice(0, 3), games: loaded.data.matches.length, latest: loaded.data.latest, unlinked: loaded.unlinked, tables: loaded.tables };
       }
     } else {
       data = await loadLeague(league.code, now);
     }
   }
 
+  // Leagues with several official tables (conferences) get a selector: points
+  // come from the official table, strength from our own ratings, form chips
+  // from our games.
+  const tables = data?.source === "sofascore" ? (sofa?.tables ?? []) : [];
+  const activeTable = tables.length > 1 ? (tables.find((t) => t.name === tabela) ?? tables[0]) : null;
+
   let lines: StandingsLine[] = [];
   if (data) {
-    const { rows } = ratings(data.matches, data.teams, now);
+    const teams = activeTable ? activeTable.rows.map((r) => r.team) : data.teams;
+    const { rows } = ratings(data.matches, teams, now);
     const byTeam = new Map(rows.map((r) => [r.team, r]));
-    lines = buildStandings(data.fixtures)
-      .map((standing) => ({ standing, rating: byTeam.get(standing.team)! }))
-      .filter((line) => line.rating);
+    if (activeTable) {
+      lines = activeTable.rows.flatMap((o) => {
+        const rating = byTeam.get(o.team);
+        if (!rating) return [];
+        return [
+          {
+            standing: {
+              team: o.team,
+              played: o.played,
+              wins: o.wins,
+              draws: o.draws,
+              losses: o.losses,
+              gf: o.gf,
+              ga: o.ga,
+              gd: o.gf - o.ga,
+              points: o.points,
+              form: formOf(data.fixtures, o.team),
+            },
+            rating,
+          },
+        ];
+      });
+    } else {
+      lines = buildStandings(data.fixtures)
+        .map((standing) => ({ standing, rating: byTeam.get(standing.team)! }))
+        .filter((line) => line.rating);
+    }
     if (order === "forca") lines.sort((a, b) => b.rating.goalDiff - a.rating.goalDiff);
   }
 
   const tab = (value: "pontos" | "forca", label: string) => (
     <Link
-      href={`/estatisticas/classificacao?${new URLSearchParams({ liga, ordem: value })}`}
+      href={`/estatisticas/classificacao?${new URLSearchParams({ liga, ordem: value, ...(activeTable ? { tabela: activeTable.name } : {}) })}`}
       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
         order === value
           ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
@@ -72,6 +110,20 @@ export default async function ClassificacaoPage({
       }`}
     >
       {label}
+    </Link>
+  );
+
+  const tableTab = (name: string) => (
+    <Link
+      key={name}
+      href={`/estatisticas/classificacao?${new URLSearchParams({ liga, ordem: order, tabela: name })}`}
+      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+        activeTable?.name === name || (!activeTable && tables[0]?.name === name)
+          ? "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/40"
+          : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+      }`}
+    >
+      {name}
     </Link>
   );
 
@@ -112,6 +164,12 @@ export default async function ClassificacaoPage({
             {tab("pontos", "Pontos")}
             {tab("forca", "Força")}
           </div>
+          {tables.length > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-neutral-500">Tabela</span>
+              {tables.map((t) => tableTab(t.name))}
+            </div>
+          )}
 
           {useSofa && sofa === null && (
             <p className="mb-3 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
@@ -150,6 +208,9 @@ export default async function ClassificacaoPage({
               Ataque 1,30 é marcar 30% acima da média; defesa 0,70 é sofrer 30% abaixo (menos é melhor). A{" "}
               <span className="font-medium text-neutral-400">Força</span> é a diferença de golos esperada por jogo contra
               uma equipa média.
+              {activeTable && (
+                <> J, V, E, D, golos e pontos são os oficiais desta tabela; a forma e a força são calculadas aqui.</>
+              )}
             </p>
             <p>
               A classificação usa só os jogos desta época, com os resultados que a fonte já tem (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useNow } from "@/lib/useNow";
 import {
@@ -15,6 +15,8 @@ import {
 import { predictLive } from "@/lib/liveModel";
 import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
 import { formatOdd } from "@/lib/multiples";
+import { parseSofascoreId } from "@/lib/sofascore";
+import { addWatchedMatch } from "@/app/(app)/actions";
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
@@ -35,6 +37,9 @@ export default function LiveSavedGames() {
   const now = useNow(30_000);
   // Removing a game changes the storage, which nothing announces in this tab.
   const [version, setVersion] = useState(0);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [addedKeys, setAddedKeys] = useState<Set<string>>(new Set());
+  const [, startTransition] = useTransition();
   const raw = useSyncExternalStore(
     (notify) => {
       window.addEventListener("storage", notify);
@@ -48,6 +53,44 @@ export default function LiveSavedGames() {
 
   if (raw === null || games.length === 0) return null;
   void version;
+
+  // A saved SofaScore game (link or id in its address) can move to the
+  // Dashboard as a widget; manual games cannot (widgets are SofaScore-only),
+  // and Dashboard games are already there.
+  const sofaLinkOf = (g: SavedGame): string | null => {
+    if (g.key.startsWith("d:")) return null;
+    try {
+      return new URLSearchParams(g.href.split("?")[1] ?? "").get("sofascore");
+    } catch {
+      return null;
+    }
+  };
+
+  const sendToDashboard = (g: SavedGame) => {
+    const link = sofaLinkOf(g);
+    const id = link ? parseSofascoreId(link) : null;
+    if (!link || id === null) return;
+    setPendingKey(g.key);
+    startTransition(async () => {
+      try {
+        let home = g.home;
+        let away = g.away;
+        if (!home || !away) {
+          const res = await fetch(`/api/sofascore/event?id=${id}`, { cache: "no-store" });
+          const body = res.ok ? await res.json() : null;
+          home = body?.state?.homeName ?? home;
+          away = body?.state?.awayName ?? away;
+        }
+        if (!home || !away) throw new Error("no-teams");
+        await addWatchedMatch(home, away, null, null, link.startsWith("id:") ? link : `id:${id}`);
+        setAddedKeys((prev) => new Set(prev).add(g.key));
+      } catch {
+        // Scraper offline or unreadable game: stays here, nothing breaks.
+      } finally {
+        setPendingKey(null);
+      }
+    });
+  };
 
   return (
     <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
@@ -85,17 +128,39 @@ export default function LiveSavedGames() {
                   </p>
                 )}
               </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  removeGame(g.key);
-                  setVersion((v) => v + 1);
-                }}
-                title="Esquecer este jogo"
-                className="rounded p-1 text-neutral-600 hover:bg-neutral-800 hover:text-neutral-300"
-              >
-                ✕
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                {sofaLinkOf(g) &&
+                  (addedKeys.has(g.key) ? (
+                    <Link
+                      href="/"
+                      title="Ver na Dashboard"
+                      className="rounded p-1 text-xs font-medium text-emerald-400 hover:underline"
+                    >
+                      ✓ Na Dashboard
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={pendingKey === g.key}
+                      onClick={() => sendToDashboard(g)}
+                      title="Passar para a Dashboard"
+                      className="rounded p-1 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
+                    >
+                      {pendingKey === g.key ? "…" : "+ Dashboard"}
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeGame(g.key);
+                    setVersion((v) => v + 1);
+                  }}
+                  title="Esquecer este jogo"
+                  className="rounded p-1 text-neutral-600 hover:bg-neutral-800 hover:text-neutral-300"
+                >
+                  ✕
+                </button>
+              </div>
             </li>
           );
         })}

@@ -7,7 +7,10 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 import { predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
 import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
+import { fixtureEventId } from "@/lib/sofaLeague";
 import { first, todayISO } from "@/lib/searchParams";
+import { Suspense } from "react";
+import CheckedProfit from "./profit";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import RoundTable, { type RoundRow } from "@/components/RoundTable";
@@ -46,6 +49,9 @@ export default async function JornadaPage({
   const rounds = upcomingRounds(data?.fixtures ?? [], today);
   const options = rounds.slice(0, MAX_ROUNDS);
   const chosen = options.find((r) => r.name === jornada) ?? options[0] ?? null;
+  // Month groups (leagues without rounds) hold a whole month: played games
+  // would drown the few upcoming ones, so only the upcoming show (the played
+  // ones live in the Conferido below). Proper rounds keep everything.
 
   let rows: RoundRow[] = [];
   if (data && chosen) {
@@ -76,6 +82,8 @@ export default async function JornadaPage({
     away: string;
     ft: [number, number];
     label: string;
+    key: string;
+    eventId: number | null;
     won: boolean;
   }
   const checked: Checked[] = [];
@@ -89,7 +97,16 @@ export default async function JornadaPage({
       if (Math.min(prediction.gamesHome, prediction.gamesAway) < MIN_GAMES) continue;
       const pick = recommend(prediction, baseRates(before), f.team1, f.team2)[0];
       if (!pick) continue;
-      checked.push({ date: f.date, home: f.team1, away: f.team2, ft: f.ft, label: pick.label, won: pick.won(f.ft) });
+      checked.push({
+        date: f.date,
+        home: f.team1,
+        away: f.team2,
+        ft: f.ft,
+        label: pick.label,
+        key: pick.key,
+        eventId: fixtureEventId(f),
+        won: pick.won(f.ft),
+      });
     }
     checked.sort((a, b) => b.date.localeCompare(a.date) || b.home.localeCompare(a.home));
   }
@@ -143,22 +160,35 @@ export default async function JornadaPage({
       {league && data && chosen && (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            {options.map((r) => (
-              <Link
-                key={r.name}
-                href={`/estatisticas/jornada?${new URLSearchParams({ liga: league.code, jornada: r.name })}`}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                  r.name === chosen.name
-                    ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
-                    : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
-                }`}
-              >
-                {data.calendar === "days" ? r.name : `${roundLabel(r.name)} · ${r.first.slice(8, 10)}/${r.first.slice(5, 7)}`}
-              </Link>
-            ))}
+            {options.map((r) => {
+              // Month groups (leagues without rounds on SofaScore) are named
+              // by month already: no first-date suffix like the Jornada tabs.
+              const dated = roundLabel(r.name) !== r.name;
+              const label =
+                data.calendar === "days" || !dated
+                  ? r.name
+                  : `${roundLabel(r.name)} · ${r.first.slice(8, 10)}/${r.first.slice(5, 7)}`;
+              return (
+                <Link
+                  key={r.name}
+                  href={`/estatisticas/jornada?${new URLSearchParams({ liga: league.code, jornada: r.name })}`}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                    r.name === chosen.name
+                      ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
+                      : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </div>
 
-          <RoundTable rows={rows} liga={league.code} fonte="sofa" />
+          <RoundTable
+            rows={roundLabel(chosen.name) === chosen.name ? rows.filter((r) => r.status === "upcoming") : rows}
+            liga={league.code}
+            fonte="sofa"
+          />
 
           {checked.length > 0 && (
             <details className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
@@ -189,6 +219,29 @@ export default async function JornadaPage({
                 Cada jogo foi previsto só com o que se sabia antes dele (sem espreitar o futuro). É taxa de acerto,
                 não lucro: sem as odds reais da casa não há como contar dinheiro.
               </p>
+              {user && (
+                <Suspense
+                  fallback={
+                    <p className="mt-3 text-xs text-neutral-500">A ir buscar as odds reais para contar o lucro…</p>
+                  }
+                >
+                  <CheckedProfit
+                    games={checked
+                      .filter((c) => c.eventId !== null)
+                      .map((c) => ({
+                        eventId: c.eventId as number,
+                        date: c.date,
+                        home: c.home,
+                        away: c.away,
+                        ft: c.ft,
+                        label: c.label,
+                        key: c.key,
+                        won: c.won,
+                      }))}
+                    userId={user.id}
+                  />
+                </Suspense>
+              )}
             </details>
           )}
 

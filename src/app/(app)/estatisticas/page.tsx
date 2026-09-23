@@ -4,7 +4,10 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
-import { loadSofaLeague, teamGoalTiming, type GoalTiming } from "@/lib/sofaLeague";
+import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
+import { eventOdds } from "@/lib/sofaOdds";
+import { oddsKeyFor } from "@/lib/oddsParse";
+import { HOUR_MS } from "@/lib/sofaCache";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
 import { WINDOW_YEARS } from "@/lib/internationalModel";
@@ -181,12 +184,14 @@ async function CompararBody({
   const supabase = await createClient();
   let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
   let data: LeagueData | null = null;
+  let sofaTables: { name: string; rows: OfficialStanding[] }[] = [];
   if (league && userId) {
     if (useSofa) {
       const sofa = await loadSofaLeague(supabase, userId, league.code, { history: true }).catch(() => null);
       if (sofa) {
         sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
         data = sofa.data;
+        sofaTables = sofa.tables;
       }
     } else if (useSofaIntl) {
       const sofa = await loadSofaInternational(supabase, userId, now).catch(() => null);
@@ -265,6 +270,38 @@ async function CompararBody({
   // Goal timing per 15' from the last games with incident data (cached): when
   // each side scores and concedes. Independent of the rest-days above.
   let timing: { home: GoalTiming | null; away: GoalTiming | null } | null = null;
+  if (useSofa && data && userId && casa && fora) {
+    const [timingCasa, timingFora] = await Promise.all([
+      teamGoalTiming(supabase, userId, liga, casa).catch(() => null),
+      teamGoalTiming(supabase, userId, liga, fora).catch(() => null),
+    ]);
+    if (timingCasa || timingFora) timing = { home: timingCasa, away: timingFora };
+  }
+  // Real odds for this exact fixture, when the bookmakers price it (usually
+  // from a few days out): the calendar carries the SofaScore event id.
+  let realByKey: Record<string, number> = {};
+  if (useSofa && data && userId && matchDate && casa && fora) {
+    const fx = data.fixtures.find((f) => f.team1 === casa && f.team2 === fora && f.date === matchDate);
+    const eventId = fx ? fixtureEventId(fx) : null;
+    if (eventId) {
+      const parsed = await eventOdds(supabase, userId, eventId, HOUR_MS).catch(() => null);
+      if (parsed) {
+        const byKey: Record<string, number> = {};
+        for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+        const keys = [
+          "home", "draw", "away", "1x", "x2", "12",
+          "btts:yes", "btts:no",
+          "over:0.5", "under:0.5", "over:1.5", "under:1.5",
+          "over:2.5", "under:2.5", "over:3.5", "under:3.5",
+          "ht:home", "ht:draw", "ht:away",
+        ];
+        for (const k of keys) {
+          const ok = oddsKeyFor(k, casa, fora);
+          if (ok && byKey[ok] !== undefined) realByKey[k] = byKey[ok];
+        }
+      }
+    }
+  }
   if (useSofa && data && userId && casa && fora) {
     const [timingCasa, timingFora] = await Promise.all([
       teamGoalTiming(supabase, userId, liga, casa).catch(() => null),
@@ -388,6 +425,8 @@ async function CompararBody({
           notes={notes}
           venueWeight={venuePercent / 100}
           timing={timing}
+          realByKey={realByKey}
+          tables={sofaTables.length > 0 ? sofaTables : undefined}
         />
       )}
 

@@ -6,6 +6,7 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { findGameByNames } from "@/lib/liveMatch";
 import { gamesOf, summarize, type PlayedMatch, type TeamGame } from "@/lib/footballModel";
+import { Suspense } from "react";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import SofaLiveTable, { type SofaBoardStats } from "@/components/SofaLiveTable";
 
@@ -14,6 +15,45 @@ const form = (games: TeamGame[]) => games.slice(0, RECENT).map((g) => g.result);
 
 export default async function AoVivoPage() {
   await requireAdmin();
+
+  return (
+    <div data-wide>
+      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <p className="mb-4 max-w-4xl text-sm text-neutral-500">
+        Todos os jogos em direto agora, do mundo inteiro, via SofaScore. Nas ligas mapeadas vêm também os golos por jogo e a forma
+        de cada equipa; nas outras só o resultado.
+      </p>
+
+      <EstatisticasTabs />
+
+      <Suspense
+        fallback={
+          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+            A procurar jogos em direto… (a primeira vez demora, depois é cache)
+          </p>
+        }
+      >
+        <AoVivoBoard />
+      </Suspense>
+
+      <div className="mt-4 max-w-4xl space-y-2 text-xs leading-relaxed text-neutral-500">
+        <p>
+          <span className="font-medium text-neutral-400">Como é feito:</span> a lista de jogos em direto vem do
+          SofaScore, lida pelo scraper local (CloakBrowser) — é a mesma fonte que a calculadora live usa, jogo a jogo.
+        </p>
+        <p>
+          <span className="font-medium text-neutral-400">Limites:</span> sem scraper ligado não há direto. Não há odds de casas de
+          apostas nem estatísticas das ligas que não cobrimos.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// The slow part streams in after the shell: live list plus one history load
+// per mapped league (cached afterwards). Refreshing mid-load used to abort
+// the whole page with "destination stream closed early".
+async function AoVivoBoard() {
   const now = new Date();
   // Live list from SofaScore via the local CloakBrowser scraper. Scraper
   // offline -> offline: true, and the page says so instead of showing nothing.
@@ -73,15 +113,7 @@ export default async function AoVivoPage() {
   }
 
   return (
-    <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
-      <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Todos os jogos em direto agora, do mundo inteiro, via SofaScore. Nas ligas mapeadas vêm também os golos por jogo e a forma
-        de cada equipa; nas outras só o resultado.
-      </p>
-
-      <EstatisticasTabs />
-
+    <>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-neutral-400">
           {offline
@@ -106,17 +138,6 @@ export default async function AoVivoPage() {
       ) : (
         <SofaLiveTable games={games} stats={stats} form={forms} />
       )}
-
-      <div className="mt-4 max-w-4xl space-y-2 text-xs leading-relaxed text-neutral-500">
-        <p>
-          <span className="font-medium text-neutral-400">Como é feito:</span> a lista de jogos em direto vem do
-          SofaScore, lida pelo scraper local (CloakBrowser) — é a mesma fonte que a calculadora live usa, jogo a jogo.
-        </p>
-        <p>
-          <span className="font-medium text-neutral-400">Limites:</span> sem scraper ligado não há direto. Não há odds de casas de
-          apostas nem estatísticas das ligas que não cobrimos.
-        </p>
-      </div>
-    </div>
+    </>
   );
 }

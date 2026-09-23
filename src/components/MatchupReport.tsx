@@ -4,8 +4,8 @@ import OddChecker, { type OddMarket } from "./OddChecker";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
 import StandingsTable, { type StandingsLine } from "./StandingsTable";
-import { buildStandings, ratings } from "@/lib/standings";
-import type { GoalTiming } from "@/lib/sofaLeague";
+import { buildStandings, formOf, ratings } from "@/lib/standings";
+import type { GoalTiming, OfficialStanding } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
 import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
@@ -50,6 +50,9 @@ const shortDate = (date: string) =>
 interface Row {
   label: string;
   p: number;
+  // The model's market key ("home", "over:2.5", "ht:home"...): links the row
+  // to the bookmaker's real odd.
+  key?: string;
 }
 
 function MarketTable({ title, rows }: { title: string; rows: Row[] }) {
@@ -657,6 +660,7 @@ function SuggestedBet({
   few,
   fragileGames,
   avg,
+  realByKey,
 }: {
   picks: Pick[];
   few: boolean;
@@ -665,15 +669,28 @@ function SuggestedBet({
   // The fewest games in the data among the two teams when that is too few for the
   // estimate to beat the league's own rates; null when it is not.
   fragileGames: number | null;
+  // The bookmaker's real odds by model key, when the game is priced.
+  realByKey?: Record<string, number>;
 }) {
   const [main, ...others] = picks;
-  const line = (pick: Pick) => (
-    <p className="text-xs text-neutral-400">
-      Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · {avg}{" "}
-      {pct(pick.base)} · odd justa {formatOdd(pick.fairOdd)} ·{" "}
-      <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
-    </p>
-  );
+  const line = (pick: Pick) => {
+    const real = realByKey?.[pick.key];
+    return (
+      <p className="text-xs text-neutral-400">
+        Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · {avg}{" "}
+        {pct(pick.base)} · odd justa {formatOdd(pick.fairOdd)} ·{" "}
+        <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
+        {real !== undefined && (
+          <>
+            {" "}· na casa <span className="font-medium text-neutral-100">{formatOdd(real)}</span>{" "}
+            <span className={`font-medium ${real >= pick.minOdd ? "text-emerald-400" : "text-red-400"}`}>
+              {real >= pick.minOdd ? "compensa" : "não chega"}
+            </span>
+          </>
+        )}
+      </p>
+    );
+  };
 
   return (
     <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
@@ -733,27 +750,27 @@ function buildMarkets(
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
   const overRows = OVER_LINES.filter((l) => l <= 3.5).flatMap((line) => [
-    { label: `Mais de ${dot(line)} golos`, p: prediction.over[String(line)] },
-    { label: `Menos de ${dot(line)} golos`, p: 1 - prediction.over[String(line)] },
+    { label: `Mais de ${dot(line)} golos`, p: prediction.over[String(line)], key: `over:${line}` },
+    { label: `Menos de ${dot(line)} golos`, p: 1 - prediction.over[String(line)], key: `under:${line}` },
   ]);
   const groups = [
     {
       title: "Resultado final",
       rows: [
-        { label: "Casa vence", p: ft.home },
-        { label: "Empate", p: ft.draw },
-        { label: "Fora vence", p: ft.away },
-        { label: "Casa ou empate (1X)", p: ft.home + ft.draw },
-        { label: "Fora ou empate (X2)", p: ft.away + ft.draw },
-        { label: "Sem empate (12)", p: ft.home + ft.away },
+        { label: "Casa vence", p: ft.home, key: "home" },
+        { label: "Empate", p: ft.draw, key: "draw" },
+        { label: "Fora vence", p: ft.away, key: "away" },
+        { label: "Casa ou empate (1X)", p: ft.home + ft.draw, key: "1x" },
+        { label: "Fora ou empate (X2)", p: ft.away + ft.draw, key: "x2" },
+        { label: "Sem empate (12)", p: ft.home + ft.away, key: "12" },
       ],
     },
     { title: "Golos", rows: overRows },
     {
       title: "Ambas marcam",
       rows: [
-        { label: "Sim", p: prediction.bothScore },
-        { label: "Não", p: 1 - prediction.bothScore },
+        { label: "Sim", p: prediction.bothScore, key: "btts:yes" },
+        { label: "Não", p: 1 - prediction.bothScore, key: "btts:no" },
       ],
     },
     ...(withHalfTime
@@ -761,9 +778,9 @@ function buildMarkets(
           {
             title: "Ao intervalo",
             rows: [
-              { label: "Casa ganha ao intervalo", p: ht.home },
-              { label: "Empate ao intervalo", p: ht.draw },
-              { label: "Fora ganha ao intervalo", p: ht.away },
+              { label: "Casa ganha ao intervalo", p: ht.home, key: "ht:home" },
+              { label: "Empate ao intervalo", p: ht.draw, key: "ht:draw" },
+              { label: "Fora ganha ao intervalo", p: ht.away, key: "ht:away" },
               { label: "Mais de 0,5 golos na 1.ª parte", p: ht.over05 },
               { label: "Mais de 1,5 golos na 1.ª parte", p: ht.over15 },
             ],
@@ -775,7 +792,9 @@ function buildMarkets(
       rows: prediction.topScores.map((s) => ({ label: `${s.home}-${s.away}`, p: s.p })),
     },
   ];
-  const odd: OddMarket[] = groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p })));
+  const odd: OddMarket[] = groups.flatMap((g) =>
+    g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key }))
+  );
   return { groups, odd };
 }
 
@@ -798,6 +817,8 @@ export default function MatchupReport({
   notes,
   venueWeight,
   timing,
+  realByKey,
+  tables,
 }: {
   matches: PlayedMatch[];
   // Older seasons, for the head to head only.
@@ -827,6 +848,11 @@ export default function MatchupReport({
   venueWeight: number;
   // Goal timing per 15' of each side (last games with incident data), or null.
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
+  // The bookmaker's real odds by model key, when this exact game is priced.
+  realByKey?: Record<string, number>;
+  // Official standings tables (overall first) for the mini-table: official
+  // points with our ratings, instead of counting our own fixtures.
+  tables?: { name: string; rows: OfficialStanding[] }[];
 }) {
   const adjusted = isAdjusted(adjust.home, adjust.away) || venueWeight > 0;
   const ratio = strengthRatio(adjust.home, adjust.away);
@@ -835,13 +861,42 @@ export default function MatchupReport({
   const avg = international ? "média das seleções" : "média da liga";
   const period = international ? currentSeason.label : `época ${currentSeason.label}`;
   // The league table with each team's strength, the two teams standing out (not for
-  // national teams, which have no league).
+  // national teams, which have no league). Official tables win when the source
+  // has them (overall table first): official points with our ratings, instead
+  // of counting our own fixtures.
+  const official = !international && tables && tables.length > 0 ? tables[0] : null;
   const table = international ? [] : buildStandings(fixtures);
-  const strengths = new Map(ratings(matches, table.map((row) => row.team), now).rows.map((row) => [row.team, row]));
-  const standingsLines: StandingsLine[] = table.flatMap((standing) => {
-    const rating = strengths.get(standing.team);
-    return rating ? [{ standing, rating }] : [];
-  });
+  const strengths = new Map(
+    ratings(matches, official ? official.rows.map((r) => r.team) : table.map((row) => row.team), now).rows.map(
+      (row) => [row.team, row]
+    )
+  );
+  const standingsLines: StandingsLine[] = official
+    ? official.rows.flatMap((o) => {
+        const rating = strengths.get(o.team);
+        if (!rating) return [];
+        return [
+          {
+            standing: {
+              team: o.team,
+              played: o.played,
+              wins: o.wins,
+              draws: o.draws,
+              losses: o.losses,
+              gf: o.gf,
+              ga: o.ga,
+              gd: o.gf - o.ga,
+              points: o.points,
+              form: formOf(fixtures, o.team),
+            },
+            rating,
+          },
+        ];
+      })
+    : table.flatMap((standing) => {
+        const rating = strengths.get(standing.team);
+        return rating ? [{ standing, rating }] : [];
+      });
 
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null);
@@ -906,7 +961,7 @@ export default function MatchupReport({
   // The suggestions first, priced with their own (pulled back) chance, so the
   // comparer opens on the suggested bet.
   const oddMarkets: OddMarket[] = [
-    ...picks.map((p) => ({ group: "Aposta sugerida", label: p.label, p: p.p })),
+    ...picks.map((p) => ({ group: "Aposta sugerida", label: p.label, p: p.p, key: p.key })),
     ...odd,
   ];
 
@@ -972,7 +1027,7 @@ export default function MatchupReport({
         />
       )}
 
-      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} />
+      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -1112,7 +1167,7 @@ export default function MatchupReport({
         </div>
       </div>
 
-      <OddChecker markets={oddMarkets} />
+      <OddChecker markets={oddMarkets} realByKey={realByKey} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
         {international

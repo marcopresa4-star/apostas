@@ -38,6 +38,19 @@ export interface StandingRow {
 // The league table of the season from its played games (3 points for a win, 1
 // for a draw). Ties go by goal difference, then goals scored, then name, which
 // is not every league's rule but is close enough to read the season.
+export function formOf(fixtures: Fixture[], team: string): FormGame[] {
+  const out: FormGame[] = [];
+  for (const f of seasonOf(fixtures, team)) {
+    if (!f.ft) continue;
+    const home = f.team1 === team;
+    const scored = home ? f.ft[0] : f.ft[1];
+    const conceded = home ? f.ft[1] : f.ft[0];
+    const r = resultFor(f, team)!;
+    out.push({ result: r, date: f.date, opponent: home ? f.team2 : f.team1, home, gf: scored, ga: conceded });
+  }
+  return out.slice(-5).reverse();
+}
+
 export function buildStandings(fixtures: Fixture[]): StandingRow[] {
   const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))];
   const rows = teams.map((team): StandingRow => {
@@ -47,7 +60,6 @@ export function buildStandings(fixtures: Fixture[]): StandingRow[] {
     let losses = 0;
     let gf = 0;
     let ga = 0;
-    const results: FormGame[] = [];
     for (const f of played) {
       const home = f.team1 === team;
       const scored = home ? f.ft![0] : f.ft![1];
@@ -55,7 +67,6 @@ export function buildStandings(fixtures: Fixture[]): StandingRow[] {
       gf += scored;
       ga += conceded;
       const r = resultFor(f, team)!;
-      results.push({ result: r, date: f.date, opponent: home ? f.team2 : f.team1, home, gf: scored, ga: conceded });
       if (r === "V") wins++;
       else if (r === "E") draws++;
       else losses++;
@@ -70,7 +81,7 @@ export function buildStandings(fixtures: Fixture[]): StandingRow[] {
       ga,
       gd: gf - ga,
       points: wins * 3 + draws,
-      form: results.slice(-5).reverse(),
+      form: formOf(fixtures, team),
     };
   });
   return rows.sort(

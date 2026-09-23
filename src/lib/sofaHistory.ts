@@ -242,7 +242,7 @@ export async function tournamentRounds(
 // Kickoff in Europe/Lisbon wall time (the files use local dates too): a 17:45
 // UTC game in October is 18:45 in Portugal. Midnight edges can still shift a
 // day, same as noted for results.
-function lisbonParts(start: number): { date: string; time: string } {
+export function lisbonParts(start: number): { date: string; time: string } {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Lisbon",
     year: "numeric",
@@ -486,30 +486,54 @@ export async function seasonStandings(
   seasonId: number,
   current: boolean
 ): Promise<SofaStandingRow[]> {
-  const key = `standings:${uniqueId}:${seasonId}:total`;
+  const tables = await seasonStandingsTables(supabase, userId, uniqueId, seasonId, current);
+  return tables.flatMap((t) => t.rows);
+}
+
+export interface SofaStandingTable {
+  // "Premier League", or one of several ("MLS 2026, Eastern Conference").
+  name: string;
+  rows: SofaStandingRow[];
+}
+
+// Every standings table of a season, kept apart (leagues with conferences
+// get one table each). Rows stay in official order.
+export async function seasonStandingsTables(
+  supabase: SupabaseClient,
+  userId: string,
+  uniqueId: number,
+  seasonId: number,
+  current: boolean
+): Promise<SofaStandingTable[]> {
+  const key = `standingstables:${uniqueId}:${seasonId}`;
   const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
-  if (Array.isArray(hit)) return hit as SofaStandingRow[];
+  if (Array.isArray(hit)) return hit as SofaStandingTable[];
   const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/standings/total`);
   const tables = obj(body)?.standings;
-  // Every table, not just the first: cups split into groups.
-  const rows = Array.isArray(tables) ? tables.flatMap((t) => (Array.isArray(obj(t)?.rows) ? (obj(t)!.rows as unknown[]) : [])) : [];
-  const out: SofaStandingRow[] = Array.isArray(rows)
-    ? rows.flatMap((item) => {
-        const r = obj(item);
-        if (!r) return [];
-        return [
-          {
-            position: num(r.position) ?? 0,
-            team: str(obj(r.team)?.name),
-            played: num(r.matches) ?? 0,
-            wins: num(r.wins) ?? 0,
-            draws: num(r.draws) ?? 0,
-            losses: num(r.losses) ?? 0,
-            goalsFor: num(r.scoresFor) ?? 0,
-            goalsAgainst: num(r.scoresAgainst) ?? 0,
-            points: num(r.points) ?? 0,
-          },
-        ];
+  const out: SofaStandingTable[] = Array.isArray(tables)
+    ? tables.flatMap((t): SofaStandingTable[] => {
+        const table = obj(t);
+        if (!table) return [];
+        const items = Array.isArray(table.rows) ? (table.rows as unknown[]) : [];
+        const rows = items.flatMap((item) => {
+          const r = obj(item);
+          if (!r) return [];
+          return [
+            {
+              position: num(r.position) ?? 0,
+              team: str(obj(r.team)?.name),
+              played: num(r.matches) ?? 0,
+              wins: num(r.wins) ?? 0,
+              draws: num(r.draws) ?? 0,
+              losses: num(r.losses) ?? 0,
+              goalsFor: num(r.scoresFor) ?? 0,
+              goalsAgainst: num(r.scoresAgainst) ?? 0,
+              points: num(r.points) ?? 0,
+            },
+          ];
+        });
+        if (rows.length === 0) return [];
+        return [{ name: str(table.name) || str(table.description) || "", rows }];
       })
     : [];
   if (out.length > 0) await cacheSet(supabase, userId, key, out);
