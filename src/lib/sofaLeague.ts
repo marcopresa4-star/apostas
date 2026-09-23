@@ -15,6 +15,7 @@ import {
   seasonStandings,
   seasonTeamNames,
   tournamentSeasons,
+  eventGoalMinutes,
   alignScore,
   type SofaSeason,
 } from "./sofaHistory";
@@ -263,4 +264,69 @@ export async function resolveSofaLink(
     fora,
     warnings,
   };
+}
+
+export interface GoalTiming {
+  // Goals scored / conceded per 15' block (0-15 … 76'-fim, descontos incluídos).
+  scored: [number, number, number, number, number, number];
+  conceded: [number, number, number, number, number, number];
+  games: number; // games with incident data behind the counts
+}
+
+const emptyBlocks = (): [number, number, number, number, number, number] => [0, 0, 0, 0, 0, 0];
+
+function timingBlock(minute: number): number {
+  if (minute <= 15) return 0;
+  if (minute <= 30) return 1;
+  if (minute <= 45) return 2;
+  if (minute <= 60) return 3;
+  if (minute <= 75) return 4;
+  return 5;
+}
+
+// When a team scores and concedes, per 15 minutes: the last `limit` league
+// games with incident data (each game's incidents read once, cached 30 days).
+// Null when the team or its games cannot be found.
+export async function teamGoalTiming(
+  supabase: SupabaseClient,
+  userId: string,
+  leagueCode: string,
+  localTeam: string,
+  limit = 10
+): Promise<GoalTiming | null> {
+  const tournaments = await loadMaps(supabase, userId, "tournament");
+  const uniqueId = tournaments.find((m) => m.name_key === leagueCode)?.sofascore_id ?? null;
+  if (!uniqueId) return null;
+  const teams = await loadMaps(supabase, userId, "team");
+  const link = teams.find((m) => m.local_name === localTeam) ?? teams.find((m) => m.name === localTeam);
+  if (!link) return null;
+  const sofaName = link.name;
+  const seasons = await tournamentSeasons(supabase, userId, uniqueId).catch(() => []);
+  const today = new Date().toISOString().slice(0, 10);
+  const games: { id: number; date: string; isHome: boolean }[] = [];
+  for (let i = 0; i < seasons.length && games.length < limit; i++) {
+    const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today).catch(() => []);
+    for (const f of fx) {
+      if (!f.ft || f.date >= today) continue;
+      if (f.team1 === sofaName) games.push({ id: f.id, date: f.date, isHome: true });
+      else if (f.team2 === sofaName) games.push({ id: f.id, date: f.date, isHome: false });
+    }
+    games.sort((a, b) => b.date.localeCompare(a.date));
+    games.splice(limit);
+  }
+  if (games.length === 0) return null;
+  const scored = emptyBlocks();
+  const conceded = emptyBlocks();
+  let counted = 0;
+  const marks = await Promise.all(games.map((g) => eventGoalMinutes(supabase, userId, g.id).catch(() => null)));
+  marks.forEach((list, i) => {
+    if (!list) return;
+    counted++;
+    for (const mark of list) {
+      const mine = mark.home === games[i].isHome;
+      (mine ? scored : conceded)[timingBlock(mark.minute)]++;
+    }
+  });
+  if (counted === 0) return null;
+  return { scored, conceded, games: counted };
 }

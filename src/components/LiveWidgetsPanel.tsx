@@ -6,7 +6,7 @@ import { parseSofascoreId } from "@/lib/sofascore";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
 import { addWatchedMatch, removeWatchedMatch } from "@/app/(app)/actions";
-import SofaScoreWidget from "./SofaScoreWidget";
+import SofaScoreWidget, { ALERTS_KEY, alertsOn } from "./SofaScoreWidget";
 
 interface WatchedMatch {
   id: string;
@@ -59,6 +59,26 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
   const [order, setOrder] = useState<string[]>(() =>
     typeof window === "undefined" ? [] : loadOrder()
   );
+  const [alerts, setAlerts] = useState<boolean>(() => typeof window !== "undefined" && alertsOn());
+
+  async function toggleAlerts() {
+    if (!alerts && "Notification" in window && Notification.permission === "default") {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // Denied or dismissed: sound alerts still work.
+      }
+    }
+    setAlerts((v) => {
+      const next = !v;
+      try {
+        window.localStorage.setItem(ALERTS_KEY, next ? "1" : "0");
+      } catch {
+        // Private mode: alerts just don't persist.
+      }
+      return next;
+    });
+  }
 
   if (!now) return null;
 
@@ -145,6 +165,16 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
           Ao vivo agora
         </h2>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void toggleAlerts()}
+            title={alerts ? "Desligar alertas de golos" : "Ligar alertas de golos (som + notificação)"}
+            className={`text-xs font-medium transition ${
+              alerts ? "text-amber-300 hover:text-amber-200" : "text-neutral-500 hover:text-neutral-300"
+            }`}
+          >
+            {alerts ? "🔔 Alertas" : "🔕 Alertas"}
+          </button>
           {order.length > 0 && (
             <button
               type="button"

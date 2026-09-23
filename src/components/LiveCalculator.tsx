@@ -153,6 +153,8 @@ function Calculator({
 
   const [homeGoals, setHomeGoals] = useState(String(saved?.homeGoals ?? 0));
   const [awayGoals, setAwayGoals] = useState(String(saved?.awayGoals ?? 0));
+  const [redsHome, setRedsHome] = useState(String(saved?.redsHome ?? 0));
+  const [redsAway, setRedsAway] = useState(String(saved?.redsAway ?? 0));
   const [lh, setLh] = useState(saved?.lh ?? dot(lambdaHome));
   const [la, setLa] = useState(saved?.la ?? dot(lambdaAway));
 
@@ -170,6 +172,8 @@ function Calculator({
     const apply = (state: LiveGameState) => {
       if (state.homeGoals !== null) setHomeGoals(String(state.homeGoals));
       if (state.awayGoals !== null) setAwayGoals(String(state.awayGoals));
+      setRedsHome(String(state.reds.home));
+      setRedsAway(String(state.reds.away));
       if (state.phase === "live" && state.minute !== null) {
         anchor.current = { minute: state.minute, at: Date.now() };
         setMinute(String(state.minute));
@@ -241,6 +245,11 @@ function Calculator({
   const a = whole(awayGoals, 0, 20, 0);
   const expectedHome = decimal(lh, 0.05, 6, lambdaHome);
   const expectedAway = decimal(la, 0.05, 6, lambdaAway);
+  // Sending-offs: the synced count wins when the SofaScore reading is on,
+  // otherwise what was typed. They scale what each side still scores.
+  const liveStateForReds = syncOn && syncInfo?.kind === "ok" ? syncInfo.state : null;
+  const rH = liveStateForReds ? liveStateForReds.reds.home : whole(redsHome, 0, 5, 0);
+  const rA = liveStateForReds ? liveStateForReds.reds.away : whole(redsAway, 0, 5, 0);
 
   const p = predictLive({
     lambdaHome: expectedHome,
@@ -249,6 +258,8 @@ function Calculator({
     minute: m,
     homeGoals: h,
     awayGoals: a,
+    redsHome: rH,
+    redsAway: rA,
   });
 
   // What is remembered: a running minute is kept as the minute it was at a given moment.
@@ -264,11 +275,13 @@ function Calculator({
       running,
       homeGoals: h,
       awayGoals: a,
+      redsHome: whole(redsHome, 0, 5, 0),
+      redsAway: whole(redsAway, 0, 5, 0),
       lh,
       la,
       firstHalfShare,
     });
-  }, [gameKey, href, home, away, m, running, h, a, lh, la, firstHalfShare]);
+  }, [gameKey, href, home, away, m, running, h, a, redsHome, redsAway, lh, la, firstHalfShare]);
 
   const total = h + a;
   const homeName = home || "Casa";
@@ -394,8 +407,9 @@ function Calculator({
           )}
           {syncOn && redCards > 0 && liveState && (
             <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
-              Cartões vermelhos: {homeName} {liveState.reds.home}, {awayName} {liveState.reds.away}. O modelo não conta
-              cartões vermelhos, por isso as probabilidades abaixo são menos fiáveis.
+              Cartões vermelhos: {homeName} {liveState.reds.home}, {awayName} {liveState.reds.away}. O modelo
+              conta-os como estimativa (com menos um em campo, a equipa marca ~25% menos do que ainda faltava e
+              sofre ~20% mais) — valores por testar, não medidos.
             </p>
           )}
           {syncOn && liveState && liveState.stats.length > 0 && (
@@ -517,6 +531,45 @@ function Calculator({
             <p className="mt-1 text-center text-[11px] text-neutral-500 sm:hidden">
               {homeName} – {awayName}
             </p>
+            <div className="mt-2 flex items-center justify-center gap-2 text-xs text-neutral-400">
+              <span aria-hidden>🟥</span>
+              <button type="button" className={button} onClick={() => step(setRedsHome, rH, -1, 0, 5)} aria-label={`Menos um vermelho ${homeName}`}>
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                max="5"
+                value={syncOn && liveState ? liveState.reds.home : redsHome}
+                onChange={(e) => setRedsHome(e.target.value)}
+                className={`${INPUT} w-14 text-center`}
+                aria-label={`Vermelhos ${homeName}`}
+              />
+              <button type="button" className={button} onClick={() => step(setRedsHome, rH, 1, 0, 5)} aria-label={`Mais um vermelho ${homeName}`}>
+                +
+              </button>
+              <span className="px-1 text-neutral-500">–</span>
+              <button type="button" className={button} onClick={() => step(setRedsAway, rA, -1, 0, 5)} aria-label={`Menos um vermelho ${awayName}`}>
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                max="5"
+                value={syncOn && liveState ? liveState.reds.away : redsAway}
+                onChange={(e) => setRedsAway(e.target.value)}
+                className={`${INPUT} w-14 text-center`}
+                aria-label={`Vermelhos ${awayName}`}
+              />
+              <button type="button" className={button} onClick={() => step(setRedsAway, rA, 1, 0, 5)} aria-label={`Mais um vermelho ${awayName}`}>
+                +
+              </button>
+              <span className="text-[11px] text-neutral-500">
+                {syncOn && liveState ? "do SofaScore" : "à mão"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -648,8 +701,9 @@ function Calculator({
         <span className="text-neutral-400">intervalo</span> em 2.220 jogos de 2025/26 que não usei para o medir: a
         probabilidade de &quot;mais um golo até ao fim&quot; previu 86,2% e aconteceu 86,0%, e em quem ganha e em ambas
         marcam bateu a média histórica. <span className="text-amber-400">A outros minutos não consigo testar</span>, porque
-        os dados não têm o minuto dos golos: aí é uma extrapolação razoável e mais nada. Não sabe de cartões vermelhos,
-        lesões nem do ritmo do jogo.
+        os dados não têm o minuto dos golos: aí é uma extrapolação razoável e mais nada. Conta os vermelhos como
+        estimativa (menos um em campo ≈ −25% do que ainda marcava, +20% para o outro lado), mas isso é palpite
+        meu, não medido. Não sabe de lesões nem do ritmo do jogo.
       </p>
     </div>
   );

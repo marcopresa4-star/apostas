@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
-import { loadSofaLeague } from "@/lib/sofaLeague";
+import { loadSofaLeague, teamGoalTiming, type GoalTiming } from "@/lib/sofaLeague";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
 import { WINDOW_YEARS } from "@/lib/internationalModel";
@@ -262,6 +262,16 @@ async function CompararBody({
     if (lastCasa && (!autoRest.home || lastCasa.date > autoRest.home.date)) autoRest.home = lastCasa;
     if (lastFora && (!autoRest.away || lastFora.date > autoRest.away.date)) autoRest.away = lastFora;
   }
+  // Goal timing per 15' from the last games with incident data (cached): when
+  // each side scores and concedes. Independent of the rest-days above.
+  let timing: { home: GoalTiming | null; away: GoalTiming | null } | null = null;
+  if (useSofa && data && userId && casa && fora) {
+    const [timingCasa, timingFora] = await Promise.all([
+      teamGoalTiming(supabase, userId, liga, casa).catch(() => null),
+      teamGoalTiming(supabase, userId, liga, fora).catch(() => null),
+    ]);
+    if (timingCasa || timingFora) timing = { home: timingCasa, away: timingFora };
+  }
   const adjust = {
     home: { ...typedAdjust.home, restDays: typedAdjust.home.restDays ?? autoRest.home?.days ?? null },
     away: { ...typedAdjust.away, restDays: typedAdjust.away.restDays ?? autoRest.away?.days ?? null },
@@ -377,6 +387,7 @@ async function CompararBody({
           extras={{ home: extras.casa, away: extras.fora }}
           notes={notes}
           venueWeight={venuePercent / 100}
+          timing={timing}
         />
       )}
 

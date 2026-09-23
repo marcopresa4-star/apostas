@@ -583,6 +583,49 @@ export async function teamLastGame(
   return best;
 }
 
+export interface SofaGoalMark {
+  minute: number; // 1-130 (stoppage comes as 45+/90+: 47, 93...)
+  home: boolean; // scored by the home side (own goals already flipped)
+}
+
+// Goal minutes of one finished event, for the goal-timing table. Cached 30
+// days: results never change. Null when the game carries no usable incidents
+// (old seasons, low coverage) — the caller then leaves the game out.
+export async function eventGoalMinutes(
+  supabase: SupabaseClient,
+  userId: string,
+  eventId: number
+): Promise<SofaGoalMark[] | null> {
+  const key = `goalmin:${eventId}`;
+  const hit = await cacheGet(supabase, userId, key, 30 * DAY_MS);
+  if (Array.isArray(hit)) {
+    return hit.every((g) => typeof g === "object" && g !== null) ? (hit as SofaGoalMark[]) : null;
+  }
+  let events: Json[];
+  try {
+    const body = await sofaRaw<unknown>(`/event/${eventId}/incidents`);
+    const raw = obj(body)?.incidents;
+    if (!Array.isArray(raw)) {
+      await cacheSet(supabase, userId, key, []);
+      return null;
+    }
+    events = raw.flatMap((e) => (obj(e) ? [obj(e)!] : []));
+  } catch {
+    return null;
+  }
+  const out: SofaGoalMark[] = [];
+  for (const e of events) {
+    const type = str(e.incidentType).toLowerCase();
+    if (!type.includes("goal") && !type.includes("penalt")) continue;
+    const minute = num(e.time);
+    if (minute === null || minute < 1 || minute > 130) continue;
+    const own = str(e.incidentClass).toLowerCase().includes("own");
+    out.push({ minute, home: own ? e.isHome !== true : e.isHome === true });
+  }
+  await cacheSet(supabase, userId, key, out);
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // National teams (phase 3b): every game of a team back to `since`
 // ---------------------------------------------------------------------------

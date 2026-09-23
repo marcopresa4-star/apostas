@@ -13,6 +13,8 @@ export interface SavedGame {
   running: boolean; // whether the minute goes on by itself
   homeGoals: number;
   awayGoals: number;
+  redsHome?: number; // sending-offs, typed or synced; missing on older saves
+  redsAway?: number;
   lh: string; // expected goals, as typed
   la: string;
   // Share of goals before half time, for the live model; missing on games saved

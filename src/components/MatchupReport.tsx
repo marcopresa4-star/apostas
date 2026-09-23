@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
 import StandingsTable, { type StandingsLine } from "./StandingsTable";
 import { buildStandings, ratings } from "@/lib/standings";
+import type { GoalTiming } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
 import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
@@ -12,16 +14,19 @@ import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
 import {
   OVER_LINES,
+  blendedStrength,
   fairOdd,
   gamesOf,
-  goalsByHalf,
   headToHead,
+  leagueRates,
   predict,
   resultFor,
   seasonOf,
+  shotRates,
+  shotStrengthOf,
+  strengthOf,
   summarize,
   type Fixture,
-  type GoalsByHalf,
   type PlayedMatch,
   type Prediction,
   type Summary,
@@ -355,49 +360,219 @@ function TeamSeason({
   );
 }
 
-// Goals scored (green) and conceded (red) in each half, bars on one scale for
-// both teams so they can be compared.
-function HalfBars({ label, scored, conceded, max }: { label: string; scored: number; conceded: number; max: number }) {
-  const bar = (n: number, color: string) => (
-    <div className="flex items-center gap-2">
-      <span className="w-4 text-right text-xs font-medium text-neutral-200">{n}</span>
-      <div className="h-2 flex-1">
-        {n > 0 && <div className={`h-full rounded-full ${color}`} style={{ width: `${(n / max) * 100}%` }} />}
-      </div>
-    </div>
-  );
+// How each side's blended attack (goals half, shots half, same maths as the
+// ratings) stood after each of its last games: rising means improving,
+// falling means fading. The dashed line is the league average (1,00).
+function FormCurve({
+  home,
+  away,
+  homeCurve,
+  awayCurve,
+}: {
+  home: string;
+  away: string;
+  homeCurve: { date: string; attack: number }[];
+  awayCurve: { date: string; attack: number }[];
+}) {
+  const W = 560;
+  const H = 170;
+  const PAD = 30;
+  const n = Math.max(homeCurve.length, awayCurve.length);
+  if (n < 2) return null;
+  const vals = [...homeCurve, ...awayCurve].map((p) => p.attack);
+  const lo = Math.min(0.7, ...vals);
+  const hi = Math.max(1.3, ...vals);
+  const x = (i: number) => PAD + (n === 1 ? 0 : (i / (n - 1)) * (W - PAD * 2));
+  const y = (v: number) => H - PAD - ((v - lo) / (hi - lo || 1)) * (H - PAD * 2);
+  const line = (curve: { attack: number }[]): string =>
+    curve.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.attack).toFixed(1)}`).join(" ");
+  const dates = homeCurve.length >= awayCurve.length ? homeCurve : awayCurve;
+  const dayMonth = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
   return (
-    <div className="grid grid-cols-[4.5rem_1fr] items-center gap-3 rounded-lg bg-neutral-950 px-3 py-2">
-      <span className="text-xs font-semibold text-neutral-300">{label}</span>
-      <div className="space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="w-12 shrink-0 text-[11px] text-neutral-500">Marcados</span>
-          <div className="flex-1">{bar(scored, "bg-emerald-500")}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-12 shrink-0 text-[11px] text-neutral-500">Sofridos</span>
-          <div className="flex-1">{bar(conceded, "bg-red-500")}</div>
-        </div>
+    <div className={CARD}>
+      <h3 className="mb-1 text-sm font-semibold text-neutral-300">Evolução da força (ataque, últimos {n} jogos)</h3>
+      <div className="mb-1 flex items-center gap-4 text-[11px]">
+        <span className="flex items-center gap-1 text-emerald-300">
+          <span aria-hidden className="inline-block h-0.5 w-4 bg-emerald-400" />
+          {home} {homeCurve.length > 0 && homeCurve[homeCurve.length - 1].attack.toFixed(2).replace(".", ",")}
+        </span>
+        <span className="flex items-center gap-1 text-sky-300">
+          <span aria-hidden className="inline-block h-0.5 w-4 bg-sky-400" />
+          {away} {awayCurve.length > 0 && awayCurve[awayCurve.length - 1].attack.toFixed(2).replace(".", ",")}
+        </span>
       </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Evolução do ataque de ${home} e ${away}`}>
+        <line x1={PAD} y1={y(1)} x2={W - PAD} y2={y(1)} stroke="#525252" strokeWidth="1" strokeDasharray="4 3" />
+        <text x={PAD - 4} y={y(1) + 3} textAnchor="end" fontSize="9" fill="#737373">
+          1,00
+        </text>
+        <path d={line(awayCurve)} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+        <path d={line(homeCurve)} fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" />
+        {homeCurve.map((p, i) => (
+          <circle key={`h${i}`} cx={x(i)} cy={y(p.attack)} r="2.5" fill="#34d399" />
+        ))}
+        {awayCurve.map((p, i) => (
+          <circle key={`a${i}`} cx={x(i)} cy={y(p.attack)} r="2.5" fill="#38bdf8" />
+        ))}
+        {dates.map((d, i) =>
+          i % Math.ceil(n / 5) === 0 ? (
+            <text key={d.date} x={x(i)} y={H - 8} textAnchor="middle" fontSize="9" fill="#737373">
+              {dayMonth(d.date)}
+            </text>
+          ) : null
+        )}
+      </svg>
+      <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+        A subir é a melhorar, a descer a piorar. Conta golos e remates com mais peso nos jogos recentes, como as
+        probabilidades.
+      </p>
     </div>
   );
 }
 
-function HalvesCard({ team, halves, max }: { team: string; halves: GoalsByHalf; max: number }) {
+// When each side scores and concedes, per 15 minutes over its last games with
+// incident data (stoppage time counts in 31–45 and 76'–fim). Bars scale to the
+// busiest block of each column.
+function GoalTimingCard({
+  home,
+  away,
+  timing,
+}: {
+  home: string;
+  away: string;
+  timing: { home: GoalTiming | null; away: GoalTiming | null };
+}) {
+  const PERIODS = ["0–15", "16–30", "31–45", "46–60", "61–75", "76'–fim"];
+  const column = (team: string, t: GoalTiming, color: string) => {
+    const max = Math.max(1, ...t.scored, ...t.conceded);
+    return (
+      <div className="min-w-0 flex-1">
+        <p className={`mb-1.5 truncate text-xs font-medium ${color}`}>
+          {team} <span className="font-normal text-neutral-500">· {t.games} jogos</span>
+        </p>
+        <div className="space-y-1.5">
+          {PERIODS.map((label, i) => (
+            <div key={label}>
+              <p className="mb-0.5 text-[10px] font-semibold text-neutral-500">{label}</p>
+              {(
+                [
+                  ["G.Marc", t.scored[i], "bg-emerald-500/80"],
+                  ["G.Sofr", t.conceded[i], "bg-red-500/80"],
+                ] as const
+              ).map(([kind, n, bar]) => (
+                <div key={kind} className="flex items-center gap-1.5">
+                  <span className="w-11 shrink-0 text-[10px] text-neutral-500">{kind}</span>
+                  <span className="w-3 shrink-0 text-right text-[11px] font-medium text-neutral-200">{n}</span>
+                  <div className="h-1.5 min-w-0 flex-1">
+                    {n > 0 && <div className={`h-full rounded-full ${bar}`} style={{ width: `${(n / max) * 100}%` }} />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
   return (
     <div className={CARD}>
-      <h3 className="mb-2 text-base font-semibold text-neutral-100">{team}</h3>
-      {halves.games === 0 ? (
-        <p className="text-xs text-neutral-500">Ainda sem jogos esta época.</p>
-      ) : (
-        <div className="space-y-2">
-          <HalfBars label="1.ª parte" scored={halves.firstFor} conceded={halves.firstAgainst} max={max} />
-          <HalfBars label="2.ª parte" scored={halves.secondFor} conceded={halves.secondAgainst} max={max} />
-          <p className="text-[11px] text-neutral-500">
-            {halves.games} {halves.games === 1 ? "jogo" : "jogos"} desta época.
-          </p>
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Momento dos golos (por 15&apos;)</h3>
+      <div className="flex gap-4">
+        {timing.home && column(home, timing.home, "text-emerald-300")}
+        {timing.away && column(away, timing.away, "text-sky-300")}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+        Os períodos 31–45 e 76&apos;–fim incluem os descontos. Só contam jogos da liga com dados de incidentes.
+      </p>
+    </div>
+  );
+}
+
+// Goals split by venue over the last games, like the classic golos tables:
+// averages scored/conceded/total, clean sheets, scoreless games and over/under
+// 2,5 — for home games, away games and overall. The column matching the side's
+// role in this fixture is shaded.
+function VenueGoalsCard({
+  home,
+  away,
+  homeGames,
+  awayGames,
+}: {
+  home: string;
+  away: string;
+  homeGames: TeamGame[];
+  awayGames: TeamGame[];
+}) {
+  const LAST = 10;
+  interface Split { n: number; gf: string; ga: string; total: string; clean: string; blank: string; over: string; under: string }
+  const dash = "–";
+  const avg = (n: number, games: number): string => (games === 0 ? dash : (n / games).toFixed(1).replace(".", ","));
+  const share = (n: number, games: number): string => (games === 0 ? dash : `${Math.round((n / games) * 100)}%`);
+  const split = (games: TeamGame[]): Split => ({
+    n: games.length,
+    gf: avg(games.reduce((s, g) => s + g.gf, 0), games.length),
+    ga: avg(games.reduce((s, g) => s + g.ga, 0), games.length),
+    total: avg(games.reduce((s, g) => s + g.gf + g.ga, 0), games.length),
+    clean: share(games.filter((g) => g.ga === 0).length, games.length),
+    blank: share(games.filter((g) => g.gf === 0).length, games.length),
+    over: share(games.filter((g) => g.gf + g.ga > 2.5).length, games.length),
+    under: share(games.filter((g) => g.gf + g.ga < 2.5).length, games.length),
+  });
+  const table = (team: string, games: TeamGame[], role: "home" | "away") => {
+    const last = games.slice(0, LAST);
+    const sets = [split(last.filter((g) => g.home)), split(last.filter((g) => !g.home)), split(last)];
+    const rows: [string, (s: Split) => string][] = [
+      ["Média de golos marcados por jogo", (s) => s.gf],
+      ["Média de golos sofridos por jogo", (s) => s.ga],
+      ["Média de golos marcados+sofridos", (s) => s.total],
+      ["Jogos sem sofrer", (s) => s.clean],
+      ["Jogos sem marcar golos", (s) => s.blank],
+      ["Jogos com mais de 2,5 golos", (s) => s.over],
+      ["Jogos com menos de 2,5 golos", (s) => s.under],
+    ];
+    return (
+      <div className="min-w-0 flex-1">
+        <p className={`mb-2 truncate text-sm font-semibold ${role === "home" ? "text-emerald-300" : "text-sky-300"}`}>
+          {team} <span className="font-normal text-neutral-500">· últimos {last.length} jogos</span>
+        </p>
+        <div className="grid grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] gap-x-2 text-xs">
+          <span />
+          {(["Casa", "Fora", "Global"] as const).map((label, i) => (
+            <span
+              key={label}
+              className={`rounded-t px-1 py-1 text-center text-[11px] font-semibold ${
+                (role === "home") === (i === 0) ? "bg-neutral-800 text-neutral-100" : "text-neutral-500"
+              }`}
+            >
+              {label}
+            </span>
+          ))}
+          {rows.map(([label, get]) => (
+            <Fragment key={label}>
+              <span className="py-1 pr-1 leading-tight text-neutral-400">{label}</span>
+              {sets.map((s, i) => (
+                <span
+                  key={i}
+                  className={`px-1 py-1 text-center font-medium text-neutral-100 ${
+                    (role === "home") === (i === 0) ? "bg-neutral-800/60" : ""
+                  }`}
+                >
+                  {get(s)}
+                </span>
+              ))}
+            </Fragment>
+          ))}
         </div>
-      )}
+      </div>
+    );
+  };
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Golos por recinto</h3>
+      <div className="flex flex-col gap-5 lg:flex-row lg:gap-6">
+        {table(home, homeGames, "home")}
+        {table(away, awayGames, "away")}
+      </div>
     </div>
   );
 }
@@ -622,6 +797,7 @@ export default function MatchupReport({
   extras,
   notes,
   venueWeight,
+  timing,
 }: {
   matches: PlayedMatch[];
   // Older seasons, for the head to head only.
@@ -649,6 +825,8 @@ export default function MatchupReport({
   notes: string[];
   // How much the home/away form counts in the model, 0 to 1.
   venueWeight: number;
+  // Goal timing per 15' of each side (last games with incident data), or null.
+  timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
 }) {
   const adjusted = isAdjusted(adjust.home, adjust.away) || venueWeight > 0;
   const ratio = strengthRatio(adjust.home, adjust.away);
@@ -680,13 +858,6 @@ export default function MatchupReport({
     );
   const homeGames = withExtras(thisSeason(home), extras.home);
   const awayGames = withExtras(thisSeason(away), extras.away);
-  const homeHalves = goalsByHalf(matches, home, seasonStart);
-  const awayHalves = goalsByHalf(matches, away, seasonStart);
-  const halvesMax = Math.max(
-    1,
-    homeHalves.firstFor, homeHalves.firstAgainst, homeHalves.secondFor, homeHalves.secondAgainst,
-    awayHalves.firstFor, awayHalves.firstAgainst, awayHalves.secondFor, awayHalves.secondAgainst
-  );
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   // Past games of the season with no result in the data yet, most recent first.
   const pendingOf = (team: string) =>
@@ -705,6 +876,29 @@ export default function MatchupReport({
     else h2h.away++;
   }
 
+  // Strength curve: blended attack (same maths as the ratings) after each of
+  // the last 10 games of each side, oldest to newest.
+  const CURVE_GAMES = 10;
+  const strengthCurve = (team: string): { date: string; attack: number }[] => {
+    const pool = [...history, ...matches].sort((a, b) => a.date.localeCompare(b.date));
+    const dates = [
+      ...new Set(pool.filter((m) => m.team1 === team || m.team2 === team).map((m) => m.date)),
+    ].slice(-CURVE_GAMES);
+    return dates.map((d) => {
+      const before = pool.filter((m) => m.date <= d);
+      const at = new Date(`${d}T12:00:00`);
+      const rates = leagueRates(before, at);
+      const shots = shotRates(before, at);
+      const blended = blendedStrength(
+        strengthOf(before, team, rates, at),
+        shotStrengthOf(before, team, shots, at)
+      );
+      return { date: d, attack: blended.attack };
+    });
+  };
+  const homeCurve = strengthCurve(home);
+  const awayCurve = strengthCurve(away);
+
   const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
   const few = minGames < MIN_GAMES;
   const fragile = !few && minGames < SOLID_GAMES;
@@ -717,7 +911,7 @@ export default function MatchupReport({
   ];
 
   return (
-    <div className="mt-6 space-y-4">
+    <div className="mt-6 space-y-4 tabular-nums" data-wide>
       <div className={CARD}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -833,8 +1027,22 @@ export default function MatchupReport({
               </>
             )}
           </div>
+
         </div>
       </div>
+
+      <FormCurve home={home} away={away} homeCurve={homeCurve} awayCurve={awayCurve} />
+
+      {timing && (timing.home || timing.away) && (
+        <GoalTimingCard home={home} away={away} timing={timing} />
+      )}
+
+      <VenueGoalsCard
+        home={home}
+        away={away}
+        homeGames={gamesOf(matches, home)}
+        awayGames={gamesOf(matches, away)}
+      />
 
       {standingsLines.length > 0 && (
         <div>
@@ -890,27 +1098,6 @@ export default function MatchupReport({
         homeChance={prediction.fullTime.home}
         international={international}
       />
-
-      <div>
-        <h2 className="mb-1 text-sm font-semibold text-neutral-300">Momento dos golos · {period}</h2>
-        {hasHalfTime && (
-          <p className="mb-3 text-xs text-neutral-500">
-            Por parte do jogo: os minutos exatos dos golos não estão nos dados gratuitos (só existem para Inglaterra,
-            Alemanha e Áustria em 2025/26). As barras usam a mesma escala nas duas equipas.
-          </p>
-        )}
-        {!hasHalfTime ? (
-          <p className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-xs text-neutral-500">
-            {international ? "Estes dados" : "Os dados desta liga"} não têm o resultado ao intervalo, por isso não há a
-            divisão por partes nem os mercados ao intervalo.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <HalvesCard team={home} halves={homeHalves} max={halvesMax} />
-            <HalvesCard team={away} halves={awayHalves} max={halvesMax} />
-          </div>
-        )}
-      </div>
 
       <div>
         <h2 className="mb-1 text-sm font-semibold text-neutral-300">Jogos · {period}</h2>

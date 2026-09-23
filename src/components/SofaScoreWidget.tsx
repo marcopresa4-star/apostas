@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 
 interface MomentumPoint {
@@ -15,10 +15,126 @@ interface Incident {
   text: string;
 }
 
+// Shots and xG per 15-minute block, from the same shotmap feed as the xG
+// race: who pressed when. Goal blocks get a ⚽, the count on each bar is the
+// shots in the block.
+function PressureChart({ shots, home, away }: { shots: XgShot[]; home: string; away: string }) {
+  const W = 640;
+  const H = 150;
+  const PAD = 28;
+  if (shots.length === 0) return null;
+  const BLOCKS = [0, 15, 30, 45, 60, 75];
+  const rows = BLOCKS.map((start) => {
+    const inBlock = shots.filter((s) => s.minute >= start && (start === 75 ? s.minute <= 130 : s.minute < start + 15));
+    const of = (isHome: boolean) => {
+      const own = inBlock.filter((s) => s.home === isHome);
+      return {
+        shots: own.length,
+        xg: own.reduce((n, s) => n + s.xg, 0),
+        goals: own.filter((s) => s.goal).length,
+      };
+    };
+    return { start, home: of(true), away: of(false) };
+  });
+  const top = Math.max(0.5, ...rows.flatMap((r) => [r.home.xg, r.away.xg]));
+  const slot = (W - PAD * 2) / BLOCKS.length;
+  const barW = Math.min(34, slot / 2 - 6);
+  const y = (v: number) => H - PAD - (v / top) * (H - PAD * 2 - 18);
+  const label = (start: number) => (start === 75 ? "75'+ " : `${start}–${start + 15}'`);
+  return (
+    <div className="px-4 py-3">
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="font-medium text-sky-300">{home}</span>
+        <span className="text-neutral-500">Pressão (remates e xG por 15&apos;)</span>
+        <span className="font-medium text-red-300">{away}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Pressão de ${home} contra ${away} por período`}>
+        {[0.5, 1].map((f) => (
+          <line key={f} x1={PAD} y1={y(top * f)} x2={W - PAD} y2={y(top * f)} stroke="#262626" strokeWidth="1" />
+        ))}
+        {rows.map((r, i) => {
+          const cx = PAD + slot * i + slot / 2;
+          return (
+            <g key={r.start}>
+              {r.home.xg > 0 && (
+                <rect x={cx - barW - 2} y={y(r.home.xg)} width={barW} height={Math.max(1.5, H - PAD - y(r.home.xg))} rx="2" fill="#38bdf8" opacity="0.85" />
+              )}
+              {r.away.xg > 0 && (
+                <rect x={cx + 2} y={y(r.away.xg)} width={barW} height={Math.max(1.5, H - PAD - y(r.away.xg))} rx="2" fill="#f87171" opacity="0.85" />
+              )}
+              <text x={cx} y={H - 6} textAnchor="middle" fontSize="10" fill="#737373">
+                {label(r.start)}
+              </text>
+              {(r.home.goals > 0 || r.away.goals > 0) && (
+                <text x={cx} y={12} textAnchor="middle" fontSize="11">
+                  ⚽{r.home.goals + r.away.goals > 1 ? r.home.goals + r.away.goals : ""}
+                </text>
+              )}
+              {(r.home.shots > 0 || r.away.shots > 0) && (
+                <text x={cx} y={y(Math.max(r.home.xg, r.away.xg)) - 4} textAnchor="middle" fontSize="9" fill="#a3a3a3">
+                  {r.home.shots + r.away.shots} rem.
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 interface StatRow {
   name: string;
   home: string;
   away: string;
+}
+
+// Goal/red/kickoff/full-time alerts (sound + browser notification) for the
+// watched games. Toggled in the panel header, stored in this browser; each
+// widget reads it when its minute poll brings news.
+export const ALERTS_KEY = "apostas:alerts";
+
+export function alertsOn(): boolean {
+  try {
+    return window.localStorage.getItem(ALERTS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function beep(high: boolean): void {
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const notes = high ? [660, 880] : [440];
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      osc.start(t);
+      osc.stop(t + 0.18);
+    });
+    window.setTimeout(() => void ctx.close().catch(() => {}), 800);
+  } catch {
+    // No audio: the notification (if permitted) still fires.
+  }
+}
+
+function alertUser(title: string, body: string, high: boolean): void {
+  beep(high);
+  try {
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body });
+    }
+  } catch {
+    // Notifications blocked: the beep already fired.
+  }
 }
 
 interface LineupPlayer {
@@ -542,6 +658,28 @@ export default function SofaScoreWidget({
 
   const homeName = home || state?.homeName || "Casa";
   const awayName = away || state?.awayName || "Fora";
+  // Alerts compare each poll against the previous one: goals, red cards,
+  // kickoff and full time. The first reading only sets the baseline.
+  const prevAlert = useRef<{ score: string; redsHome: number; redsAway: number; phase: string } | null>(null);
+  useEffect(() => {
+    if (!state) return;
+    const score =
+      state.homeGoals !== null && state.awayGoals !== null ? `${state.homeGoals}–${state.awayGoals}` : "?";
+    const prev = prevAlert.current;
+    prevAlert.current = { score, redsHome: state.reds.home, redsAway: state.reds.away, phase: state.phase };
+    if (!prev || !alertsOn()) return;
+    const title = `${homeName} ${score === "?" ? "" : score} ${awayName}`.trim();
+    if (score !== "?" && score !== prev.score && prev.score !== "?") {
+      alertUser(`⚽ Golo! ${title}`, `Novo resultado no jogo que estás a seguir.`, true);
+    } else if (state.reds.home > prev.redsHome || state.reds.away > prev.redsAway) {
+      const who = state.reds.home > prev.redsHome ? homeName : awayName;
+      alertUser(`🟥 Vermelho (${who})`, `Expulsão no jogo que estás a seguir.`, false);
+    } else if (state.phase === "live" && prev.phase !== "live") {
+      alertUser(`▶ Começou: ${homeName} vs ${awayName}`, `O jogo começou.`, false);
+    } else if (state.phase === "finished" && prev.phase !== "finished") {
+      alertUser(`⏱ Fim: ${title}`, `Resultado final no jogo que estás a seguir.`, false);
+    }
+  }, [state, homeName, awayName]);
   const score =
     state && state.homeGoals !== null && state.awayGoals !== null
       ? `${state.homeGoals}–${state.awayGoals}`
@@ -648,6 +786,7 @@ export default function SofaScoreWidget({
             expectedHome={expectedHome ?? null}
             expectedAway={expectedAway ?? null}
           />
+          <PressureChart shots={xg} home={homeName} away={awayName} />
         </div>
       )}
       {hasTracker === false && (!momentum || momentum.length === 0) && (

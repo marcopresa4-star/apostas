@@ -66,6 +66,35 @@ export default async function JornadaPage({
     });
   }
 
+  // Checked suggestions: every finished game of this season, re-predicted with
+  // only what was known BEFORE it (no peeking at the future), keeping the
+  // model's first pick. Hit rate only — without the bookmaker's real odds
+  // there is no profit to count.
+  interface Checked {
+    date: string;
+    home: string;
+    away: string;
+    ft: [number, number];
+    label: string;
+    won: boolean;
+  }
+  const checked: Checked[] = [];
+  if (data) {
+    const pool = [...data.history, ...data.matches].sort((a, b) => a.date.localeCompare(b.date));
+    for (const f of data.fixtures) {
+      if (!f.ft || f.date >= today) continue;
+      const before = pool.filter((m) => m.date < f.date);
+      if (before.length === 0) continue;
+      const prediction = predict(before, f.team1, f.team2, new Date(`${f.date}T12:00:00`));
+      if (Math.min(prediction.gamesHome, prediction.gamesAway) < MIN_GAMES) continue;
+      const pick = recommend(prediction, baseRates(before), f.team1, f.team2)[0];
+      if (!pick) continue;
+      checked.push({ date: f.date, home: f.team1, away: f.team2, ft: f.ft, label: pick.label, won: pick.won(f.ft) });
+    }
+    checked.sort((a, b) => b.date.localeCompare(a.date) || b.home.localeCompare(a.home));
+  }
+  const checkedWon = checked.filter((c) => c.won).length;
+
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
@@ -130,6 +159,38 @@ export default async function JornadaPage({
           </div>
 
           <RoundTable rows={rows} liga={league.code} fonte="sofa" />
+
+          {checked.length > 0 && (
+            <details className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-neutral-200 hover:text-neutral-100">
+                Conferido esta época: {checkedWon} em {checked.length} sugestões certas (
+                {Math.round((checkedWon / checked.length) * 100)}
+                %)
+              </summary>
+              <ul className="mt-2 space-y-1 text-xs">
+                {checked.slice(0, 12).map((c, i) => (
+                  <li key={`${c.date}-${c.home}-${i}`} className="flex items-center gap-2">
+                    <span className="shrink-0 text-neutral-500">
+                      {c.date.slice(8, 10)}/{c.date.slice(5, 7)}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-neutral-300">
+                      {c.home} {c.ft[0]}–{c.ft[1]} {c.away} · {c.label}
+                    </span>
+                    <span className={c.won ? "shrink-0 font-bold text-emerald-400" : "shrink-0 font-bold text-red-400"}>
+                      {c.won ? "✓" : "✗"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {checked.length > 12 && (
+                <p className="mt-1 text-[11px] text-neutral-500">e mais {checked.length - 12} anteriores.</p>
+              )}
+              <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+                Cada jogo foi previsto só com o que se sabia antes dele (sem espreitar o futuro). É taxa de acerto,
+                não lucro: sem as odds reais da casa não há como contar dinheiro.
+              </p>
+            </details>
+          )}
 
           <p className="mt-3 text-xs leading-relaxed text-neutral-500">
             Clica num jogo para abrir a comparação das duas equipas, onde podes fazer ajustes (lesões, descanso...). Aqui

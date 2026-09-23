@@ -18,7 +18,8 @@
 // Only the half time point can be tested, because the data has the score at the
 // break and at the end, not the minute of each goal. At other minutes these
 // effects are phased in or out with the time left, which is a reasonable guess
-// and nothing more. Red cards, injuries and the flow of the game are not known.
+// and nothing more. Red cards count as rough estimates (untested: the data has
+// no sending-off minute); injuries and the flow of the game are not known.
 
 // How much a team scores in the second half compared with what the pre-match
 // model expected, by its own lead at half time (own goals minus the opponent's).
@@ -40,6 +41,15 @@ export function stateMultiplier(lead: number, table: Record<string, number> = ST
   return table[String(Math.max(-2, Math.min(2, lead)))];
 }
 
+// Net sending-offs from one side's point of view: how many more reds it has
+// than the other side. Each one multiplies what it still scores by RED_DOWN
+// and what the other side scores by RED_UP.
+function redMultiplier(net: number, isHome: boolean): number {
+  const down = isHome ? Math.max(0, net) : Math.max(0, -net);
+  const up = isHome ? Math.max(0, -net) : Math.max(0, net);
+  return Math.pow(RED_DOWN, down) * Math.pow(RED_UP, up);
+}
+
 // Share of a half's goals that come in added time (about 5%), which the clock
 // below puts at the end of the second half and lets run out over six minutes.
 const STOPPAGE_SHARE = 0.05;
@@ -53,7 +63,16 @@ export interface LiveInput {
   minute: number; // 0 to 120
   homeGoals: number;
   awayGoals: number;
+  redsHome?: number; // sending-offs so far (0 when unknown)
+  redsAway?: number;
 }
+
+// A side a man down scores less and concedes more for the rest of the game.
+// Rough estimates, NOT measured (the data has no sending-off minute): each
+// net red multiplies what the short-handed side still scores by RED_DOWN and
+// what the other side scores by RED_UP. Capped at two either way.
+const RED_DOWN = 0.75;
+const RED_UP = 1.2;
 
 export interface LivePrediction {
   // Expected goals still to come for each side.
@@ -133,8 +152,14 @@ export function predictLive(
   const nuNow = 1 + (nu - 1) * weight;
   const zeroNow = 1 - (1 - zero) * weight;
 
-  const remainingHome = lambdaHome * (first + second * homeState);
-  const remainingAway = lambdaAway * (first + second * awayState);
+  // Sending-offs so far (+ = home worse off), capped: beyond two the guess
+  // would be pure fiction.
+  const capped = Math.max(-2, Math.min(2, (input.redsHome ?? 0) - (input.redsAway ?? 0)));
+
+  const remainingHome =
+    lambdaHome * (first + second * homeState) * redMultiplier(capped, true);
+  const remainingAway =
+    lambdaAway * (first + second * awayState) * redMultiplier(capped, false);
   const homePmf = comPoisson(remainingHome, nuNow);
   const awayPmf = comPoisson(remainingAway, nuNow);
 
