@@ -6,8 +6,7 @@ import { predictLive } from "@/lib/liveModel";
 import { liveSummary } from "@/lib/liveSummary";
 import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
-import { checkLive, parseLiveMatch, type LiveGameState } from "@/lib/sportscoreLive";
-import { teamsMatch } from "@/lib/sportscoreSlug";
+import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
 import { fairOdd } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
@@ -75,19 +74,13 @@ type Props = {
   href?: string;
   // Where the expected goals come from, in short sentences.
   sourceLines?: string[];
-  // How to read the game from SportScore: its slug when known, otherwise the
-  // slugs to try (with what was taught about the clubs, and the names a page
-  // must show to be the right game).
-  sync?: {
-    slug: string | null;
-    pairs: { slug: string; home: string; away: string }[];
-    hints: { home: string | null; away: string | null };
-    homeVariants: string[];
-    awayVariants: string[];
-  };
+  // How to read the game from SofaScore: the numeric event id from the pasted
+  // SofaScore link (see parseSofascoreId). Read through /api/sofascore/event,
+  // which proxies the local CloakBrowser scraper.
+  sofaEventId?: number | null;
 };
 
-const SPORTSCORE_MATCH = "https://sportscore.com/api/widget/match/?sport=football&slug=";
+const SOFASCORE_EVENT = "/api/sofascore/event?id=";
 
 type SyncInfo =
   | { kind: "notfound" }
@@ -130,7 +123,7 @@ function Calculator({
   gameKey,
   href,
   sourceLines = [],
-  sync,
+  sofaEventId,
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -163,42 +156,17 @@ function Calculator({
   const [lh, setLh] = useState(saved?.lh ?? dot(lambdaHome));
   const [la, setLa] = useState(saved?.la ?? dot(lambdaAway));
 
-  // The game read from SportScore, once a minute: score, minute and cards. Every
+  // The game read from SofaScore, once a minute: score, minute and cards. Every
   // reading overwrites what is typed, so the box below turns it off.
   const [syncOn, setSyncOn] = useState(true);
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
-  const slugRef = useRef<string | null>(sync?.slug ?? null);
   const now = useNow(5000);
+  // The game read from SofaScore, once a minute via the local scraper: score,
+  // minute and cards. Every reading overwrites what is typed, so the box
+  // below turns it off.
   useEffect(() => {
-    if (!sync || !syncOn) return;
+    if (!sofaEventId || !syncOn) return;
     let stop = false;
-    let probed = false;
-    // Sportscore refreshes a game when it is asked for, so old data is often
-    // followed by fresh data a moment later: a stale reading is retried a few times.
-    let retries = 0;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const read = async (slug: string): Promise<LiveGameState | null> => {
-      const res = await fetch(SPORTSCORE_MATCH + encodeURIComponent(slug), { cache: "no-store" });
-      return res.ok ? parseLiveMatch(await res.json()) : null;
-    };
-    // A game whose slug is not known: the likely ones are tried, and of those that
-    // are the right game (the reserve side of a club has a slug too) the one with
-    // the freshest data wins, since Sportscore can hold the same game twice and
-    // one of them stop being updated.
-    const find = async (): Promise<string | null> => {
-      let best: { slug: string; at: number } | null = null;
-      for (const pair of sync.pairs.slice(0, 12)) {
-        if (stop) return null;
-        const state = await read(pair.slug).catch(() => null);
-        if (!state) continue;
-        const homeVariants = pair.home === sync.hints.home ? null : sync.homeVariants;
-        const awayVariants = pair.away === sync.hints.away ? null : sync.awayVariants;
-        if (!teamsMatch([state.homeName, state.awayName], homeVariants, awayVariants)) continue;
-        const at = state.updatedAt ?? 0;
-        if (best === null || at > best.at) best = { slug: pair.slug, at };
-      }
-      return best?.slug ?? null;
-    };
     const apply = (state: LiveGameState) => {
       if (state.homeGoals !== null) setHomeGoals(String(state.homeGoals));
       if (state.awayGoals !== null) setAwayGoals(String(state.awayGoals));
@@ -215,33 +183,37 @@ function Calculator({
     };
     const poll = async () => {
       try {
-        if (!slugRef.current && !probed) {
-          probed = true;
-          slugRef.current = await find();
-        }
+        const res = await fetch(SOFASCORE_EVENT + encodeURIComponent(String(sofaEventId)), { cache: "no-store" });
         if (stop) return;
-        if (!slugRef.current) {
+        if (res.status === 404) {
           setSyncInfo({ kind: "notfound" });
           return;
         }
-        const state = await read(slugRef.current);
-        if (stop) return;
-        if (!state) {
+        if (res.status === 503) {
+          // Scraper offline: say so once, keep manual entry. The route's hint
+          // explains how to start it; no point retrying every render.
           setSyncInfo({ kind: "error" });
           return;
         }
-        // Data that stopped being refreshed is not used: it would put the game at a
-        // minute it left long ago.
-        const checked = checkLive(state, Date.now());
-        if (checked.stale) {
-          setSyncInfo({ kind: "stale", state, ageMs: checked.ageMs ?? 0, at: Date.now() });
-          if (retries < 3) {
-            retries++;
-            timers.push(setTimeout(() => void poll(), 6000));
-          }
+        if (!res.ok) {
+          setSyncInfo({ kind: "error" });
           return;
         }
-        retries = 0;
+        const body = (await res.json()) as {
+          state: LiveGameState;
+          stale?: boolean;
+          ageMs?: number | null;
+          notes?: string[];
+        };
+        if (!body?.state) {
+          setSyncInfo({ kind: "error" });
+          return;
+        }
+        const checked = checkLive(body.state, Date.now());
+        if (checked.stale) {
+          setSyncInfo({ kind: "stale", state: body.state, ageMs: checked.ageMs ?? 0, at: Date.now() });
+          return;
+        }
         apply(checked.state);
         setSyncInfo({ kind: "ok", state: checked.state, at: Date.now(), notes: checked.notes, ageMs: checked.ageMs });
       } catch {
@@ -256,11 +228,10 @@ function Calculator({
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       stop = true;
-      timers.forEach(clearTimeout);
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [sync, syncOn]);
+  }, [sofaEventId, syncOn]);
   // The lowest fair odd a suggested bet may have: a bet the model gives 90% is
   // "safe" but pays next to nothing, so it is left out.
   const [minOdd, setMinOdd] = useState("1.5");
@@ -366,22 +337,24 @@ function Calculator({
   const liveState = syncInfo?.kind === "ok" ? syncInfo.state : null;
   const staleInfo = syncInfo?.kind === "stale" ? syncInfo : null;
   const redCards = liveState ? liveState.reds.home + liveState.reds.away : 0;
+  const sourceName = "SofaScore";
+  const hasSync = Boolean(sofaEventId);
 
   return (
     <div className="space-y-4">
-      {sync && (
+      {hasSync && (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs">
           <label className="flex cursor-pointer items-center gap-2 text-neutral-300">
             <input type="checkbox" checked={syncOn} onChange={(e) => setSyncOn(e.target.checked)} className="accent-amber-500" />
-            Ler o resultado, o minuto e os cartões do Sportscore, sozinho (de minuto a minuto)
+            Ler o resultado, o minuto e os cartões do {sourceName}, sozinho (de minuto a minuto)
           </label>
           {syncOn && (
             <p className="mt-1.5 text-neutral-400">
-              {syncInfo === null && "A ligar ao Sportscore…"}
+              {syncInfo === null && `A ligar ao ${sourceName}…`}
               {syncInfo?.kind === "notfound" &&
-                "Não encontrei este jogo no Sportscore: escreve o resultado e o minuto à mão (ou cola o link do jogo)."}
+                `Não encontrei este jogo no ${sourceName}: escreve o resultado e o minuto à mão (ou cola o link do jogo).`}
               {syncInfo?.kind === "error" &&
-                "Não consegui ler o Sportscore agora: escreve à mão. Volto a tentar daqui a um minuto."}
+                "Não consegui ler o SofaScore agora (o scraper local pode estar desligado: scraper/npm start): escreve à mão. Volto a tentar daqui a um minuto."}
               {liveState?.phase === "live" && (
                 <span className="text-emerald-400">
                   Em direto · {liveState.homeGoals ?? "?"}–{liveState.awayGoals ?? "?"} · {liveState.minute ?? "?"}&apos;
@@ -405,13 +378,13 @@ function Calculator({
               )}
               {seconds !== null && <span className="text-neutral-500"> · lido há {seconds}s</span>}
               {syncInfo?.kind === "ok" && syncInfo.ageMs !== null && syncInfo.ageMs > 90_000 && (
-                <span className="text-neutral-500"> · dados do Sportscore de há {Math.round(syncInfo.ageMs / 60_000)} min</span>
+                <span className="text-neutral-500"> · dados do {sourceName} de há {Math.round(syncInfo.ageMs / 60_000)} min</span>
               )}
             </p>
           )}
           {syncOn && staleInfo && (
             <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
-              Os dados que o Sportscore tem deste jogo estão atrasados (de há {Math.round(staleInfo.ageMs / 60_000)} min) e
+              Os dados que o {sourceName} tem deste jogo estão atrasados (de há {Math.round(staleInfo.ageMs / 60_000)} min) e
               dizem &quot;{staleInfo.state.raw.statusText || staleInfo.state.raw.status}&quot;. Ignoro-os: escreve o resultado
               e o minuto à mão, ou tenta de novo daqui a um minuto.
             </p>
@@ -449,15 +422,15 @@ function Calculator({
           )}
           {syncOn && liveState && (
             <p className="mt-1.5 text-[11px] text-neutral-500">
-              Amarelos: {homeName} {liveState.yellows.home}, {awayName} {liveState.yellows.away}. Estado no Sportscore:{" "}
+              Amarelos: {homeName} {liveState.yellows.home}, {awayName} {liveState.yellows.away}. Estado no {sourceName}:{" "}
               {liveState.raw.statusText || liveState.raw.status || "—"}
               {liveState.raw.liveMinute ? ` · minuto ${liveState.raw.liveMinute}` : ""}.
             </p>
           )}
           <p className="mt-1.5 text-[11px] text-neutral-500">
             Dados de{" "}
-            <a href="https://sportscore.com" target="_blank" rel="noopener" className="text-amber-400 hover:underline">
-              Powered by SportScore
+            <a href="https://www.sofascore.com" target="_blank" rel="noopener" className="text-amber-400 hover:underline">
+              SofaScore
             </a>
             .
           </p>

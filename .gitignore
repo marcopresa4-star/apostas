@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.local.example
 
+# scraper (local SofaScore reader, never deployed)
+scraper/node_modules/
+scraper/.cloak-profile/
+
 # vercel
 .vercel
 

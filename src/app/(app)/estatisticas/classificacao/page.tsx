@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
+import { createClient } from "@/lib/supabase/server";
+import { loadMaps } from "@/lib/sofaHistory";
+import { loadSofaLeague } from "@/lib/sofaLeague";
 
 // Leagues that split into phases or groups: a table adding up every game is not the official one.
-const PHASED = new Set(["ro.1", "dk.1", "ch.1", "sco.1", "be.1", "at.1", "mx.1", "ar.1", "us.1", "tr.1", "gr.1"]);
+const PHASED = new Set(["ro.1", "dk.1", "ch.1", "sco.1", "be.1", "at.1", "mx.1", "ar.1", "us.1", "tr.1", "gr.1", "eu.1", "eu.2", "eu.3"]);
 import { buildStandings, ratings } from "@/lib/standings";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
@@ -19,11 +22,35 @@ export default async function ClassificacaoPage({
   const params = await searchParams;
   const liga = first(params.liga);
   const order = first(params.ordem) === "forca" ? "forca" : "pontos";
+  const fonteParam = first(params.fonte);
 
   // National teams have no table.
   const league = LEAGUES.find((l) => l.code === liga && !isInternational(l.code)) ?? null;
   const now = new Date();
-  const data = league ? await loadLeague(league.code, now) : null;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const maps = user ? await loadMaps(supabase, user.id, "tournament") : [];
+  const tournamentMap = league ? maps.find((m) => m.name_key === league.code) : null;
+  // SofaScore first where mapped, files otherwise (explicit ?fonte=ficheiros
+  // always respected).
+  const useSofa = (fonteParam === "sofa" || (fonteParam === "" && tournamentMap)) && league !== null && tournamentMap != null && user !== null;
+
+  let data: Awaited<ReturnType<typeof loadLeague>> = null;
+  let sofa: { seasons: string[]; games: number; latest: string | null; unlinked: string[] } | null = null;
+  if (league) {
+    if (useSofa) {
+      const loaded = await loadSofaLeague(supabase, user!.id, league.code).catch(() => null);
+      if (loaded) {
+        data = loaded.data;
+        sofa = { seasons: loaded.seasonNames.slice(0, 3), games: loaded.data.matches.length, latest: loaded.data.latest, unlinked: loaded.unlinked };
+      }
+    } else {
+      data = await loadLeague(league.code, now);
+    }
+  }
 
   let lines: StandingsLine[] = [];
   if (data) {
@@ -62,6 +89,15 @@ export default async function ClassificacaoPage({
         action="/estatisticas/classificacao"
         keep={{ ordem: order }}
       />
+      {league && !tournamentMap && (
+        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+          Sem dados desta liga no SofaScore.{" "}
+          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+            Mapear no Mapa SofaScore
+          </Link>
+          .
+        </p>
+      )}
 
       {league && data === null && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
@@ -76,6 +112,28 @@ export default async function ClassificacaoPage({
             {tab("pontos", "Pontos")}
             {tab("forca", "Força")}
           </div>
+
+          {useSofa && sofa === null && (
+            <p className="mb-3 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
+              Não foi possível ler o SofaScore (scraper desligado?). A fonte Ficheiros continua a funcionar.
+            </p>
+          )}
+          {sofa && (
+            <div className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-3 text-xs leading-relaxed text-neutral-300">
+              <p>
+                <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofa.games} jogos (
+                {sofa.seasons.join(" · ")}); último resultado{" "}
+                {sofa.latest ? `${sofa.latest.slice(8, 10)}/${sofa.latest.slice(5, 7)}` : "—"}.
+                Primeira carga demora ~1 min (lê jornada a jornada); depois é cache.
+              </p>
+              {sofa.unlinked.length > 0 && (
+                <p className="mt-1 text-amber-300/90">
+                  Grafias por ligar no Mapa ({sofa.unlinked.length}): {sofa.unlinked.join(", ")}. Contam separadas na
+                  tabela.
+                </p>
+              )}
+            </div>
+          )}
 
           <StandingsTable lines={lines} />
 
@@ -95,8 +153,12 @@ export default async function ClassificacaoPage({
             </p>
             <p>
               A classificação usa só os jogos desta época, com os resultados que a fonte já tem (
-              {data.latest ? `até ${data.latest.slice(8, 10)}/${data.latest.slice(5, 7)}` : "sem jogos"}), por isso pode
-              faltar um jogo ou outro. A força usa também as épocas anteriores, com menos peso, e puxa as equipas com
+              {sofa && sofa.latest
+                ? `SofaScore até ${sofa.latest.slice(8, 10)}/${sofa.latest.slice(5, 7)}`
+                : data.latest
+                  ? `até ${data.latest.slice(8, 10)}/${data.latest.slice(5, 7)}`
+                  : "sem jogos"}
+              ), por isso pode faltar um jogo ou outro. A força usa também as épocas anteriores, com menos peso, e puxa as equipas com
               poucos jogos para a média: é a mesma que sustenta as probabilidades, e pode não bater com a tabela.
             </p>
           </div>

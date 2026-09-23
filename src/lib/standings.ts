@@ -3,6 +3,9 @@ import {
   resultFor,
   seasonOf,
   strengthOf,
+  shotRates,
+  shotStrengthOf,
+  blendedStrength,
   type Fixture,
   type LeagueRates,
   type PlayedMatch,
@@ -93,14 +96,16 @@ export function ratings(
   now: Date
 ): { rates: LeagueRates; rows: Rating[] } {
   const rates = leagueRates(matches, now);
+  const shots = shotRates(matches, now);
   const rows = teams.map((team): Rating => {
     const s = strengthOf(matches, team, rates, now);
+    const blended = shots.perTeam > 0 ? blendedStrength(s, shotStrengthOf(matches, team, shots, now)) : s;
     return {
       team,
-      attack: s.attack,
-      defense: s.defense,
-      goalDiff: rates.perTeam * (s.attack - s.defense),
-      games: s.games,
+      attack: blended.attack,
+      defense: blended.defense,
+      goalDiff: rates.perTeam * (blended.attack - blended.defense),
+      games: blended.games,
     };
   });
   return { rates, rows };

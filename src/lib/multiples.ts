@@ -110,14 +110,9 @@ export function formatOdd(n: number): string {
 }
 
 // A multiple is over once every one of its games is (same time window the
-// "Em direto" badge uses), the moment it leaves the Comunidade feed.
+// "Em direto" badge uses).
 export function isMultipleOver(legs: Pick<MultipleLeg, "match_date" | "match_time">[], now: Date) {
   return legs.every((l) => isMatchOver(l.match_date, l.match_time, false, now));
-}
-
-// Only a pending multiple can be published, like a single pick.
-export function canPublishMultiple(multiple: Pick<MultipleRow, "is_published" | "legs">): boolean {
-  return Boolean(multiple.is_published) || multipleStatus(multiple.legs) === "pending";
 }
 
 // Adds multiples to a calendar's day stats: each counts as one bet on the day

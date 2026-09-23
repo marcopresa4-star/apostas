@@ -43,3 +43,36 @@ body {
 .hover-scrollbar:hover::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.25);
 }
+
+/* xG race lines draw themselves in on mount (pathLength=1 trick). */
+@keyframes xg-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.xg-draw {
+  stroke-dasharray: 1;
+  animation: xg-draw 1.4s ease-out;
+}
+/* Same draw-in for the other charts (momentum). */
+.chart-draw {
+  stroke-dasharray: 1;
+  animation: xg-draw 1.4s ease-out;
+}
+
+/* The widget score pops whenever it changes (keyed by the score text). */
+@keyframes score-pop {
+  0% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.score-pop {
+  display: inline-block;
+  animation: score-pop 0.45s ease-out;
+}

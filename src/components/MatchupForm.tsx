@@ -186,8 +186,8 @@ export default function MatchupForm({
                     : scheduledDate
                       ? `Em branco: usa-se a data do calendário da liga (${dayMonth(scheduledDate)}). `
                       : "Estas duas equipas não se defrontam no calendário da liga: sem data, o descanso não é calculado sozinho. "}
-                Com a data, os dias de descanso calculam-se sozinhos a partir do último jogo de cada equipa, da liga
-                ou dos que acrescentares abaixo.
+                Com a data, os dias de descanso calculam-se sozinhos a partir do último jogo de cada equipa, em
+                todas as competições, ou dos que acrescentares abaixo.
               </p>
             </div>
 
@@ -320,8 +320,8 @@ export default function MatchupForm({
               <div>
                 <p className="text-sm font-medium text-neutral-300">Outros jogos das equipas</p>
                 <p className="text-[11px] leading-relaxed text-neutral-500">
-                  Taças, provas europeias e amigáveis não estão nos dados gratuitos. Acrescenta-os aqui para contarem
-                  no descanso, na forma e nas estatísticas da época.
+                  O descanso conta sozinho todas as competições (liga, taças e Europa). Acrescenta aqui amigáveis
+                  ou jogos em falta para contarem no descanso, na forma e nas estatísticas da época.
                 </p>
               </div>
               <div>

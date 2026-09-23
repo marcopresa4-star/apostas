@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, hasFixtures, loadLeague } from "@/lib/footballData";
+import { LEAGUES, hasFixtures, isInternational, loadLeague } from "@/lib/footballData";
+import { createClient } from "@/lib/supabase/server";
+import { loadMaps } from "@/lib/sofaHistory";
+import { loadSofaLeague } from "@/lib/sofaLeague";
 import { predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
 import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
@@ -24,7 +27,21 @@ export default async function JornadaPage({
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const now = new Date();
   const today = todayISO(now);
-  const data = league ? await loadLeague(league.code, now) : null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const maps = user ? await loadMaps(supabase, user.id, "tournament") : [];
+  const mapped = league !== null && maps.some((m) => m.name_key === league.code);
+  let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
+  let data: Awaited<ReturnType<typeof loadLeague>> = null;
+  if (league && mapped && user) {
+    const sofa = await loadSofaLeague(supabase, user.id, league.code).catch(() => null);
+    if (sofa) {
+      sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
+      data = sofa.data;
+    }
+  }
 
   const rounds = upcomingRounds(data?.fixtures ?? [], today);
   const options = rounds.slice(0, MAX_ROUNDS);
@@ -58,16 +75,28 @@ export default async function JornadaPage({
 
       <EstatisticasTabs />
       <LeaguePicker
-        leagues={LEAGUES.filter((l) => hasFixtures(l.code))}
+        leagues={LEAGUES.filter(
+          (l) => !isInternational(l.code) && (hasFixtures(l.code) || maps.some((m) => m.name_key === l.code))
+        )}
         liga={league?.code ?? ""}
         action="/estatisticas/jornada"
       />
-      <p className="-mt-3 mb-5 text-[11px] text-neutral-600">
-        Não aparecem as ligas de que só temos resultados, sem os jogos que vêm aí (Áustria, Roménia, Polónia, Dinamarca,
-        Suíça, México, Japão, Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda e China) nem as seleções:
-        para essas usa a comparação de equipas.
-      </p>
-
+      {league && !mapped && (
+        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+          Sem dados desta liga no SofaScore.{" "}
+          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+            Mapear no Mapa SofaScore
+          </Link>
+          .
+        </p>
+      )}
+      {sofaMeta && (
+        <p className="-mt-1 mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos para o modelo
+          {sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
+          {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
+        </p>
+      )}
       {league && data === null && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Não foi possível carregar os dados desta liga. Tenta outra vez daqui a pouco.
@@ -100,7 +129,7 @@ export default async function JornadaPage({
             ))}
           </div>
 
-          <RoundTable rows={rows} liga={league.code} />
+          <RoundTable rows={rows} liga={league.code} fonte="sofa" />
 
           <p className="mt-3 text-xs leading-relaxed text-neutral-500">
             Clica num jogo para abrir a comparação das duas equipas, onde podes fazer ajustes (lesões, descanso...). Aqui

@@ -33,6 +33,7 @@ Stack: [Next.js](https://nextjs.org) (App Router) + [Supabase](https://supabase.
    - `0023_uk_countries.sql` (substitui "Reino Unido" por Inglaterra, Escócia, País de Gales e Irlanda do Norte, acrescenta países que faltavam e a coluna de nomes alternativos das equipas)
    - `0024_seed_teams_part1.sql` a `0027_seed_teams_part4.sql` (cerca de 5.800 clubes de todo o mundo, do [Wikidata](https://www.wikidata.org), licença CC0; corre as 4 partes por ordem, depois da 0023)
    - `0028_seed_competitions.sql` (cerca de 400 ligas e taças, mais as competições internacionais em "Mundo")
+- `0033_sofascore_maps.sql` (mapeamento ligas/equipas → ids SofaScore + cache do histórico, fase 1 "só SofaScore")
 3. Vai a **Authentication → Users** e cria manualmente o teu utilizador (email + password). Não há página pública de registo — só tu (ou quem tu decidires) é que tens conta.
    - **Depois de correr o `0017_community.sql`**, torna-te admin: no SQL Editor, corre
      `insert into profiles (id, role) select id, 'admin' from auth.users where email = 'o-teu-email@exemplo.com' on conflict (id) do update set role = 'admin';`

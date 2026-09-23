@@ -1,0 +1,14 @@
+{
+  "name": "sofascore-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local SofaScore reader via CloakBrowser (stealth Chromium). Not deployed to Vercel.",
+  "scripts": {
+    "start": "node sofascore-scraper.mjs"
+  },
+  "dependencies": {
+    "cloakbrowser": "^0.5.10",
+    "playwright-core": "^1.49.1"
+  }
+}

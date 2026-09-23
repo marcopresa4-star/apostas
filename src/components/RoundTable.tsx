@@ -20,7 +20,7 @@ const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 
 // The games of one round with what the model thinks of each: who wins, expected
 // goals, over 2.5, both teams to score, and the bet it would suggest.
-export default function RoundTable({ rows, liga }: { rows: RoundRow[]; liga: string }) {
+export default function RoundTable({ rows, liga, fonte }: { rows: RoundRow[]; liga: string; fonte?: string }) {
   return (
     <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
       <table className="w-full min-w-[46rem] text-sm">
@@ -35,15 +35,15 @@ export default function RoundTable({ rows, liga }: { rows: RoundRow[]; liga: str
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-800/70">
-          {rows.map(({ fixture: f, status, prediction: p, pick, fragile }) => (
-            <tr key={`${f.date}-${f.team1}`} className="align-top">
+          {rows.map(({ fixture: f, status, prediction: p, pick, fragile }, i) => (
+            <tr key={`${f.date}-${f.team1}-${f.team2}-${i}`} className="align-top">
               <td className="px-3 py-2.5">
                 <p className="text-[11px] text-neutral-500">
                   {dayMonth(f.date)}
                   {f.time ? ` · ${f.time}` : ""}
                 </p>
                 <Link
-                  href={`/estatisticas?${new URLSearchParams({ liga, casa: f.team1, fora: f.team2 })}`}
+                  href={`/estatisticas?${new URLSearchParams({ liga, casa: f.team1, fora: f.team2, ...(fonte === "sofa" ? { fonte: "sofa" } : {}) })}`}
                   className="font-medium text-neutral-100 hover:text-amber-300 hover:underline"
                   title="Abrir a comparação destas equipas"
                 >

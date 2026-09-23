@@ -14,6 +14,9 @@ export interface PlayedMatch {
   team2: string; // away
   ft: [number, number];
   ht: [number, number] | null;
+  // Shots on target [home, away], when the source has them (SofaScore does).
+  // Feeds the shot-based half of team strength; missing counts as no data.
+  sot?: [number, number] | null;
   // Only where the data mixes competitions (national teams).
   competition?: string;
   // Played at a neutral venue: nobody was really at home (national teams).
@@ -103,6 +106,68 @@ export function strengthOf(
     attack: (scored + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
     defense: (conceded + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
     games,
+  };
+}
+
+// How much of team strength comes from shots rather than goals (0 = goals
+// only, as before). Shots converge faster than goals: a side creating a lot
+// but finishing badly reads as unlucky, not weak.
+export const SHOT_WEIGHT = 0.5;
+
+// League shot averages, over the games that carry shot data.
+export function shotRates(matches: PlayedMatch[], now: Date): { home: number; away: number; perTeam: number } {
+  let w = 0;
+  let home = 0;
+  let away = 0;
+  for (const m of matches) {
+    if (!m.sot) continue;
+    const weight = weightOf(m.date, now);
+    w += weight;
+    home += weight * m.sot[0];
+    away += weight * m.sot[1];
+  }
+  if (w === 0) return { home: 0, away: 0, perTeam: 0 };
+  return { home: home / w, away: away / w, perTeam: (home + away) / (2 * w) };
+}
+
+// Same maths as strengthOf, on shots on target. Teams (or whole datasets)
+// without shot data come back neutral (1.0): goals alone decide for them.
+export function shotStrengthOf(
+  matches: PlayedMatch[],
+  team: string,
+  rates: { home: number; away: number; perTeam: number },
+  now: Date
+): Strength {
+  let w = 0;
+  let scored = 0;
+  let conceded = 0;
+  let games = 0;
+  for (const m of matches) {
+    if (!m.sot) continue;
+    const isHome = m.team1 === team;
+    if (!isHome && m.team2 !== team) continue;
+    const weight = weightOf(m.date, now);
+    w += weight;
+    scored += weight * (isHome ? m.sot[0] : m.sot[1]);
+    conceded += weight * (isHome ? m.sot[1] : m.sot[0]);
+    games++;
+  }
+  if (rates.perTeam === 0) return { attack: 1, defense: 1, games };
+  const g = rates.perTeam;
+  return {
+    attack: (scored + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
+    defense: (conceded + PRIOR_GAMES * g) / (w + PRIOR_GAMES) / g,
+    games,
+  };
+}
+
+// Goals and shots are both centered on 1.0 (team vs league average), so they
+// blend directly: half the evidence from finishing, half from creating.
+export function blendedStrength(goals: Strength, shots: Strength, weight = SHOT_WEIGHT): Strength {
+  return {
+    attack: (1 - weight) * goals.attack + weight * shots.attack,
+    defense: (1 - weight) * goals.defense + weight * shots.defense,
+    games: goals.games,
   };
 }
 
@@ -236,6 +301,13 @@ export function predict(
     const mix = (overall: number, venue: number) => (1 - venueWeight) * overall + venueWeight * venue;
     h = { ...h, attack: mix(h.attack, hv.attack), defense: mix(h.defense, hv.defense) };
     a = { ...a, attack: mix(a.attack, av.attack), defense: mix(a.defense, av.defense) };
+  }
+
+  // Shot evidence blends in where it exists (stays goals-only otherwise).
+  const shots = shotRates(matches, now);
+  if (shots.perTeam > 0) {
+    h = blendedStrength(h, shotStrengthOf(matches, home, shots, now));
+    a = blendedStrength(a, shotStrengthOf(matches, away, shots, now));
   }
 
   const lambdaHome = rates.home * h.attack * a.defense * ratio;

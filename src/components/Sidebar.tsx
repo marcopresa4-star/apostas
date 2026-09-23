@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { signOut } from "@/app/(app)/actions";
-import { useCommunityUnseen } from "./CommunityUnseenProvider";
 
 const NAV_ITEMS = [
   {
@@ -16,45 +15,12 @@ const NAV_ITEMS = [
     adminOnly: true,
   },
   {
-    href: "/apostas",
-    label: "Apostas",
-    icon: "🎟️",
-    chip: "bg-emerald-500/15 text-emerald-400",
-    active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
-    adminOnly: true,
-  },
-  {
-    href: "/live",
-    label: "Live",
-    icon: "📡",
-    chip: "bg-sky-500/15 text-sky-400",
-    active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
-    pulse: true,
-    adminOnly: true,
-  },
-  {
-    href: "/analise",
-    label: "Análise",
-    icon: "📊",
-    chip: "bg-violet-500/15 text-violet-400",
-    active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
-    adminOnly: true,
-  },
-  {
     href: "/estatisticas",
     label: "Estatísticas",
     icon: "🧮",
     chip: "bg-amber-500/15 text-amber-400",
     active: "bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg shadow-amber-600/30",
     adminOnly: true,
-  },
-  {
-    href: "/comunidade",
-    label: "Comunidade",
-    icon: "🌐",
-    chip: "bg-orange-500/15 text-orange-400",
-    active: "bg-gradient-to-r from-orange-600 to-orange-500 shadow-lg shadow-orange-600/30",
-    adminOnly: false,
   },
 ];
 
@@ -67,12 +33,10 @@ function NavLink({
   item,
   active,
   onClick,
-  badge = 0,
 }: {
-  item: (typeof NAV_ITEMS)[number];
+  item: (typeof NAV_ITEMS)[number] & { pulse?: boolean };
   active: boolean;
   onClick?: () => void;
-  badge?: number;
 }) {
   return (
     <Link
@@ -96,14 +60,6 @@ function NavLink({
             className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-red-500 ring-2 ring-neutral-900"
           />
         )}
-        {badge > 0 && (
-          <span
-            title={`${badge} novas`}
-            className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-neutral-900"
-          >
-            {badge > 9 ? "9+" : badge}
-          </span>
-        )}
       </span>
       <span className="whitespace-nowrap">{item.label}</span>
       {active && (
@@ -125,8 +81,7 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const unseen = useCommunityUnseen();
-  const homeHref = isAdmin ? "/" : "/comunidade";
+  const homeHref = "/";
   const visibleItems = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
 
   return (
@@ -158,7 +113,6 @@ export default function Sidebar({
               item={item}
               active={isActivePath(pathname, item.href)}
               onClick={() => setOpen(false)}
-              badge={item.href === "/comunidade" ? unseen : 0}
             />
           ))}
           <form action={signOut}>
@@ -191,7 +145,6 @@ export default function Sidebar({
               key={item.href}
               item={item}
               active={isActivePath(pathname, item.href)}
-              badge={item.href === "/comunidade" ? unseen : 0}
             />
           ))}
         </nav>

@@ -25,12 +25,12 @@ async function fetchIsAdmin(): Promise<boolean | null> {
 }
 
 // Guards every admin-only page (Dashboard, Apostas, Live, Analise and their
-// sub-pages). Regular (non-admin) users get redirected to /comunidade,
-// which is the only page they're meant to see.
+// sub-pages). Without a Comunidade there is nowhere else to send a regular
+// (non-admin) user, so they land on the login page.
 export async function requireAdmin() {
   const isAdmin = await fetchIsAdmin();
   if (isAdmin === null) redirect("/login");
-  if (!isAdmin) redirect("/comunidade");
+  if (!isAdmin) redirect("/login");
 }
 
 export async function getIsAdmin(): Promise<boolean> {

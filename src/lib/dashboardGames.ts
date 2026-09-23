@@ -9,6 +9,8 @@ interface TeamRef {
   aliases?: string | null;
 }
 
+import { parseSofascoreId } from "./sofascore";
+
 export interface TicketIn {
   id: string;
   match_date: string;
@@ -16,7 +18,7 @@ export interface TicketIn {
   competition: { name: string } | null;
   home_team: TeamRef | null;
   away_team: TeamRef | null;
-  picks: { stage: string; status: string }[];
+  picks: { stage: string; status: string; sofascore_url?: string | null }[];
 }
 
 export interface LegIn {
@@ -40,6 +42,7 @@ export interface WatchedIn {
   away_team: string;
   home_aliases?: string | null;
   away_aliases?: string | null;
+  sofascore_url?: string | null;
 }
 
 export interface DashboardGame {
@@ -54,6 +57,8 @@ export interface DashboardGame {
   // The name and the other names each club goes by ("Sporting CP | Sporting").
   homeNames: string[];
   awayNames: string[];
+  // SofaScore event id when known (pick links, or the hand-added link).
+  sofaEventId: number | null;
 }
 
 const names = (team: TeamRef): string[] => [
@@ -84,7 +89,11 @@ export function dashboardGames(
 ): DashboardGame[] {
   const out: DashboardGame[] = [];
   const seen = new Set<string>();
-  const add = (id: string, g: Omit<DashboardGame, "id" | "manual" | "home" | "away" | "homeNames" | "awayNames"> & { home: TeamRef | null; away: TeamRef | null }) => {
+  const add = (
+    id: string,
+    g: Omit<DashboardGame, "id" | "manual" | "home" | "away" | "homeNames" | "awayNames" | "sofaEventId"> & { home: TeamRef | null; away: TeamRef | null },
+    sofaEventId: number | null = null
+  ) => {
     if (!g.home || !g.away) return;
     const key = `${g.home.id}|${g.away.id}|${g.date}`;
     if (seen.has(key)) return;
@@ -99,13 +108,26 @@ export function dashboardGames(
       away: g.away.name,
       homeNames: names(g.home),
       awayNames: names(g.away),
+      sofaEventId,
     });
   };
 
   for (const t of tickets) {
     if (t.match_date < since) continue;
     if (!t.picks.some((p) => p.stage !== "skipped" && p.status === "pending")) continue;
-    add(`t:${t.id}`, { date: t.match_date, time: t.match_time, competition: t.competition?.name ?? "", home: t.home_team, away: t.away_team });
+    let sofaEventId: number | null = null;
+    for (const p of t.picks) {
+      const id = p.sofascore_url ? parseSofascoreId(p.sofascore_url) : null;
+      if (id !== null) {
+        sofaEventId = id;
+        break;
+      }
+    }
+    add(
+      `t:${t.id}`,
+      { date: t.match_date, time: t.match_time, competition: t.competition?.name ?? "", home: t.home_team, away: t.away_team },
+      sofaEventId
+    );
   }
   for (const m of multiples) {
     for (const leg of m.legs) {
@@ -124,6 +146,7 @@ export function dashboardGames(
     away: w.away_team,
     homeNames: splitNames(w.home_team, w.home_aliases),
     awayNames: splitNames(w.away_team, w.away_aliases),
+    sofaEventId: w.sofascore_url ? parseSofascoreId(w.sofascore_url) : null,
   }));
   return [...byHand, ...out].slice(0, MAX_GAMES);
 }

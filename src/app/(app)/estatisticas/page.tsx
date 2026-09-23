@@ -1,9 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
+import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
+import { createClient } from "@/lib/supabase/server";
+import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
+import { loadSofaLeague } from "@/lib/sofaLeague";
+import { loadSofaInternational } from "@/lib/sofaIntl";
+import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
+import { WINDOW_YEARS } from "@/lib/internationalModel";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { lastLeagueGameDate, nextLeagueGameDate } from "@/lib/footballModel";
-import { encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
+import { daysBetween, encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
 import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
 import MatchupReport from "@/components/MatchupReport";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
@@ -23,25 +30,196 @@ export default async function EstatisticasPage({
 }) {
   await requireAdmin();
   const params = await searchParams;
-  const liga = first(params.liga);
-  const casa = first(params.casa);
-  const fora = first(params.fora);
+  let liga = first(params.liga);
+  let casa = first(params.casa);
+  let fora = first(params.fora);
   const raw: Record<string, string> = Object.fromEntries(ADJUST_KEYS.map((key) => [key, first(params[key])]));
-  const typedAdjust = { home: adjustFromParams(raw, "casa"), away: adjustFromParams(raw, "fora") };
-
-  // Games of other competitions typed in by hand, and the date of the game.
-  const extras = { casa: parseExtras(params.extra_casa), fora: parseExtras(params.extra_fora) };
-  // Weight of the home/away form in the model: only the offered steps count.
   const formaLocal = first(params.forma_local);
-  // (National teams have no home/away form, and their venue can be neutral.)
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Paste-a-link analysis: a SofaScore link (even pre-match) resolves to
+  // league + local teams, which then flow through the normal analysis below.
+  const analisarLink = first(params.analisar).trim();
+  const linkNotes: string[] = [];
+  if (analisarLink && user) {
+    const { resolveSofaLink } = await import("@/lib/sofaLeague");
+    const resolved = await resolveSofaLink(supabase, user.id, analisarLink).catch(() => ({ error: "Falhou a leitura do link." }));
+    if ("error" in resolved) {
+      linkNotes.push(resolved.error);
+    } else {
+      if (resolved.leagueCode) liga = resolved.leagueCode;
+      if (resolved.casa) casa = resolved.casa;
+      if (resolved.fora) fora = resolved.fora;
+      linkNotes.push(`Jogo: ${resolved.homeSofa} vs ${resolved.awaySofa}${resolved.tournament ? ` · ${resolved.tournament}` : ""}.`);
+      linkNotes.push(...resolved.warnings);
+    }
+  }
+
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const international = league !== null && isInternational(league.code);
   const neutral = international && first(params.neutro) === "1";
   const venuePercent = !international && [25, 50, 75, 100].includes(Number(formaLocal)) ? Number(formaLocal) : 0;
   const askedDate = DATE.test(first(params.data_jogo)) ? first(params.data_jogo) : "";
 
+  const maps = !international && user ? await loadMaps(supabase, user.id, "tournament") : [];
+  // SofaScore only: unmapped leagues/selects fall back to a teach-me note.
+  const mapped = league !== null && maps.some((m) => m.name_key === league.code);
+  const intlMaps = international && user ? (await loadMaps(supabase, user.id, "team")).some((m) => m.name_key.startsWith("int:")) : false;
+  const useSofa = mapped && user !== null;
+  const useSofaIntl = international && intlMaps && user !== null;
+
+  return (
+    <div>
+      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <p className="mb-4 text-sm text-neutral-500">
+        Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
+        enfrentassem.
+      </p>
+
+      <EstatisticasTabs />
+
+      <form
+        method="get"
+        action="/estatisticas"
+        className="mb-4 flex max-w-4xl flex-col gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm sm:flex-row"
+      >
+        <input
+          type="text"
+          name="analisar"
+          defaultValue={first(params.analisar)}
+          placeholder="Ou cola o link do jogo no SofaScore (mesmo por começar)…"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-amber-500"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition hover:bg-amber-500"
+        >
+          Analisar
+        </button>
+      </form>
+
+      {linkNotes.length > 0 && (
+        <div className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          {linkNotes.map((n, i) => (
+            <p key={i}>{n}</p>
+          ))}
+        </div>
+      )}
+
+      {league && !useSofa && !useSofaIntl && (
+        <p className="mb-3 rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+          Sem dados desta liga no SofaScore.{" "}
+          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+            Mapear no Mapa SofaScore
+          </Link>
+          .
+        </p>
+      )}
+
+      <Suspense
+        key={`${liga}|${casa}|${fora}|${useSofa}|${useSofaIntl}|${askedDate}|${neutral}|${venuePercent}|${first(params.analisar)}`}
+        fallback={
+          <p className="mt-4 rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+            A carregar os jogos… (a primeira vez em modo SofaScore demora vários minutos; depois é cache)
+          </p>
+        }
+      >
+        <CompararBody
+          liga={liga}
+          casa={casa}
+          fora={fora}
+          raw={raw}
+          neutral={neutral}
+          askedDate={askedDate}
+          venuePercent={venuePercent}
+          useSofa={useSofa}
+          useSofaIntl={useSofaIntl}
+          userId={user?.id ?? null}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+// Everything below the tabs streams in: slow SofaScore loads no longer hold
+// the whole page. Props are plain params (serializable for the boundary).
+async function CompararBody({
+  liga,
+  casa,
+  fora,
+  raw,
+  neutral,
+  askedDate,
+  venuePercent,
+  useSofa,
+  useSofaIntl,
+  userId,
+}: {
+  liga: string;
+  casa: string;
+  fora: string;
+  raw: Record<string, string>;
+  neutral: boolean;
+  askedDate: string;
+  venuePercent: number;
+  useSofa: boolean;
+  useSofaIntl: boolean;
+  userId: string | null;
+}) {
+  const typedAdjust = { home: adjustFromParams(raw, "casa"), away: adjustFromParams(raw, "fora") };
+
+  // Games of other competitions typed in by hand, and the date of the game.
+  const extras = { casa: parseExtras(raw.extra_casa), fora: parseExtras(raw.extra_fora) };
+  const league = LEAGUES.find((l) => l.code === liga) ?? null;
+  const international = league !== null && isInternational(league.code);
+
   const now = new Date();
-  const data = league ? await loadLeague(league.code, now, { history: true }) : null;
+  const supabase = await createClient();
+  let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
+  let data: LeagueData | null = null;
+  if (league && userId) {
+    if (useSofa) {
+      const sofa = await loadSofaLeague(supabase, userId, league.code, { history: true }).catch(() => null);
+      if (sofa) {
+        sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
+        data = sofa.data;
+      }
+    } else if (useSofaIntl) {
+      const sofa = await loadSofaInternational(supabase, userId, now).catch(() => null);
+      if (sofa) {
+        const windowFrom = isoDaysAgo(now, WINDOW_YEARS * 365);
+        const recent = sofa.games.filter((g) => g.date >= windowFrom);
+        const from = isoDaysAgo(now, 365);
+        const nlGames = sofa.games.filter((g) => /nations league/i.test(g.tournament));
+        const teams =
+          league.code === "int.nl" ? activeTeams(nlGames, now) : activeTeams(sofa.games, now);
+        sofaMeta = {
+          games: recent.length,
+          latest: recent.at(-1)?.date ?? null,
+          unlinked: sofa.unlinked,
+        };
+        data = {
+          matches: recent.map(toPlayed),
+          teams,
+          fixtures: sofa.games
+            .filter((g) => g.date >= from)
+            .map((g) => ({ date: g.date, team1: g.home, team2: g.away, ft: [g.hg, g.ag] as [number, number], competition: g.tournament })),
+          latest: sofa.games.at(-1)?.date ?? null,
+          seasons: [],
+          history: sofa.games.filter((g) => g.date < windowFrom).map(toPlayed),
+          historyFrom: null,
+          intl: recent,
+          source: "sofascore",
+          season: { id: "12m", from, to: now.toISOString().slice(0, 10), label: "últimos 12 meses" },
+          calendar: "none",
+        };
+      }
+    }
+  }
 
   const teams = data?.teams ?? [];
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
@@ -67,6 +245,23 @@ export default async function EstatisticasPage({
   const restOf = (team: string, typed: typeof extras.casa): LastGame | null =>
     data && matchDate && team ? restFor(matchDate, data.fixtures, team, typed) : null;
   const autoRest = { home: restOf(casa, extras.casa), away: restOf(fora, extras.fora) };
+  // Clubs in cups/Europe: the real last game may not be a league game. The
+  // team's SofaScore event list covers every competition; the most recent of
+  // the two wins (the typed-in games are already inside the league figure).
+  // National sides already list every competition, so this is clubs only.
+  if (useSofa && data && matchDate && userId) {
+    const lastAllComp = async (team: string): Promise<LastGame | null> => {
+      if (!team) return null;
+      const id = await sofaTeamIdFor(supabase, userId, team).catch(() => null);
+      if (!id) return null;
+      const last = await teamLastGame(supabase, userId, id, matchDate).catch(() => null);
+      if (!last) return null;
+      return { date: last.date, competition: last.tournament.split(",")[0], days: daysBetween(last.date, matchDate) };
+    };
+    const [lastCasa, lastFora] = await Promise.all([lastAllComp(casa), lastAllComp(fora)]);
+    if (lastCasa && (!autoRest.home || lastCasa.date > autoRest.home.date)) autoRest.home = lastCasa;
+    if (lastFora && (!autoRest.away || lastFora.date > autoRest.away.date)) autoRest.away = lastFora;
+  }
   const adjust = {
     home: { ...typedAdjust.home, restDays: typedAdjust.home.restDays ?? autoRest.home?.days ?? null },
     away: { ...typedAdjust.away, restDays: typedAdjust.away.restDays ?? autoRest.away?.days ?? null },
@@ -94,12 +289,11 @@ export default async function EstatisticasPage({
   const swapHref = `/estatisticas?${swap}`;
 
   // Under the rest field: what was worked out for the game's date, or else
-  // what the calendar says. Only the league is in the data, so games of other
-  // competitions count only if they were typed in.
+  // what the calendar says. All competitions count (plus the typed-in games).
   const restHint = (team: string, auto: LastGame | null) => {
     if (!data || !team) return "";
     if (auto) {
-      return `Calculado para ${dayMonth(matchDate)}: ${daysText(auto.days)} (último jogo: ${auto.competition || "liga"}, ${dayMonth(auto.date)}). Só conta a liga e os jogos que acrescentares.`;
+      return `Calculado para ${dayMonth(matchDate)}: ${daysText(auto.days)} (último jogo: ${auto.competition || "liga"}, ${dayMonth(auto.date)}). Conta todas as competições e os jogos que acrescentares.`;
     }
     const last = lastLeagueGameDate(data.fixtures, team, todayISO);
     const next = nextLeagueGameDate(data.fixtures, team, todayISO);
@@ -109,19 +303,27 @@ export default async function EstatisticasPage({
       parts.push(`Último jogo da liga: ${dayMonth(last)} (há ${daysText(days)}).`);
     }
     if (next) parts.push(`Próximo: ${dayMonth(next)}.`);
-    parts.push("Não inclui taças nem provas europeias: acrescenta-as abaixo ou confirma.");
+    parts.push("Se faltar algum jogo (amigáveis), acrescenta-o abaixo ou confirma.");
     return parts.join(" ");
   };
 
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
-      <p className="mb-4 text-sm text-neutral-500">
-        Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
-        enfrentassem.
-      </p>
-
-      <EstatisticasTabs />
+    <>
+      {useSofaIntl && sofaMeta && (
+        <p className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {sofaMeta.games} jogos nos
+          últimos 8 anos{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
+          {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."} Campo
+          neutro estimado pelo torneio (sem recinto nos dados).
+        </p>
+      )}
+      {useSofa && sofaMeta && (
+        <p className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos nas últimas 3
+          épocas{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
+          {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
+        </p>
+      )}
 
       <MatchupForm
         leagues={LEAGUES}
@@ -198,7 +400,6 @@ export default async function EstatisticasPage({
             href="https://www.football-data.co.uk"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-amber-400 hover:underline"
           >
             football-data.co.uk
           </Link>
@@ -207,13 +408,12 @@ export default async function EstatisticasPage({
             href="https://github.com/martj42/international_results"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-amber-400 hover:underline"
           >
             international_results
           </Link>
           . Só têm golos (sem cantos, cartões nem remates).
         </p>
       )}
-    </div>
+    </>
   );
 }
