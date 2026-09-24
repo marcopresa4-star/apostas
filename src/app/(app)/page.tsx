@@ -16,7 +16,7 @@ export default async function DashboardPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🏠 Dashboard</h1>
+      <h1 className="mb-1 text-xl font-semibold">⚽ Jogos</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Jogos para acompanhar em direto: adiciona-os e o widget aparece aqui à hora do jogo.
       </p>

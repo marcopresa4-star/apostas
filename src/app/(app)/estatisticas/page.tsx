@@ -280,6 +280,7 @@ async function CompararBody({
   // Real odds for this exact fixture, when the bookmakers price it (usually
   // from a few days out): the calendar carries the SofaScore event id.
   let realByKey: Record<string, number> = {};
+  let realOpenByKey: Record<string, number> = {};
   if (useSofa && data && userId && matchDate && casa && fora) {
     const fx = data.fixtures.find((f) => f.team1 === casa && f.team2 === fora && f.date === matchDate);
     const eventId = fx ? fixtureEventId(fx) : null;
@@ -287,7 +288,13 @@ async function CompararBody({
       const parsed = await eventOdds(supabase, userId, eventId, HOUR_MS).catch(() => null);
       if (parsed) {
         const byKey: Record<string, number> = {};
-        for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+        const openByKey: Record<string, number> = {};
+        for (const m of parsed.markets) {
+          for (const c of m.choices) {
+            byKey[c.key] = c.odd;
+            if (c.open !== null && c.open !== undefined) openByKey[c.key] = c.open;
+          }
+        }
         const keys = [
           "home", "draw", "away", "1x", "x2", "12",
           "btts:yes", "btts:no",
@@ -297,7 +304,9 @@ async function CompararBody({
         ];
         for (const k of keys) {
           const ok = oddsKeyFor(k, casa, fora);
-          if (ok && byKey[ok] !== undefined) realByKey[k] = byKey[ok];
+          if (!ok) continue;
+          if (byKey[ok] !== undefined) realByKey[k] = byKey[ok];
+          if (openByKey[ok] !== undefined) realOpenByKey[k] = openByKey[ok];
         }
       }
     }
@@ -435,6 +444,7 @@ async function CompararBody({
           venueWeight={venuePercent / 100}
           timing={timing}
           realByKey={realByKey}
+          realOpenByKey={realOpenByKey}
           tables={sofaTables.length > 0 ? sofaTables : undefined}
         />
       )}

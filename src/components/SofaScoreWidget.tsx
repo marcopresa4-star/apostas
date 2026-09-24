@@ -259,6 +259,28 @@ interface StatRow {
   away: string;
 }
 
+// Backoff shared by a widget's polls: after consecutive failed reads the
+// widget goes quiet for a few minutes instead of timing out against a dead
+// scraper every 60s (a pile of 15-30s hangs is what turns a hiccup into a
+// stall). Any success resets it.
+const BACKOFF_AFTER = 2;
+const BACKOFF_MS = 5 * 60_000;
+const backoff = new Map<number, { fails: number; at: number }>();
+
+function shouldSkip(eventId: number): boolean {
+  const b = backoff.get(eventId);
+  return !!b && b.fails >= BACKOFF_AFTER && Date.now() - b.at < BACKOFF_MS;
+}
+
+function noteResult(eventId: number, ok: boolean): void {
+  if (ok) {
+    backoff.delete(eventId);
+    return;
+  }
+  const b = backoff.get(eventId) ?? { fails: 0, at: 0 };
+  backoff.set(eventId, { fails: b.fails + 1, at: Date.now() });
+}
+
 // Goal/red/kickoff/full-time alerts (sound + browser notification) for the
 // watched games. Toggled in the panel header, stored in this browser; each
 // widget reads it when its minute poll brings news.
@@ -791,6 +813,7 @@ export default function SofaScoreWidget({
 }) {
   const [state, setState] = useState<LiveGameState | null>(null);
   const [hasTracker, setHasTracker] = useState<boolean | null>(null);
+  const [kickoff, setKickoff] = useState<string | null>(null);
   const [recent, setRecent] = useState<Incident[]>([]);
   const [momentum, setMomentum] = useState<MomentumPoint[] | null>(null);
   const [stats, setStats] = useState<StatRow[] | null>(null);
@@ -825,15 +848,28 @@ export default function SofaScoreWidget({
   useEffect(() => {
     let stop = false;
     const poll = async () => {
+      // Backing off: while the scraper is down, don't pile timed-out reads
+      // onto its queue every minute (they amplify the stall).
+      if (shouldSkip(eventId)) return;
       try {
         const res = await fetch(`/api/sofascore/event?id=${eventId}`, { cache: "no-store" });
-        if (stop || !res.ok) return;
+        if (stop || !res.ok) {
+          noteResult(eventId, false);
+          return;
+        }
         const body = await res.json();
-        if (body?.state) setState(body.state as LiveGameState);
+        if (body?.state) {
+          setState(body.state as LiveGameState);
+          noteResult(eventId, true);
+        } else {
+          noteResult(eventId, false);
+        }
+        if (typeof body?.meta?.kickoff === "string" && !stop) setKickoff(body.meta.kickoff);
         if (typeof body?.hasTracker === "boolean" && !stop) setHasTracker(body.hasTracker);
         if (Array.isArray(body?.recent) && !stop) setRecent(body.recent as Incident[]);
       } catch {
         // Offline scraper: the tracker below still tries on its own.
+        noteResult(eventId, false);
       }
     };
     void poll();
@@ -845,10 +881,11 @@ export default function SofaScoreWidget({
   }, [eventId]);
 
   // Momentum + statistics + xG load once each, then refresh on a slow poll
-  // (graphs redrawn every minute would flicker).
+  // (graphs redrawn every minute would flicker). Skipped while backing off.
   useEffect(() => {
     let stop = false;
     const loadGraph = () => {
+      if (shouldSkip(eventId)) return;
       fetch(`/api/sofascore/graph?id=${eventId}`, { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
         .then((body: { points?: MomentumPoint[] } | null) => {
@@ -883,6 +920,27 @@ export default function SofaScoreWidget({
       clearInterval(id);
     };
   }, [eventId]);
+
+  // Kickoff time for upcoming games ("Por começar · Amanhã 19:45"): the event
+  // route already returns it as meta, timezone-free ISO (UTC).
+  const kickoffLabel = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const parts = new Intl.DateTimeFormat("pt-PT", {
+      timeZone: "Europe/Lisbon",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(d);
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? "";
+    const day = new Date();
+    const today = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((that.getTime() - today.getTime()) / 86_400_000);
+    const when = diffDays <= 0 ? "Hoje" : diffDays === 1 ? "Amanhã" : `${get("day")}/${get("month")}`;
+    return `${when} ${get("hour")}:${get("minute")}`;
+  };
 
   const homeName = home || state?.homeName || "Casa";
   const awayName = away || state?.awayName || "Fora";
@@ -940,7 +998,9 @@ export default function SofaScoreWidget({
         : state.phase === "finished"
           ? "Terminado"
           : state.phase === "upcoming"
-            ? "Por começar"
+            ? kickoff
+              ? `Por começar · ${kickoffLabel(kickoff)}`
+              : "Por começar"
             : state.raw.statusText || "";
 
   return (

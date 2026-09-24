@@ -123,7 +123,29 @@ export async function GET(request: Request) {
       notes,
       hasTracker: typeof body.hasTracker === "boolean" ? body.hasTracker : null,
       recent,
+      meta: eventMeta(body.event ?? body),
     },
     { headers: { "Cache-Control": "private, max-age=30" } }
   );
+}
+
+// What the bet form auto-fills from a pasted link: teams, tournament and
+// kickoff, so nobody types them by hand.
+function eventMeta(event: unknown): {
+  home: string;
+  away: string;
+  tournament: string;
+  kickoff: string | null;
+} {
+  const e = (event ?? {}) as Record<string, unknown>;
+  const home = ((e.homeTeam ?? {}) as Record<string, unknown>).name;
+  const away = ((e.awayTeam ?? {}) as Record<string, unknown>).name;
+  const tournament = ((e.tournament ?? {}) as Record<string, unknown>).name;
+  const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
+  return {
+    home: typeof home === "string" ? home : "",
+    away: typeof away === "string" ? away : "",
+    tournament: typeof tournament === "string" ? tournament : "",
+    kickoff: start !== null ? new Date(start * 1000).toISOString() : null,
+  };
 }

@@ -6,7 +6,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { activeTeams, isoDaysAgo } from "./internationalData";
 import type { IntlGame } from "./internationalModel";
-import { loadMaps, nationalGames } from "./sofaHistory";
+import { lisbonParts, loadMaps, nationalGames } from "./sofaHistory";
+import { teamEventList } from "./sofaLeague";
 import { slugify } from "./slugify";
 
 export interface SofaIntl {
@@ -76,4 +77,52 @@ export async function loadSofaInternational(
     unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)),
     mapped: maps.length,
   };
+}
+
+export interface UpcomingIntlGame {
+  date: string;
+  time: string | null;
+  home: string;
+  away: string;
+  tournament: string;
+}
+
+// Upcoming games of the linked national teams (next event lists, deduped):
+// Nations League only, or everything, for the Jornada page. National sides
+// have no rounds on SofaScore, so the games group by competition instead.
+export async function loadUpcomingIntl(
+  supabase: SupabaseClient,
+  userId: string,
+  today: string,
+  nationsLeagueOnly: boolean
+): Promise<UpcomingIntlGame[]> {
+  const maps = (await loadMaps(supabase, userId, "team")).filter((m) => m.name_key.startsWith("int:"));
+  if (maps.length === 0) return [];
+  const toLocal = new Map(maps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const seen = new Set<number>();
+  const out: UpcomingIntlGame[] = [];
+  await Promise.all(
+    maps.map(async (m) => {
+      if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
+      const events = await teamEventList(supabase, userId, m.sofascore_id, "next").catch(() => []);
+      for (const item of events) {
+        const e = (item ?? {}) as Record<string, unknown>;
+        const id = typeof e.id === "number" ? e.id : null;
+        if (id === null || seen.has(id)) continue;
+        if (((e.status ?? {}) as Record<string, unknown>).type !== "notstarted") continue;
+        const tournament: unknown = ((e.tournament ?? {}) as Record<string, unknown>).name;
+        if (typeof tournament !== "string") continue;
+        if (nationsLeagueOnly && (!/nations league/i.test(tournament) || /concacaf/i.test(tournament))) continue;
+        const home: unknown = ((e.homeTeam ?? {}) as Record<string, unknown>).name;
+        const away: unknown = ((e.awayTeam ?? {}) as Record<string, unknown>).name;
+        const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
+        if (typeof home !== "string" || typeof away !== "string" || !home || !away || start === null) continue;
+        const { date, time } = lisbonParts(start);
+        if (date < today) continue;
+        seen.add(id);
+        out.push({ date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
+      }
+    })
+  );
+  return out.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""));
 }

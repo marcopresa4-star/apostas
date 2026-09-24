@@ -43,6 +43,24 @@ import http from "node:http";
 
 const PORT = Number(process.env.SOFASCORE_PORT ?? 9323);
 const WARM_URL = "https://www.sofascore.com/football";
+// Idle pool tabs park here instead of the heavy homepage: same origin (so the
+// captcha token in localStorage and the clearance cookies apply), but a static
+// document with no live trackers burning CPU all day. Falls back to the
+// homepage when the static page itself fails.
+const PARK_URL = "https://www.sofascore.com/robots.txt";
+
+async function parkTab(p) {
+  try {
+    const res = await withTimeout(
+      p.goto(PARK_URL, { waitUntil: "domcontentloaded", timeout: 20_000 }),
+      25_000,
+      "park"
+    );
+    if (!res || res.status() >= 400) throw new Error(`park status ${res ? res.status() : "none"}`);
+  } catch {
+    await p.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch(() => {});
+  }
+}
 const EVENT_TTL_MS = 30_000;
 const LIVE_TTL_MS = 60_000;
 
@@ -192,6 +210,11 @@ let ctx = null;
 let page = null;
 let ready = false;
 let launchError = null;
+// Diagnostics for the next stall: how often the browser had to be relaunched
+// and why (served by /health).
+let restarts = 0;
+let lastRestartAt = null;
+let lastBrowserError = null;
 
 async function launch() {
   const { launchPersistentContext } = await import("cloakbrowser");
@@ -219,27 +242,40 @@ async function launch() {
 }
 
 // The visible browser window can be closed by hand (or crash): recover by
-// reopening a page in the same persistent profile instead of dying.
+// reopening a page in the same persistent profile instead of dying. Everything
+// here races a timeout: a wedged (not crashed, just silent) browser must fail
+// fast instead of hanging every queued read forever.
+const ENSURE_TIMEOUT_MS = 75_000;
+
 async function ensureBrowser() {
   if (page && !page.isClosed()) return page;
-  if (!ctx) await launch();
-  try {
-    page = ctx.pages().find((p) => !p.isClosed()) ?? (await ctx.newPage());
-    if (!page.url() || page.url() === "about:blank") {
-      await page.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
-    }
-    ready = true;
-    return page;
-  } catch {
-    // Context/browser itself is gone: relaunch from scratch once.
-    ctx = null;
-    page = null;
-    await launch();
-    page = (await ctx.pages())[0] ?? (await ctx.newPage());
-    await page.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
-    ready = true;
-    return page;
-  }
+  return withTimeout(
+    (async () => {
+      if (!ctx) await launch();
+      try {
+        page = ctx.pages().find((p) => !p.isClosed()) ?? (await ctx.newPage());
+        if (!page.url() || page.url() === "about:blank") {
+          await page.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+        }
+        ready = true;
+        return page;
+      } catch (err) {
+        // Context/browser itself is gone: relaunch from scratch once.
+        lastBrowserError = String(err?.message ?? err).slice(0, 200);
+        restarts += 1;
+        lastRestartAt = new Date().toISOString();
+        ctx = null;
+        page = null;
+        await launch();
+        page = (await ctx.pages())[0] ?? (await ctx.newPage());
+        await page.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+        ready = true;
+        return page;
+      }
+    })(),
+    ENSURE_TIMEOUT_MS,
+    "ensureBrowser"
+  );
 }
 
 // Same fetch the SofaScore page itself does: clearance cookies included.
@@ -286,14 +322,15 @@ async function acquire() {
       try {
         await ensureBrowser();
         const page = await withTimeout(ctx.newPage(), OP_TIMEOUT_MS, "newPage");
-        await withTimeout(
-          page.goto(WARM_URL, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch(() => {}),
-          35_000,
-          "park"
-        );
+        await parkTab(page);
         const slot = { page, busy: true };
         slots.push(slot);
         return slot;
+      } catch (err) {
+        // Don't hot-spin relaunches when the browser is down: breathe first.
+        lastBrowserError = String(err?.message ?? err).slice(0, 200);
+        await new Promise((r) => setTimeout(r, 2000));
+        throw err;
       } finally {
         creating = false;
       }
@@ -402,7 +439,25 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/health") {
-      return send(res, 200, { ok: true, ready, launchError: launchError ? String(launchError) : null });
+      let openTabs = null;
+      try {
+        openTabs = ctx ? ctx.pages().length : 0;
+      } catch {
+        // Context gone: unknown.
+      }
+      const mem = process.memoryUsage();
+      return send(res, 200, {
+        ok: true,
+        ready,
+        launchError: launchError ? String(launchError) : null,
+        restarts,
+        lastRestartAt,
+        lastBrowserError,
+        uptimeSec: Math.round(process.uptime()),
+        openTabs,
+        apiSlots: slots.map((s) => ({ busy: s.busy, closed: !s.page || s.page.isClosed() })),
+        rssMB: Math.round(mem.rss / 1048576),
+      });
     }
     if (url.pathname === "/event") {
       const id = Number(url.searchParams.get("id"));
@@ -427,10 +482,20 @@ const server = http.createServer(async (req, res) => {
         const pagePath = slug && custom ? `${slug}/${custom}` : slug || null;
         const teamNames = [ev?.homeTeam?.name, ev?.homeTeam?.shortName, ev?.awayTeam?.name, ev?.awayTeam?.shortName];
         await enqueue(async () => {
-          const p = await ensureEventPage(id, pagePath);
-          domCandidates = await domMinuteCandidates(p);
-          // Scoped scoreboard read first (exact), page-wide heuristics second.
-          displayMinute = (await scoreboardMinute(p, teamNames)) ?? pickDisplayMinute(domCandidates);
+          // Bounded well under the app's own 30s route timeout: a stuck page
+          // navigation must degrade to the API-derived minute, never 503 the
+          // whole reading. First polls navigate (~3s normally), later ones
+          // reuse the page and finish in milliseconds.
+          await withTimeout(
+            (async () => {
+              const p = await ensureEventPage(id, pagePath);
+              domCandidates = await domMinuteCandidates(p);
+              // Scoped scoreboard read first (exact), page-wide heuristics second.
+              displayMinute = (await scoreboardMinute(p, teamNames)) ?? pickDisplayMinute(domCandidates);
+            })(),
+            20_000,
+            "domMinute"
+          );
         });
       } catch {
         // Page read failed: API data below is still good.
@@ -447,17 +512,21 @@ const server = http.createServer(async (req, res) => {
         if (!cached || Date.now() - cached.at > 10 * 60_000) {
           const ok = await enqueue(async () => {
             const p = await ensureBrowser();
-            return p.evaluate(async (eventId) => {
-              try {
-                const r = await fetch(
-                  `https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`,
-                  { method: "HEAD", credentials: "include" }
-                );
-                return r.status === 200;
-              } catch {
-                return false;
-              }
-            }, id);
+            return withTimeout(
+              p.evaluate(async (eventId) => {
+                try {
+                  const r = await fetch(
+                    `https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`,
+                    { method: "HEAD", credentials: "include" }
+                  );
+                  return r.status === 200;
+                } catch {
+                  return false;
+                }
+              }, id),
+              OP_TIMEOUT_MS,
+              "trackerHead"
+            );
           });
           trackerCache.set(id, { at: Date.now(), ok });
         }

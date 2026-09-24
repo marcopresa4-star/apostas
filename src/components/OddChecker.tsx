@@ -16,7 +16,7 @@ export interface OddMarket {
 // compares with the model: the chance the odd implies against the model's, and
 // how much a bet at that odd would win or lose on average. `realByKey` fills
 // the comparison in by itself wherever the real odd is known.
-export default function OddChecker({ markets, realByKey }: { markets: OddMarket[]; realByKey?: Record<string, number> }) {
+export default function OddChecker({ markets, realByKey, realOpenByKey }: { markets: OddMarket[]; realByKey?: Record<string, number>; realOpenByKey?: Record<string, number> }) {
   // The chosen market is kept by its name: the list can change under it (the
   // live calculator's lines move with the score).
   const [chosen, setChosen] = useState<string | null>(null);
@@ -32,6 +32,11 @@ export default function OddChecker({ markets, realByKey }: { markets: OddMarket[
   // pre-match): priced without typing anything.
   const real = market.key && realByKey ? realByKey[market.key] : undefined;
   const realValue = real !== undefined ? market.p * real - 1 : null;
+  const open = market.key && realOpenByKey ? realOpenByKey[market.key] : undefined;
+  const movement =
+    open !== undefined && real !== undefined && open > 1 && real > 1
+      ? ((open - real) / open) * 100
+      : null;
 
   const groups = [...new Set(markets.map((m) => m.group))];
   const percent = (p: number) => `${(p * 100).toFixed(1).replace(".", ",")}%`;
@@ -88,6 +93,11 @@ export default function OddChecker({ markets, realByKey }: { markets: OddMarket[
                 ? `compensa: +${percent(realValue)} em média`
                 : `não compensa: ${percent(realValue)} em média`}
             </span>
+            {movement !== null && open !== undefined && Math.abs(movement) >= 3 && (
+              <span className="text-neutral-500">
+                {" "}· abriu {formatOdd(open)} {movement > 0 ? "↘" : "↗"} {Math.abs(Math.round(movement))}%
+              </span>
+            )}
           </p>
         )}
         {valid && value !== null && (

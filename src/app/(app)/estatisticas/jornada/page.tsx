@@ -4,7 +4,10 @@ import { LEAGUES, hasFixtures, isInternational, loadLeague } from "@/lib/footbal
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
-import { predict } from "@/lib/footballModel";
+import { loadSofaInternational, loadUpcomingIntl } from "@/lib/sofaIntl";
+import { isoDaysAgo, toPlayed } from "@/lib/internationalData";
+import { WINDOW_YEARS, fitInternational, predictInternational } from "@/lib/internationalModel";
+import { leagueRates, predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
 import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
 import { fixtureEventId } from "@/lib/sofaLeague";
@@ -36,13 +39,120 @@ export default async function JornadaPage({
   } = await supabase.auth.getUser();
   const maps = user ? await loadMaps(supabase, user.id, "tournament") : [];
   const mapped = league !== null && maps.some((m) => m.name_key === league.code);
+  const intlLinked =
+    user !== null && (await loadMaps(supabase, user.id, "team")).some((m) => m.name_key.startsWith("int:"));
+
+  return (
+    <div>
+      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <p className="mb-4 text-sm text-neutral-500">
+        Os próximos jogos de uma liga, cada um com a probabilidade de cada resultado e a aposta que o modelo sugeriria.
+      </p>
+
+      <EstatisticasTabs />
+      <LeaguePicker
+        leagues={LEAGUES.filter(
+          (l) =>
+            (!isInternational(l.code) && (hasFixtures(l.code) || maps.some((m) => m.name_key === l.code))) ||
+            (isInternational(l.code) && intlLinked)
+        )}
+        liga={league?.code ?? ""}
+        action="/estatisticas/jornada"
+      />
+      {league && !mapped && !intlLinked && (
+        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+          Sem dados desta liga no SofaScore.{" "}
+          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+            Mapear no Mapa SofaScore
+          </Link>
+          .
+        </p>
+      )}
+
+      <Suspense
+        fallback={
+          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+            A carregar os jogos… (seleções e primeiras cargas demoram; depois é cache)
+          </p>
+        }
+      >
+        <JornadaBody
+          liga={liga}
+          jornada={jornada}
+          today={today}
+          nowISO={now.toISOString()}
+          userId={user?.id ?? null}
+        />
+      </Suspense>
+    </div>
+  );
+}
+
+// Everything below the picker streams in: slow league loads (selections most
+// of all) no longer hold the shell, so refreshing mid-load stops aborting the
+// page with "destination stream closed early".
+async function JornadaBody({
+  liga,
+  jornada,
+  today,
+  nowISO,
+  userId,
+}: {
+  liga: string;
+  jornada: string;
+  today: string;
+  nowISO: string;
+  userId: string | null;
+}) {
+  const league = LEAGUES.find((l) => l.code === liga) ?? null;
+  const now = new Date(nowISO);
+  const supabase = await createClient();
+  const maps = userId ? await loadMaps(supabase, userId, "tournament") : [];
+  const mapped = league !== null && maps.some((m) => m.name_key === league.code);
+  const intlLinked =
+    userId !== null && (await loadMaps(supabase, userId, "team")).some((m) => m.name_key.startsWith("int:"));
   let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
+  let intlMeta: { games: number; latest: string | null } | null = null;
+  let intlFit: ReturnType<typeof fitInternational> | null = null;
   let data: Awaited<ReturnType<typeof loadLeague>> = null;
-  if (league && mapped && user) {
-    const sofa = await loadSofaLeague(supabase, user.id, league.code).catch(() => null);
+  if (league && mapped && userId) {
+    const sofa = await loadSofaLeague(supabase, userId, league.code).catch(() => null);
     if (sofa) {
       sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
       data = sofa.data;
+    }
+  } else if (league && intlLinked && userId) {
+    // National sides have no rounds: upcoming games come from the teams' own
+    // lists (grouped by competition), predictions from the international fit.
+    const [intl, upcoming] = await Promise.all([
+      loadSofaInternational(supabase, userId, now).catch(() => null),
+      loadUpcomingIntl(supabase, userId, today, league.code === "int.nl").catch(() => []),
+    ]);
+    if (intl) {
+      const windowFrom = isoDaysAgo(now, WINDOW_YEARS * 365);
+      const recent = intl.games.filter((g) => g.date >= windowFrom);
+      intlFit = fitInternational(recent, now);
+      const fixtures = upcoming.map((g) => ({
+        date: g.date,
+        team1: g.home,
+        team2: g.away,
+        ft: null as [number, number] | null,
+        round: g.tournament,
+        time: g.time ?? undefined,
+      }));
+      data = {
+        matches: recent.map(toPlayed),
+        teams: intl.teams,
+        fixtures,
+        latest: recent.at(-1)?.date ?? null,
+        seasons: [],
+        history: intl.games.filter((g) => g.date < windowFrom).map(toPlayed),
+        historyFrom: null,
+        source: "sofascore",
+        season: { id: "12m", from: isoDaysAgo(now, 365), to: today, label: "últimos 12 meses" },
+        calendar: "rounds",
+      };
+      intlMeta = { games: recent.length, latest: recent.at(-1)?.date ?? null };
     }
   }
 
@@ -59,14 +169,25 @@ export default async function JornadaPage({
     rows = chosen.fixtures.map((f): RoundRow => {
       if (f.ft) return { fixture: f, status: "played", prediction: null, pick: null, fragile: false };
       if (f.date < today) return { fixture: f, status: "missing", prediction: null, pick: null, fragile: false };
-      const prediction = predict(data.matches, f.team1, f.team2, now);
+      // National sides use the international fit (group games have a host).
+      const prediction = intlFit
+        ? predictInternational(intlFit, f.team1, f.team2, { neutral: false })
+        : predict(data.matches, f.team1, f.team2, now);
       const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
       const few = minGames < MIN_GAMES;
       return {
         fixture: f,
         status: "upcoming",
         prediction,
-        pick: few ? null : (recommend(prediction, base, f.team1, f.team2)[0] ?? null),
+        pick: few
+          ? null
+          : (recommend(
+              prediction,
+              base,
+              f.team1,
+              f.team2,
+              intlFit ? 0.44 : leagueRates(data.matches, now).firstHalfShare
+            )[0] ?? null),
         fragile: minGames < SOLID_GAMES,
       };
     });
@@ -87,16 +208,27 @@ export default async function JornadaPage({
     won: boolean;
   }
   const checked: Checked[] = [];
-  if (data) {
+  // Clubs only: the international fit is one joint fit, refitting it per past
+  // date would cost a full fit per game.
+  if (data && !intlFit) {
     const pool = [...data.history, ...data.matches].sort((a, b) => a.date.localeCompare(b.date));
     for (const f of data.fixtures) {
       if (!f.ft || f.date >= today) continue;
       const before = pool.filter((m) => m.date < f.date);
       if (before.length === 0) continue;
-      const prediction = predict(before, f.team1, f.team2, new Date(`${f.date}T12:00:00`));
+      const gameDate = new Date(`${f.date}T12:00:00`);
+      const prediction = predict(before, f.team1, f.team2, gameDate);
       if (Math.min(prediction.gamesHome, prediction.gamesAway) < MIN_GAMES) continue;
-      const pick = recommend(prediction, baseRates(before), f.team1, f.team2)[0];
-      if (!pick) continue;
+      const pick = recommend(
+        prediction,
+        baseRates(before),
+        f.team1,
+        f.team2,
+        leagueRates(before, gameDate).firstHalfShare
+      )[0];
+      // Halves markets need the half-time score to check: fixtures don't
+      // carry it, so they stay out of the checked count.
+      if (!pick || pick.group === "halves") continue;
       checked.push({
         date: f.date,
         home: f.team1,
@@ -113,29 +245,7 @@ export default async function JornadaPage({
   const checkedWon = checked.filter((c) => c.won).length;
 
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
-      <p className="mb-4 text-sm text-neutral-500">
-        Os próximos jogos de uma liga, cada um com a probabilidade de cada resultado e a aposta que o modelo sugeriria.
-      </p>
-
-      <EstatisticasTabs />
-      <LeaguePicker
-        leagues={LEAGUES.filter(
-          (l) => !isInternational(l.code) && (hasFixtures(l.code) || maps.some((m) => m.name_key === l.code))
-        )}
-        liga={league?.code ?? ""}
-        action="/estatisticas/jornada"
-      />
-      {league && !mapped && (
-        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
-          Sem dados desta liga no SofaScore.{" "}
-          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
-            Mapear no Mapa SofaScore
-          </Link>
-          .
-        </p>
-      )}
+    <>
       {sofaMeta && (
         <p className="-mt-1 mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos para o modelo
@@ -146,6 +256,13 @@ export default async function JornadaPage({
       {league && data === null && (
         <p className="rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Não foi possível carregar os dados desta liga. Tenta outra vez daqui a pouco.
+        </p>
+      )}
+      {intlMeta && (
+        <p className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {intlMeta.games} jogos nos
+          últimos 8 anos{intlMeta.latest ? `, até ${intlMeta.latest.slice(8, 10)}/${intlMeta.latest.slice(5, 7)}` : ""}.
+          Jogos de grupo têm dono da casa.
         </p>
       )}
 
@@ -188,6 +305,7 @@ export default async function JornadaPage({
             rows={roundLabel(chosen.name) === chosen.name ? rows.filter((r) => r.status === "upcoming") : rows}
             liga={league.code}
             fonte="sofa"
+            matches={data.matches}
           />
 
           {checked.length > 0 && (
@@ -217,9 +335,10 @@ export default async function JornadaPage({
               )}
               <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
                 Cada jogo foi previsto só com o que se sabia antes dele (sem espreitar o futuro). É taxa de acerto,
-                não lucro: sem as odds reais da casa não há como contar dinheiro.
+                não lucro: sem as odds reais da casa não há como contar dinheiro. Mercados de partes ficam de fora
+                (os calendários não trazem o intervalo para conferir).
               </p>
-              {user && (
+              {userId && (
                 <Suspense
                   fallback={
                     <p className="mt-3 text-xs text-neutral-500">A ir buscar as odds reais para contar o lucro…</p>
@@ -238,7 +357,7 @@ export default async function JornadaPage({
                         key: c.key,
                         won: c.won,
                       }))}
-                    userId={user.id}
+                    userId={userId}
                   />
                 </Suspense>
               )}
@@ -261,6 +380,6 @@ export default async function JornadaPage({
       {!league && (
         <p className="text-sm text-neutral-500">Escolhe uma liga para ver os próximos jogos.</p>
       )}
-    </div>
+    </>
   );
 }

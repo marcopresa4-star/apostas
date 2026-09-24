@@ -4,6 +4,7 @@
 // back to typing the odd by hand.
 import { createClient } from "@/lib/supabase/server";
 import { eventOdds } from "@/lib/sofaOdds";
+import { ScraperOffline } from "@/lib/sofaRaw";
 
 const MINUTE_MS = 60_000;
 
@@ -17,7 +18,17 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const parsed = await eventOdds(supabase, user.id, id, MINUTE_MS).catch(() => null);
-  if (!parsed) return Response.json({ error: "scraper-offline" }, { status: 503 });
+  let parsed;
+  try {
+    parsed = await eventOdds(supabase, user.id, id, MINUTE_MS);
+  } catch (err) {
+    if (err instanceof ScraperOffline) {
+      return Response.json({ error: "scraper-offline" }, { status: 503 });
+    }
+    return Response.json({ error: "upstream" }, { status: 502 });
+  }
+  // Null means the game has no prices (too far out, uncovered league): an
+  // empty list, not an outage — the UI falls back to typing the odd by hand.
+  if (!parsed) return Response.json({ eventId: id, live: false, markets: [] });
   return Response.json(parsed, { headers: { "Cache-Control": "private, max-age=60" } });
 }

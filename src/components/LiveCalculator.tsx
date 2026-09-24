@@ -361,16 +361,26 @@ function Calculator({
       : []),
     ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key }))),
   ];
-  // The bookmaker's real odds by model key, for the automatic comparison.
+  // The bookmaker's real + opening odds by model key, for the automatic comparison.
   const realByKey: Record<string, number> = {};
+  const realOpenByKey: Record<string, number> = {};
   if (realOdds) {
     const byOddsKey: Record<string, number> = {};
-    for (const m of realOdds.markets) for (const c of m.choices) byOddsKey[c.key] = c.odd;
+    const openByOddsKey: Record<string, number> = {};
+    for (const m of realOdds.markets) {
+      for (const c of m.choices) {
+        byOddsKey[c.key] = c.odd;
+        if (c.open !== null && c.open !== undefined) openByOddsKey[c.key] = c.open;
+      }
+    }
     for (const m of oddMarkets) {
       if (!m.key) continue;
       const oddsKey = oddsKeyFor(m.key, homeName, awayName);
-      const odd = oddsKey ? byOddsKey[oddsKey] : undefined;
+      if (!oddsKey) continue;
+      const odd = byOddsKey[oddsKey];
       if (odd !== undefined) realByKey[m.key] = odd;
+      const open = openByOddsKey[oddsKey];
+      if (open !== undefined) realOpenByKey[m.key] = open;
     }
   }
 
@@ -710,7 +720,7 @@ function Calculator({
 
         <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
           É a aposta mais provável com pelo menos essa odd justa, e o número a verde é a odd que a casa teria de pagar para
-          valer a pena (a odd justa com a chance cortada, mais 5%). Testei este critério <span className="text-neutral-400">ao intervalo</span>{" "}
+          valer a pena (a odd justa com a chance cortada, mais margem: 3% no resultado e em ambas marcam, 8% nos golos). Testei este critério <span className="text-neutral-400">ao intervalo</span>{" "}
           em 6.062 jogos de 2025/26: a aposta principal que o modelo dava 60,5% aconteceu em 59,4% (com odd justa mínima de
           1,5); nos golos o modelo é otimista (dizia 58,9% e aconteceu 55,5%), por isso a chance é cortada mais. Sem os
           dados das equipas (valores típicos) o resultado foi praticamente igual (60,1%), porque perto do intervalo quase
@@ -725,7 +735,7 @@ function Calculator({
         ))}
       </div>
 
-      <OddChecker markets={oddMarkets} realByKey={realByKey} />
+      <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
         Parte dos golos que cada equipa devia marcar no jogo todo e tira a parte que já passou, dando mais peso à 2.ª

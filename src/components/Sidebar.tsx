@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signOut } from "@/app/(app)/actions";
+import SearchPalette from "./SearchPalette";
 
 const NAV_ITEMS = [
   {
     href: "/",
-    label: "Dashboard",
+    label: "Jogos",
     icon: "🏠",
     chip: "bg-emerald-500/15 text-emerald-400",
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
@@ -20,6 +21,14 @@ const NAV_ITEMS = [
     icon: "🧮",
     chip: "bg-amber-500/15 text-amber-400",
     active: "bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg shadow-amber-600/30",
+    adminOnly: true,
+  },
+  {
+    href: "/apostas",
+    label: "Apostas",
+    icon: "🎯",
+    chip: "bg-sky-500/15 text-sky-400",
+    active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
     adminOnly: true,
   },
 ];
@@ -81,11 +90,24 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const homeHref = "/";
   const visibleItems = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <>
+      <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       {/* Mobile top bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-neutral-800/80 bg-neutral-900/80 px-4 py-3 backdrop-blur-md md:hidden">
         <Link
@@ -147,6 +169,17 @@ export default function Sidebar({
               active={isActivePath(pathname, item.href)}
             />
           ))}
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-neutral-400 transition-all duration-200 hover:translate-x-0.5 hover:bg-neutral-800/80 hover:text-white"
+          >
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-800 text-sm transition-colors">
+              <span aria-hidden>🔍</span>
+            </span>
+            <span className="whitespace-nowrap">Pesquisar</span>
+            <kbd className="ml-auto rounded border border-neutral-700 px-1.5 text-[10px] text-neutral-500">⌘K</kbd>
+          </button>
         </nav>
         <div className="border-t border-neutral-800/80 p-3">
           {userEmail && (

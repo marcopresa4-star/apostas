@@ -8,7 +8,7 @@ import { buildStandings, formOf, ratings } from "@/lib/standings";
 import type { GoalTiming, OfficialStanding } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
-import { MIN_GAMES, SOLID_GAMES, VALUE_MARGIN, baseRates, recommend, type Pick } from "@/lib/recommendation";
+import { MIN_GAMES, SOLID_GAMES, baseRates, pickWhy, recommend, type Pick } from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
@@ -613,6 +613,19 @@ function ComboCard({
     const won = withHt.filter((g) => g.htGF! > g.htGA! && g.gf - g.htGF! > g.ga - g.htGA!).length;
     return pct(won, withHt.length);
   };
+  // Scored in both halves, from the team's own point of view (venue doesn't
+  // matter). Needs half-time scores like everything below.
+  const scoresBoth = (games: ComboGame[]): string => {
+    const withHt = games.filter((g) => g.htGF !== null && g.htGA !== null);
+    return pct(withHt.filter((g) => g.htGF! > 0 && g.gf - g.htGF! > 0).length, withHt.length);
+  };
+  const bothHalves = (games: ComboGame[]): string => {
+    const withHt = games.filter((g) => g.htGF !== null && g.htGA !== null);
+    return pct(
+      withHt.filter((g) => g.htGF! + g.htGA! > 0 && g.gf - g.htGF! + (g.ga - g.htGA!) > 0).length,
+      withHt.length
+    );
+  };
   const h2hGames = [...meetings.home, ...meetings.away];
   const rows: [string, string, string, string][] = [
     [
@@ -628,6 +641,18 @@ function ComboCard({
       share(h2hGames, (g) => btts(g) || over25(g)),
     ],
     ["Vence as 2 partes", halves(homeGames), halves(awayGames), `${halves(meetings.home)} casa · ${halves(meetings.away)} fora`],
+    [
+      "Golos nas 2 partes",
+      bothHalves(homeGames),
+      bothHalves(awayGames),
+      bothHalves(h2hGames),
+    ],
+    [
+      "Marca nas 2 partes",
+      scoresBoth(homeGames),
+      scoresBoth(awayGames),
+      `${scoresBoth(meetings.home)} casa · ${scoresBoth(meetings.away)} fora`,
+    ],
   ];
   return (
     <div className={CARD}>
@@ -738,6 +763,8 @@ function SuggestedBet({
   fragileGames,
   avg,
   realByKey,
+  realOpenByKey,
+  whyCtx,
 }: {
   picks: Pick[];
   few: boolean;
@@ -748,10 +775,23 @@ function SuggestedBet({
   fragileGames: number | null;
   // The bookmaker's real odds by model key, when the game is priced.
   realByKey?: Record<string, number>;
+  // Opening odds by model key, for the line movement readout.
+  realOpenByKey?: Record<string, number>;
+  // What the "why" sentence is built from (same numbers, never invented).
+  whyCtx?: { matches: PlayedMatch[]; home: string; away: string; prediction: Prediction };
 }) {
   const [main, ...others] = picks;
+  const steam = (key: string, current: number): string | null => {
+    const open = realOpenByKey?.[key];
+    if (open === undefined || open <= 1 || current <= 1) return null;
+    const move = ((open - current) / open) * 100;
+    if (Math.abs(move) < 3) return null;
+    return `abriu ${formatOdd(open)} ${move > 0 ? "↘" : "↗"} ${Math.abs(Math.round(move))}%`;
+  };
   const line = (pick: Pick) => {
     const real = realByKey?.[pick.key];
+    const why = whyCtx ? pickWhy(pick, whyCtx) : "";
+    const movement = real !== undefined ? steam(pick.key, real) : null;
     return (
       <p className="text-xs text-neutral-400">
         Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · {avg}{" "}
@@ -763,7 +803,11 @@ function SuggestedBet({
             <span className={`font-medium ${real >= pick.minOdd ? "text-emerald-400" : "text-red-400"}`}>
               {real >= pick.minOdd ? "compensa" : "não chega"}
             </span>
+            {movement && <span className="text-neutral-500"> · {movement}</span>}
           </>
+        )}
+        {why && (
+          <span className="mt-0.5 block text-[11px] leading-relaxed text-neutral-500">Porquê: {why}</span>
         )}
       </p>
     );
@@ -809,7 +853,7 @@ function SuggestedBet({
 
       <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
         Sem a odd real da casa não dá para saber se uma aposta compensa: só compensa se a odd oferecida for maior do que
-        a indicada (a odd justa mais {Math.round(VALUE_MARGIN * 100)}%). Compara no quadro em baixo. Acertar muitas vezes
+        a indicada (a odd justa com margem: 3% no resultado, 8% nos golos e em ambas marcam). Compara no quadro em baixo. Acertar muitas vezes
         não é o mesmo que ganhar dinheiro, porque os favoritos pagam pouco. Nos golos e em ambas marcam a chance está
         puxada para a {avg}, porque o modelo exagera nesses mercados.
       </p>
@@ -895,6 +939,7 @@ export default function MatchupReport({
   venueWeight,
   timing,
   realByKey,
+  realOpenByKey,
   tables,
 }: {
   matches: PlayedMatch[];
@@ -927,6 +972,8 @@ export default function MatchupReport({
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
   // The bookmaker's real odds by model key, when this exact game is priced.
   realByKey?: Record<string, number>;
+  // Opening odds by model key, for the line movement readout.
+  realOpenByKey?: Record<string, number>;
   // Official standings tables (overall first) for the mini-table: official
   // points with our ratings, instead of counting our own fixtures.
   tables?: { name: string; rows: OfficialStanding[] }[];
@@ -1052,7 +1099,7 @@ export default function MatchupReport({
   const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
   const few = minGames < MIN_GAMES;
   const fragile = !few && minGames < SOLID_GAMES;
-  const picks = few ? [] : recommend(prediction, baseRates(matches), home, away);
+  const picks = few ? [] : recommend(prediction, baseRates(matches), home, away, leagueRates(matches, now).firstHalfShare);
   // The suggestions first, priced with their own (pulled back) chance, so the
   // comparer opens on the suggested bet.
   const oddMarkets: OddMarket[] = [
@@ -1122,7 +1169,7 @@ export default function MatchupReport({
         />
       )}
 
-      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} />
+      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} realOpenByKey={realOpenByKey} whyCtx={{ matches, home, away, prediction }} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -1270,7 +1317,7 @@ export default function MatchupReport({
         </div>
       </div>
 
-      <OddChecker markets={oddMarkets} realByKey={realByKey} />
+      <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
         {international

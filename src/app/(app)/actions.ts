@@ -190,3 +190,148 @@ export async function removeWatchedMatch(id: string) {
   if (error) throw error;
   revalidateAll();
 }
+
+export type BetKindInput = "pre" | "watch" | "live";
+
+const BET_STATUSES = new Set(["open", "won", "lost", "void"]);
+
+function cleanText(text: unknown, max = 80): string {
+  return typeof text === "string" ? text.trim().slice(0, max) : "";
+}
+
+function cleanOdd(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value.replace(",", ".")) : Number(value);
+  return Number.isFinite(n) && n > 1 && n < 1000 ? Math.round(n * 100) / 100 : null;
+}
+
+export async function addBet(input: {
+  kind: BetKindInput;
+  home: unknown;
+  away: unknown;
+  league?: unknown;
+  marketKey: unknown;
+  marketLabel: unknown;
+  odd?: unknown;
+  sofascoreId?: unknown;
+  kickoff?: unknown;
+  targetOdd?: unknown;
+  targetMinute?: unknown;
+}) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+  if (input.kind !== "pre" && input.kind !== "watch" && input.kind !== "live") {
+    throw new Error("Tipo de aposta inválido.");
+  }
+  const home = cleanText(input.home);
+  const away = cleanText(input.away);
+  if (!home || !away) throw new Error("Indica as duas equipas.");
+  const marketKey = cleanText(input.marketKey, 24);
+  const marketLabel = cleanText(input.marketLabel);
+  if (!marketKey || !marketLabel) throw new Error("Escolhe o mercado.");
+  const odd = cleanOdd(input.odd);
+  if (odd === null) throw new Error("Odd inválida (tem de ser maior que 1).");
+  const sofaId = Number(input.sofascoreId);
+  const kickoff = cleanText(input.kickoff);
+  const kickoffAt = kickoff && !Number.isNaN(new Date(kickoff).getTime()) ? new Date(kickoff).toISOString() : null;
+  const targetMinute = Number(input.targetMinute);
+
+  const { error } = await supabase.from("bets").insert({
+    user_id: user.id,
+    kind: input.kind,
+    status: "open",
+    home_team: home,
+    away_team: away,
+    league_label: cleanText(input.league) || null,
+    market_key: marketKey,
+    market_label: marketLabel,
+    odd,
+    sofascore_id: Number.isInteger(sofaId) && sofaId > 0 ? sofaId : null,
+    kickoff: kickoffAt,
+    target_odd: cleanOdd(input.targetOdd),
+    target_minute: Number.isInteger(targetMinute) && targetMinute >= 0 && targetMinute <= 130 ? targetMinute : null,
+  });
+  if (error) throw error;
+  revalidatePath("/apostas");
+}
+
+export async function setBetStatus(id: string, status: "open" | "won" | "lost" | "void") {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+  if (!BET_STATUSES.has(status)) throw new Error("Estado inválido.");
+  const { error } = await supabase
+    .from("bets")
+    .update({ status, settled_at: status === "open" ? null : new Date().toISOString(), settled_auto: false })
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) throw error;
+  revalidatePath("/apostas");
+}
+
+// A watched game the user entered: it becomes a live bet.
+export async function enterWatchedBet(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+  const { error } = await supabase
+    .from("bets")
+    .update({ kind: "live" })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("kind", "watch")
+    .eq("status", "open");
+  if (error) throw error;
+  revalidatePath("/apostas");
+}
+
+export async function deleteBet(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+  const { error } = await supabase.from("bets").delete().eq("id", id).eq("user_id", user.id);
+  if (error) throw error;
+  revalidatePath("/apostas");
+}
+
+// Fix a placed bet (wrong odd or market): teams and kind stay, the rest can
+// change. Custom markets ("Outro") bring their own label.
+export async function updateBet(
+  id: string,
+  input: { marketKey: unknown; marketLabel: unknown; odd: unknown; league?: unknown; kickoff?: unknown }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Não autenticado.");
+  const marketKey = cleanText(input.marketKey, 24);
+  const marketLabel = cleanText(input.marketLabel);
+  if (!marketKey || !marketLabel) throw new Error("Escolhe o mercado.");
+  const odd = cleanOdd(input.odd);
+  if (odd === null) throw new Error("Odd inválida (tem de ser maior que 1).");
+  const kickoff = cleanText(input.kickoff);
+  const kickoffAt = kickoff && !Number.isNaN(new Date(kickoff).getTime()) ? new Date(kickoff).toISOString() : null;
+  const { error } = await supabase
+    .from("bets")
+    .update({
+      market_key: marketKey,
+      market_label: marketLabel,
+      odd,
+      league_label: cleanText(input.league) || null,
+      kickoff: kickoffAt,
+    })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("status", "open");
+  if (error) throw error;
+  revalidatePath("/apostas");
+}

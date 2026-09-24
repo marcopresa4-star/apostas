@@ -299,7 +299,7 @@ export default function SofaLiveTable({
                   <button
                     type="button"
                     onClick={() => togglePin(g)}
-                    title={isPinned ? "Desafixar do topo" : "Afixar no topo desta lista (só aqui, não vai para a Dashboard)"}
+                    title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
                     className={`text-sm transition ${isPinned ? "text-amber-400" : "text-neutral-700 hover:text-neutral-400"}`}
                   >
                     📌
@@ -336,8 +336,8 @@ export default function SofaLiveTable({
                 <td className="px-2 py-2.5">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
                 <td className="px-3 py-2.5 text-right whitespace-nowrap">
                   {added.has(g.id) ? (
-                    <Link href="/" title="Ver na Dashboard" className="text-xs font-medium text-emerald-400 hover:underline">
-                      ✓ Na Dashboard
+                    <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
+                      ✓ Nos Jogos
                     </Link>
                   ) : (
                     <button
@@ -354,10 +354,10 @@ export default function SofaLiveTable({
                           }
                         });
                       }}
-                      title="Passar para a Dashboard"
+                      title="Passar para os Jogos"
                       className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
                     >
-                      {pendingId === g.id ? "…" : "+ Dashboard"}
+                      {pendingId === g.id ? "…" : "+ Jogos"}
                     </button>
                   )}
                   <Link href={href} className="text-xs font-medium text-amber-400 hover:underline">

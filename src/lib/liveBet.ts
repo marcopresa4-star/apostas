@@ -85,7 +85,7 @@ export function suggestLive(
   const priced = (c: LiveCandidate): LivePick => ({
     ...c,
     fairOdd: fairOdd(c.p),
-    minOdd: fairOdd(c.p * haircut[c.group]) * (1 + VALUE_MARGIN),
+    minOdd: fairOdd(c.p * haircut[c.group]) * (1 + VALUE_MARGIN[c.group]),
   });
   const eligible = candidates.filter((c) => c.p < TOO_SURE && c.p >= TOO_UNLIKELY && fairOdd(c.p) >= opts.minOdd).map(priced);
   const best = new Map<LiveGroup, LivePick>();

@@ -1,9 +1,11 @@
 // Server read of SofaScore's real bookmaker odds, cached in Supabase like the
 // rest of the history. Finished games keep their (closing-ish) prices, so the
-// caller picks the TTL: about a minute live, days for settled games.
+// caller picks the TTL: about a minute live, days for settled games. Throws
+// ScraperOffline when the scraper is down; null when the game simply has no
+// prices (too far out, uncovered league).
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sofaRaw } from "./sofaRaw";
+import { ScraperOffline, sofaRaw } from "./sofaRaw";
 import { cacheGet, cacheSet } from "./sofaCache";
 import { parseOddsMarkets, type ParsedOdds } from "./oddsParse";
 
@@ -19,7 +21,8 @@ export async function eventOdds(
   let body: unknown;
   try {
     body = await sofaRaw<unknown>(`/event/${eventId}/odds/1/all`);
-  } catch {
+  } catch (err) {
+    if (err instanceof ScraperOffline) throw err;
     return null;
   }
   if (!body) return null;

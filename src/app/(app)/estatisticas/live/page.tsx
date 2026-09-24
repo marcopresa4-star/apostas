@@ -147,6 +147,21 @@ export default async function LivePage({
       "Valores típicos de uma liga (1,4 e 1,1 golos): não há dados destas equipas. Não dizem nada sobre a força de cada uma."
     );
   }
+  // A bare SofaScore link also resolves its league when mapped (search jumps
+  // land here): then the model's own numbers replace the typical ones above.
+  if (!chosen && sofaEventId !== null && user) {
+    const { prematchFor } = await import("@/lib/sofaPrematch");
+    const pre = await prematchFor(supabase, user.id, sofaEventId).catch(() => null);
+    if (pre && pre.fromModel) {
+      expected = { home: pre.home, away: pre.away, firstHalfShare: pre.firstHalfShare };
+      const label = LEAGUES.find((l) => l.code === pre.league)?.label ?? pre.league ?? "";
+      sourceLines.pop();
+      sourceLines.push(
+        `Golos esperados do modelo${label ? ` (${label})` : ""}, resolvidos pelo link do jogo.`,
+        "Usa os jogos das últimas 3 épocas da liga, dando mais peso aos recentes."
+      );
+    }
+  }
 
   // Without a game the calculator only shows typical figures, which say nothing
   // about any game: it opens on purpose, not by default.
@@ -175,7 +190,7 @@ export default async function LivePage({
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Um jogo a decorrer: cola o link do jogo no SofaScore (lido pelo scraper local, de minuto a minuto) ou escolhe um
-        dos jogos da tua Dashboard, e vê o que ainda pode acontecer, com a odd justa para comparares com a odd live da
+        dos teus jogos, e vê o que ainda pode acontecer, com a odd justa para comparares com a odd live da
         casa. Sem scraper ligado, escreve o resultado e o minuto à mão.
       </p>
 
@@ -183,7 +198,7 @@ export default async function LivePage({
 
       {dashGames.length > 0 && (
         <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold text-neutral-300">Os teus jogos da Dashboard</h2>
+          <h2 className="mb-2 text-sm font-semibold text-neutral-300">Os teus jogos</h2>
           <div className="flex flex-wrap gap-2">
             {dashGames.map((g) => (
               <Link
@@ -212,7 +227,7 @@ export default async function LivePage({
       )}
       {jogo !== "" && !dash && (
         <p className="mb-4 max-w-4xl text-xs text-amber-400">
-          Esse jogo já não está na Dashboard (já não tem apostas por decidir). Escolhe outro ou cola o link.
+          Esse jogo já não está nos Jogos (já não tem apostas por decidir). Escolhe outro ou cola o link.
         </p>
       )}
 
@@ -294,7 +309,7 @@ export default async function LivePage({
 
       {!showCalculator && (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-sm leading-relaxed text-neutral-500">
-          Ainda não escolheste nenhum jogo. Cola em cima o link do SofaScore, escolhe um da tua Dashboard ou escolhe as
+          Ainda não escolheste nenhum jogo. Cola em cima o link do SofaScore, escolhe um dos teus jogos ou escolhe as
           equipas à mão. Se só quiseres experimentar, podes abrir{" "}
           <Link href="/estatisticas/live?tipico=1" className="text-amber-400 hover:underline">
             a calculadora sem jogo

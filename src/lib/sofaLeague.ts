@@ -419,7 +419,7 @@ function clubTeamEvent(e: Json, uniqueId: number, seasonId: number): TeamSeasonG
   return null;
 }
 
-async function teamEventList(
+export async function teamEventList(
   supabase: SupabaseClient,
   userId: string,
   teamId: number,

@@ -133,20 +133,20 @@ export default function LiveSavedGames() {
                   (addedKeys.has(g.key) ? (
                     <Link
                       href="/"
-                      title="Ver na Dashboard"
+                      title="Ver nos Jogos"
                       className="rounded p-1 text-xs font-medium text-emerald-400 hover:underline"
                     >
-                      ✓ Na Dashboard
+                      ✓ Nos Jogos
                     </Link>
                   ) : (
                     <button
                       type="button"
                       disabled={pendingKey === g.key}
                       onClick={() => sendToDashboard(g)}
-                      title="Passar para a Dashboard"
+                      title="Passar para os Jogos"
                       className="rounded p-1 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
                     >
-                      {pendingKey === g.key ? "…" : "+ Dashboard"}
+                      {pendingKey === g.key ? "…" : "+ Jogos"}
                     </button>
                   ))}
                 <button
