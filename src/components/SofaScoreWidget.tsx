@@ -114,6 +114,22 @@ interface Prematch {
   fromModel: boolean;
 }
 
+// Each side's chance of scoring again, from the pre-match expectation and the
+// live state. Shared by the card and the pressure alert below it.
+function againProbs(pre: Prematch, state: LiveGameState): { home: number; away: number; none: number } {
+  const p = predictLive({
+    lambdaHome: pre.home,
+    lambdaAway: pre.away,
+    firstHalfShare: pre.firstHalfShare,
+    minute: state.minute ?? 0,
+    homeGoals: state.homeGoals ?? 0,
+    awayGoals: state.awayGoals ?? 0,
+    redsHome: state.reds.home,
+    redsAway: state.reds.away,
+  });
+  return { home: p.scoresAgain.home, away: p.scoresAgain.away, none: 1 - p.nextGoal.none };
+}
+
 // The goal alert: chance of at least one more goal (live model on the
 // pre-match expectation), who has been pressing, and why — each reason only
 // appears when its data exists.
@@ -133,6 +149,7 @@ function GoalAlert({
   awayName: string;
 }) {
   const [pre, setPre] = useState<Prematch | null>(null);
+  const [muted, setMuted] = useState<boolean>(() => (typeof window === "undefined" ? false : isMuted(eventId)));
   useEffect(() => {
     let stop = false;
     setPre(null);
@@ -149,21 +166,8 @@ function GoalAlert({
 
   if (!pre || (state.phase !== "live" && state.phase !== "halftime")) return null;
   const minute = state.minute ?? 0;
-  const h = state.homeGoals ?? 0;
-  const a = state.awayGoals ?? 0;
-  const p = predictLive({
-    lambdaHome: pre.home,
-    lambdaAway: pre.away,
-    firstHalfShare: pre.firstHalfShare,
-    minute,
-    homeGoals: h,
-    awayGoals: a,
-    redsHome: state.reds.home,
-    redsAway: state.reds.away,
-  });
-  const pGoal = 1 - p.nextGoal.none;
-  const homeAgain = p.scoresAgain.home;
-  const awayAgain = p.scoresAgain.away;
+  const { home: homeAgain, away: awayAgain, none: pGoalNone } = againProbs(pre, state);
+  const pGoal = 1 - pGoalNone;
   const pct = (v: number) => Math.round(v * 100);
   const hotSide = homeAgain >= 0.7 ? homeName : awayAgain >= 0.7 ? awayName : null;
   const hot = hotSide !== null;
@@ -186,9 +190,19 @@ function GoalAlert({
 
   return (
     <div className={`border-b border-neutral-800 px-4 py-3 ${hot ? "bg-red-950/30" : ""}`}>
-      <p className="mb-1.5 text-xs font-semibold text-neutral-300">
-        {hot ? `🔥 Alerta de golo (${hotSide})` : "⚽ Quem marca"}
-      </p>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-neutral-300">
+          {hot ? `🔥 Alerta de golo (${hotSide})` : "⚽ Quem marca"}
+        </p>
+        <button
+          type="button"
+          onClick={() => setMuted(toggleMuted(eventId))}
+          title={muted ? "Ligar alertas deste jogo" : "Calar este jogo (os outros continuam)"}
+          className={`text-xs transition ${muted ? "text-neutral-600 hover:text-neutral-400" : "text-amber-300 hover:text-amber-200"}`}
+        >
+          {muted ? "🔕" : "🔔"}
+        </button>
+      </div>
       {(
         [
           [homeName, homeAgain, "bg-sky-500", "text-sky-300"],
@@ -291,6 +305,40 @@ function alertUser(title: string, body: string, high: boolean): void {
   } catch {
     // Notifications blocked: the beep already fired.
   }
+}
+
+// Per-game mute (on top of the global toggle): a game with six goals beeps
+// six times unless calmed. Stored in this browser.
+const MUTED_KEY = "apostas:mutedGames";
+
+function mutedIds(): Set<number> {
+  try {
+    const list: unknown = JSON.parse(window.localStorage.getItem(MUTED_KEY) ?? "[]");
+    return new Set(Array.isArray(list) ? list.filter((n): n is number => typeof n === "number") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function isMuted(eventId: number): boolean {
+  try {
+    return mutedIds().has(eventId);
+  } catch {
+    return false;
+  }
+}
+
+export function toggleMuted(eventId: number): boolean {
+  const next = mutedIds();
+  const muted = !next.has(eventId);
+  if (muted) next.add(eventId);
+  else next.delete(eventId);
+  try {
+    window.localStorage.setItem(MUTED_KEY, JSON.stringify([...next]));
+  } catch {
+    // Private mode: just doesn't persist.
+  }
+  return muted;
 }
 
 interface LineupPlayer {
@@ -827,28 +875,42 @@ export default function SofaScoreWidget({
 
   const homeName = home || state?.homeName || "Casa";
   const awayName = away || state?.awayName || "Fora";
-  // Alerts compare each poll against the previous one: goals, red cards,
-  // kickoff and full time. The first reading only sets the baseline.
-  const prevAlert = useRef<{ score: string; redsHome: number; redsAway: number; phase: string } | null>(null);
+  // Alerts compare each poll against the previous one: goals (and who scored
+  // them), red cards, kickoff and full time. The first reading only sets the
+  // baseline.
+  const prevAlert = useRef<{
+    score: string;
+    homeGoals: number | null;
+    awayGoals: number | null;
+  } | null>(null);
   useEffect(() => {
     if (!state) return;
     const score =
       state.homeGoals !== null && state.awayGoals !== null ? `${state.homeGoals}–${state.awayGoals}` : "?";
     const prev = prevAlert.current;
-    prevAlert.current = { score, redsHome: state.reds.home, redsAway: state.reds.away, phase: state.phase };
-    if (!prev || !alertsOn()) return;
+    prevAlert.current = { score, homeGoals: state.homeGoals, awayGoals: state.awayGoals };
+    if (!prev || !alertsOn() || isMuted(eventId)) return;
     const title = `${homeName} ${score === "?" ? "" : score} ${awayName}`.trim();
-    if (score !== "?" && score !== prev.score && prev.score !== "?") {
-      alertUser(`⚽ Golo! ${title}`, `Novo resultado no jogo que estás a seguir.`, true);
-    } else if (state.reds.home > prev.redsHome || state.reds.away > prev.redsAway) {
-      const who = state.reds.home > prev.redsHome ? homeName : awayName;
-      alertUser(`🟥 Vermelho (${who})`, `Expulsão no jogo que estás a seguir.`, false);
-    } else if (state.phase === "live" && prev.phase !== "live") {
-      alertUser(`▶ Começou: ${homeName} vs ${awayName}`, `O jogo começou.`, false);
-    } else if (state.phase === "finished" && prev.phase !== "finished") {
-      alertUser(`⏱ Fim: ${title}`, `Resultado final no jogo que estás a seguir.`, false);
+    // Only goals alert: kickoff, halftime, full time, reds and pressure
+    // crossings stay silent by choice.
+    if (
+      score !== "?" &&
+      prev.score !== "?" &&
+      score !== prev.score &&
+      state.homeGoals !== null &&
+      state.awayGoals !== null &&
+      prev.homeGoals !== null &&
+      prev.awayGoals !== null
+    ) {
+      const scorer =
+        state.homeGoals > prev.homeGoals ? homeName : state.awayGoals > prev.awayGoals ? awayName : null;
+      alertUser(
+        scorer ? `⚽ Golo ${scorer}! ${title}` : `⚽ Golo! ${title}`,
+        scorer ? `Marcou ${scorer}.` : `Novo resultado no jogo que estás a seguir.`,
+        true
+      );
     }
-  }, [state, homeName, awayName]);
+  }, [state, homeName, awayName, eventId]);
   const score =
     state && state.homeGoals !== null && state.awayGoals !== null
       ? `${state.homeGoals}–${state.awayGoals}`
