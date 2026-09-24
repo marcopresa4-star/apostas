@@ -805,6 +805,17 @@ export default function SofaScoreWidget({
       return false;
     }
   });
+  // Some tracker views come out cramped (SofaScore switches the map mode on
+  // its own and its inside cannot be restyled): the map can hide, keeping the
+  // charts below. Persisted in this browser.
+  const [showMap, setShowMap] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.localStorage.getItem("apostas:showmap") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const [lineups, setLineups] = useState<{
     home: LineupSide | null;
     away: LineupSide | null;
@@ -988,7 +999,7 @@ export default function SofaScoreWidget({
         />
       )}
 
-      {hasTracker !== false && (
+      {hasTracker !== false && showMap && (
         <div className="relative overflow-hidden border-b border-neutral-800 bg-black" style={{ perspective: "1100px" }}>
           <iframe
             src={`https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`}
@@ -1027,6 +1038,21 @@ export default function SofaScoreWidget({
           >
             ⤢ 3D
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                window.localStorage.setItem("apostas:showmap", "0");
+              } catch {
+                // Private mode: preference just doesn't persist.
+              }
+              setShowMap(false);
+            }}
+            title="Esconder o mapa (mantém o resto)"
+            className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-neutral-400 ring-1 ring-neutral-700 backdrop-blur-sm transition hover:text-neutral-200"
+          >
+            Esconder mapa
+          </button>
           {state?.phase === "live" && (
             <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-red-300 ring-1 ring-red-500/40 backdrop-blur-sm">
               <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
@@ -1036,6 +1062,24 @@ export default function SofaScoreWidget({
         </div>
       )}
 
+      {hasTracker !== false && !showMap && (
+        <div className="border-b border-neutral-800 px-4 py-2 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                window.localStorage.setItem("apostas:showmap", "1");
+              } catch {
+                // Private mode: preference just doesn't persist.
+              }
+              setShowMap(true);
+            }}
+            className="text-[11px] font-medium text-neutral-500 hover:text-neutral-300 hover:underline"
+          >
+            🗺 Mostrar mapa
+          </button>
+        </div>
+      )}
       {momentum && momentum.length > 0 && (
         <div>
           <MomentumChart points={momentum} home={homeName} away={awayName} minute={state?.minute ?? null} />

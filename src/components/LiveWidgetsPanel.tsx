@@ -61,14 +61,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
   );
   const [alerts, setAlerts] = useState<boolean>(() => typeof window !== "undefined" && alertsOn());
 
-  async function toggleAlerts() {
-    if (!alerts && "Notification" in window && Notification.permission === "default") {
-      try {
-        await Notification.requestPermission();
-      } catch {
-        // Denied or dismissed: sound alerts still work.
-      }
-    }
+  function toggleAlerts() {
     setAlerts((v) => {
       const next = !v;
       try {
@@ -168,7 +161,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
           <button
             type="button"
             onClick={() => void toggleAlerts()}
-            title={alerts ? "Desligar alertas de golos" : "Ligar alertas de golos (som + notificação)"}
+            title={alerts ? "Desligar alerta de golo (som)" : "Ligar alerta de golo (som)"}
             className={`text-xs font-medium transition ${
               alerts ? "text-amber-300 hover:text-amber-200" : "text-neutral-500 hover:text-neutral-300"
             }`}
