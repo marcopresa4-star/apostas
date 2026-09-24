@@ -357,12 +357,21 @@ async function CompararBody({
   return (
     <>
       {useSofaIntl && sofaMeta && (
-        <p className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
-          <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {sofaMeta.games} jogos nos
-          últimos 8 anos{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
-          {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."} Campo
-          neutro estimado pelo torneio (sem recinto nos dados).
-        </p>
+        <div className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
+          <p>
+            <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {sofaMeta.games} jogos nos
+            últimos 8 anos{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}.
+            Campo neutro estimado pelo torneio (sem recinto nos dados). Clubes, olímpicas e regiões ficam de fora sozinhos.
+          </p>
+          {sofaMeta.unlinked.length > 0 && (
+            <details className="mt-1">
+              <summary className="cursor-pointer text-amber-300/90 hover:underline">
+                Grafias por ligar no Mapa ({sofaMeta.unlinked.length})
+              </summary>
+              <p className="mt-1 text-neutral-400">{sofaMeta.unlinked.join(", ")}.</p>
+            </details>
+          )}
+        </div>
       )}
       {useSofa && sofaMeta && (
         <p className="mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">

@@ -580,6 +580,83 @@ function VenueGoalsCard({
   );
 }
 
+// Combined markets per team and head to head: BTTS and over 2.5, BTTS or
+// over 2.5, and winning both halves (needs half-time scores: games without
+// them don't count). Teams over their last 10 games, H2H over the meetings.
+interface ComboGame {
+  gf: number;
+  ga: number;
+  htGF: number | null;
+  htGA: number | null;
+}
+
+function ComboCard({
+  home,
+  away,
+  homeGames,
+  awayGames,
+  meetings,
+}: {
+  home: string;
+  away: string;
+  homeGames: ComboGame[];
+  awayGames: ComboGame[];
+  meetings: { home: ComboGame[]; away: ComboGame[] };
+}) {
+  const pct = (n: number, d: number): string => (d === 0 ? "–" : `${Math.round((n / d) * 100)}%`);
+  const btts = (g: ComboGame): boolean => g.gf > 0 && g.ga > 0;
+  const over25 = (g: ComboGame): boolean => g.gf + g.ga > 2.5;
+  const share = (games: ComboGame[], test: (g: ComboGame) => boolean): string =>
+    pct(games.filter(test).length, games.length);
+  const halves = (games: ComboGame[]): string => {
+    const withHt = games.filter((g) => g.htGF !== null && g.htGA !== null);
+    const won = withHt.filter((g) => g.htGF! > g.htGA! && g.gf - g.htGF! > g.ga - g.htGA!).length;
+    return pct(won, withHt.length);
+  };
+  const h2hGames = [...meetings.home, ...meetings.away];
+  const rows: [string, string, string, string][] = [
+    [
+      "Ambas marcam e +2,5",
+      share(homeGames, (g) => btts(g) && over25(g)),
+      share(awayGames, (g) => btts(g) && over25(g)),
+      share(h2hGames, (g) => btts(g) && over25(g)),
+    ],
+    [
+      "Ambas marcam ou +2,5",
+      share(homeGames, (g) => btts(g) || over25(g)),
+      share(awayGames, (g) => btts(g) || over25(g)),
+      share(h2hGames, (g) => btts(g) || over25(g)),
+    ],
+    ["Vence as 2 partes", halves(homeGames), halves(awayGames), `${halves(meetings.home)} casa · ${halves(meetings.away)} fora`],
+  ];
+  return (
+    <div className={CARD}>
+      <h3 className="mb-1 text-sm font-semibold text-neutral-300">Combinados</h3>
+      <p className="mb-2 text-[11px] text-neutral-500">
+        Últimos 10 jogos de cada uma; no confronto, todos os jogos. As 2 partes só contam com intervalo nos dados.
+      </p>
+      <div className="grid grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] gap-x-2 text-xs tabular-nums">
+        <span />
+        {[home, away, "Direto"].map((label) => (
+          <span key={label} className="truncate px-1 py-1 text-center text-[11px] font-semibold text-neutral-400">
+            {label}
+          </span>
+        ))}
+        {rows.map(([label, a, b, c]) => (
+          <Fragment key={label}>
+            <span className="py-1 pr-1 leading-tight text-neutral-400">{label}</span>
+            {[a, b, c].map((v, i) => (
+              <span key={i} className="px-1 py-1 text-center font-medium text-neutral-100">
+                {v}
+              </span>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // What was adjusted by hand and what it did to the expected goals.
 function AdjustmentsCard({
   home,
@@ -954,6 +1031,24 @@ export default function MatchupReport({
   const homeCurve = strengthCurve(home);
   const awayCurve = strengthCurve(away);
 
+  // Combined markets need half times too: last 10 games per side plus the
+  // meetings from each side's point of view.
+  const toCombo = (m: PlayedMatch, team: string): ComboGame => {
+    const isHome = m.team1 === team;
+    return {
+      gf: isHome ? m.ft[0] : m.ft[1],
+      ga: isHome ? m.ft[1] : m.ft[0],
+      htGF: m.ht ? (isHome ? m.ht[0] : m.ht[1]) : null,
+      htGA: m.ht ? (isHome ? m.ht[1] : m.ht[0]) : null,
+    };
+  };
+  const comboOf = (team: string): ComboGame[] =>
+    [...history, ...matches]
+      .filter((m) => m.team1 === team || m.team2 === team)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10)
+      .map((m) => toCombo(m, team));
+
   const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
   const few = minGames < MIN_GAMES;
   const fragile = !few && minGames < SOLID_GAMES;
@@ -1097,6 +1192,14 @@ export default function MatchupReport({
         away={away}
         homeGames={gamesOf(matches, home)}
         awayGames={gamesOf(matches, away)}
+      />
+
+      <ComboCard
+        home={home}
+        away={away}
+        homeGames={comboOf(home)}
+        awayGames={comboOf(away)}
+        meetings={{ home: meetings.map((m) => toCombo(m, home)), away: meetings.map((m) => toCombo(m, away)) }}
       />
 
       {standingsLines.length > 0 && (

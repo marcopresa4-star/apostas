@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { activeTeams, isoDaysAgo } from "./internationalData";
 import type { IntlGame } from "./internationalModel";
 import { loadMaps, nationalGames } from "./sofaHistory";
+import { slugify } from "./slugify";
 
 export interface SofaIntl {
   games: IntlGame[];
@@ -20,7 +21,8 @@ export async function loadSofaInternational(
   userId: string,
   now: Date
 ): Promise<SofaIntl | null> {
-  const maps = (await loadMaps(supabase, userId, "team")).filter((m) => m.name_key.startsWith("int:"));
+  const allMaps = await loadMaps(supabase, userId, "team");
+  const maps = allMaps.filter((m) => m.name_key.startsWith("int:"));
   if (maps.length === 0) return null;
   const since = isoDaysAgo(now, 15 * 365);
 
@@ -33,6 +35,20 @@ export async function loadSofaInternational(
     return name;
   };
 
+  // Not senior men's national sides, so out of the model (and mostly out of
+  // the unlinked list): clubs (matched against every club link), Olympic and
+  // other lettered sides, and exhibition regions.
+  const clubNames = new Set(
+    allMaps.filter((m) => !m.name_key.startsWith("int:") && m.sofascore_id > 0).map((m) => slugify(m.name))
+  );
+  const NON_SENIOR = /olympic|women|feminino|U-?\d{1,2}\b/i;
+  const SECOND_TEAM = / [ABU]\d*$/;
+  const REGIONS = new Set(["basque-country", "catalunya", "catalonia", "galicia", "corsica", "sicily"]);
+  const outOfScope = (name: string): boolean => {
+    const slug = slugify(name);
+    return clubNames.has(slug) || NON_SENIOR.test(name) || SECOND_TEAM.test(name) || REGIONS.has(slug);
+  };
+
   const seen = new Map<number, IntlGame>();
   await Promise.all(
     maps.map(async (m) => {
@@ -40,6 +56,7 @@ export async function loadSofaInternational(
       const games = await nationalGames(m.sofascore_id, since, 20, { supabase, userId }).catch(() => []);
       for (const g of games) {
         if (seen.has(g.id)) continue;
+        if (outOfScope(g.home) || outOfScope(g.away)) continue;
         seen.set(g.id, {
           date: g.date,
           home: convert(g.home),
