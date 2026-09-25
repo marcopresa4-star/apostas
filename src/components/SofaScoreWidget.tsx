@@ -149,7 +149,10 @@ function GoalAlert({
   awayName: string;
 }) {
   const [pre, setPre] = useState<Prematch | null>(null);
-  const [muted, setMuted] = useState<boolean>(() => (typeof window === "undefined" ? false : isMuted(eventId)));
+  const [muted, setMuted] = useState<boolean>(false);
+  useEffect(() => {
+    setMuted(isMuted(eventId));
+  }, [eventId]);
   useEffect(() => {
     let stop = false;
     setPre(null);
@@ -819,26 +822,21 @@ export default function SofaScoreWidget({
   const [stats, setStats] = useState<StatRow[] | null>(null);
   const [xg, setXg] = useState<XgShot[] | null>(null);
   // Fake-3D tilt of the 2D tracker (the embed is cross-origin: its inside
-  // cannot be re-rendered, only tilted). Persisted in this browser.
-  const [tilt, setTilt] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("apostas:pitch3d") === "1";
-    } catch {
-      return false;
-    }
-  });
+  // cannot be re-rendered, only tilted). Persisted in this browser, read after
+  // mount so the server render matches (hydration).
+  const [tilt, setTilt] = useState<boolean>(false);
   // Some tracker views come out cramped (SofaScore switches the map mode on
   // its own and its inside cannot be restyled): the map can hide, keeping the
-  // charts below. Persisted in this browser.
-  const [showMap, setShowMap] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
+  // charts below. Same hydration rule as above.
+  const [showMap, setShowMap] = useState<boolean>(true);
+  useEffect(() => {
     try {
-      return window.localStorage.getItem("apostas:showmap") !== "0";
+      setTilt(window.localStorage.getItem("apostas:pitch3d") === "1");
+      setShowMap(window.localStorage.getItem("apostas:showmap") !== "0");
     } catch {
-      return true;
+      // Private mode: preferences just don't persist.
     }
-  });
+  }, []);
   const [lineups, setLineups] = useState<{
     home: LineupSide | null;
     away: LineupSide | null;

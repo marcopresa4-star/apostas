@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import type { Summary } from "@/lib/footballModel";
 import { addWatchedMatch } from "@/app/(app)/actions";
@@ -137,12 +137,14 @@ export default function SofaLiveTable({
   const [added, setAdded] = useState<Set<number>>(new Set());
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
-  const [favLeagues, setFavLeagues] = useState<Set<string>>(() =>
-    typeof window === "undefined" ? new Set() : loadSet(FAV_LEAGUES_KEY)
-  );
-  const [pinned, setPinned] = useState<Set<string>>(() =>
-    typeof window === "undefined" ? new Set() : loadSet(PINNED_GAMES_KEY)
-  );
+  // Browser-only preferences hydrate after mount: reading them in the
+  // initializer would disagree with the server and break hydration.
+  const [favLeagues, setFavLeagues] = useState<Set<string>>(new Set());
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setFavLeagues(loadSet(FAV_LEAGUES_KEY));
+    setPinned(loadSet(PINNED_GAMES_KEY));
+  }, []);
   const onSort = (key: SortKey) => {
     if (sortKey === key) setDir((d) => (d === 1 ? -1 : 1));
     else {

@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { addBet } from "@/app/(app)/actions";
 import { MARKET_OPTIONS, splitLineKey, validAsianLine, type BetKind } from "@/lib/bets";
 import { parseSofascoreId } from "@/lib/sofascore";
+import { lisbonISOFromInput, lisbonWallInput } from "@/lib/lisbonTime";
 
 const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-amber-500";
@@ -30,13 +31,7 @@ export default function BetForm({ kind }: { kind: BetKind }) {
   const leagueRef = useRef<HTMLInputElement>(null);
   const kickoffRef = useRef<HTMLInputElement>(null);
 
-  // "2026-10-10T17:00:00.000Z" -> "2026-10-10T18:00" in this browser's time.
-  const toLocalInput = (iso: string): string => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
+
 
   const lookup = (link: string) => {
     const id = parseSofascoreId(link);
@@ -56,7 +51,7 @@ export default function BetForm({ kind }: { kind: BetKind }) {
         if (homeRef.current) homeRef.current.value = meta.home;
         if (awayRef.current) awayRef.current.value = meta.away;
         if (leagueRef.current && !leagueRef.current.value) leagueRef.current.value = meta.tournament;
-        if (kickoffRef.current && meta.kickoff) kickoffRef.current.value = toLocalInput(meta.kickoff);
+        if (kickoffRef.current && meta.kickoff) kickoffRef.current.value = lisbonWallInput(meta.kickoff);
         const when = meta.kickoff
           ? new Date(meta.kickoff).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
           : "";
@@ -64,6 +59,13 @@ export default function BetForm({ kind }: { kind: BetKind }) {
       })
       .catch(() => setPreview("Não consegui ler o jogo. Preenche à mão."))
       .finally(() => setLookingUp(false));
+  };
+
+  // datetime-local carries no zone: the form holds Lisbon wall time, and the
+  // server runs in UTC, so the instant is fixed here, explicitly.
+  const kickoffISO = (form: FormData): string => {
+    const raw = String(form.get("kickoff") ?? "");
+    return lisbonISOFromInput(raw) ?? raw;
   };
 
   const submit = (form: FormData) => {
@@ -107,7 +109,7 @@ export default function BetForm({ kind }: { kind: BetKind }) {
           marketLabel,
           odd: form.get("odd"),
           sofascoreId: id ?? undefined,
-          kickoff: form.get("kickoff") ?? undefined,
+          kickoff: kickoffISO(form) || undefined,
           targetOdd: form.get("target_odd") ?? undefined,
           targetMinute: form.get("target_minute") ?? undefined,
         });

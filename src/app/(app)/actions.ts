@@ -238,6 +238,7 @@ export async function addBet(input: {
   const kickoffAt = kickoff && !Number.isNaN(new Date(kickoff).getTime()) ? new Date(kickoff).toISOString() : null;
   const targetMinute = Number(input.targetMinute);
 
+  const sofaIdClean = Number.isInteger(sofaId) && sofaId > 0 ? sofaId : null;
   const { error } = await supabase.from("bets").insert({
     user_id: user.id,
     kind: input.kind,
@@ -248,12 +249,17 @@ export async function addBet(input: {
     market_key: marketKey,
     market_label: marketLabel,
     odd,
-    sofascore_id: Number.isInteger(sofaId) && sofaId > 0 ? sofaId : null,
+    sofascore_id: sofaIdClean,
     kickoff: kickoffAt,
     target_odd: cleanOdd(input.targetOdd),
     target_minute: Number.isInteger(targetMinute) && targetMinute >= 0 && targetMinute <= 130 ? targetMinute : null,
   });
   if (error) throw error;
+  // Live bets watch their game: same link straight into the Jogos board
+  // (duplicates refused there).
+  if (input.kind === "live" && sofaIdClean) {
+    await addWatchedMatch(home, away, null, null, `id:${sofaIdClean}`).catch(() => {});
+  }
   revalidatePath("/apostas");
 }
 
@@ -306,7 +312,7 @@ export async function deleteBet(id: string) {
 // change. Custom markets ("Outro") bring their own label.
 export async function updateBet(
   id: string,
-  input: { marketKey: unknown; marketLabel: unknown; odd: unknown; league?: unknown; kickoff?: unknown }
+  input: { marketKey: unknown; marketLabel: unknown; odd: unknown; league?: unknown; kickoff?: unknown; kind?: unknown }
 ) {
   const supabase = await createClient();
   const {
@@ -320,6 +326,12 @@ export async function updateBet(
   if (odd === null) throw new Error("Odd inválida (tem de ser maior que 1).");
   const kickoff = cleanText(input.kickoff);
   const kickoffAt = kickoff && !Number.isNaN(new Date(kickoff).getTime()) ? new Date(kickoff).toISOString() : null;
+  const kind = cleanText(input.kind, 12);
+  if (kind !== "" && kind !== "pre" && kind !== "watch" && kind !== "live") {
+    throw new Error("Tipo de aposta inválido.");
+  }
+  // Editing reopens the bet (status open, hand-touched): the automatic
+  // check settles it again with the fixed values on the next load.
   const { error } = await supabase
     .from("bets")
     .update({
@@ -328,10 +340,13 @@ export async function updateBet(
       odd,
       league_label: cleanText(input.league) || null,
       kickoff: kickoffAt,
+      ...(kind !== "" ? { kind } : {}),
+      status: "open",
+      settled_auto: false,
+      settled_at: null,
     })
     .eq("id", id)
-    .eq("user_id", user.id)
-    .eq("status", "open");
+    .eq("user_id", user.id);
   if (error) throw error;
   revalidatePath("/apostas");
 }

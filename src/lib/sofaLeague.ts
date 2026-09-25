@@ -77,9 +77,13 @@ export async function loadSofaLeague(
   supabase: SupabaseClient,
   userId: string,
   code: string,
-  options: { history?: boolean; fixtures?: boolean } = {}
+  options: { history?: boolean; fixtures?: boolean; shots?: boolean } = {}
 ): Promise<SofaLeague | null> {
   const wantFixtures = options.fixtures ?? true;
+  // The live board only needs results for form chips: skipping per-event
+  // shot reads (hundreds of them on a cold cache) makes it dramatically
+  // faster. Everything else keeps shots (they feed team strength).
+  const wantShots = options.shots ?? true;
   const maps = await loadMaps(supabase, userId, "tournament");
   const map = maps.find((m) => m.name_key === code);
   if (!map) return null;
@@ -157,7 +161,7 @@ export async function loadSofaLeague(
   // The model reads the last three seasons with games.
   const wanted = seasons.slice(currentIdx, currentIdx + 3);
   const matchLists = await Promise.all(
-    wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, true).catch(() => [] as PlayedMatch[]))
+    wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, wantShots).catch(() => [] as PlayedMatch[]))
   );
   const seenMatch = new Set(
     matchLists.flat().map((m) => `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`)

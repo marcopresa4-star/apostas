@@ -5,16 +5,28 @@ import { useEffect, useState, useTransition } from "react";
 import { deleteBet, enterWatchedBet, setBetStatus, updateBet } from "@/app/(app)/actions";
 import { useNow } from "@/lib/useNow";
 import { KIND_LABEL, MARKET_OPTIONS, STATUS_LABEL, oddText, splitLineKey, validAsianLine, type Bet } from "@/lib/bets";
+import { lisbonISOFromInput, lisbonWallInput } from "@/lib/lisbonTime";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-// Countdown to kickoff (HH:MM:SS). Past kickoff: just says so — the page
-// cannot know the live minute from here.
+// Kickoff display always in Lisbon time: the server renders in UTC, so a
+// bare toLocaleString disagrees with the browser by an hour.
+export function kickoffText(kickoff: string): string {
+  return new Date(kickoff).toLocaleString("pt-PT", {
+    timeZone: "Europe/Lisbon",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// Countdown to kickoff (HH:MM:SS).
 export function Countdown({ kickoff }: { kickoff: string }) {
   const now = useNow(1000);
   if (!now) return null;
   const ms = new Date(kickoff).getTime() - now.getTime();
-  if (!Number.isFinite(ms) || ms <= 0) return <span className="font-semibold text-red-400">A decorrer?</span>;
+  if (!Number.isFinite(ms) || ms <= 0) return null;
   const s = Math.floor(ms / 1000);
   return (
     <span className="font-semibold tabular-nums text-red-400">
@@ -155,7 +167,8 @@ function EditForm({ bet, onDone }: { bet: Bet; onDone: () => void }) {
           marketLabel,
           odd: form.get("odd"),
           league: form.get("league"),
-          kickoff: form.get("kickoff"),
+          kickoff: lisbonISOFromInput(String(form.get("kickoff") ?? "")) ?? undefined,
+          kind: form.get("kind"),
         });
         onDone();
       } catch (err) {
@@ -184,11 +197,16 @@ function EditForm({ bet, onDone }: { bet: Bet; onDone: () => void }) {
         <input name="line" defaultValue={baseLine} inputMode="decimal" required placeholder="-1,5" className={input} />
       )}
       <div className="grid grid-cols-2 gap-1.5">
+        <select name="kind" defaultValue={bet.kind} className={input}>
+          <option value="pre">Pré-jogo</option>
+          <option value="watch">A vigiar</option>
+          <option value="live">Live</option>
+        </select>
         <input name="league" defaultValue={bet.league_label ?? ""} maxLength={80} placeholder="Liga" className={input} />
         <input
           name="kickoff"
           type="datetime-local"
-          defaultValue={bet.kickoff ? bet.kickoff.slice(0, 16) : ""}
+          defaultValue={bet.kickoff ? lisbonWallInput(bet.kickoff) : ""}
           className={input}
         />
       </div>
@@ -271,8 +289,13 @@ export function BetCard({ bet }: { bet: Bet }) {
       <div className="mt-1.5 flex items-center justify-between gap-2">
         {bet.kickoff ? (
           <p className="text-[11px] text-neutral-500">
-            {new Date(bet.kickoff).toLocaleString("pt-PT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{" "}
-            · <Countdown kickoff={bet.kickoff} />
+            {kickoffText(bet.kickoff)}{" "}
+            {bet.status === "open" &&
+              (new Date(bet.kickoff).getTime() > Date.now() ? (
+                <Countdown kickoff={bet.kickoff} />
+              ) : (
+                <span>· começou</span>
+              ))}
           </p>
         ) : (
           <span />
@@ -281,7 +304,7 @@ export function BetCard({ bet }: { bet: Bet }) {
       </div>
       <div className="mt-2">
         <RowButtons bet={bet} watch={bet.kind === "watch" && bet.status === "open"} />
-        {bet.status === "open" && !editing && (
+        {!editing && (
           <button
             type="button"
             onClick={() => setEditing(true)}

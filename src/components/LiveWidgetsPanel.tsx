@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useNow } from "@/lib/useNow";
 import { parseSofascoreId } from "@/lib/sofascore";
 import type { LiveGameState } from "@/lib/sportscoreLive";
@@ -56,10 +56,15 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
   const [isPending, startTransition] = useTransition();
   // Nothing renders until the clock is ready, so reading storage here can
   // never disagree with the server's (empty) output.
-  const [order, setOrder] = useState<string[]>(() =>
-    typeof window === "undefined" ? [] : loadOrder()
-  );
-  const [alerts, setAlerts] = useState<boolean>(() => typeof window !== "undefined" && alertsOn());
+  // Browser-only order hydrates after mount (see table comment).
+  const [order, setOrder] = useState<string[]>([]);
+  useEffect(() => {
+    setOrder(loadOrder());
+  }, []);
+  const [alerts, setAlerts] = useState<boolean>(false);
+  useEffect(() => {
+    setAlerts(alertsOn());
+  }, []);
 
   function toggleAlerts() {
     setAlerts((v) => {

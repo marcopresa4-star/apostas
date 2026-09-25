@@ -92,7 +92,7 @@ async function AoVivoBoard() {
       const matchesFor = async (code: (typeof LEAGUES)[number]["code"]): Promise<PlayedMatch[]> => {
         const hit = matchesByCode.get(code);
         if (hit) return hit;
-        const loaded = await loadSofaLeague(supabase, user.id, code).catch(() => null);
+        const loaded = await loadSofaLeague(supabase, user.id, code, { shots: false }).catch(() => null);
         const matches = loaded?.data.matches ?? [];
         matchesByCode.set(code, matches);
         return matches;
