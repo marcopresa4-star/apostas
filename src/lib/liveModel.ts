@@ -78,6 +78,9 @@ export interface LivePrediction {
   // Expected goals still to come for each side.
   remainingHome: number;
   remainingAway: number;
+  // Full remaining-goals distributions (index = goals still to come).
+  homePmf: number[];
+  awayPmf: number[];
   // Chance each side scores again before the end (marginal scoreless).
   scoresAgain: { home: number; away: number };
   // Final result, given the current score.
@@ -206,6 +209,8 @@ export function predictLive(
   return {
     remainingHome,
     remainingAway,
+    homePmf,
+    awayPmf,
     scoresAgain: { home: 1 - norm(homeZero), away: 1 - norm(awayZero) },
     finalScores: finals
       .sort((x, y) => y.p - x.p)

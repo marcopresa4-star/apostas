@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { eventOdds } from "@/lib/sofaOdds";
-import { oddsKeyFor } from "@/lib/oddsParse";
+import { findRealOdd } from "@/lib/oddsParse";
 import { formatOdd } from "@/lib/multiples";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -37,8 +37,7 @@ export default async function CheckedProfit({
       if (parsed) {
         const byKey: Record<string, number> = {};
         for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
-        const key = oddsKeyFor(g.key, g.home, g.away);
-        odd = key ? byKey[key] : undefined;
+        odd = findRealOdd(byKey, g.key, g.home, g.away);
       }
       return { ...g, odd };
     })

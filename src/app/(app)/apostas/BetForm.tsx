@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { addBet } from "@/app/(app)/actions";
-import { MARKET_OPTIONS, type BetKind } from "@/lib/bets";
+import { MARKET_OPTIONS, splitLineKey, validAsianLine, type BetKind } from "@/lib/bets";
 import { parseSofascoreId } from "@/lib/sofascore";
 
 const INPUT =
@@ -68,13 +68,28 @@ export default function BetForm({ kind }: { kind: BetKind }) {
 
   const submit = (form: FormData) => {
     setError(null);
-    const marketKey = market;
     const customLabel = String(form.get("custom_label") ?? "").trim().slice(0, 80);
-    if (marketKey === "custom" && !customLabel) {
+    if (market === "custom" && !customLabel) {
       setError("Escreve o mercado (ex: cantos, cartões).");
       return;
     }
-    const marketLabel = marketKey === "custom" ? customLabel : (MARKET_OPTIONS.find((m) => m.key === marketKey)?.label ?? "");
+    let marketKey = market;
+    let marketLabel =
+      market === "custom" ? customLabel : (MARKET_OPTIONS.find((m) => m.key === market)?.label ?? "");
+    // Handicap asiático e totais por equipa trazem a linha à parte
+    // (ex: casa -1,5). Só .0 (devolve no certo) e .5; .25/.75 é manual.
+    const split = splitLineKey(market);
+    if (split) {
+      const line = String(form.get("line") ?? "").trim();
+      if (!validAsianLine(line)) {
+        setError("Linha inválida: usa .0 ou .5 (ex: -1,5 ou 2). Linhas .25/.75 ficam no manual (Outro).");
+        return;
+      }
+      const norm = line.replace(",", ".");
+      marketKey = `${split[0]}:${split[1]}:${norm}`;
+      const base = MARKET_OPTIONS.find((m) => m.key === market)?.label.replace("…", "").trim() ?? "";
+      marketLabel = `${base} ${norm.replace(".", ",")}`;
+    }
     const link = String(form.get("sofascore") ?? "").trim();
     const id = link ? parseSofascoreId(link) : null;
     if (link && id === null) {
@@ -147,7 +162,7 @@ export default function BetForm({ kind }: { kind: BetKind }) {
           </select>
         </div>
         <div>
-          <label className={LABEL}>Odd</label>
+          <label className={LABEL}>Odd atual (só referência)</label>
           <input name="odd" required inputMode="decimal" placeholder="1,85" className={INPUT} />
         </div>
       </div>
@@ -155,6 +170,12 @@ export default function BetForm({ kind }: { kind: BetKind }) {
         <div>
           <label className={LABEL}>Qual mercado? (fecho manual)</label>
           <input name="custom_label" maxLength={80} placeholder="Ex: mais de 9,5 cantos" className={INPUT} />
+        </div>
+      )}
+      {splitLineKey(market) && (
+        <div>
+          <label className={LABEL}>Linha (ex: -1,5 ou 2 — só .0 e .5)</label>
+          <input name="line" inputMode="decimal" required placeholder="-1,5" className={INPUT} />
         </div>
       )}
       {kind !== "live" && (
@@ -166,7 +187,7 @@ export default function BetForm({ kind }: { kind: BetKind }) {
       {kind === "watch" && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className={LABEL}>Entrar a partir de (odd)</label>
+            <label className={LABEL}>Entrar a partir de (gatilho)</label>
             <input name="target_odd" inputMode="decimal" placeholder="1,65" className={INPUT} />
           </div>
           <div>

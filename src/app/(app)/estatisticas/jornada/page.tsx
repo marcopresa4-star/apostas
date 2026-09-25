@@ -11,6 +11,8 @@ import { leagueRates, predict } from "@/lib/footballModel";
 import { roundLabel, upcomingRounds } from "@/lib/rounds";
 import { MIN_GAMES, SOLID_GAMES, baseRates, recommend } from "@/lib/recommendation";
 import { fixtureEventId } from "@/lib/sofaLeague";
+import { settleWon } from "@/lib/bets";
+
 import { first, todayISO } from "@/lib/searchParams";
 import { Suspense } from "react";
 import CheckedProfit from "./profit";
@@ -186,7 +188,8 @@ async function JornadaBody({
               base,
               f.team1,
               f.team2,
-              intlFit ? 0.44 : leagueRates(data.matches, now).firstHalfShare
+              intlFit ? 0.44 : leagueRates(data.matches, now).firstHalfShare,
+              data.matches
             )[0] ?? null),
         fragile: minGames < SOLID_GAMES,
       };
@@ -208,6 +211,7 @@ async function JornadaBody({
     won: boolean;
   }
   const checked: Checked[] = [];
+  let voids = 0;
   // Clubs only: the international fit is one joint fit, refitting it per past
   // date would cost a full fit per game.
   if (data && !intlFit) {
@@ -224,11 +228,18 @@ async function JornadaBody({
         baseRates(before),
         f.team1,
         f.team2,
-        leagueRates(before, gameDate).firstHalfShare
+        leagueRates(before, gameDate).firstHalfShare,
+        before
       )[0];
       // Halves markets need the half-time score to check: fixtures don't
-      // carry it, so they stay out of the checked count.
+      // carry it, so they stay out of the checked count. Pushes (draws on
+      // DNB, exact ties) are refunded, not counted either way.
       if (!pick || pick.group === "halves") continue;
+      const result = settleWon(pick.key, f.ft);
+      if (result === null || result === "void") {
+        if (result === "void") voids++;
+        continue;
+      }
       checked.push({
         date: f.date,
         home: f.team1,
@@ -237,7 +248,7 @@ async function JornadaBody({
         label: pick.label,
         key: pick.key,
         eventId: fixtureEventId(f),
-        won: pick.won(f.ft),
+        won: result === "won",
       });
     }
     checked.sort((a, b) => b.date.localeCompare(a.date) || b.home.localeCompare(a.home));
@@ -336,7 +347,7 @@ async function JornadaBody({
               <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
                 Cada jogo foi previsto só com o que se sabia antes dele (sem espreitar o futuro). É taxa de acerto,
                 não lucro: sem as odds reais da casa não há como contar dinheiro. Mercados de partes ficam de fora
-                (os calendários não trazem o intervalo para conferir).
+                (os calendários não trazem o intervalo para conferir){voids > 0 ? `; ${voids} ${voids === 1 ? "devolvida fica" : "devolvidas ficam"} de fora da conta` : ""}.
               </p>
               {userId && (
                 <Suspense

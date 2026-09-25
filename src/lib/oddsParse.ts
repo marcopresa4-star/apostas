@@ -1,3 +1,5 @@
+import { slugify } from "./slugify";
+
 // Real bookmaker odds from SofaScore (`/event/{id}/odds/1/all`), parsed to
 // decimal odds under stable keys. Client-safe: no server imports. The server
 // fetch + cache lives in sofaOdds.ts; the live widget route re-serves it.
@@ -64,7 +66,11 @@ function choiceKey(group: string, period: string, line: string | null, name: str
   if (g === "corners 2-way" && line) {
     return n.toLowerCase() === "over" ? `corners:${line}:over` : n.toLowerCase() === "under" ? `corners:${line}:under` : `corners:${line}:${n}`;
   }
-  if (g === "asian handicap") return `ah:${n}`;
+  if (g === "asian handicap") {
+    const m = /^\(([+-]?\d+(?:\.\d+)?)\)\s*(.+)$/.exec(n);
+    if (m) return `ah:${String(Number(m[1]))}:${slugify(m[2])}`;
+    return `ah:${n}`;
+  }
   if (g === "first team to score") return n.toLowerCase() === "no goal" ? "fts:none" : `fts:${n}`;
   return `${group}:${line ?? ""}:${n}`.toLowerCase();
 }
@@ -121,6 +127,13 @@ export function oddsKeyFor(marketKey: string, home: string, away: string): strin
   if (marketKey === "12") return "dc:12";
   if (marketKey === "btts:yes") return "btts:yes";
   if (marketKey === "btts:no") return "btts:no";
+  if (marketKey === "dnb:home") return "dnb:home";
+  if (marketKey === "dnb:away") return "dnb:away";
+  const ah = /^ah:(home|away):([+-]?\d+(?:\.\d+)?)$/.exec(marketKey);
+  if (ah) {
+    const team = ah[1] === "home" ? home : away;
+    return `ah:${ah[2]}:${slugify(team)}`;
+  }
   const ou = /^(over|under):(\d+(?:\.\d+)?)$/.exec(marketKey);
   if (ou) return `ou:${ou[2]}:${ou[1]}`;
   if (marketKey === "next:home") return `fts:${home}`;
@@ -128,4 +141,28 @@ export function oddsKeyFor(marketKey: string, home: string, away: string): strin
   if (marketKey === "next:none") return "fts:none";
   if (marketKey === "ht:home" || marketKey === "ht:draw" || marketKey === "ht:away") return marketKey;
   return null;
+}
+
+// Our key -> the bookmaker's odd, tolerating name suffixes ("Seattle
+// Sounders" vs "Seattle Sounders FC" on the handicap lines). Exact match
+// first, containment after.
+export function findRealOdd(
+  byKey: Record<string, number>,
+  marketKey: string,
+  home: string,
+  away: string
+): number | undefined {
+  const direct = oddsKeyFor(marketKey, home, away);
+  if (direct && byKey[direct] !== undefined) return byKey[direct];
+  const ah = /^ah:(home|away):([+-]?\d+(?:\.\d+)?)$/.exec(marketKey);
+  if (ah) {
+    const slug = slugify(ah[1] === "home" ? home : away);
+    const prefix = `ah:${ah[2]}:`;
+    for (const [key, odd] of Object.entries(byKey)) {
+      if (!key.startsWith(prefix)) continue;
+      const other = key.slice(prefix.length);
+      if (other === slug || other.startsWith(slug) || slug.startsWith(other)) return odd;
+    }
+  }
+  return undefined;
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { deleteBet, enterWatchedBet, setBetStatus, updateBet } from "@/app/(app)/actions";
 import { useNow } from "@/lib/useNow";
-import { KIND_LABEL, MARKET_OPTIONS, STATUS_LABEL, oddText, type Bet } from "@/lib/bets";
+import { KIND_LABEL, MARKET_OPTIONS, STATUS_LABEL, oddText, splitLineKey, validAsianLine, type Bet } from "@/lib/bets";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -112,11 +112,20 @@ function LiveStatus({ eventId }: { eventId: number }) {
   );
 }
 
-// Fix a placed bet inline (market, odd, league, kickoff). Teams and kind stay.
+// Fix a placed bet inline (market, line, odd, league, kickoff). Teams and kind stay.
 function EditForm({ bet, onDone }: { bet: Bet; onDone: () => void }) {
-  const [market, setMarket] = useState(bet.market_key);
+  const baseKey = (() => {
+    const split = splitLineKey(bet.market_key);
+    return split ? `${split[0]}:${split[1]}` : bet.market_key;
+  })();
+  const baseLine = (() => {
+    const split = splitLineKey(bet.market_key);
+    return split?.[2]?.replace(".", ",") ?? "";
+  })();
+  const [market, setMarket] = useState(MARKET_OPTIONS.some((m) => m.key === baseKey) ? baseKey : "custom");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const needsLine = splitLineKey(market) !== null;
   const submit = (form: FormData) => {
     setError(null);
     const customLabel = String(form.get("custom_label") ?? "").trim().slice(0, 80);
@@ -124,11 +133,26 @@ function EditForm({ bet, onDone }: { bet: Bet; onDone: () => void }) {
       setError("Escreve o mercado.");
       return;
     }
+    let marketKey = market;
+    let marketLabel =
+      market === "custom" ? customLabel : (MARKET_OPTIONS.find((m) => m.key === market)?.label ?? "");
+    const split = splitLineKey(market);
+    if (split) {
+      const line = String(form.get("line") ?? "").trim();
+      if (!validAsianLine(line)) {
+        setError("Linha inválida: usa .0 ou .5.");
+        return;
+      }
+      const norm = line.replace(",", ".");
+      marketKey = `${split[0]}:${split[1]}:${norm}`;
+      const base = MARKET_OPTIONS.find((m) => m.key === market)?.label.replace("…", "").trim() ?? "";
+      marketLabel = `${base} ${norm.replace(".", ",")}`;
+    }
     startTransition(async () => {
       try {
         await updateBet(bet.id, {
-          marketKey: market,
-          marketLabel: market === "custom" ? customLabel : (MARKET_OPTIONS.find((m) => m.key === market)?.label ?? ""),
+          marketKey,
+          marketLabel,
           odd: form.get("odd"),
           league: form.get("league"),
           kickoff: form.get("kickoff"),
@@ -155,6 +179,9 @@ function EditForm({ bet, onDone }: { bet: Bet; onDone: () => void }) {
       </div>
       {market === "custom" && (
         <input name="custom_label" defaultValue={bet.market_key === "custom" ? bet.market_label : ""} maxLength={80} placeholder="Qual mercado?" className={input} />
+      )}
+      {needsLine && (
+        <input name="line" defaultValue={baseLine} inputMode="decimal" required placeholder="-1,5" className={input} />
       )}
       <div className="grid grid-cols-2 gap-1.5">
         <input name="league" defaultValue={bet.league_label ?? ""} maxLength={80} placeholder="Liga" className={input} />

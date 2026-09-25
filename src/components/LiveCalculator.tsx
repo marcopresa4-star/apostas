@@ -36,6 +36,15 @@ interface Row {
   // The model's market key ("home", "over:1.5", "btts:yes"...): links the row
   // to the bookmaker's real odd.
   key?: string;
+  // Chance the stake comes back (draws on DNB).
+  push?: number;
+}
+
+// Fair odd of a row, paying the refund out when pushes exist.
+function rowFair(row: Row): number {
+  if (!(row.p > 0)) return Infinity;
+  const push = row.push ?? 0;
+  return push > 0 ? (1 - push) / row.p : 1 / row.p;
 }
 
 function Table({ title, rows }: { title: string; rows: Row[] }) {
@@ -48,10 +57,15 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
             <span className="min-w-0 truncate text-neutral-200">
               {row.label}
               {row.note && <span className="ml-1.5 text-[11px] text-neutral-500">{row.note}</span>}
+              {row.push !== undefined && row.push >= 0.005 && (
+                <span className="ml-1.5 text-[10px] text-neutral-500">devolve {Math.round(row.push * 100)}%</span>
+              )}
             </span>
             <span className="flex shrink-0 items-center gap-3">
               <span className="w-12 text-right font-medium text-amber-300">{pct(row.p)}</span>
-              <span className="w-14 text-right text-xs text-neutral-500">@{oddText(row.p)}</span>
+              <span className="w-14 text-right text-xs text-neutral-500">
+                @{Number.isFinite(rowFair(row)) ? formatOdd(rowFair(row)) : "—"}
+              </span>
             </span>
           </div>
         ))}
@@ -318,6 +332,25 @@ function Calculator({
   }
   const bothDone = h > 0 && a > 0;
 
+  // Team totals over the game (absolute lines): tail of each side's own
+  // remaining-goals distribution. Lines stay .5, so nothing pushes.
+  const teamTail = (side: "home" | "away", line: number, dir: "over" | "under"): number => {
+    const scored = side === "home" ? h : a;
+    const pmf = side === "home" ? p.homePmf : p.awayPmf;
+    let over = 0;
+    for (let i = 0; i < pmf.length; i++) if (scored + i > line) over += pmf[i];
+    return dir === "over" ? over : 1 - over;
+  };
+  const teamRows: Row[] = [0.5, 1.5, 2.5].flatMap((line) =>
+    (["home", "away"] as const).flatMap((side) => {
+      const team = side === "home" ? homeName : awayName;
+      return [
+        { label: `${team} mais de ${dot(line)}`, p: teamTail(side, line, "over"), key: `to:${side}:${line}` },
+        { label: `${team} menos de ${dot(line)}`, p: teamTail(side, line, "under"), key: `tu:${side}:${line}` },
+      ];
+    })
+  );
+  const dnbDenom = p.fullTime.home + p.fullTime.away;
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: "Resultado final",
@@ -328,9 +361,22 @@ function Calculator({
         { label: `${homeName} ou empate (1X)`, p: p.fullTime.home + p.fullTime.draw, key: "1x" },
         { label: `${awayName} ou empate (X2)`, p: p.fullTime.away + p.fullTime.draw, key: "x2" },
         { label: "Sem empate (12)", p: p.fullTime.home + p.fullTime.away, key: "12" },
+        {
+          label: `Empate anula: ${homeName}`,
+          p: dnbDenom > 0 ? p.fullTime.home / dnbDenom : 0,
+          key: "dnb:home",
+          push: p.fullTime.draw,
+        },
+        {
+          label: `Empate anula: ${awayName}`,
+          p: dnbDenom > 0 ? p.fullTime.away / dnbDenom : 0,
+          key: "dnb:away",
+          push: p.fullTime.draw,
+        },
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
+    { title: "Totais por equipa", rows: teamRows },
     {
       title: "Ambas marcam",
       rows: [
@@ -359,7 +405,7 @@ function Calculator({
     ...(suggestion.main
       ? [{ group: "Aposta sugerida", label: suggestion.main.label, p: suggestion.main.p, key: suggestion.main.key }]
       : []),
-    ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key }))),
+    ...groups.flatMap((g) => g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key, push: r.push }))),
   ];
   // The bookmaker's real + opening odds by model key, for the automatic comparison.
   const realByKey: Record<string, number> = {};

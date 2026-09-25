@@ -10,10 +10,13 @@ export type LiveGroup = "result" | "goals" | "btts";
 
 export interface LiveCandidate {
   group: LiveGroup;
-  // "home", "away", "1x", "x2", "12", "over:<line>", "under:<line>", "btts:yes", "btts:no"
+  // "home", "away", "1x", "x2", "12", "over:<line>", "under:<line>", "btts:yes", "btts:no",
+  // "dnb:home", "to:home:<line>"...
   key: string;
   label: string;
   p: number;
+  // Chance the stake comes back (draws on DNB).
+  push?: number;
   // Whether it came off, given the final score.
   won: (final: [number, number]) => boolean;
 }
@@ -50,6 +53,30 @@ export function liveCandidates(
       { group: "btts", key: "btts:no", label: "Ambas marcam: não", p: 1 - p.bothScore, won: (f) => !(f[0] > 0 && f[1] > 0) }
     );
   }
+  // Draw-no-bet on each side (pushes on the draw): same family as the result.
+  const denom = p.fullTime.home + p.fullTime.away;
+  if (denom > 0) {
+    out.push(
+      { group: "result", key: "dnb:home", label: `Empate anula: ${home}`, p: p.fullTime.home / denom, push: p.fullTime.draw, won: (f) => f[0] > f[1] },
+      { group: "result", key: "dnb:away", label: `Empate anula: ${away}`, p: p.fullTime.away / denom, push: p.fullTime.draw, won: (f) => f[0] < f[1] }
+    );
+  }
+  // Team totals over the game (absolute lines): tail of each side's own
+  // remaining-goals distribution. Lines stay .5, so nothing pushes.
+  for (const line of [0.5, 1.5, 2.5]) {
+    for (const side of ["home", "away"] as const) {
+      const scored = side === "home" ? homeGoals : awayGoals;
+      const pmf = side === "home" ? p.homePmf : p.awayPmf;
+      const team = side === "home" ? home : away;
+      let over = 0;
+      for (let i = 0; i < pmf.length; i++) if (scored + i > line) over += pmf[i];
+      const under = 1 - over;
+      out.push(
+        { group: "goals", key: `to:${side}:${line}`, label: `${team} mais de ${dot(line)}`, p: over, won: (f) => (side === "home" ? f[0] : f[1]) > line },
+        { group: "goals", key: `tu:${side}:${line}`, label: `${team} menos de ${dot(line)}`, p: under, won: (f) => (side === "home" ? f[0] : f[1]) < line }
+      );
+    }
+  }
   return out;
 }
 
@@ -82,12 +109,22 @@ export function suggestLive(
   opts: { minOdd: number; haircut?: Record<LiveGroup, number> }
 ): { main: LivePick | null; others: LivePick[] } {
   const haircut = opts.haircut ?? LIVE_HAIRCUT;
-  const priced = (c: LiveCandidate): LivePick => ({
-    ...c,
-    fairOdd: fairOdd(c.p),
-    minOdd: fairOdd(c.p * haircut[c.group]) * (1 + VALUE_MARGIN[c.group]),
-  });
-  const eligible = candidates.filter((c) => c.p < TOO_SURE && c.p >= TOO_UNLIKELY && fairOdd(c.p) >= opts.minOdd).map(priced);
+  const priced = (c: LiveCandidate): LivePick => {
+    const push = c.push ?? 0;
+    const fair = c.p > 0 ? (push > 0 ? (1 - push) / c.p : fairOdd(c.p)) : Infinity;
+    const cut = c.p * haircut[c.group];
+    const minFair = cut > 0 ? (push > 0 ? (1 - push) / cut : fairOdd(cut)) : Infinity;
+    return {
+      ...c,
+      fairOdd: fair,
+      minOdd: Number.isFinite(minFair) ? minFair * (1 + VALUE_MARGIN[c.group]) : Infinity,
+    };
+  };
+  const fairOf = (c: LiveCandidate): number => {
+    const push = c.push ?? 0;
+    return c.p > 0 ? (push > 0 ? (1 - push) / c.p : fairOdd(c.p)) : Infinity;
+  };
+  const eligible = candidates.filter((c) => c.p < TOO_SURE && c.p >= TOO_UNLIKELY && fairOf(c) >= opts.minOdd).map(priced);
   const best = new Map<LiveGroup, LivePick>();
   for (const c of eligible) {
     const top = best.get(c.group);

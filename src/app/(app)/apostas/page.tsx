@@ -57,7 +57,8 @@ async function autoSettle(
   let changed = false;
   const out = await Promise.all(
     bets.map(async (b) => {
-      if (b.status !== "open" || !b.sofascore_id) return b;
+      // Watched games never settle alone: nothing was entered yet.
+      if (b.status !== "open" || b.kind === "watch" || !b.sofascore_id) return b;
       const body = await sofaRaw<unknown>(`/event/${b.sofascore_id}`).catch(() => null);
       const root = (body ?? {}) as Record<string, unknown>;
       const event = (root.event ?? root) as Record<string, unknown>;
@@ -112,7 +113,7 @@ async function autoSettle(
           if (goals.length > 0) firstScorer = goals[0].home ? "home" : "away";
         }
       }
-      const won = settleWon(
+      const result = settleWon(
         b.market_key,
         [hg, ag],
         {
@@ -120,9 +121,9 @@ async function autoSettle(
           firstScorer,
         }
       );
-      if (won === null) return { ...b, analysisHref, liveOdd };
+      if (result === null) return { ...b, analysisHref, liveOdd };
       changed = true;
-      return { ...b, status: (won ? "won" : "lost") as BetStatus, settled_auto: true, analysisHref, liveOdd };
+      return { ...b, status: result as BetStatus, settled_auto: true, analysisHref, liveOdd };
     })
   );
   if (changed) {

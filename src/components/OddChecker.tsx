@@ -10,6 +10,8 @@ export interface OddMarket {
   // The model's market key ("home", "over:2.5", "btts:yes", "next:home"...):
   // when the bookmaker's real odd for it is known, it is priced automatically.
   key?: string;
+  // Chance the stake comes back (draws on DNB, exact ties).
+  push?: number;
 }
 
 // Type the odd a bookmaker offers for one of the markets and see how it
@@ -26,12 +28,18 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
   const market = markets[index];
   const odd = Number(text.replace(",", "."));
   const valid = Number.isFinite(odd) && odd > 1;
+  const push = market.push ?? 0;
   // Average result of a 1 unit bet: win (odd - 1) with chance p, lose 1 otherwise.
-  const value = valid ? market.p * odd - 1 : null;
+  const value = valid ? market.p * odd + push - 1 : null;
+  const pushText =
+    market.push !== undefined && market.push >= 0.005
+      ? ` · devolve ${Math.round(market.push * 100)}%`
+      : "";
   // The bookmaker's real odd for this market, when it was read (live or
   // pre-match): priced without typing anything.
   const real = market.key && realByKey ? realByKey[market.key] : undefined;
-  const realValue = real !== undefined ? market.p * real - 1 : null;
+  // With refunds, the average counts the stake back: win * odd + push - 1.
+  const realValue = real !== undefined ? market.p * real + push - 1 : null;
   const open = market.key && realOpenByKey ? realOpenByKey[market.key] : undefined;
   const movement =
     open !== undefined && real !== undefined && open > 1 && real > 1
@@ -82,7 +90,13 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
         <p>
           Modelo: <span className="font-medium text-neutral-100">{percent(market.p)}</span>{" "}
           · odd justa{" "}
-          <span className="font-medium text-neutral-100">{formatOdd(1 / market.p)}</span>
+          <span className="font-medium text-neutral-100">
+            {(() => {
+              const fair = market.p > 0 ? (push > 0 ? (1 - push) / market.p : 1 / market.p) : Infinity;
+              return Number.isFinite(fair) ? formatOdd(fair) : "—";
+            })()}
+          </span>
+          {pushText && <span className="text-neutral-500">{pushText}</span>}
         </p>
         {real !== undefined && realValue !== null && (
           <p className="mt-1">

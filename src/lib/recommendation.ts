@@ -1,5 +1,87 @@
 import { OVER_LINES, fairOdd, leagueRates, strengthOf, type PlayedMatch, type Prediction } from "./footballModel";
 
+// Small Poisson toolkit for the markets the score grids don't spell out
+// (handicaps, team totals, halves): same Poisson assumption as the grids.
+const factorial = (() => {
+  const t = [1];
+  for (let k = 1; k <= 16; k++) t[k] = t[k - 1] * k;
+  return t;
+})();
+
+function poisson(k: number, mu: number): number {
+  if (k < 0 || k > 16 || mu <= 0) return k === 0 && mu <= 0 ? 1 : 0;
+  return (Math.exp(-mu) * Math.pow(mu, k)) / factorial[k];
+}
+
+// P(more than `line` total goals), direct Poisson on the two means: for the
+// whole-number lines the model's own over-lines don't exist.
+export function matchTotalOver(lh: number, la: number, line: number): number {
+  let p = 0;
+  for (let t = Math.floor(line) + 1; t <= 16; t++) {
+    let pt = 0;
+    for (let h = 0; h <= t; h++) pt += poisson(h, lh) * poisson(t - h, la);
+    p += pt;
+  }
+  return p;
+}
+
+// P(homeGoals - awayGoals == d) for d in -8..8, joint independent Poissons.
+function diffDist(lh: number, la: number): number[] {
+  const out: number[] = [];
+  for (let d = -8; d <= 8; d++) {
+    let p = 0;
+    for (let a = 0; a <= 14; a++) p += poisson(a, la) * poisson(a + d, lh);
+    out.push(p);
+  }
+  return out;
+}
+
+// Asian handicap from one side's view: P(cover), P(push) for a signed line
+// (home -1.5, away +1). Direct Poisson like the halves above.
+export function ahWinPush(
+  lh: number,
+  la: number,
+  side: "home" | "away",
+  line: number
+): { win: number; push: number } {
+  const dd = diffDist(lh, la);
+  let win = 0;
+  let push = 0;
+  for (let d = -8; d <= 8; d++) {
+    const v = side === "home" ? d + line : -d + line;
+    if (v > 0) win += dd[d + 8];
+    else if (v === 0) push += dd[d + 8];
+  }
+  return { win, push };
+}
+
+// Team total over/under a line: P(team scores more / fewer), P(exactly).
+export function teamTotalWinPush(
+  mu: number,
+  line: number,
+  side: "over" | "under"
+): { win: number; push: number } {
+  let win = 0;
+  let push = 0;
+  for (let k = 0; k <= 14; k++) {
+    const p = poisson(k, mu);
+    if (k === line) push += p;
+    else if ((side === "over") === (k > line)) win += p;
+  }
+  return { win, push };
+}
+
+// Whole match-total lines push on the exact number.
+export function matchTotalPush(lh: number, la: number, line: number): number {
+  let push = 0;
+  for (let t = 0; t <= 16; t++) {
+    let pt = 0;
+    for (let h = 0; h <= t; h++) pt += poisson(h, lh) * poisson(t - h, la);
+    if (t === line) push += pt;
+  }
+  return push;
+}
+
 // A suggestion of what to bet on a game, from the model's numbers.
 //
 // Without the odds a bookmaker really offers there is no way to say a bet is
@@ -51,7 +133,8 @@ export interface Pick {
   label: string;
   p: number; // the model's chance
   base: number; // how often it happens in this league
-  fairOdd: number;
+  push?: number; // chance the stake comes back (draws on DNB, exact ties)
+  fairOdd: number; // pays the refund out: (1 - push) / win
   minOdd: number; // the odd from which the bet is worth it
   // Whether it came off, given the final score (home, away).
   won: (ft: [number, number]) => boolean;
@@ -97,15 +180,19 @@ export function baseRates(matches: PlayedMatch[]): BaseRates {
 const num = (n: number) => n.toFixed(1).replace(".", ",");
 
 // A bet the model can price, with its chance already pulled back towards the
-// league's rate for the markets it is less sure about (see TRUST).
+// league's rate for the markets it is less sure about (see TRUST). `push` is
+// the chance the stake comes back (draws on DNB, exact ties on whole lines):
+// the fair odd pays it out, (1 - push) / win.
 export interface Candidate {
   group: PickGroup;
   // What kind of bet it is: "home", "away", "1x", "x2", "btts:yes", "btts:no",
-  // "over:2.5", "under:2.5", "halves:both", "halves:home"...
+  // "over:2.5", "under:2.5", "halves:both", "halves:home", "dnb:home",
+  // "ah:home:-1.5", "to:home:1.5"...
   key: string;
   label: string;
   p: number;
   base: number; // how often it happens in the league
+  push?: number;
   // Whether it came off, given the final score (and, for halves markets, the
   // half-time score — without it they cannot be checked).
   won: (score: [number, number], ht?: [number, number] | null) => boolean;
@@ -116,7 +203,8 @@ export function candidatesFor(
   base: BaseRates,
   home: string,
   away: string,
-  firstHalfShare = 0.44
+  firstHalfShare = 0.44,
+  matches: PlayedMatch[] = []
 ): Candidate[] {
   const ft = prediction.fullTime;
   const candidates: Candidate[] = [
@@ -148,12 +236,96 @@ export function candidatesFor(
       won: ([h, a]) => !(h > 0 && a > 0),
     },
   ];
-  for (const line of [1.5, 2.5, 3.5]) {
-    const over = prediction.over[String(line)];
+  for (const line of [0.5, 1.5, 2, 2.5, 3, 3.5, 4.5]) {
+    const over =
+      prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
+    const push = Number.isInteger(line) ? matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, line) : 0;
+    const baseOver =
+      base.over[String(line)] ??
+      (matches.length > 0 ? matches.filter((m) => m.ft[0] + m.ft[1] > line).length / matches.length : 0.5);
+    const basePush =
+      Number.isInteger(line) && matches.length > 0
+        ? matches.filter((m) => m.ft[0] + m.ft[1] === line).length / matches.length
+        : 0;
     candidates.push(
-      { group: "goals", key: `over:${line}`, label: `Mais de ${num(line)} golos`, p: over, base: base.over[String(line)], won: ([h, a]) => h + a > line },
-      { group: "goals", key: `under:${line}`, label: `Menos de ${num(line)} golos`, p: 1 - over, base: 1 - base.over[String(line)], won: ([h, a]) => h + a < line }
+      { group: "goals", key: `over:${line}`, label: `Mais de ${num(line)} golos`, p: over, base: baseOver, push, won: ([h, a]) => h + a > line },
+      { group: "goals", key: `under:${line}`, label: `Menos de ${num(line)} golos`, p: 1 - over - push, base: 1 - baseOver - basePush, push, won: ([h, a]) => h + a < line }
     );
+  }
+  // Draw-no-bet: the 1X2 without the draw (pushes on it). Same family as the
+  // result, so it never doubles a 1X2 suggestion.
+  candidates.push(
+    {
+      group: "result",
+      key: "dnb:home",
+      label: `Empate anula: ${home}`,
+      p: ft.home / (ft.home + ft.away || 1),
+      base: base.home / (base.home + base.away || 1),
+      push: ft.draw,
+      won: ([h, a]) => h > a,
+    },
+    {
+      group: "result",
+      key: "dnb:away",
+      label: `Empate anula: ${away}`,
+      p: ft.away / (ft.home + ft.away || 1),
+      base: base.away / (base.home + base.away || 1),
+      push: ft.draw,
+      won: ([h, a]) => h < a,
+    }
+  );
+  // Asian handicaps and team totals, priced straight from the Poisson means
+  // (goals family caution). Only with matches behind the league rates, and
+  // only .0/.5 lines (quarter lines split stakes — no honest single price).
+  if (matches.length > 0) {
+    const fmtLine = (line: number): string => `${line > 0 ? "+" : ""}${num(line)}`;
+    for (const line of [-1.5, -0.5, 0.5, 1.5]) {
+      for (const side of ["home", "away"] as const) {
+        const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
+        const team = side === "home" ? home : away;
+        const covered = matches.filter((m) => {
+          const d = side === "home" ? m.ft[0] - m.ft[1] : m.ft[1] - m.ft[0];
+          return d + line > 0;
+        }).length;
+        candidates.push({
+          group: "goals",
+          key: `ah:${side}:${line}`,
+          label: `Handicap ${team} ${fmtLine(line)}`,
+          p: win,
+          base: covered / matches.length,
+          push,
+          won: ([h, a]) => {
+            const d = side === "home" ? h - a : a - h;
+            return d + line > 0;
+          },
+        });
+      }
+    }
+    for (const line of [0.5, 1.5, 2.5]) {
+      for (const side of ["home", "away"] as const) {
+        const mu = side === "home" ? prediction.lambdaHome : prediction.lambdaAway;
+        const team = side === "home" ? home : away;
+        for (const dir of ["over", "under"] as const) {
+          const { win, push } = teamTotalWinPush(mu, line, dir);
+          const got = matches.filter((m) => {
+            const g = side === "home" ? m.ft[0] : m.ft[1];
+            return dir === "over" ? g > line : g < line;
+          }).length;
+          candidates.push({
+            group: "goals",
+            key: dir === "over" ? `to:${side}:${line}` : `tu:${side}:${line}`,
+            label: `${team} ${dir === "over" ? "mais" : "menos"} de ${num(line)}`,
+            p: dir === "over" ? win : 1 - win - push,
+            base: dir === "over" ? got / matches.length : 1 - got / matches.length,
+            push,
+            won: ([h, a]) => {
+              const g = side === "home" ? h : a;
+              return dir === "over" ? g > line : g < line;
+            },
+          });
+        }
+      }
+    }
   }
   // Halves markets price the two halves as independent Poisson halves (the
   // same assumption the model's own half-time grid makes): a goal in each
@@ -201,9 +373,10 @@ export function recommend(
   base: BaseRates,
   home: string,
   away: string,
-  firstHalfShare = 0.44
+  firstHalfShare = 0.44,
+  matches: PlayedMatch[] = []
 ): Pick[] {
-  const ranked = candidatesFor(prediction, base, home, away, firstHalfShare)
+  const ranked = candidatesFor(prediction, base, home, away, firstHalfShare, matches)
     .filter((c) => c.p >= MIN_P && c.p <= MAX_P && c.p - c.base >= MIN_LIFT)
     .sort((a, b) => b.p - b.base - (a.p - a.base));
 
@@ -214,14 +387,17 @@ export function recommend(
   for (const c of ranked) {
     if (used.has(c.group)) continue;
     used.add(c.group);
+    // With pushes, the fair odd pays the refund out: (1 - push) / win.
+    const fair = c.p > 0 ? (c.push ? (1 - c.push) / c.p : fairOdd(c.p)) : Infinity;
     picks.push({
       group: c.group,
       key: c.key,
       label: c.label,
       p: c.p,
       base: c.base,
-      fairOdd: fairOdd(c.p),
-      minOdd: fairOdd(c.p) * (1 + VALUE_MARGIN[c.group]),
+      push: c.push,
+      fairOdd: fair,
+      minOdd: fair === Infinity ? Infinity : fair * (1 + VALUE_MARGIN[c.group]),
       won: c.won,
     });
     if (picks.length === MAX_PICKS) break;
@@ -270,6 +446,24 @@ export function pickWhy(
   }
   if (key === "btts:yes" || key === "btts:no") {
     return `${home}: ${scoring(home)}. ${away}: ${scoring(away)}.`;
+  }
+  if (key === "dnb:home" || key === "dnb:away") {
+    const team = key === "dnb:away" ? away : home;
+    const s = strengthOf(matches, team, rates, now);
+    return `${team} sem o empate: ataca ${comma(s.attack)}× a média (${formOf(team)}); o empate devolve.`;
+  }
+  if (key.startsWith("ah:")) {
+    const parts = key.split(":");
+    const team = parts[1] === "away" ? away : home;
+    const line = parts[2] ?? "";
+    return `${team} tem de cobrir ${line.replace(".", ",")} para este jogo, pelos golos esperados.`;
+  }
+  if (key.startsWith("to:") || key.startsWith("tu:")) {
+    const parts = key.split(":");
+    const team = parts[1] === "away" ? away : home;
+    const line = parts[2] ?? "";
+    const dir = key.startsWith("to:") ? "mais" : "menos";
+    return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")}.`;
   }
   if (key === "halves:both" || key === "halves:home" || key === "halves:away") {
     const fhs = rates.firstHalfShare;

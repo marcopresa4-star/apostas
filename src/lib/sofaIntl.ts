@@ -80,6 +80,7 @@ export async function loadSofaInternational(
 }
 
 export interface UpcomingIntlGame {
+  id: number;
   date: string;
   time: string | null;
   home: string;
@@ -120,7 +121,7 @@ export async function loadUpcomingIntl(
         const { date, time } = lisbonParts(start);
         if (date < today) continue;
         seen.add(id);
-        out.push({ date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
+        out.push({ id, date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
       }
     })
   );

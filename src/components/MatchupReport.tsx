@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
+import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
 import StandingsTable, { type StandingsLine } from "./StandingsTable";
@@ -8,7 +9,20 @@ import { buildStandings, formOf, ratings } from "@/lib/standings";
 import type { GoalTiming, OfficialStanding } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
-import { MIN_GAMES, SOLID_GAMES, baseRates, pickWhy, recommend, type Pick } from "@/lib/recommendation";
+import {
+  MIN_GAMES,
+  SOLID_GAMES,
+  VALUE_MARGIN,
+  ahWinPush,
+  baseRates,
+  candidatesFor,
+  matchTotalOver,
+  matchTotalPush,
+  pickWhy,
+  recommend,
+  teamTotalWinPush,
+  type Pick,
+} from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
@@ -53,6 +67,16 @@ interface Row {
   // The model's market key ("home", "over:2.5", "ht:home"...): links the row
   // to the bookmaker's real odd.
   key?: string;
+  // Chance the stake comes back (draws on DNB, exact ties): the fair odd
+  // pays it out.
+  push?: number;
+}
+
+// Fair odd of a row, paying the refund out when pushes exist.
+function rowFair(row: Row): number {
+  if (!(row.p > 0)) return Infinity;
+  const push = row.push ?? 0;
+  return push > 0 ? (1 - push) / row.p : 1 / row.p;
 }
 
 function MarketTable({ title, rows }: { title: string; rows: Row[] }) {
@@ -62,10 +86,17 @@ function MarketTable({ title, rows }: { title: string; rows: Row[] }) {
       <div className="space-y-1.5 text-sm">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center justify-between gap-2">
-            <span className="min-w-0 truncate text-neutral-200">{row.label}</span>
+            <span className="min-w-0 truncate text-neutral-200">
+              {row.label}
+              {row.push !== undefined && row.push >= 0.005 && (
+                <span className="ml-1.5 text-[10px] text-neutral-500">devolve {Math.round(row.push * 100)}%</span>
+              )}
+            </span>
             <span className="flex shrink-0 items-center gap-3">
               <span className="w-12 text-right font-medium text-amber-300">{pct(row.p)}</span>
-              <span className="w-14 text-right text-xs text-neutral-500">@{oddText(row.p)}</span>
+              <span className="w-14 text-right text-xs text-neutral-500">
+                @{Number.isFinite(rowFair(row)) ? formatOdd(rowFair(row)) : "—"}
+              </span>
             </span>
           </div>
         ))}
@@ -792,10 +823,18 @@ function SuggestedBet({
     const real = realByKey?.[pick.key];
     const why = whyCtx ? pickWhy(pick, whyCtx) : "";
     const movement = real !== undefined ? steam(pick.key, real) : null;
+    const pushText =
+      pick.push !== undefined && pick.push >= 0.005
+        ? ` · devolve ${Math.round(pick.push * 100)}%`
+        : "";
     return (
       <p className="text-xs text-neutral-400">
         Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · {avg}{" "}
-        {pct(pick.base)} · odd justa {formatOdd(pick.fairOdd)} ·{" "}
+        {pct(pick.base)} · odd justa {formatOdd(pick.fairOdd)}
+        {pick.push !== undefined && pick.push >= 0.005 && (
+          <span className="text-neutral-500"> · devolve {Math.round(pick.push * 100)}%</span>
+        )}
+        {pushText} ·{" "}
         <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
         {real !== undefined && (
           <>
@@ -866,15 +905,22 @@ function SuggestedBet({
 // half, not on the league, so they are left out.
 function buildMarkets(
   prediction: Prediction,
-  withHalfTime: boolean
+  withHalfTime: boolean,
+  home: string,
+  away: string
 ): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
-  const overRows = OVER_LINES.filter((l) => l <= 3.5).flatMap((line) => [
-    { label: `Mais de ${dot(line)} golos`, p: prediction.over[String(line)], key: `over:${line}` },
-    { label: `Menos de ${dot(line)} golos`, p: 1 - prediction.over[String(line)], key: `under:${line}` },
-  ]);
-  const groups = [
+  const overRows = [0.5, 1.5, 2, 2.5, 3, 3.5, 4.5].flatMap((line) => {
+    const over =
+      prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
+    const push = Number.isInteger(line) ? matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, line) : 0;
+    return [
+      { label: `Mais de ${dot(line)} golos`, p: over, key: `over:${line}`, push },
+      { label: `Menos de ${dot(line)} golos`, p: 1 - over - push, key: `under:${line}`, push },
+    ];
+  });
+  const groups: { title: string; rows: Row[] }[] = [
     {
       title: "Resultado final",
       rows: [
@@ -884,9 +930,52 @@ function buildMarkets(
         { label: "Casa ou empate (1X)", p: ft.home + ft.draw, key: "1x" },
         { label: "Fora ou empate (X2)", p: ft.away + ft.draw, key: "x2" },
         { label: "Sem empate (12)", p: ft.home + ft.away, key: "12" },
+        {
+          label: "Empate anula: casa",
+          p: ft.home / (ft.home + ft.away || 1),
+          key: "dnb:home",
+          push: ft.draw,
+        },
+        {
+          label: "Empate anula: fora",
+          p: ft.away / (ft.home + ft.away || 1),
+          key: "dnb:away",
+          push: ft.draw,
+        },
       ],
     },
     { title: "Golos", rows: overRows },
+    {
+      title: "Handicap asiático",
+      rows: [-1.5, -0.5, 0.5, 1.5].flatMap((line) =>
+        (["home", "away"] as const).map((side) => {
+          const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
+          const team = side === "home" ? home : away;
+          const sign = line > 0 ? "+" : "";
+          return {
+            label: `Handicap ${team} ${sign}${dot(line)}`,
+            p: win,
+            key: `ah:${side}:${line}`,
+            push,
+          };
+        })
+      ),
+    },
+    {
+      title: "Totais por equipa",
+      rows: [0.5, 1.5, 2.5].flatMap((line) =>
+        (["home", "away"] as const).flatMap((side) => {
+          const mu = side === "home" ? prediction.lambdaHome : prediction.lambdaAway;
+          const team = side === "home" ? home : away;
+          const overW = teamTotalWinPush(mu, line, "over").win;
+          const underW = teamTotalWinPush(mu, line, "under").win;
+          return [
+            { label: `${team} mais de ${dot(line)}`, p: overW, key: `to:${side}:${line}` },
+            { label: `${team} menos de ${dot(line)}`, p: underW, key: `tu:${side}:${line}` },
+          ];
+        })
+      ),
+    },
     {
       title: "Ambas marcam",
       rows: [
@@ -914,7 +1003,7 @@ function buildMarkets(
     },
   ];
   const odd: OddMarket[] = groups.flatMap((g) =>
-    g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key }))
+    g.rows.map((r) => ({ group: g.title, label: r.label, p: r.p, key: r.key, push: r.push }))
   );
   return { groups, odd };
 }
@@ -1024,7 +1113,7 @@ export default function MatchupReport({
 
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null);
-  const { groups, odd } = buildMarkets(prediction, hasHalfTime);
+  const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away);
 
   // The teams' own records count only this season (from 1 July); the estimate
   // above still leans on the earlier seasons, which it needs.
@@ -1099,7 +1188,27 @@ export default function MatchupReport({
   const minGames = Math.min(prediction.gamesHome, prediction.gamesAway);
   const few = minGames < MIN_GAMES;
   const fragile = !few && minGames < SOLID_GAMES;
-  const picks = few ? [] : recommend(prediction, baseRates(matches), home, away, leagueRates(matches, now).firstHalfShare);
+  const base = baseRates(matches);
+  const fhs = leagueRates(matches, now).firstHalfShare;
+  const picks = few ? [] : recommend(prediction, base, home, away, fhs, matches);
+  // Value hunt input: every priced market with a real odd, ranked client-side.
+  const priced: ValueItem[] = candidatesFor(prediction, base, home, away, fhs, matches).flatMap((c) => {
+    const real = realByKey?.[c.key];
+    if (real === undefined) return [];
+    const push = c.push ?? 0;
+    const fair = c.p > 0 ? (push > 0 ? (1 - push) / c.p : fairOdd(c.p)) : Infinity;
+    if (!Number.isFinite(fair)) return [];
+    return [
+      {
+        key: c.key,
+        label: c.label,
+        p: c.p,
+        minOdd: fair * (1 + VALUE_MARGIN[c.group]),
+        real,
+        why: pickWhy({ key: c.key } as Pick, { matches, home, away, prediction }),
+      },
+    ];
+  });
   // The suggestions first, priced with their own (pulled back) chance, so the
   // comparer opens on the suggested bet.
   const oddMarkets: OddMarket[] = [
@@ -1170,6 +1279,8 @@ export default function MatchupReport({
       )}
 
       <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} realOpenByKey={realOpenByKey} whyCtx={{ matches, home, away, prediction }} />
+
+      {priced.length > 0 && <ValueHunt items={priced} />}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="space-y-4">
