@@ -279,16 +279,19 @@ export async function setBetStatus(id: string, status: "open" | "won" | "lost" |
   revalidatePath("/apostas");
 }
 
-// A watched game the user entered: it becomes a live bet.
-export async function enterWatchedBet(id: string) {
+// A watched game the user entered: it becomes a live bet at the odd they
+// got (asked on entry, since the reference odd is not the entry price).
+export async function enterWatchedBet(id: string, entryOdd?: unknown) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Não autenticado.");
+  const odd = cleanOdd(entryOdd);
+  if (odd === null) throw new Error("Indica a odd a que entraste (maior que 1).");
   const { error } = await supabase
     .from("bets")
-    .update({ kind: "live" })
+    .update({ kind: "live", odd })
     .eq("id", id)
     .eq("user_id", user.id)
     .eq("kind", "watch")

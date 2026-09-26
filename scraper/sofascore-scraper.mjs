@@ -462,6 +462,10 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/event") {
       const id = Number(url.searchParams.get("id"));
       if (!Number.isInteger(id) || id <= 0) return send(res, 400, { error: "id is required" });
+      // Light mode (background pollers that only need score/minute/cards):
+      // pool reads only, no page navigation, DOM reads or tracker probe —
+      // fast and parallel instead of serial and slow.
+      const light = url.searchParams.get("light") === "1";
       const hit = eventCache.get(id);
       if (hit && Date.now() - hit.at < EVENT_TTL_MS) return send(res, 200, hit.body);
       const [eventBody, incidentsBody] = await Promise.all([
@@ -473,8 +477,18 @@ const server = http.createServer(async (req, res) => {
       // Displayed minute, straight from the rendered page. Needs the page on
       // this event (one navigation per match; later polls reuse it). Never
       // fatal: without it the app falls back to the API-derived minute.
+      // Skipped entirely in light mode.
       let displayMinute = null;
       let domCandidates = [];
+      if (light) {
+        return send(res, 200, {
+          event: eventBody?.event ?? eventBody,
+          incidents: incidentsBody?.incidents ?? [],
+          displayMinute: null,
+          domCandidates: [],
+          hasTracker: null,
+        });
+      }
       try {
         const ev = eventBody?.event ?? eventBody;
         const slug = typeof ev?.slug === "string" ? ev.slug : "";

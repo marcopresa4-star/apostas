@@ -376,6 +376,21 @@ function Calculator({
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
+    ...(m < 45
+      ? [
+          {
+            title: "Primeira parte (a decorrer)",
+            rows: [
+              { label: "Mais de 0,5 golos (1.ª parte)", p: p.halfTime.over05, key: "htover:0.5" },
+              { label: "Mais de 1,5 golos (1.ª parte)", p: p.halfTime.over15, key: "htover:1.5" },
+              { label: `${homeName} mais de 0,5 (1.ª parte)`, p: p.halfTime.homeOver05, key: "htto:home:0.5" },
+              { label: `${homeName} mais de 1,5 (1.ª parte)`, p: p.halfTime.homeOver15, key: "htto:home:1.5" },
+              { label: `${awayName} mais de 0,5 (1.ª parte)`, p: p.halfTime.awayOver05, key: "htto:away:0.5" },
+              { label: `${awayName} mais de 1,5 (1.ª parte)`, p: p.halfTime.awayOver15, key: "htto:away:1.5" },
+            ],
+          },
+        ]
+      : []),
     { title: "Totais por equipa", rows: teamRows },
     {
       title: "Ambas marcam",

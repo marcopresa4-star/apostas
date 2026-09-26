@@ -416,8 +416,10 @@ function Lineups({
           {team} {side.formation && <span className="font-normal text-neutral-500">· {side.formation}</span>}
         </p>
         <ul className="space-y-1">
-          {starters.map((p) => (
-            <li key={p.name} className="flex items-center gap-1.5 text-xs">
+          {starters.map((p, i) => (
+            // Names alone are not unique: the feed sometimes lists a player
+            // twice (e.g. after an early tactical reshuffle).
+            <li key={`${p.name}-${p.num ?? i}`} className="flex items-center gap-1.5 text-xs">
               <span className={`w-7 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-bold ${chip(p.rating)}`}>
                 {p.rating !== null ? p.rating.toFixed(1).replace(".", ",") : "–"}
               </span>

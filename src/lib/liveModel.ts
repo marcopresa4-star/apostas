@@ -78,6 +78,17 @@ export interface LivePrediction {
   // Expected goals still to come for each side.
   remainingHome: number;
   remainingAway: number;
+  // First-half remainder only (zeros once the break passes): over 0.5/1.5 in
+  // total and per side, from the HT-only Poisson means. Approximation: no
+  // zero-inflation and no score effect inside the half (both unmeasured).
+  halfTime: {
+    over05: number;
+    over15: number;
+    homeOver05: number;
+    homeOver15: number;
+    awayOver05: number;
+    awayOver15: number;
+  };
   // Full remaining-goals distributions (index = goals still to come).
   homePmf: number[];
   awayPmf: number[];
@@ -168,6 +179,35 @@ export function predictLive(
   const homePmf = comPoisson(remainingHome, nuNow);
   const awayPmf = comPoisson(remainingAway, nuNow);
 
+  // HT-only distributions from the first-half remainder (same red-card
+  // scaling as the totals above).
+  const redHome = redMultiplier(capped, true);
+  const redAway = redMultiplier(capped, false);
+  const htHomePmf = comPoisson(lambdaHome * first * redHome, nuNow);
+  const htAwayPmf = comPoisson(lambdaAway * first * redAway, nuNow);
+  const htOver = (line: number): number => {
+    let p = 0;
+    for (let i = 0; i <= MAX_GOALS; i++) {
+      for (let j = 0; j <= MAX_GOALS; j++) {
+        if (i + j > line) p += htHomePmf[i] * htAwayPmf[j];
+      }
+    }
+    return p;
+  };
+  const htTeamOver = (pmf: number[], line: number): number => {
+    let p = 0;
+    for (let k = 0; k < pmf.length; k++) if (k > line) p += pmf[k];
+    return p;
+  };
+  const halfTime = {
+    over05: htOver(0.5),
+    over15: htOver(1.5),
+    homeOver05: htTeamOver(htHomePmf, 0.5),
+    homeOver15: htTeamOver(htHomePmf, 1.5),
+    awayOver05: htTeamOver(htAwayPmf, 0.5),
+    awayOver15: htTeamOver(htAwayPmf, 1.5),
+  };
+
   const fullTime = { home: 0, draw: 0, away: 0 };
   const over: Record<string, number> = {};
   for (let line = 0; line <= 9; line++) over[String(line + 0.5)] = 0;
@@ -211,6 +251,7 @@ export function predictLive(
     remainingAway,
     homePmf,
     awayPmf,
+    halfTime,
     scoresAgain: { home: 1 - norm(homeZero), away: 1 - norm(awayZero) },
     finalScores: finals
       .sort((x, y) => y.p - x.p)

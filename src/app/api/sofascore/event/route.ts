@@ -9,16 +9,19 @@ import { checkLive } from "@/lib/sportscoreLive";
 const SCRAPER = process.env.SOFASCORE_SCRAPER_URL ?? "http://127.0.0.1:9323";
 
 export async function GET(request: Request) {
-  const id = Number(new URL(request.url).searchParams.get("id"));
+  const params = new URL(request.url).searchParams;
+  const id = Number(params.get("id"));
   if (!Number.isInteger(id) || id <= 0) {
     return Response.json({ error: "id is required" }, { status: 400 });
   }
+  const light = params.get("light") === "1";
   let raw: Response;
   try {
-    raw = await fetch(`${SCRAPER}/event?id=${id}`, {
+    raw = await fetch(`${SCRAPER}/event?id=${id}${light ? "&light=1" : ""}`, {
       cache: "no-store",
       // First poll per match navigates the scraper's page to the event.
-      signal: AbortSignal.timeout(30_000),
+      // Light reads skip that entirely, so they get a shorter leash.
+      signal: AbortSignal.timeout(light ? 12_000 : 30_000),
     });
   } catch {
     return Response.json(
@@ -88,11 +91,17 @@ export async function GET(request: Request) {
   if (!state) return Response.json({ error: "unparseable" }, { status: 502 });
   // The minute SofaScore actually displays (read from the rendered page by the
   // scraper) beats the derived one — descriptions are often just "2nd half".
-  // But it may lag (a stale page read once returned an incident minute): it
-  // can confirm or nudge the minute forward, never drag it back.
+  // But it may lag (a stale page read once returned an incident minute), or
+  // spike (a "90'" axis label read as the clock): it can confirm or nudge the
+  // minute forward, never drag it back — and a reading far above the derived
+  // minute is discarded outright instead of dragging everything with it.
   const shown = typeof body.displayMinute === "number" ? Math.trunc(body.displayMinute) : null;
-  if (shown !== null && shown >= 0 && shown <= 130) {
-    const minute = state.phase === "halftime" ? 45 : Math.max(state.minute ?? shown, shown);
+  const saneShown =
+    shown !== null && shown >= 0 && shown <= 130 && (state.minute === null || shown <= state.minute + 5)
+      ? shown
+      : null;
+  if (saneShown !== null) {
+    const minute = state.phase === "halftime" ? 45 : Math.max(state.minute ?? saneShown, saneShown);
     state = {
       ...state,
       phase: state.phase === "unknown" && minute > 0 ? "live" : state.phase,

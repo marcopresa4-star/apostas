@@ -35,26 +35,64 @@ export function Countdown({ kickoff }: { kickoff: string }) {
   );
 }
 
-function RowButtons({ bet, watch }: { bet: Bet; watch?: boolean }) {  const [, startTransition] = useTransition();
+function RowButtons({ bet, watch }: { bet: Bet; watch?: boolean }) {
+  const [, startTransition] = useTransition();
+  const [entering, setEntering] = useState(false);
+  const [entryOdd, setEntryOdd] = useState("");
+  const [entryError, setEntryError] = useState<string | null>(null);
   const run = (fn: () => Promise<void>) => startTransition(() => fn().catch(() => {}));
   const btn = "rounded-lg px-2.5 py-1 text-xs font-medium transition";
   if (watch) {
+    const toggleEntering = () => {
+      setEntryError(null);
+      setEntering((v) => !v);
+    };
+    const confirmEntry = () => {
+      const odd = Number(entryOdd.replace(",", "."));
+      if (!Number.isFinite(odd) || odd <= 1) {
+        setEntryError("Odd inválida.");
+        return;
+      }
+      setEntryError(null);
+      run(() => enterWatchedBet(bet.id, entryOdd));
+    };
     return (
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => run(() => enterWatchedBet(bet.id))}
-          className={`${btn} bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30`}
-        >
-          Entrei
-        </button>
-        <button
-          type="button"
-          onClick={() => run(() => deleteBet(bet.id))}
-          className={`${btn} bg-neutral-800 text-neutral-400 hover:bg-neutral-700`}
-        >
-          Não entrei
-        </button>
+      <div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={toggleEntering}
+            className={`${btn} bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30`}
+          >
+            Entrei
+          </button>
+          <button
+            type="button"
+            onClick={() => run(() => deleteBet(bet.id))}
+            className={`${btn} bg-neutral-800 text-neutral-400 hover:bg-neutral-700`}
+          >
+            Não entrei
+          </button>
+        </div>
+        {entering && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <input
+              value={entryOdd}
+              onChange={(e) => setEntryOdd(e.target.value)}
+              inputMode="decimal"
+              placeholder="Odd de entrada"
+              className="w-28 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={confirmEntry}
+              className={`${btn} bg-emerald-600 px-3 text-white hover:bg-emerald-500`}
+            >
+              Confirmar
+            </button>
+          </div>
+        )}
+        {entryError && <p className="mt-1 text-[11px] text-red-400">{entryError}</p>}
       </div>
     );
   }
