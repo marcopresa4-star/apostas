@@ -11,7 +11,7 @@ import { findSofaLeague, loadSofaLeague } from "@/lib/sofaLeague";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
 import { WINDOW_YEARS } from "@/lib/internationalModel";
-import { loadMaps } from "@/lib/sofaHistory";
+import { loadMaps, strippedSlug } from "@/lib/sofaHistory";
 import { createClient } from "@/lib/supabase/server";
 import { dashboardGames, type WatchedIn } from "@/lib/dashboardGames";
 import SofaScoreWidget from "@/components/SofaScoreWidget";
@@ -132,6 +132,15 @@ export default async function LivePage({
   // dashboard games and pasted links alike.
   const tableHome = dash ? dash.home : chosen ? casa : linkCasa;
   const tableFora = dash ? dash.away : chosen ? fora : linkFora;
+  // Highlight names in the league's own spelling: the game may carry another
+  // spelling ("Charlotte FC" vs "Charlotte") — same stripped slug wins.
+  const asListed = (name: string): string => {
+    const teams = data?.teams ?? [];
+    if (name !== "" && teams.includes(name)) return name;
+    const s = strippedSlug(name);
+    if (!s) return name;
+    return teams.find((t) => strippedSlug(t) === s) ?? name;
+  };
   const standingsLines: StandingsLine[] =
     data && !isIntl && tableHome !== "" && tableFora !== "" && tableHome !== tableFora
       ? (() => {
@@ -414,6 +423,8 @@ export default async function LivePage({
           standings={standingsLines.length > 0 ? standingsLines : undefined}
           standingsLabel={league?.label ?? ""}
           standingsSeason={data?.season.label ?? ""}
+          standingsHome={asListed(tableHome)}
+          standingsAway={asListed(tableFora)}
         />
       </div>
       )}

@@ -99,9 +99,13 @@ type Props = {
   sofaEventId?: number | null;
   // League table with both sides highlighted (clubs only, like Comparar's
   // "Classificação e força"): official points with our attack/defence.
+  // standingsHome/Away carry the league's own spelling when the game does
+  // not ("Charlotte FC" vs "Charlotte").
   standings?: StandingsLine[];
   standingsLabel?: string;
   standingsSeason?: string;
+  standingsHome?: string;
+  standingsAway?: string;
 };
 
 const SOFASCORE_EVENT = "/api/sofascore/event?id=";
@@ -151,6 +155,8 @@ function Calculator({
   standings,
   standingsLabel = "",
   standingsSeason = "",
+  standingsHome,
+  standingsAway,
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -924,7 +930,7 @@ function Calculator({
             Pontos oficiais{standingsSeason ? ` · época ${standingsSeason}` : ""} com ataque e defesa do modelo
             (1,00 = média da liga).
           </p>
-          <StandingsTable lines={standings} highlight={{ home: homeName, away: awayName }} />
+          <StandingsTable lines={standings} highlight={{ home: standingsHome ?? homeName, away: standingsAway ?? awayName }} />
         </div>
       )}
 
