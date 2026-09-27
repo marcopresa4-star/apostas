@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational } from "@/lib/footballData";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
-import { leagueRates, predict } from "@/lib/footballModel";
+import { leagueRates, predict, headToHead } from "@/lib/footballModel";
 import { buildStandings, formOf, ratings } from "@/lib/standings";
 import type { StandingsLine } from "@/components/StandingsTable";
 import { MIN_GAMES, SOLID_GAMES } from "@/lib/recommendation";
@@ -132,6 +132,13 @@ export default async function LivePage({
   // dashboard games and pasted links alike.
   const tableHome = dash ? dash.home : chosen ? casa : linkCasa;
   const tableFora = dash ? dash.away : chosen ? fora : linkFora;
+  // Head to head for the calculator card: past meetings in the data (clubs:
+  // this league; national sides: last 8 years), most recent first.
+  const h2hPool = isIntl ? intlRecent.map(toPlayed) : (data?.matches ?? []);
+  const h2hGames =
+    tableHome !== "" && tableFora !== "" && tableHome !== tableFora
+      ? headToHead(h2hPool, tableHome, tableFora).slice(0, 10)
+      : [];
   // Highlight names in the league's own spelling: the game may carry another
   // spelling ("Charlotte FC" vs "Charlotte") — same stripped slug wins.
   const asListed = (name: string): string => {
@@ -425,6 +432,7 @@ export default async function LivePage({
           standingsSeason={data?.season.label ?? ""}
           standingsHome={asListed(tableHome)}
           standingsAway={asListed(tableFora)}
+          h2h={h2hGames.length > 0 ? h2hGames : undefined}
         />
       </div>
       )}

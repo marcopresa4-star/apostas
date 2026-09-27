@@ -10,7 +10,7 @@ import { htLiveProbs, LAST_MINUTES, liveCandidates, livePickWhy, suggestLive } f
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
-import { fairOdd } from "@/lib/footballModel";
+import { fairOdd, type PlayedMatch } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
 
 const INPUT =
@@ -46,6 +46,47 @@ function rowFair(row: Row): number {
   if (!(row.p > 0)) return Infinity;
   const push = row.push ?? 0;
   return push > 0 ? (1 - push) / row.p : 1 / row.p;
+}
+
+// Past meetings between the two sides: who won what, scoring pace, and the
+// most recent games. Small on purpose: the live model itself ignores H2H
+// (strength comes from all games), this is context for the eye.
+function H2HCard({ meetings, home, away }: { meetings: PlayedMatch[]; home: string; away: string }) {
+  const forHome = (m: PlayedMatch): [number, number] => (m.team1 === home ? m.ft : [m.ft[1], m.ft[0]]);
+  const w = meetings.filter((m) => {
+    const [gf, ga] = forHome(m);
+    return gf > ga;
+  }).length;
+  const d = meetings.filter((m) => m.ft[0] === m.ft[1]).length;
+  const l = meetings.length - w - d;
+  const avg = (meetings.reduce((s, m) => s + m.ft[0] + m.ft[1], 0) / meetings.length).toFixed(1).replace(".", ",");
+  const over25 = Math.round((meetings.filter((m) => m.ft[0] + m.ft[1] > 2.5).length / meetings.length) * 100);
+  const btts = Math.round((meetings.filter((m) => m.ft[0] > 0 && m.ft[1] > 0).length / meetings.length) * 100);
+  const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <h3 className="mb-1 text-sm font-semibold text-neutral-300">
+        Confrontos diretos · {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"}
+      </h3>
+      <p className="text-xs text-neutral-400">
+        {home}: {w} vitórias · {d} empates · {away}: {l} vitórias
+      </p>
+      <p className="mt-1 text-xs text-neutral-400">
+        Média de {avg} golos por jogo · mais de 2,5 em {over25}% · ambas marcam em {btts}%
+      </p>
+      <ul className="mt-2 space-y-1">
+        {meetings.slice(0, 5).map((m) => (
+          <li key={`${m.date}-${m.team1}`} className="flex items-center justify-between gap-2 text-xs">
+            <span className="shrink-0 text-neutral-500">{dayMonth(m.date)}</span>
+            <span className="min-w-0 flex-1 truncate text-right text-neutral-300">
+              {m.team1} <span className="font-semibold text-neutral-100">{m.ft[0]}–{m.ft[1]}</span> {m.team2}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {meetings.length > 5 && <p className="pt-1 text-[11px] text-neutral-500">e mais {meetings.length - 5} anteriores</p>}
+    </div>
+  );
 }
 
 function Table({ title, rows }: { title: string; rows: Row[] }) {
@@ -106,6 +147,9 @@ type Props = {
   standingsSeason?: string;
   standingsHome?: string;
   standingsAway?: string;
+  // Past meetings between the two sides, most recent first (clubs: this
+  // league; national sides: last 8 years). Empty when unknown.
+  h2h?: PlayedMatch[];
 };
 
 const SOFASCORE_EVENT = "/api/sofascore/event?id=";
@@ -157,6 +201,7 @@ function Calculator({
   standingsSeason = "",
   standingsHome,
   standingsAway,
+  h2h,
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -932,6 +977,10 @@ function Calculator({
           </p>
           <StandingsTable lines={standings} highlight={{ home: standingsHome ?? homeName, away: standingsAway ?? awayName }} />
         </div>
+      )}
+
+      {h2h && h2h.length > 0 && home !== "" && away !== "" && (
+        <H2HCard meetings={h2h} home={homeName} away={awayName} />
       )}
 
       <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
