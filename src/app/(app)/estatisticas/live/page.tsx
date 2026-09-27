@@ -132,13 +132,6 @@ export default async function LivePage({
   // dashboard games and pasted links alike.
   const tableHome = dash ? dash.home : chosen ? casa : linkCasa;
   const tableFora = dash ? dash.away : chosen ? fora : linkFora;
-  // Head to head for the calculator card: past meetings in the data (clubs:
-  // this league; national sides: last 8 years), most recent first.
-  const h2hPool = isIntl ? intlRecent.map(toPlayed) : (data?.matches ?? []);
-  const h2hGames =
-    tableHome !== "" && tableFora !== "" && tableHome !== tableFora
-      ? headToHead(h2hPool, tableHome, tableFora).slice(0, 10)
-      : [];
   // Highlight names in the league's own spelling: the game may carry another
   // spelling ("Charlotte FC" vs "Charlotte") — same stripped slug wins.
   const asListed = (name: string): string => {
@@ -148,6 +141,16 @@ export default async function LivePage({
     if (!s) return name;
     return teams.find((t) => strippedSlug(t) === s) ?? name;
   };
+  // Head to head for the calculator card: past meetings in the data (clubs:
+  // this league; national sides: last 8 years), most recent first. Names in
+  // the league's own spelling, like the highlight above.
+  const h2hPool = isIntl ? intlRecent.map(toPlayed) : (data?.matches ?? []);
+  const h2hHome = asListed(tableHome);
+  const h2hAway = asListed(tableFora);
+  const h2hGames =
+    h2hHome !== "" && h2hAway !== "" && h2hHome !== h2hAway
+      ? headToHead(h2hPool, h2hHome, h2hAway).slice(0, 10)
+      : [];
   const standingsLines: StandingsLine[] =
     data && !isIntl && tableHome !== "" && tableFora !== "" && tableHome !== tableFora
       ? (() => {
