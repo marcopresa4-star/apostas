@@ -200,8 +200,13 @@ async function CompararBody({
         const recent = sofa.games.filter((g) => g.date >= windowFrom);
         const from = isoDaysAgo(now, 365);
         const nlGames = sofa.games.filter((g) => /nations league/i.test(g.tournament));
-        const teams =
-          league.code === "int.nl" ? activeTeams(nlGames, now) : activeTeams(sofa.games, now);
+        // Nations League sides play few games (League D groups have 4): like
+        // the file source, every side with a recent NL game lists, no minimum.
+        const nlSince = isoDaysAgo(now, 913);
+        const nlTeams = [...new Set(nlGames.filter((g) => g.date >= nlSince).flatMap((g) => [g.home, g.away]))].sort(
+          (a, b) => a.localeCompare(b)
+        );
+        const teams = league.code === "int.nl" ? nlTeams : activeTeams(sofa.games, now);
         sofaMeta = {
           games: recent.length,
           latest: recent.at(-1)?.date ?? null,
@@ -323,7 +328,22 @@ async function CompararBody({
     if (eventId) await fillRealOdds(userId, eventId);
   } else if (useSofaIntl && data && userId && casa && fora) {
     const { loadUpcomingIntl } = await import("@/lib/sofaIntl");
-    const upcoming = await loadUpcomingIntl(supabase, userId, todayISO, false).catch(() => []);
+    // Only the two sides' own lists can hold this pairing: sweeping every
+    // linked team here queued dozens of reads behind the history sweep above.
+    const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
+    const sofaIdOf = (local: string): number | null => {
+      const hit = teamMaps.find((m) => m.local_name === local) ?? teamMaps.find((m) => m.name === local);
+      return hit && Number.isInteger(hit.sofascore_id) && hit.sofascore_id > 0 ? hit.sofascore_id : null;
+    };
+    const homeId = sofaIdOf(casa);
+    const awayId = sofaIdOf(fora);
+    const upcoming = await loadUpcomingIntl(
+      supabase,
+      userId,
+      todayISO,
+      false,
+      homeId !== null && awayId !== null ? [homeId, awayId] : undefined
+    ).catch(() => []);
     const same = upcoming.filter((g) => g.home === casa && g.away === fora);
     const fx = (matchDate ? same.find((g) => g.date === matchDate) : undefined) ?? same[0] ?? null;
     if (fx) await fillRealOdds(userId, fx.id);

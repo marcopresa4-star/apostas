@@ -2,6 +2,8 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational } from "@/lib/footballData";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { leagueRates, predict } from "@/lib/footballModel";
+import { buildStandings, formOf, ratings } from "@/lib/standings";
+import type { StandingsLine } from "@/components/StandingsTable";
 import { MIN_GAMES, SOLID_GAMES } from "@/lib/recommendation";
 import { first } from "@/lib/searchParams";
 import { parseSofascoreId } from "@/lib/sofascore";
@@ -62,6 +64,24 @@ export default async function LivePage({
 
   const sofaEventId = sofaLinkId ?? dash?.sofaEventId ?? null;
 
+  // Pasted-link games carry no league/teams in the URL: resolve them from the
+  // link itself so the calculator names the sides (instead of Casa/Fora) and
+  // the league lookup below finds their data. Same for a dashboard game whose
+  // league the team links could not resolve (unlinked sides): the event's own
+  // tournament points straight at it. Chosen-teams flow untouched.
+  let linkCasa = "";
+  let linkFora = "";
+  const linkId = !dash && !liga ? sofaEventId : (dash && !liga ? dash.sofaEventId : null);
+  if (linkId !== null && userId) {
+    const { resolveSofaLink } = await import("@/lib/sofaLeague");
+    const resolved = await resolveSofaLink(supabase, userId, `id:${linkId}`).catch(() => null);
+    if (resolved && !("error" in resolved)) {
+      if (resolved.leagueCode) liga = resolved.leagueCode;
+      if (resolved.casa) linkCasa = resolved.casa;
+      if (resolved.fora) linkFora = resolved.fora;
+    }
+  }
+
   // Expected goals: from a dashboard game (league resolved via the team links)
   // or from hand-picked teams of a mapped league. Otherwise typical figures.
   if (dash && !sofaLinkId) {
@@ -98,12 +118,59 @@ export default async function LivePage({
       ? await loadSofaInternational(supabase, userId, now).catch(() => null)
       : null;
   const data = sofaLeague?.data ?? null;
+  const sofaTables = sofaLeague?.tables ?? [];
   const intlTeams = sofaIntl ? activeTeams(sofaIntl.games, now) : [];
   const intlWindowFrom = isoDaysAgo(now, WINDOW_YEARS * 365);
   const intlRecent = sofaIntl ? sofaIntl.games.filter((g) => g.date >= intlWindowFrom) : [];
   const teams = league && isInternational(league.code) ? intlTeams : (data?.teams ?? []);
   const isIntl = league !== null && isInternational(league.code);
   const chosen = league !== null && casa !== "" && fora !== "" && casa !== fora && teams.includes(casa) && teams.includes(fora);
+
+  // League table with each side highlighted, like Comparar's "Classificação e
+  // força": official points where the source has them, our ratings. Clubs
+  // only (national sides have no league). Works for hand-picked teams,
+  // dashboard games and pasted links alike.
+  const tableHome = dash ? dash.home : chosen ? casa : linkCasa;
+  const tableFora = dash ? dash.away : chosen ? fora : linkFora;
+  const standingsLines: StandingsLine[] =
+    data && !isIntl && tableHome !== "" && tableFora !== "" && tableHome !== tableFora
+      ? (() => {
+          const official = sofaTables.length > 0 ? sofaTables[0] : null;
+          const table = official ? [] : buildStandings(data.fixtures);
+          const strengths = new Map(
+            ratings(data.matches, official ? official.rows.map((r) => r.team) : table.map((row) => row.team), now).rows.map(
+              (row) => [row.team, row]
+            )
+          );
+          if (official) {
+            return official.rows.flatMap((o) => {
+              const rating = strengths.get(o.team);
+              if (!rating) return [];
+              return [
+                {
+                  standing: {
+                    team: o.team,
+                    played: o.played,
+                    wins: o.wins,
+                    draws: o.draws,
+                    losses: o.losses,
+                    gf: o.gf,
+                    ga: o.ga,
+                    gd: o.gf - o.ga,
+                    points: o.points,
+                    form: formOf(data.fixtures, o.team),
+                  },
+                  rating,
+                },
+              ];
+            });
+          }
+          return table.flatMap((standing) => {
+            const rating = strengths.get(standing.team);
+            return rating ? [{ standing, rating }] : [];
+          });
+        })()
+      : [];
 
   // With two teams, the expected goals of the game are the model's own.
   let expected = TYPICAL;
@@ -334,8 +401,8 @@ export default async function LivePage({
         {/* Keyed by the teams, so choosing others starts the calculator afresh. */}
         <LiveCalculator
           key={`${sofaEventId ?? ""}|${dash?.id ?? ""}|${league?.code ?? ""}|${chosen ? casa : ""}|${chosen ? fora : ""}`}
-          home={dash ? dash.home : chosen ? casa : ""}
-          away={dash ? dash.away : chosen ? fora : ""}
+          home={tableHome}
+          away={tableFora}
           lambdaHome={expected.home}
           lambdaAway={expected.away}
           firstHalfShare={expected.firstHalfShare}
@@ -344,6 +411,9 @@ export default async function LivePage({
           href={game?.href}
           sourceLines={sourceLines}
           sofaEventId={sofaEventId}
+          standings={standingsLines.length > 0 ? standingsLines : undefined}
+          standingsLabel={league?.label ?? ""}
+          standingsSeason={data?.season.label ?? ""}
         />
       </div>
       )}

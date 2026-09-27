@@ -114,9 +114,19 @@ interface Prematch {
   fromModel: boolean;
 }
 
-// Each side's chance of scoring again, from the pre-match expectation and the
-// live state. Shared by the card and the pressure alert below it.
-function againProbs(pre: Prematch, state: LiveGameState): { home: number; away: number; none: number } {
+// Each side's chance of scoring again, from the pre-match expectation, the
+// live state, and (when the shotmap carries xG) the pace each side is actually
+// creating at. Shared by the card and the pressure alert below it.
+function againProbs(
+  pre: Prematch,
+  state: LiveGameState,
+  xg?: { home: number; away: number }
+): {
+  home: number;
+  away: number;
+  oneMore: number;
+  form: { home: number; away: number; paceHome: number; paceAway: number } | null;
+} {
   const p = predictLive({
     lambdaHome: pre.home,
     lambdaAway: pre.away,
@@ -126,8 +136,9 @@ function againProbs(pre: Prematch, state: LiveGameState): { home: number; away: 
     awayGoals: state.awayGoals ?? 0,
     redsHome: state.reds.home,
     redsAway: state.reds.away,
+    ...(xg ? { homeXg: xg.home, awayXg: xg.away } : {}),
   });
-  return { home: p.scoresAgain.home, away: p.scoresAgain.away, none: 1 - p.nextGoal.none };
+  return { home: p.scoresAgain.home, away: p.scoresAgain.away, oneMore: 1 - p.nextGoal.none, form: p.formMult };
 }
 
 // The goal alert: chance of at least one more goal (live model on the
@@ -138,6 +149,7 @@ function GoalAlert({
   state,
   momentum,
   recent,
+  xg,
   homeName,
   awayName,
 }: {
@@ -145,6 +157,7 @@ function GoalAlert({
   state: LiveGameState;
   momentum: MomentumPoint[];
   recent: Incident[];
+  xg: XgShot[];
   homeName: string;
   awayName: string;
 }) {
@@ -169,8 +182,13 @@ function GoalAlert({
 
   if (!pre || (state.phase !== "live" && state.phase !== "halftime")) return null;
   const minute = state.minute ?? 0;
-  const { home: homeAgain, away: awayAgain, none: pGoalNone } = againProbs(pre, state);
-  const pGoal = 1 - pGoalNone;
+  // Live xG actually created so far (shots up to the current minute): without
+  // xG values there is no live-form nudge, only minute and score count.
+  const hasXg = xg.some((s) => s.xg !== null);
+  const xgAt = (isHome: boolean): number =>
+    xg.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute).reduce((n, s) => n + (s.xg ?? 0), 0);
+  const liveXg = hasXg ? { home: xgAt(true), away: xgAt(false) } : undefined;
+  const { home: homeAgain, away: awayAgain, oneMore: pGoal, form } = againProbs(pre, state, liveXg);
   const pct = (v: number) => Math.round(v * 100);
   const hotSide = homeAgain >= 0.7 ? homeName : awayAgain >= 0.7 ? awayName : null;
   const hot = hotSide !== null;
@@ -189,6 +207,20 @@ function GoalAlert({
     reasons.push(ago === 0 ? `Golo agora mesmo (${lastGoal.text})` : `Último golo há ${ago} min (${lastGoal.text})`);
   }
   if (state.reds.home + state.reds.away > 0) reasons.push("Com menos um em campo (já contado nas contas)");
+  if (form && liveXg) {
+    const f2 = (v: number) => v.toFixed(2).replace(".", ",");
+    const formLine = (team: string, actual: number, pace: number, mult: number): void => {
+      // Small nudges stay silent: only a 5%+ move earns a line.
+      if (Math.abs(mult - 1) < 0.05) return;
+      const dir = mult > 1 ? "acima" : "abaixo";
+      const pct = Math.round(Math.abs(mult - 1) * 100);
+      reasons.push(
+        `${team} a criar ${dir} do esperado (xG ${f2(actual)}, esperados ${f2(pace)} aos ${minute}'): ${mult > 1 ? "+" : "-"}${pct}% no que falta marcar`
+      );
+    };
+    formLine(homeName, liveXg.home, form.paceHome, form.home);
+    formLine(awayName, liveXg.away, form.paceAway, form.away);
+  }
   if (!pre.fromModel) reasons.push("Sem dados destas equipas: base em valores típicos");
 
   return (
@@ -1054,6 +1086,7 @@ export default function SofaScoreWidget({
           state={state}
           momentum={momentum ?? []}
           recent={recent}
+          xg={xg ?? []}
           homeName={homeName}
           awayName={awayName}
         />

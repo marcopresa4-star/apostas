@@ -15,6 +15,7 @@ import {
   VALUE_MARGIN,
   ahWinPush,
   baseRates,
+  bttsOver25Probs,
   candidatesFor,
   matchTotalOver,
   matchTotalPush,
@@ -911,6 +912,8 @@ function buildMarkets(
 ): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
+  // BTTS combinada com o mais de 2,5, da mesma grelha do modelo.
+  const combo = bttsOver25Probs(prediction.lambdaHome, prediction.lambdaAway);
   const overRows = [0.5, 1.5, 2, 2.5, 3, 3.5, 4.5].flatMap((line) => {
     const over =
       prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
@@ -981,21 +984,74 @@ function buildMarkets(
       rows: [
         { label: "Sim", p: prediction.bothScore, key: "btts:yes" },
         { label: "Não", p: 1 - prediction.bothScore, key: "btts:no" },
+        { label: "Sim e mais de 2,5", p: combo.both, key: "combo:btts-over25" },
+        { label: "Sim ou mais de 2,5", p: combo.either, key: "combo:btts-or-over25" },
       ],
     },
     ...(withHalfTime
-      ? [
-          {
-            title: "Ao intervalo",
-            rows: [
-              { label: "Casa ganha ao intervalo", p: ht.home, key: "ht:home" },
-              { label: "Empate ao intervalo", p: ht.draw, key: "ht:draw" },
-              { label: "Fora ganha ao intervalo", p: ht.away, key: "ht:away" },
-              { label: "Mais de 0,5 golos na 1.ª parte", p: ht.over05 },
-              { label: "Mais de 1,5 golos na 1.ª parte", p: ht.over15 },
-            ],
-          },
-        ]
+      ? (() => {
+          const htName = (line: number): string => (line === 1 ? "1 golo" : `${dot(line)} golos`);
+          const tot: Record<string, { over: number; push: number }> = {
+            "0.5": { over: ht.over05, push: 0 },
+            "1": { over: ht.over10, push: ht.push10 },
+            "1.5": { over: ht.over15, push: 0 },
+          };
+          const sideProbs = (isHome: boolean): Record<string, { over: number; push: number }> =>
+            isHome
+              ? {
+                  "0.5": { over: ht.homeOver05, push: 0 },
+                  "1": { over: ht.homeOver10, push: ht.homePush10 },
+                  "1.5": { over: ht.homeOver15, push: 0 },
+                }
+              : {
+                  "0.5": { over: ht.awayOver05, push: 0 },
+                  "1": { over: ht.awayOver10, push: ht.awayPush10 },
+                  "1.5": { over: ht.awayOver15, push: 0 },
+                };
+          const rows: Row[] = [
+            { label: "Casa ganha ao intervalo", p: ht.home, key: "ht:home" },
+            { label: "Empate ao intervalo", p: ht.draw, key: "ht:draw" },
+            { label: "Fora ganha ao intervalo", p: ht.away, key: "ht:away" },
+          ];
+          for (const line of [0.5, 1, 1.5]) {
+            const t = tot[String(line)];
+            const push = Number.isInteger(line) && t.push >= 0.005 ? t.push : undefined;
+            rows.push(
+              {
+                label: `Mais de ${htName(line)} (1.ª parte)`,
+                p: t.over,
+                key: `htover:${line}`,
+                ...(push !== undefined ? { push } : {}),
+              },
+              {
+                label: `Menos de ${htName(line)} (1.ª parte)`,
+                p: 1 - t.over - t.push,
+                key: `htunder:${line}`,
+                ...(push !== undefined ? { push } : {}),
+              }
+            );
+            for (const side of ["home", "away"] as const) {
+              const team = side === "home" ? home : away;
+              const s = sideProbs(side === "home")[String(line)];
+              const spush = Number.isInteger(line) && s.push >= 0.005 ? s.push : undefined;
+              rows.push(
+                {
+                  label: `${team} mais de ${htName(line)} (1.ª parte)`,
+                  p: s.over,
+                  key: `htto:${side}:${line}`,
+                  ...(spush !== undefined ? { push: spush } : {}),
+                },
+                {
+                  label: `${team} menos de ${htName(line)} (1.ª parte)`,
+                  p: 1 - s.over - s.push,
+                  key: `httu:${side}:${line}`,
+                  ...(spush !== undefined ? { push: spush } : {}),
+                }
+              );
+            }
+          }
+          return [{ title: "Ao intervalo", rows }];
+        })()
       : []),
     {
       title: "Resultados exatos mais prováveis",
@@ -1112,7 +1168,7 @@ export default function MatchupReport({
       });
 
   // Some leagues come without the half-time score.
-  const hasHalfTime = matches.some((m) => m.ht !== null);
+  const hasHalfTime = matches.some((m) => m.ht !== null && m.ht !== undefined);
   const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away);
 
   // The teams' own records count only this season (from 1 July); the estimate
@@ -1192,7 +1248,8 @@ export default function MatchupReport({
   const fhs = leagueRates(matches, now).firstHalfShare;
   const picks = few ? [] : recommend(prediction, base, home, away, fhs, matches);
   // Value hunt input: every priced market with a real odd, ranked client-side.
-  const priced: ValueItem[] = candidatesFor(prediction, base, home, away, fhs, matches).flatMap((c) => {
+  const priced: ValueItem[] = candidatesFor(prediction, base, home, away, fhs, matches)
+    .flatMap((c) => {
     const real = realByKey?.[c.key];
     if (real === undefined) return [];
     const push = c.push ?? 0;

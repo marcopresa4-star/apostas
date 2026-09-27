@@ -50,6 +50,8 @@ export const MARKET_OPTIONS: { key: string; label: string }[] = [
   { key: "dnb:away", label: "Empate anula: fora" },
   { key: "btts:yes", label: "Ambas marcam: sim" },
   { key: "btts:no", label: "Ambas marcam: não" },
+  { key: "combo:btts-over25", label: "Ambas marcam e mais de 2,5" },
+  { key: "combo:btts-or-over25", label: "Ambas marcam ou mais de 2,5" },
   { key: "over:1.5", label: "Mais de 1,5 golos" },
   { key: "under:1.5", label: "Menos de 1,5 golos" },
   { key: "over:2.5", label: "Mais de 2,5 golos" },
@@ -65,8 +67,22 @@ export const MARKET_OPTIONS: { key: string; label: string }[] = [
   { key: "ht:away", label: "Fora ao intervalo" },
   { key: "htover:0.5", label: "Mais de 0,5 ao intervalo" },
   { key: "htunder:0.5", label: "Menos de 0,5 ao intervalo" },
+  { key: "htover:1", label: "Mais de 1 golo ao intervalo" },
+  { key: "htunder:1", label: "Menos de 1 golo ao intervalo" },
   { key: "htover:1.5", label: "Mais de 1,5 ao intervalo" },
   { key: "htunder:1.5", label: "Menos de 1,5 ao intervalo" },
+  { key: "htto:home:0.5", label: "Casa mais de 0,5 ao intervalo" },
+  { key: "httu:home:0.5", label: "Casa menos de 0,5 ao intervalo" },
+  { key: "htto:home:1", label: "Casa mais de 1 golo ao intervalo" },
+  { key: "httu:home:1", label: "Casa menos de 1 golo ao intervalo" },
+  { key: "htto:home:1.5", label: "Casa mais de 1,5 ao intervalo" },
+  { key: "httu:home:1.5", label: "Casa menos de 1,5 ao intervalo" },
+  { key: "htto:away:0.5", label: "Fora mais de 0,5 ao intervalo" },
+  { key: "httu:away:0.5", label: "Fora menos de 0,5 ao intervalo" },
+  { key: "htto:away:1", label: "Fora mais de 1 golo ao intervalo" },
+  { key: "httu:away:1", label: "Fora menos de 1 golo ao intervalo" },
+  { key: "htto:away:1.5", label: "Fora mais de 1,5 ao intervalo" },
+  { key: "httu:away:1.5", label: "Fora menos de 1,5 ao intervalo" },
   { key: "fts:home", label: "Casa marca primeiro" },
   { key: "fts:away", label: "Fora marca primeiro" },
   { key: "fts:none", label: "Ninguém marca" },
@@ -132,6 +148,10 @@ export function settleWon(
       return win(h > 0 && a > 0);
     case "btts:no":
       return win(!(h > 0 && a > 0));
+    case "combo:btts-over25":
+      return win(h > 0 && a > 0 && h + a > 2.5);
+    case "combo:btts-or-over25":
+      return win((h > 0 && a > 0) || h + a > 2.5);
     case "ht:home":
     case "ht:draw":
     case "ht:away": {
@@ -163,6 +183,17 @@ export function settleWon(
         const total = ht[0] + ht[1];
         if (total === line) return "void";
         return htou[1] === "htover" ? win(total > line) : win(total < line);
+      }
+      // Team totals at half time ("htto:home:1.5"): settle from the
+      // half-time score like the lines above. Whole lines refund on exact.
+      const htt = /^(htto|httu):(home|away):(\d+(?:\.\d+)?)$/.exec(key);
+      if (htt) {
+        const ht = extra?.ht ?? null;
+        const line = Number(htt[3]);
+        if (!ht || !Number.isFinite(line)) return null;
+        const g = htt[2] === "home" ? ht[0] : ht[1];
+        if (g === line) return "void";
+        return htt[1] === "htto" ? win(g > line) : win(g < line);
       }
       const split = splitLineKey(key);
       if (split) {

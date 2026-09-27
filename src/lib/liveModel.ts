@@ -14,6 +14,10 @@
 //    of the mean), which the Conway-Maxwell-Poisson law allows (NU), and there
 //    are fewer halves with no goal at all than that law still gives (ZERO):
 //    without it "one more goal" came out 6 points too low.
+//  - live attacking output (shotmap xG vs the pace the pre-match expectation
+//    implied by now) nudges what is left to come, capped and shrunk towards
+//    1 early on: HEURISTIC, unmeasured (the data has no per-minute output).
+//    Without shotmap xG there is no nudge at all.
 //
 // Only the half time point can be tested, because the data has the score at the
 // break and at the end, not the minute of each goal. At other minutes these
@@ -56,6 +60,18 @@ const STOPPAGE_SHARE = 0.05;
 const STOPPAGE_MINUTES = 6;
 const MAX_GOALS = 14;
 
+// Live-form nudge: prior weight (xG units) pulling the multiplier to 1 while
+// little of the game has been played, a gate before ~10' (a single early
+// chance must not swing it), and caps. HEURISTIC, unmeasured: a side creating
+// double its expected pace late on is probably (not certainly) more dangerous
+// than the minute and score alone say. Goals already scored stay in the actual
+// xG (they came from chances too); the score effect above already prices the
+// lead itself, so this only prices HOW the game is being created.
+const FORM_PRIOR = 1.5;
+const FORM_GATE = 0.1;
+const FORM_MIN = 0.65;
+const FORM_MAX = 1.5;
+
 export interface LiveInput {
   lambdaHome: number; // expected goals of the whole game, before it started
   lambdaAway: number;
@@ -65,6 +81,11 @@ export interface LiveInput {
   awayGoals: number;
   redsHome?: number; // sending-offs so far (0 when unknown)
   redsAway?: number;
+  // Accumulated live xG so far (shotmap, goals included): when present, what
+  // is left to come is nudged towards the pace each side is actually creating
+  // at. Absent (no shotmap xG) there is no nudge.
+  homeXg?: number;
+  awayXg?: number;
 }
 
 // A side a man down scores less and concedes more for the rest of the game.
@@ -92,8 +113,16 @@ export interface LivePrediction {
   // Full remaining-goals distributions (index = goals still to come).
   homePmf: number[];
   awayPmf: number[];
+  // First-half remainder distributions (same red-card scaling as above):
+  // feeds the 1.ª-parte markets, which count the goals already scored too
+  // (all first-half goals while the break hasn't come).
+  htHomePmf: number[];
+  htAwayPmf: number[];
   // Chance each side scores again before the end (marginal scoreless).
   scoresAgain: { home: number; away: number };
+  // Live-form nudge from the shotmap xG above (null when no xG was passed):
+  // multiplier on what each side still scores, with the expected pace behind it.
+  formMult: { home: number; away: number; paceHome: number; paceAway: number } | null;
   // Final result, given the current score.
   fullTime: { home: number; draw: number; away: number };
   // Chance of MORE than `line` goals in the whole game (line = 0.5, 1.5, ...).
@@ -172,10 +201,27 @@ export function predictLive(
   // would be pure fiction.
   const capped = Math.max(-2, Math.min(2, (input.redsHome ?? 0) - (input.redsAway ?? 0)));
 
+  // Live-form nudge (see header): actual xG vs the pace the pre-match
+  // expectation implied by now, shrunk towards 1 early on, capped. The played
+  // share mirrors the clock above (1 minus what is left to come).
+  let formMult: LivePrediction["formMult"] = null;
+  const hx = input.homeXg ?? null;
+  const ax = input.awayXg ?? null;
+  if (hx !== null && ax !== null && hx >= 0 && ax >= 0) {
+    const played = Math.max(0, 1 - (first + second));
+    if (played >= FORM_GATE) {
+      const paceHome = lambdaHome * played;
+      const paceAway = lambdaAway * played;
+      const mult = (actual: number, pace: number): number =>
+        Math.max(FORM_MIN, Math.min(FORM_MAX, (actual + FORM_PRIOR) / (pace + FORM_PRIOR)));
+      formMult = { home: mult(hx, paceHome), away: mult(ax, paceAway), paceHome, paceAway };
+    }
+  }
+
   const remainingHome =
-    lambdaHome * (first + second * homeState) * redMultiplier(capped, true);
+    lambdaHome * (first + second * homeState) * redMultiplier(capped, true) * (formMult?.home ?? 1);
   const remainingAway =
-    lambdaAway * (first + second * awayState) * redMultiplier(capped, false);
+    lambdaAway * (first + second * awayState) * redMultiplier(capped, false) * (formMult?.away ?? 1);
   const homePmf = comPoisson(remainingHome, nuNow);
   const awayPmf = comPoisson(remainingAway, nuNow);
 
@@ -252,6 +298,9 @@ export function predictLive(
     homePmf,
     awayPmf,
     halfTime,
+    htHomePmf,
+    htAwayPmf,
+    formMult,
     scoresAgain: { home: 1 - norm(homeZero), away: 1 - norm(awayZero) },
     finalScores: finals
       .sort((x, y) => y.p - x.p)

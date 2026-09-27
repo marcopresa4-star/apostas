@@ -21,6 +21,7 @@ import {
   searchTeams,
   lisbonParts,
   alignScore,
+  linkLocalName,
   type SofaMap,
   type SofaSeason,
 } from "./sofaHistory";
@@ -124,7 +125,7 @@ export async function loadSofaLeague(
   }
   const unlinked = new Set<string>();
   const convert = (name: string): string => {
-    const local = toLocal.get(name);
+    const local = toLocal.get(name) ?? linkLocalName(teamMaps, name);
     if (local) return local;
     unlinked.add(name);
     return name;
@@ -264,29 +265,30 @@ export async function findSofaLeague(
   const tournaments = await loadMaps(supabase, userId, "tournament");
   if (tournaments.length === 0) return null;
   const teams = await loadMaps(supabase, userId, "team");
-  // Local name (or any known spelling) -> SofaScore spelling, via links.
-  const known = new Map<string, string>();
-  for (const m of teams) {
-    if (m.local_name) known.set(slugify(m.local_name), m.name);
-    known.set(m.name_key, m.name);
-  }
-  const slugs = (names: string[]): string | null => {
+  // Local name (or any known spelling) -> local spelling, via links (exact,
+  // then decoration-stripped, like the adapter above). Unknown spellings
+  // stay out, so a stray name cannot claim another league.
+  const pick = (names: string[]): string | null => {
     for (const n of names) {
-      const hit = known.get(slugify(n));
-      if (hit) return hit;
+      const direct = teams.find((m) => m.local_name === n);
+      if (direct && direct.local_name) return direct.local_name;
+      const viaSofa = teams.find(
+        (m) => m.name === n || m.name_key === slugify(n) || slugify(m.name) === slugify(n)
+      );
+      if (viaSofa && viaSofa.local_name) return viaSofa.local_name;
     }
     return null;
   };
-  const homeSofa = slugs(homeNames);
-  const awaySofa = slugs(awayNames);
-  if (!homeSofa || !awaySofa) return null;
+  const homeLocal = pick(homeNames);
+  const awayLocal = pick(awayNames);
+  if (!homeLocal || !awayLocal) return null;
   for (const t of tournaments) {
     try {
       const seasons = await tournamentSeasons(supabase, userId, t.sofascore_id).catch(() => []);
       if (seasons.length === 0) continue;
       const rows = await seasonStandings(supabase, userId, t.sofascore_id, seasons[0].id, true).catch(() => []);
-      const names = new Set(rows.map((r) => r.team));
-      if (names.has(homeSofa) && names.has(awaySofa)) return { code: t.name_key };
+      const names = new Set(rows.map((r) => linkLocalName(teams, r.team) ?? r.team));
+      if (names.has(homeLocal) && names.has(awayLocal)) return { code: t.name_key };
     } catch {
       // Next tournament.
     }

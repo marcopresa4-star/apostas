@@ -768,6 +768,28 @@ const CLUB_DECORATION = new Set([
   "rcd", "cs", "sk", "if", "bk", "fsv", "vfb", "vfl", "tsg", "club", "real", "atl",
 ]);
 
+// SofaScore shortens some names in standings ("Charlotte" for Charlotte FC):
+// after the exact link, match by slug with club-decoration words (FC, SC…)
+// stripped. Only full-slug equality counts, never substrings, so close names
+// ("Inter" vs "Internazionale") stay unlinked instead of merging.
+export function strippedSlug(name: string): string {
+  return slugify(name)
+    .split("-")
+    .filter((t) => t.length > 0 && !CLUB_DECORATION.has(t))
+    .join("-");
+}
+
+// SofaScore spelling -> local spelling via the team links, or null when
+// unlinked: exact first, then the decoration-stripped slug (first map wins).
+export function linkLocalName(teamMaps: SofaMap[], sofaName: string): string | null {
+  const direct = teamMaps.find((m) => m.name === sofaName);
+  if (direct && direct.local_name) return direct.local_name;
+  const stripped = strippedSlug(sofaName);
+  if (!stripped) return null;
+  const hit = teamMaps.find((m) => m.local_name && strippedSlug(m.name) === stripped);
+  return hit && hit.local_name ? hit.local_name : null;
+}
+
 // Letters NFD cannot split (ł, ø, æ, ß...): without this "Wisła Płock" and
 // "Sønderjyske" never match anything. Local-only to matching (never in stored
 // keys, which were built with plain slugify).

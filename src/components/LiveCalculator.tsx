@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
+import StandingsTable, { type StandingsLine } from "./StandingsTable";
 import { predictLive } from "@/lib/liveModel";
 import { oddsKeyFor, type ParsedOdds } from "@/lib/oddsParse";
 import { liveSummary } from "@/lib/liveSummary";
-import { LAST_MINUTES, liveCandidates, suggestLive } from "@/lib/liveBet";
+import { htLiveProbs, LAST_MINUTES, liveCandidates, livePickWhy, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
@@ -96,6 +97,11 @@ type Props = {
   // SofaScore link (see parseSofascoreId). Read through /api/sofascore/event,
   // which proxies the local CloakBrowser scraper.
   sofaEventId?: number | null;
+  // League table with both sides highlighted (clubs only, like Comparar's
+  // "Classificação e força"): official points with our attack/defence.
+  standings?: StandingsLine[];
+  standingsLabel?: string;
+  standingsSeason?: string;
 };
 
 const SOFASCORE_EVENT = "/api/sofascore/event?id=";
@@ -142,6 +148,9 @@ function Calculator({
   href,
   sourceLines = [],
   sofaEventId,
+  standings,
+  standingsLabel = "",
+  standingsSeason = "",
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
   const [minute, setMinute] = useState(String(saved ? saved.minuteNow : 60));
@@ -182,6 +191,12 @@ function Calculator({
   const [syncInfo, setSyncInfo] = useState<SyncInfo | null>(null);
   // The bookmaker's real odds for this event, refreshed with the minute poll.
   const [realOdds, setRealOdds] = useState<ParsedOdds | null>(null);
+  // Live shotmap (minute, side, xG) for the live-form nudge: only when the
+  // game is synced; manual mode keeps minute and score only. Refreshed every
+  // other poll — xG pace needs no minute freshness, and the serial scraper
+  // stays responsive.
+  const [shotmap, setShotmap] = useState<{ minute: number; home: boolean; xg: number | null }[] | null>(null);
+  const lastShotmapAt = useRef(0);
   const now = useNow(5000);
   // The game read from SofaScore, once a minute via the local scraper: score,
   // minute and cards. Every reading overwrites what is typed, so the box
@@ -256,6 +271,32 @@ function Calculator({
       } catch {
         // Odds unavailable: manual entry stays.
       }
+      // Shotmap rides along too, every other poll: accumulated xG feeds the
+      // live-form nudge in the suggestion below (without xG values there is
+      // no nudge). Spaced out on purpose — one more read per minute per game
+      // is what turns a slow scraper into a stalled one.
+      if (!stop && Date.now() - lastShotmapAt.current > 120_000) {
+        lastShotmapAt.current = Date.now();
+        try {
+          const sm = await fetch(`/api/sofascore/shotmap?id=${encodeURIComponent(String(sofaEventId))}`, {
+            cache: "no-store",
+          });
+          if (!stop && sm.ok) {
+            const body = (await sm.json()) as { shots?: { minute?: unknown; home?: unknown; xg?: unknown }[] };
+            if (body && Array.isArray(body.shots)) {
+              setShotmap(
+                body.shots.flatMap((s) =>
+                  typeof s.minute === "number" && typeof s.home === "boolean"
+                    ? [{ minute: s.minute, home: s.home, xg: typeof s.xg === "number" ? s.xg : null }]
+                    : []
+                )
+              );
+            }
+          }
+        } catch {
+          // No shotmap: minute and score alone decide.
+        }
+      }
     };
     void poll();
     const id = setInterval(() => void poll(), 60_000);
@@ -284,6 +325,16 @@ function Calculator({
   const rH = liveStateForReds ? liveStateForReds.reds.home : whole(redsHome, 0, 5, 0);
   const rA = liveStateForReds ? liveStateForReds.reds.away : whole(redsAway, 0, 5, 0);
 
+  // Accumulated live xG up to the current minute (synced games only): feeds
+  // the live-form nudge below. Without xG values the suggestion stays on
+  // minute and score alone.
+  const hasLiveXg = shotmap !== null && shotmap.some((s) => s.xg !== null);
+  const xgAt = (isHome: boolean): number =>
+    (shotmap ?? [])
+      .filter((s) => s.home === isHome && s.xg !== null && s.minute <= m)
+      .reduce((n, s) => n + (s.xg ?? 0), 0);
+  const liveXg = hasLiveXg ? { home: xgAt(true), away: xgAt(false) } : null;
+
   const p = predictLive({
     lambdaHome: expectedHome,
     lambdaAway: expectedAway,
@@ -293,6 +344,7 @@ function Calculator({
     awayGoals: a,
     redsHome: rH,
     redsAway: rA,
+    ...(liveXg ? { homeXg: liveXg.home, awayXg: liveXg.away } : {}),
   });
 
   // What is remembered: a running minute is kept as the minute it was at a given moment.
@@ -377,19 +429,51 @@ function Calculator({
     },
     { title: "Golos até ao fim", rows: goalRows },
     ...(m < 45
-      ? [
-          {
-            title: "Primeira parte (a decorrer)",
-            rows: [
-              { label: "Mais de 0,5 golos (1.ª parte)", p: p.halfTime.over05, key: "htover:0.5" },
-              { label: "Mais de 1,5 golos (1.ª parte)", p: p.halfTime.over15, key: "htover:1.5" },
-              { label: `${homeName} mais de 0,5 (1.ª parte)`, p: p.halfTime.homeOver05, key: "htto:home:0.5" },
-              { label: `${homeName} mais de 1,5 (1.ª parte)`, p: p.halfTime.homeOver15, key: "htto:home:1.5" },
-              { label: `${awayName} mais de 0,5 (1.ª parte)`, p: p.halfTime.awayOver05, key: "htto:away:0.5" },
-              { label: `${awayName} mais de 1,5 (1.ª parte)`, p: p.halfTime.awayOver15, key: "htto:away:1.5" },
-            ],
-          },
-        ]
+      ? (() => {
+          // Totals include the goals already scored (all first-half goals so
+          // far): a covered line reads 100%, a dead one 0%.
+          const ht = htLiveProbs(p, h, a);
+          const htLabel = (line: number): string => (line === 1 ? "1 golo" : `${dot(line)} golos`);
+          const rows: Row[] = [];
+          for (const line of [0.5, 1, 1.5]) {
+            const t = ht.total[String(line)];
+            const push = Number.isInteger(line) && t.push >= 0.005 ? t.push : undefined;
+            rows.push(
+              {
+                label: `Mais de ${htLabel(line)} (1.ª parte)`,
+                p: t.over,
+                key: `htover:${line}`,
+                ...(push !== undefined ? { push } : {}),
+              },
+              {
+                label: `Menos de ${htLabel(line)} (1.ª parte)`,
+                p: t.under,
+                key: `htunder:${line}`,
+                ...(push !== undefined ? { push } : {}),
+              }
+            );
+            for (const side of ["home", "away"] as const) {
+              const team = side === "home" ? homeName : awayName;
+              const s = (side === "home" ? ht.home : ht.away)[String(line)];
+              const spush = Number.isInteger(line) && s.push >= 0.005 ? s.push : undefined;
+              rows.push(
+                {
+                  label: `${team} mais de ${htLabel(line)} (1.ª parte)`,
+                  p: s.over,
+                  key: `htto:${side}:${line}`,
+                  ...(spush !== undefined ? { push: spush } : {}),
+                },
+                {
+                  label: `${team} menos de ${htLabel(line)} (1.ª parte)`,
+                  p: s.under,
+                  key: `httu:${side}:${line}`,
+                  ...(spush !== undefined ? { push: spush } : {}),
+                }
+              );
+            }
+          }
+          return [{ title: "Primeira parte (a decorrer)", rows }];
+        })()
       : []),
     { title: "Totais por equipa", rows: teamRows },
     {
@@ -412,7 +496,7 @@ function Calculator({
   const suggestion =
     m >= LAST_MINUTES
       ? { main: null, others: [] }
-      : suggestLive(liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a }), {
+      : suggestLive(liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a, minute: m }), {
           minOdd: Number(minOdd),
         });
   // The suggestion first, so the odd comparer opens on it.
@@ -761,6 +845,23 @@ function Calculator({
               {formatOdd(suggestion.main.fairOdd)} ·{" "}
               <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(suggestion.main.minOdd)}</span>
             </p>
+            <p className="mt-1 text-xs leading-relaxed">
+              <span className="font-bold text-neutral-100">
+                Porquê:{" "}
+                {livePickWhy(suggestion.main.key, p, {
+                  home: homeName,
+                  away: awayName,
+                  minute: m,
+                  homeGoals: h,
+                  awayGoals: a,
+                  redsHome: rH,
+                  redsAway: rA,
+                  xg: liveXg ?? undefined,
+                  expectedHome,
+                  expectedAway,
+                })}
+              </span>
+            </p>
             {suggestion.others.length > 0 && (
               <div className="mt-3 space-y-2 border-t border-emerald-900/40 pt-3">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Outras opções</p>
@@ -771,6 +872,23 @@ function Calculator({
                       Chance estimada <span className="font-medium text-neutral-200">{pct(pick.p)}</span> · odd justa{" "}
                       {formatOdd(pick.fairOdd)} ·{" "}
                       <span className="font-medium text-emerald-400">compensa a partir de {formatOdd(pick.minOdd)}</span>
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed">
+                      <span className="font-bold text-neutral-100">
+                        Porquê:{" "}
+                        {livePickWhy(pick.key, p, {
+                          home: homeName,
+                          away: awayName,
+                          minute: m,
+                          homeGoals: h,
+                          awayGoals: a,
+                          redsHome: rH,
+                          redsAway: rA,
+                          xg: liveXg ?? undefined,
+                          expectedHome,
+                          expectedAway,
+                        })}
+                      </span>
                     </p>
                   </div>
                 ))}
@@ -786,7 +904,8 @@ function Calculator({
           1,5); nos golos o modelo é otimista (dizia 58,9% e aconteceu 55,5%), por isso a chance é cortada mais. Sem os
           dados das equipas (valores típicos) o resultado foi praticamente igual (60,1%), porque perto do intervalo quase
           tudo vem do resultado e do tempo que falta. <span className="text-amber-400">A outros minutos não consigo testar.</span>{" "}
-          Acertar muitas vezes não é o mesmo que ganhar dinheiro: compara com a odd da casa aqui em baixo.
+          Acertar muitas vezes não é o mesmo que ganhar dinheiro: compara com a odd da casa aqui em baixo. Na 1.ª
+          parte, a fasquia é 1,8 em vez da escolhida em cima, porque essas chances são aproximação por testar.
         </p>
       </div>
 
@@ -795,6 +914,19 @@ function Calculator({
           <Table key={g.title} title={g.title} rows={g.rows} />
         ))}
       </div>
+
+      {standings && standings.length > 0 && home !== "" && away !== "" && (
+        <div>
+          <h2 className="mb-1 text-sm font-semibold text-neutral-300">
+            Classificação e força{standingsLabel ? ` · ${standingsLabel}` : ""}
+          </h2>
+          <p className="mb-3 text-xs text-neutral-500">
+            Pontos oficiais{standingsSeason ? ` · época ${standingsSeason}` : ""} com ataque e defesa do modelo
+            (1,00 = média da liga).
+          </p>
+          <StandingsTable lines={standings} highlight={{ home: homeName, away: awayName }} />
+        </div>
+      )}
 
       <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
 
@@ -807,7 +939,8 @@ function Calculator({
         marcam bateu a média histórica. <span className="text-amber-400">A outros minutos não consigo testar</span>, porque
         os dados não têm o minuto dos golos: aí é uma extrapolação razoável e mais nada. Conta os vermelhos como
         estimativa (menos um em campo ≈ −25% do que ainda marcava, +20% para o outro lado), mas isso é palpite
-        meu, não medido. Não sabe de lesões nem do ritmo do jogo.
+        meu, não medido. Não sabe de lesões. Quando o jogo está sincronizado, o xG ao vivo ajusta o que falta
+        marcar (está no Porquê de cada aposta, heurística por testar); sem ele, é só minuto e resultado.
       </p>
     </div>
   );

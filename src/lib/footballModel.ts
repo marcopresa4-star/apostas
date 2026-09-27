@@ -271,7 +271,22 @@ export interface Prediction {
   over: Record<string, number>; // "2.5" -> chance of MORE than 2.5 goals
   bothScore: number;
   topScores: { home: number; away: number; p: number }[];
-  halfTime: Outcome & { over05: number; over15: number };
+  halfTime: Outcome & {
+    over05: number;
+    over15: number;
+    // 1.ª-parte por medida: mais de 1 (devolve no exatamente-1) e totais por
+    // equipa, da mesma grelha. Sem efeito do resultado dentro da parte.
+    over10: number;
+    push10: number;
+    homeOver05: number;
+    homeOver15: number;
+    homeOver10: number;
+    homePush10: number;
+    awayOver05: number;
+    awayOver15: number;
+    awayOver10: number;
+    awayPush10: number;
+  };
   gamesHome: number;
   gamesAway: number;
 }
@@ -343,6 +358,22 @@ export function predictionFromLambdas(
   scores.sort((x, y) => y.p - x.p);
 
   const htGrid = scoreGrid(lambdaHome * firstHalfShare, lambdaAway * firstHalfShare, false);
+  const htOver = (line: number): number => overLine(htGrid, line);
+  const htExact = (line: number): number => {
+    let p = 0;
+    htGrid.forEach((row, hg) => row.forEach((q, ag) => (hg + ag === line ? (p += q) : 0)));
+    return p;
+  };
+  const htTeamOver = (isHome: boolean, line: number): number => {
+    let p = 0;
+    htGrid.forEach((row, hg) => row.forEach((q, ag) => ((isHome ? hg : ag) > line ? (p += q) : 0)));
+    return p;
+  };
+  const htTeamExact = (isHome: boolean, line: number): number => {
+    let p = 0;
+    htGrid.forEach((row, hg) => row.forEach((q, ag) => ((isHome ? hg : ag) === line ? (p += q) : 0)));
+    return p;
+  };
 
   return {
     lambdaHome,
@@ -355,6 +386,16 @@ export function predictionFromLambdas(
       ...outcomes(htGrid),
       over05: overLine(htGrid, 0.5),
       over15: overLine(htGrid, 1.5),
+      over10: htOver(1),
+      push10: htExact(1),
+      homeOver05: htTeamOver(true, 0.5),
+      homeOver15: htTeamOver(true, 1.5),
+      homeOver10: htTeamOver(true, 1),
+      homePush10: htTeamExact(true, 1),
+      awayOver05: htTeamOver(false, 0.5),
+      awayOver15: htTeamOver(false, 1.5),
+      awayOver10: htTeamOver(false, 1),
+      awayPush10: htTeamExact(false, 1),
     },
     gamesHome,
     gamesAway,

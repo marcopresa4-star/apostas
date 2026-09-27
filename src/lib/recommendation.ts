@@ -71,6 +71,47 @@ export function teamTotalWinPush(
   return { win, push };
 }
 
+// P(BTTS e mais de 2,5) e P(BTTS ou mais de 2,5): a mesma grelha de
+// Dixon-Coles do modelo (footballModel.ts fica intocado — isto espelha-a).
+const DC_RHO = -0.08;
+export function bttsOver25Probs(lh: number, la: number): { both: number; either: number } {
+  const MAX = 10;
+  const pois = (k: number, mu: number): number => {
+    let p = Math.exp(-mu);
+    for (let i = 1; i <= k; i++) p *= mu / i;
+    return p;
+  };
+  const tau = (x: number, y: number): number => {
+    if (x === 0 && y === 0) return 1 - lh * la * DC_RHO;
+    if (x === 0 && y === 1) return 1 + lh * DC_RHO;
+    if (x === 1 && y === 0) return 1 + la * DC_RHO;
+    if (x === 1 && y === 1) return 1 - DC_RHO;
+    return 1;
+  };
+  const cell: number[][] = [];
+  let total = 0;
+  for (let h = 0; h <= MAX; h++) {
+    cell[h] = [];
+    for (let a = 0; a <= MAX; a++) {
+      const p = pois(h, lh) * pois(a, la) * tau(h, a);
+      cell[h][a] = p;
+      total += p;
+    }
+  }
+  let both = 0;
+  let either = 0;
+  for (let h = 0; h <= MAX; h++) {
+    for (let a = 0; a <= MAX; a++) {
+      const p = cell[h][a] / total;
+      const btts = h > 0 && a > 0;
+      const over = h + a > 2.5;
+      if (btts && over) both += p;
+      if (btts || over) either += p;
+    }
+  }
+  return { both, either };
+}
+
 // Whole match-total lines push on the exact number.
 export function matchTotalPush(lh: number, la: number, line: number): number {
   let push = 0;
@@ -158,7 +199,7 @@ export function baseRates(matches: PlayedMatch[]): BaseRates {
   const share = (test: (m: PlayedMatch) => boolean) => matches.filter(test).length / n;
   const over: Record<string, number> = {};
   for (const line of OVER_LINES) over[String(line)] = share((m) => m.ft[0] + m.ft[1] > line);
-  const withHt = matches.filter((m) => m.ht !== null);
+  const withHt = matches.filter((m) => m.ht !== null && m.ht !== undefined);
   const halves =
     withHt.length >= matches.length / 2 && withHt.length > 0
       ? {
@@ -236,6 +277,35 @@ export function candidatesFor(
       won: ([h, a]) => !(h > 0 && a > 0),
     },
   ];
+  // BTTS combinada com o mais de 2,5 (a combinação que as casas mais vendem):
+  // e (as duas) e ou (pelo menos uma). Mesma família das ambas marcam.
+  const combo = bttsOver25Probs(prediction.lambdaHome, prediction.lambdaAway);
+  const baseBoth =
+    matches.length > 0
+      ? matches.filter((m) => m.ft[0] > 0 && m.ft[1] > 0 && m.ft[0] + m.ft[1] > 2.5).length / matches.length
+      : 0.3;
+  const baseEither =
+    matches.length > 0
+      ? matches.filter((m) => (m.ft[0] > 0 && m.ft[1] > 0) || m.ft[0] + m.ft[1] > 2.5).length / matches.length
+      : 0.7;
+  candidates.push(
+    {
+      group: "btts",
+      key: "combo:btts-over25",
+      label: "Ambas marcam e mais de 2,5",
+      p: combo.both,
+      base: baseBoth,
+      won: ([h, a]) => h > 0 && a > 0 && h + a > 2.5,
+    },
+    {
+      group: "btts",
+      key: "combo:btts-or-over25",
+      label: "Ambas marcam ou mais de 2,5",
+      p: combo.either,
+      base: baseEither,
+      won: ([h, a]) => (h > 0 && a > 0) || h + a > 2.5,
+    }
+  );
   for (const line of [0.5, 1.5, 2, 2.5, 3, 3.5, 4.5]) {
     const over =
       prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
@@ -365,6 +435,96 @@ export function candidatesFor(
     );
   }
 
+  // First-half totals (0.5, 1 and 1.5, game and per side): the model's own
+  // half-time grid, same caution family as the halves above. Only with
+  // half-time scores behind the league rates; whole lines push on the exact
+  // number. Without half-time scores there is no league rate to pull towards.
+  const withHt = matches.filter((m) => m.ht !== null && m.ht !== undefined);
+  if (withHt.length > 0 && withHt.length >= matches.length / 2) {
+    const ht = prediction.halfTime;
+    const n = withHt.length;
+    const totOver = (line: number): number => withHt.filter((m) => m.ht![0] + m.ht![1] > line).length / n;
+    const totPush = (line: number): number => withHt.filter((m) => m.ht![0] + m.ht![1] === line).length / n;
+    const teamGoals = withHt.flatMap((m) => [m.ht![0], m.ht![1]]);
+    const sideOver = (line: number): number => teamGoals.filter((g) => g > line).length / teamGoals.length;
+    const sidePush = (line: number): number => teamGoals.filter((g) => g === line).length / teamGoals.length;
+    const htName = (line: number): string => (line === 1 ? "1 golo" : `${num(line)} golos`);
+    const tot: Record<string, { over: number; push: number }> = {
+      "0.5": { over: ht.over05, push: 0 },
+      "1": { over: ht.over10, push: ht.push10 },
+      "1.5": { over: ht.over15, push: 0 },
+    };
+    const sideProbs = (isHome: boolean): Record<string, { over: number; push: number }> =>
+      isHome
+        ? {
+            "0.5": { over: ht.homeOver05, push: 0 },
+            "1": { over: ht.homeOver10, push: ht.homePush10 },
+            "1.5": { over: ht.homeOver15, push: 0 },
+          }
+        : {
+            "0.5": { over: ht.awayOver05, push: 0 },
+            "1": { over: ht.awayOver10, push: ht.awayPush10 },
+            "1.5": { over: ht.awayOver15, push: 0 },
+          };
+    for (const line of [0.5, 1, 1.5]) {
+      const t = tot[String(line)];
+      const basePush = Number.isInteger(line) ? totPush(line) : 0;
+      candidates.push(
+        {
+          group: "halves",
+          key: `htover:${line}`,
+          label: `Mais de ${htName(line)} (1.ª parte)`,
+          p: t.over,
+          base: totOver(line),
+          push: t.push,
+          won: ([h, a], htScore) => !!htScore && htScore[0] + htScore[1] > line,
+        },
+        {
+          group: "halves",
+          key: `htunder:${line}`,
+          label: `Menos de ${htName(line)} (1.ª parte)`,
+          p: 1 - t.over - t.push,
+          base: 1 - totOver(line) - basePush,
+          push: t.push,
+          won: ([h, a], htScore) => !!htScore && htScore[0] + htScore[1] < line,
+        }
+      );
+      for (const side of ["home", "away"] as const) {
+        const team = side === "home" ? home : away;
+        const s = sideProbs(side === "home")[String(line)];
+        const baseSidePush = Number.isInteger(line) ? sidePush(line) : 0;
+        candidates.push(
+          {
+            group: "halves",
+            key: `htto:${side}:${line}`,
+            label: `${team} mais de ${htName(line)} (1.ª parte)`,
+            p: s.over,
+            base: sideOver(line),
+            push: s.push,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              const g = side === "home" ? htScore[0] : htScore[1];
+              return g > line;
+            },
+          },
+          {
+            group: "halves",
+            key: `httu:${side}:${line}`,
+            label: `${team} menos de ${htName(line)} (1.ª parte)`,
+            p: 1 - s.over - s.push,
+            base: 1 - sideOver(line) - baseSidePush,
+            push: s.push,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              const g = side === "home" ? htScore[0] : htScore[1];
+              return g < line;
+            },
+          }
+        );
+      }
+    }
+  }
+
   return candidates.map((c) => ({ ...c, p: c.base + TRUST[c.group] * (c.p - c.base) }));
 }
 
@@ -444,8 +604,29 @@ export function pickWhy(
     const total = prediction.lambdaHome + prediction.lambdaAway;
     return `Esperados ${comma(total)} golos no jogo; a média da liga é ${comma(rates.perTeam * 2)}.`;
   }
+  if (key.startsWith("htover:") || key.startsWith("htunder:")) {
+    const line = key.split(":")[1] ?? "";
+    const fhs = rates.firstHalfShare;
+    const htExp = (prediction.lambdaHome + prediction.lambdaAway) * fhs;
+    const avgHt = rates.perTeam * 2 * fhs;
+    const dev = line === "1" ? " Com exatamente 1 devolve." : "";
+    return `Esperados ${comma(htExp)} golos na 1.ª parte (média da liga ${comma(avgHt)}).${dev}`;
+  }
+  if (key.startsWith("htto:") || key.startsWith("httu:")) {
+    const parts = key.split(":");
+    const team = parts[1] === "away" ? away : home;
+    const line = parts[2] ?? "";
+    const dir = key.startsWith("htto:") ? "mais" : "menos";
+    const dev = line === "1" ? " Com exatamente 1 devolve." : "";
+    return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")} na 1.ª parte.${dev}`;
+  }
   if (key === "btts:yes" || key === "btts:no") {
     return `${home}: ${scoring(home)}. ${away}: ${scoring(away)}.`;
+  }
+  if (key === "combo:btts-over25" || key === "combo:btts-or-over25") {
+    const total = prediction.lambdaHome + prediction.lambdaAway;
+    const conj = key === "combo:btts-over25" ? "as duas" : "pelo menos uma";
+    return `Esperados ${comma(total)} golos no jogo; ${home}: ${scoring(home)}. ${away}: ${scoring(away)}. Precisa de ${conj}.`;
   }
   if (key === "dnb:home" || key === "dnb:away") {
     const team = key === "dnb:away" ? away : home;
@@ -476,7 +657,7 @@ export function pickWhy(
     }
     const team = key === "halves:away" ? away : home;
     const withHt = matches.filter(
-      (m) => (m.team1 === team || m.team2 === team) && m.ht !== null
+      (m) => (m.team1 === team || m.team2 === team) && m.ht !== null && m.ht !== undefined
     );
     const first = withHt.filter((m) => (m.team1 === team ? m.ht![0] : m.ht![1]) > 0).length;
     const second = withHt.filter((m) => (m.team1 === team ? m.ft[0] - m.ht![0] : m.ft[1] - m.ht![1]) > 0).length;

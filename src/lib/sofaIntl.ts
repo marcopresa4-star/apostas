@@ -17,6 +17,17 @@ export interface SofaIntl {
   mapped: number;
 }
 
+// The local scraper answers reads one at a time: firing every linked team
+// at once queues dozens of chains behind each other (and behind the live
+// widget and the watch poller), so teams go in small batches.
+const TEAM_CONCURRENCY = 6;
+
+async function eachBatch<T>(items: T[], size: number, fn: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += size) {
+    await Promise.all(items.slice(i, i + size).map(fn));
+  }
+}
+
 export async function loadSofaInternational(
   supabase: SupabaseClient,
   userId: string,
@@ -51,25 +62,23 @@ export async function loadSofaInternational(
   };
 
   const seen = new Map<number, IntlGame>();
-  await Promise.all(
-    maps.map(async (m) => {
-      if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
-      const games = await nationalGames(m.sofascore_id, since, 20, { supabase, userId }).catch(() => []);
-      for (const g of games) {
-        if (seen.has(g.id)) continue;
-        if (outOfScope(g.home) || outOfScope(g.away)) continue;
-        seen.set(g.id, {
-          date: g.date,
-          home: convert(g.home),
-          away: convert(g.away),
-          hg: g.hg,
-          ag: g.ag,
-          neutral: g.neutral,
-          tournament: g.tournament,
-        });
-      }
-    })
-  );
+  await eachBatch(maps, TEAM_CONCURRENCY, async (m) => {
+    if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
+    const games = await nationalGames(m.sofascore_id, since, 20, { supabase, userId }).catch(() => []);
+    for (const g of games) {
+      if (seen.has(g.id)) continue;
+      if (outOfScope(g.home) || outOfScope(g.away)) continue;
+      seen.set(g.id, {
+        date: g.date,
+        home: convert(g.home),
+        away: convert(g.away),
+        hg: g.hg,
+        ag: g.ag,
+        neutral: g.neutral,
+        tournament: g.tournament,
+      });
+    }
+  });
   const games = [...seen.values()].sort((a, b) => a.date.localeCompare(b.date) || a.home.localeCompare(b.home));
   return {
     games,
@@ -91,39 +100,43 @@ export interface UpcomingIntlGame {
 // Upcoming games of the linked national teams (next event lists, deduped):
 // Nations League only, or everything, for the Jornada page. National sides
 // have no rounds on SofaScore, so the games group by competition instead.
+// `onlyIds` restricts the sweep to a few teams (the Comparar page only needs
+// the two sides' own lists to find their pairing, not every linked team).
 export async function loadUpcomingIntl(
   supabase: SupabaseClient,
   userId: string,
   today: string,
-  nationsLeagueOnly: boolean
+  nationsLeagueOnly: boolean,
+  onlyIds?: number[]
 ): Promise<UpcomingIntlGame[]> {
   const maps = (await loadMaps(supabase, userId, "team")).filter((m) => m.name_key.startsWith("int:"));
   if (maps.length === 0) return [];
   const toLocal = new Map(maps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const wanted =
+    onlyIds && onlyIds.length > 0 ? maps.filter((m) => onlyIds.includes(m.sofascore_id)) : maps;
+  if (wanted.length === 0) return [];
   const seen = new Set<number>();
   const out: UpcomingIntlGame[] = [];
-  await Promise.all(
-    maps.map(async (m) => {
-      if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
-      const events = await teamEventList(supabase, userId, m.sofascore_id, "next").catch(() => []);
-      for (const item of events) {
-        const e = (item ?? {}) as Record<string, unknown>;
-        const id = typeof e.id === "number" ? e.id : null;
-        if (id === null || seen.has(id)) continue;
-        if (((e.status ?? {}) as Record<string, unknown>).type !== "notstarted") continue;
-        const tournament: unknown = ((e.tournament ?? {}) as Record<string, unknown>).name;
-        if (typeof tournament !== "string") continue;
-        if (nationsLeagueOnly && (!/nations league/i.test(tournament) || /concacaf/i.test(tournament))) continue;
-        const home: unknown = ((e.homeTeam ?? {}) as Record<string, unknown>).name;
-        const away: unknown = ((e.awayTeam ?? {}) as Record<string, unknown>).name;
-        const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
-        if (typeof home !== "string" || typeof away !== "string" || !home || !away || start === null) continue;
-        const { date, time } = lisbonParts(start);
-        if (date < today) continue;
-        seen.add(id);
-        out.push({ id, date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
-      }
-    })
-  );
+  await eachBatch(wanted, TEAM_CONCURRENCY, async (m) => {
+    if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
+    const events = await teamEventList(supabase, userId, m.sofascore_id, "next").catch(() => []);
+    for (const item of events) {
+      const e = (item ?? {}) as Record<string, unknown>;
+      const id = typeof e.id === "number" ? e.id : null;
+      if (id === null || seen.has(id)) continue;
+      if (((e.status ?? {}) as Record<string, unknown>).type !== "notstarted") continue;
+      const tournament: unknown = ((e.tournament ?? {}) as Record<string, unknown>).name;
+      if (typeof tournament !== "string") continue;
+      if (nationsLeagueOnly && (!/nations league/i.test(tournament) || /concacaf/i.test(tournament))) continue;
+      const home: unknown = ((e.homeTeam ?? {}) as Record<string, unknown>).name;
+      const away: unknown = ((e.awayTeam ?? {}) as Record<string, unknown>).name;
+      const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
+      if (typeof home !== "string" || typeof away !== "string" || !home || !away || start === null) continue;
+      const { date, time } = lisbonParts(start);
+      if (date < today) continue;
+      seen.add(id);
+      out.push({ id, date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
+    }
+  });
   return out.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""));
 }

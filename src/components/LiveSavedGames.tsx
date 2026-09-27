@@ -27,7 +27,7 @@ function suggestionFor(g: SavedGame, minute: number): { label: string; p: number
   const la = Number(g.la.replace(",", "."));
   if (!Number.isFinite(lh) || !Number.isFinite(la) || minute >= LAST_MINUTES) return null;
   const p = predictLive({ lambdaHome: lh, lambdaAway: la, firstHalfShare: g.firstHalfShare ?? 0.44, minute, homeGoals: g.homeGoals, awayGoals: g.awayGoals });
-  const { main } = suggestLive(liveCandidates(p, { home: g.home, away: g.away, homeGoals: g.homeGoals, awayGoals: g.awayGoals }), { minOdd: 1.5 });
+  const { main } = suggestLive(liveCandidates(p, { home: g.home, away: g.away, homeGoals: g.homeGoals, awayGoals: g.awayGoals, minute }), { minOdd: 1.5 });
   return main ? { label: main.label, p: main.p } : null;
 }
 
