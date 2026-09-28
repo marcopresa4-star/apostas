@@ -13,6 +13,7 @@ import {
   MIN_GAMES,
   SOLID_GAMES,
   VALUE_MARGIN,
+  AH_LINES,
   ahWinPush,
   baseRates,
   bttsOver25Probs,
@@ -950,13 +951,13 @@ function buildMarkets(
     { title: "Golos", rows: overRows },
     {
       title: "Handicap asiático",
-      rows: [-1.5, -0.5, 0.5, 1.5].flatMap((line) =>
+      rows: AH_LINES.flatMap((line) =>
         (["home", "away"] as const).map((side) => {
           const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
           const team = side === "home" ? home : away;
-          const sign = line > 0 ? "+" : "";
+          const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${dot(line)}`;
           return {
-            label: `Handicap ${team} ${sign}${dot(line)}`,
+            label: `Handicap ${team} ${shown}`,
             p: win,
             key: `ah:${side}:${line}`,
             push,

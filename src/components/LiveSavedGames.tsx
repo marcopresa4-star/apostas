@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { useNow } from "@/lib/useNow";
 import {
@@ -21,14 +21,26 @@ import { addWatchedMatch } from "@/app/(app)/actions";
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
 // The suggested bet for a saved game right now, the same way the calculator
-// itself works it out, from what was typed the last time it was open.
-function suggestionFor(g: SavedGame, minute: number): { label: string; p: number } | null {
+// itself works it out, from what was typed the last time it was open (or the
+// live score/minute when given).
+function suggestionFor(g: SavedGame, minute: number, homeGoals = g.homeGoals, awayGoals = g.awayGoals): { label: string; p: number } | null {
   const lh = Number(g.lh.replace(",", "."));
   const la = Number(g.la.replace(",", "."));
   if (!Number.isFinite(lh) || !Number.isFinite(la) || minute >= LAST_MINUTES) return null;
-  const p = predictLive({ lambdaHome: lh, lambdaAway: la, firstHalfShare: g.firstHalfShare ?? 0.44, minute, homeGoals: g.homeGoals, awayGoals: g.awayGoals });
-  const { main } = suggestLive(liveCandidates(p, { home: g.home, away: g.away, homeGoals: g.homeGoals, awayGoals: g.awayGoals, minute }), { minOdd: 1.5 });
+  const p = predictLive({ lambdaHome: lh, lambdaAway: la, firstHalfShare: g.firstHalfShare ?? 0.44, minute, homeGoals, awayGoals });
+  const { main } = suggestLive(liveCandidates(p, { home: g.home, away: g.away, homeGoals, awayGoals, minute }), { minOdd: 1.5 });
   return main ? { label: main.label, p: main.p } : null;
+}
+
+// The SofaScore link behind a saved game, if any (dashboard games carry it,
+// manual ones do not).
+function sofaLinkOf(g: SavedGame): string | null {
+  if (g.key.startsWith("d:")) return null;
+  try {
+    return new URLSearchParams(g.href.split("?")[1] ?? "").get("sofascore");
+  } catch {
+    return null;
+  }
 }
 
 // The games watched in this browser, to pick one up again with a click. Nothing
@@ -51,20 +63,76 @@ export default function LiveSavedGames() {
 
   const games = raw === null ? [] : gamesFrom(raw);
 
+  // Saved values freeze when the calculator closes, so games with a SofaScore
+  // link re-read their score and minute here (or the list lies, and a
+  // finished game keeps counting minutes). Backs off while the scraper is down.
+  const [live, setLive] = useState<
+    Record<string, { minute: number | null; homeGoals: number | null; awayGoals: number | null; phase: string | null }>
+  >({});
+  const fails = useRef(0);
+  const lastFail = useRef(0);
+  useEffect(() => {
+    let stop = false;
+    const poll = async () => {
+      if (stop) return;
+      if (fails.current >= 2 && Date.now() - lastFail.current < 5 * 60_000) return;
+      const linked = gamesFrom(rawSnapshot()).filter((g) => {
+        const link = sofaLinkOf(g);
+        return link !== null && parseSofascoreId(link) !== null;
+      });
+      if (linked.length === 0) return;
+      let ok = false;
+      const next: Record<string, { minute: number | null; homeGoals: number | null; awayGoals: number | null; phase: string | null }> = {};
+      await Promise.all(
+        linked.map(async (g) => {
+          const id = parseSofascoreId(sofaLinkOf(g) ?? "");
+          if (id === null) return;
+          try {
+            const res = await fetch(`/api/sofascore/event?id=${id}&light=1`, {
+              cache: "no-store",
+              signal: AbortSignal.timeout(20_000),
+            });
+            if (!res.ok) return;
+            const body = (await res.json()) as {
+              state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown };
+            };
+            const st = body?.state;
+            if (!st || typeof st !== "object") return;
+            next[g.key] = {
+              minute: typeof st.minute === "number" ? st.minute : null,
+              homeGoals: typeof st.homeGoals === "number" ? st.homeGoals : null,
+              awayGoals: typeof st.awayGoals === "number" ? st.awayGoals : null,
+              phase: typeof st.phase === "string" ? st.phase : null,
+            };
+            ok = true;
+          } catch {
+            // Per-game failure: its saved values stay.
+          }
+        })
+      );
+      if (stop) return;
+      if (ok) {
+        fails.current = 0;
+        setLive((prev) => ({ ...prev, ...next }));
+      } else {
+        fails.current += 1;
+        lastFail.current = Date.now();
+      }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 60_000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, []);
+
   if (raw === null || games.length === 0) return null;
   void version;
 
   // A saved SofaScore game (link or id in its address) can move to the
   // Dashboard as a widget; manual games cannot (widgets are SofaScore-only),
   // and Dashboard games are already there.
-  const sofaLinkOf = (g: SavedGame): string | null => {
-    if (g.key.startsWith("d:")) return null;
-    try {
-      return new URLSearchParams(g.href.split("?")[1] ?? "").get("sofascore");
-    } catch {
-      return null;
-    }
-  };
 
   const sendToDashboard = (g: SavedGame) => {
     const link = sofaLinkOf(g);
@@ -110,8 +178,15 @@ export default function LiveSavedGames() {
       <ul className="divide-y divide-neutral-800">
         {games.map((g) => {
           const minute = now ? clockMinute(g, now.getTime()) : g.minute;
-          const over = g.running && minute >= OVER_MINUTES;
-          const suggestion = over ? null : suggestionFor(g, minute);
+          const lv = live[g.key];
+          const finished = lv?.phase === "finished";
+          // Live values win when the link gives them; the saved ones freeze
+          // the moment the calculator closes.
+          const showMinute = lv?.minute ?? minute;
+          const showHome = lv?.homeGoals ?? g.homeGoals;
+          const showAway = lv?.awayGoals ?? g.awayGoals;
+          const over = finished || (g.running && showMinute >= OVER_MINUTES);
+          const suggestion = over ? null : suggestionFor(g, showMinute, showHome, showAway);
           return (
             <li key={g.key} className="flex items-center justify-between gap-3 py-2">
               <Link href={g.href} className="min-w-0 flex-1 hover:text-amber-300">
@@ -119,8 +194,9 @@ export default function LiveSavedGames() {
                   {g.home} <span className="text-neutral-500">vs</span> {g.away}
                 </p>
                 <p className="text-xs text-neutral-400">
-                  {g.homeGoals}–{g.awayGoals} · {over ? "provavelmente terminou" : `${minute}'`}
-                  {g.running && !over && <span className="ml-1.5 text-amber-400">· minuto a andar</span>}
+                  {showHome}–{showAway} ·{" "}
+                  {finished ? "terminado" : over ? "provavelmente terminou" : `${showMinute}'`}
+                  {g.running && !over && !finished && <span className="ml-1.5 text-amber-400">· minuto a andar</span>}
                 </p>
                 {suggestion && (
                   <p className="truncate text-xs text-emerald-400">
@@ -166,7 +242,8 @@ export default function LiveSavedGames() {
         })}
       </ul>
       <p className="mt-2 text-[11px] text-neutral-500">
-        Ficam guardados só neste navegador e desaparecem passadas 12 horas.
+        Ficam guardados só neste navegador e desaparecem passadas 12 horas. Jogos com link atualizam o resultado
+        sozinhos, de minuto a minuto.
       </p>
     </section>
   );

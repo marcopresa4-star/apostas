@@ -133,4 +133,6 @@ export function clockMinute(game: Pick<SavedGame, "minute" | "at" | "running">, 
 }
 
 // A running clock past this many minutes belongs to a game that has ended.
-export const OVER_MINUTES = 150;
+// Past ~105' of running there is no game left (even long stoppage ends
+// before that; cup extra time aside, and "probably" covers the doubt).
+export const OVER_MINUTES = 105;

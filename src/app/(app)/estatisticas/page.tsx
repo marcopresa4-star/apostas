@@ -7,6 +7,7 @@ import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
 import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd, oddsKeyFor } from "@/lib/oddsParse";
+import { AH_LINES } from "@/lib/recommendation";
 import { HOUR_MS } from "@/lib/sofaCache";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
@@ -307,7 +308,7 @@ async function CompararBody({
       "over:2", "under:2", "over:2.5", "under:2.5",
       "over:3", "under:3", "over:3.5", "under:3.5",
       "ht:home", "ht:draw", "ht:away",
-      ...[-1.5, -0.5, 0.5, 1.5].flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
+      ...AH_LINES.flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
       ...[0.5, 1.5, 2.5].flatMap((line) => [
         `to:home:${line}`,
         `tu:home:${line}`,

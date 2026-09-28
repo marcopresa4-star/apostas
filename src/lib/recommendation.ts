@@ -157,6 +157,9 @@ const MIN_LIFT = 0.04;
 // happened 55,5%), so they pay 8%. Halves are untested: 8% too.
 export const VALUE_MARGIN: Record<PickGroup, number> = { result: 0.03, goals: 0.08, btts: 0.08, halves: 0.08 };
 
+// Asian handicap lines priced everywhere (quarter lines split stakes, so
+// they stay out: no honest single price). Whole lines push on exact.
+export const AH_LINES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2];
 // A bet is only suggested when the team with the fewest games in the data has
 // at least MIN_GAMES. Tested on 2025/26 (18 leagues), the model beats the
 // league's own rates clearly only from SOLID_GAMES up (log-loss gain 0.068,
@@ -348,8 +351,9 @@ export function candidatesFor(
   // (goals family caution). Only with matches behind the league rates, and
   // only .0/.5 lines (quarter lines split stakes — no honest single price).
   if (matches.length > 0) {
-    const fmtLine = (line: number): string => `${line > 0 ? "+" : ""}${num(line)}`;
-    for (const line of [-1.5, -0.5, 0.5, 1.5]) {
+    const fmtLine = (line: number): string =>
+      Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${num(line)}`;
+    for (const line of AH_LINES) {
       for (const side of ["home", "away"] as const) {
         const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
         const team = side === "home" ? home : away;
