@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational } from "@/lib/footballData";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
 import { leagueRates, predict, headToHead } from "@/lib/footballModel";
-import { buildStandings, formOf, ratings } from "@/lib/standings";
+import { buildStandings, buildVenueStandings, formOf, ratings, venueRatings } from "@/lib/standings";
 import type { StandingsLine } from "@/components/StandingsTable";
 import { MIN_GAMES, SOLID_GAMES } from "@/lib/recommendation";
 import { first } from "@/lib/searchParams";
@@ -190,6 +190,22 @@ export default async function LivePage({
           });
         })()
       : [];
+  // Casa/Fora views for the calculator toggle: counted from the season's
+  // games, like above (official tables have no venue split).
+  const venueLines = (venue: "home" | "away"): StandingsLine[] => {
+    if (!data || isIntl) return [];
+    const table = buildVenueStandings(data.fixtures, venue);
+    if (table.length === 0) return [];
+    const venueStrengths = new Map(
+      venueRatings(data.matches, table.map((row) => row.team), venue, now).rows.map((row) => [row.team, row])
+    );
+    return table.flatMap((standing) => {
+      const rating = venueStrengths.get(standing.team);
+      return rating ? [{ standing, rating }] : [];
+    });
+  };
+  const homeLines = venueLines("home");
+  const awayLines = venueLines("away");
 
   // With two teams, the expected goals of the game are the model's own.
   let expected = TYPICAL;
@@ -435,6 +451,7 @@ export default async function LivePage({
           standingsSeason={data?.season.label ?? ""}
           standingsHome={asListed(tableHome)}
           standingsAway={asListed(tableFora)}
+          venueStandings={{ home: homeLines, away: awayLines }}
           h2h={h2hGames.length > 0 ? h2hGames : undefined}
         />
       </div>

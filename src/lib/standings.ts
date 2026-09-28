@@ -6,6 +6,7 @@ import {
   shotRates,
   shotStrengthOf,
   blendedStrength,
+  venueStrengthOf,
   type Fixture,
   type LeagueRates,
   type PlayedMatch,
@@ -38,11 +39,12 @@ export interface StandingRow {
 // The league table of the season from its played games (3 points for a win, 1
 // for a draw). Ties go by goal difference, then goals scored, then name, which
 // is not every league's rule but is close enough to read the season.
-export function formOf(fixtures: Fixture[], team: string): FormGame[] {
+export function formOf(fixtures: Fixture[], team: string, venue?: "home" | "away"): FormGame[] {
   const out: FormGame[] = [];
   for (const f of seasonOf(fixtures, team)) {
     if (!f.ft) continue;
     const home = f.team1 === team;
+    if (venue && (venue === "home") !== home) continue;
     const scored = home ? f.ft[0] : f.ft[1];
     const conceded = home ? f.ft[1] : f.ft[0];
     const r = resultFor(f, team)!;
@@ -53,40 +55,55 @@ export function formOf(fixtures: Fixture[], team: string): FormGame[] {
 
 export function buildStandings(fixtures: Fixture[]): StandingRow[] {
   const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))];
-  const rows = teams.map((team): StandingRow => {
-    const played = seasonOf(fixtures, team).filter((f) => f.ft);
-    let wins = 0;
-    let draws = 0;
-    let losses = 0;
-    let gf = 0;
-    let ga = 0;
-    for (const f of played) {
-      const home = f.team1 === team;
-      const scored = home ? f.ft![0] : f.ft![1];
-      const conceded = home ? f.ft![1] : f.ft![0];
-      gf += scored;
-      ga += conceded;
-      const r = resultFor(f, team)!;
-      if (r === "V") wins++;
-      else if (r === "E") draws++;
-      else losses++;
-    }
-    return {
-      team,
-      played: played.length,
-      wins,
-      draws,
-      losses,
-      gf,
-      ga,
-      gd: gf - ga,
-      points: wins * 3 + draws,
-      form: formOf(fixtures, team),
-    };
-  });
-  return rows.sort(
-    (a, b) => b.points - a.points || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team)
+  return teams
+    .map((team) => standingRow(fixtures, team))
+    .sort((a, b) => b.points - a.points || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team));
+}
+
+// One team's row from its played games, optionally only on one side of the
+// pitch (the Casa/Fora toggle counts from the same games as above).
+function standingRow(fixtures: Fixture[], team: string, venue?: "home" | "away"): StandingRow {
+  const played = seasonOf(fixtures, team).filter(
+    (f) => f.ft && (!venue || (venue === "home" ? f.team1 === team : f.team2 === team))
   );
+  let wins = 0;
+  let draws = 0;
+  let losses = 0;
+  let gf = 0;
+  let ga = 0;
+  for (const f of played) {
+    const home = f.team1 === team;
+    const scored = home ? f.ft![0] : f.ft![1];
+    const conceded = home ? f.ft![1] : f.ft![0];
+    gf += scored;
+    ga += conceded;
+    const r = resultFor(f, team)!;
+    if (r === "V") wins++;
+    else if (r === "E") draws++;
+    else losses++;
+  }
+  return {
+    team,
+    played: played.length,
+    wins,
+    draws,
+    losses,
+    gf,
+    ga,
+    gd: gf - ga,
+    points: wins * 3 + draws,
+    form: formOf(fixtures, team, venue),
+  };
+}
+
+// The league table counting only each team's home (or away) games: what the
+// Casa/Fora toggle shows. Official tables have no venue split, so these are
+// always counted from the season's games, like the fallback above.
+export function buildVenueStandings(fixtures: Fixture[], venue: "home" | "away"): StandingRow[] {
+  const teams = [...new Set(fixtures.flatMap((f) => [f.team1, f.team2]))];
+  return teams
+    .map((team) => standingRow(fixtures, team, venue))
+    .sort((a, b) => b.points - a.points || b.gd - a.gd || b.gf - a.gf || a.team.localeCompare(b.team));
 }
 
 export interface Rating {
@@ -117,6 +134,29 @@ export function ratings(
       defense: blended.defense,
       goalDiff: rates.perTeam * (blended.attack - blended.defense),
       games: blended.games,
+    };
+  });
+  return { rates, rows };
+}
+
+// How strong each team is on one side of the pitch only (goals part; shots
+// stay blended in the overall figure above). Same pull towards the average
+// with few games, so short venue records read neutral, not hopeless.
+export function venueRatings(
+  matches: PlayedMatch[],
+  teams: string[],
+  venue: "home" | "away",
+  now: Date
+): { rates: LeagueRates; rows: Rating[] } {
+  const rates = leagueRates(matches, now);
+  const rows = teams.map((team): Rating => {
+    const s = venueStrengthOf(matches, team, venue, rates, now);
+    return {
+      team,
+      attack: s.attack,
+      defense: s.defense,
+      goalDiff: rates.perTeam * (s.attack - s.defense),
+      games: s.games,
     };
   });
   return { rates, rows };

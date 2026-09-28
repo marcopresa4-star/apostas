@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
-import StandingsTable, { type StandingsLine } from "./StandingsTable";
+import type { StandingsLine } from "./StandingsTable";
+import VenueStandings from "./VenueStandings";
 import { predictLive } from "@/lib/liveModel";
 import { oddsKeyFor, type ParsedOdds } from "@/lib/oddsParse";
 import { liveSummary } from "@/lib/liveSummary";
@@ -147,6 +148,8 @@ type Props = {
   standingsSeason?: string;
   standingsHome?: string;
   standingsAway?: string;
+  // Casa/Fora views for the toggle (counted from the season's games).
+  venueStandings?: { home: StandingsLine[]; away: StandingsLine[] };
   // Past meetings between the two sides, most recent first (clubs: this
   // league; national sides: last 8 years). Empty when unknown.
   h2h?: PlayedMatch[];
@@ -201,6 +204,7 @@ function Calculator({
   standingsSeason = "",
   standingsHome,
   standingsAway,
+  venueStandings,
   h2h,
   saved,
 }: Props & { saved: (SavedGame & { minuteNow: number }) | null }) {
@@ -975,7 +979,12 @@ function Calculator({
             Pontos oficiais{standingsSeason ? ` · época ${standingsSeason}` : ""} com ataque e defesa do modelo
             (1,00 = média da liga).
           </p>
-          <StandingsTable lines={standings} highlight={{ home: standingsHome ?? homeName, away: standingsAway ?? awayName }} />
+          <VenueStandings
+            global={standings}
+            home={venueStandings?.home ?? []}
+            away={venueStandings?.away ?? []}
+            highlight={{ home: standingsHome ?? homeName, away: standingsAway ?? awayName }}
+          />
         </div>
       )}
 

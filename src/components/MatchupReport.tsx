@@ -4,8 +4,9 @@ import OddChecker, { type OddMarket } from "./OddChecker";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
-import StandingsTable, { type StandingsLine } from "./StandingsTable";
-import { buildStandings, formOf, ratings } from "@/lib/standings";
+import type { StandingsLine } from "./StandingsTable";
+import VenueStandings from "./VenueStandings";
+import { buildStandings, buildVenueStandings, formOf, ratings, venueRatings } from "@/lib/standings";
 import type { GoalTiming, OfficialStanding } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
@@ -1167,6 +1168,21 @@ export default function MatchupReport({
         const rating = strengths.get(standing.team);
         return rating ? [{ standing, rating }] : [];
       });
+  // Casa/Fora views for the toggle below: always counted from the season's
+  // games (official tables have no venue split), with venue-only strength.
+  const venueLines = (venue: "home" | "away"): StandingsLine[] => {
+    const table = buildVenueStandings(fixtures, venue);
+    if (table.length === 0) return [];
+    const venueStrengths = new Map(
+      venueRatings(matches, table.map((row) => row.team), venue, now).rows.map((row) => [row.team, row])
+    );
+    return table.flatMap((standing) => {
+      const rating = venueStrengths.get(standing.team);
+      return rating ? [{ standing, rating }] : [];
+    });
+  };
+  const homeLines = international ? [] : venueLines("home");
+  const awayLines = international ? [] : venueLines("away");
 
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null && m.ht !== undefined);
@@ -1460,7 +1476,7 @@ export default function MatchupReport({
               );
             })}
           </div>
-          <StandingsTable lines={standingsLines} highlight={{ home, away }} />
+          <VenueStandings global={standingsLines} home={homeLines} away={awayLines} highlight={{ home, away }} />
         </div>
       )}
 
