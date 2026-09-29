@@ -385,12 +385,15 @@ export function candidatesFor(
             const g = side === "home" ? m.ft[0] : m.ft[1];
             return dir === "over" ? g > line : g < line;
           }).length;
+          // teamTotalWinPush already returns THIS side's win chance (and its
+          // base counts THIS side's hits), so both are used directly: 1-win
+          // here would price the opposite bet.
           candidates.push({
             group: "goals",
             key: dir === "over" ? `to:${side}:${line}` : `tu:${side}:${line}`,
             label: `${team} ${dir === "over" ? "mais" : "menos"} de ${num(line)}`,
-            p: dir === "over" ? win : 1 - win - push,
-            base: dir === "over" ? got / matches.length : 1 - got / matches.length,
+            p: win,
+            base: got / matches.length,
             push,
             won: ([h, a]) => {
               const g = side === "home" ? h : a;

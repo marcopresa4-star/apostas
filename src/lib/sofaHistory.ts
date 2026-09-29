@@ -716,8 +716,9 @@ function toIntl(e: Json): SofaIntlGame | null {
 
 // Every finished game of a national team back to `since` (YYYY-MM-DD),
 // oldest first. Paginates the team's event list; stops at the date or after
-// MAX_PAGES (about 15 years at 30 games a page). Pages cache for 3 days
-// (old ones never change; the newest refreshes on TTL).
+// MAX_PAGES (about 15 years at 30 games a page). Page 0 (the newest, where
+// new games land) caches for 1 hour, older pages for 3 days (they never
+// change; the newest refreshes on TTL).
 export async function nationalGames(
   teamId: number,
   since: string,
@@ -729,7 +730,9 @@ export async function nationalGames(
     const key = `intteam:${teamId}:${page}`;
     let body: { events: Json[]; hasNextPage: boolean } | null = null;
     if (cache) {
-      const hit = await cacheGet(cache.supabase, cache.userId, key, 3 * DAY_MS);
+      // Page 0 moves (new games land here, e.g. Nations League weeks): it
+      // refreshes hourly. Older pages are history and never change.
+      const hit = await cacheGet(cache.supabase, cache.userId, key, page === 0 ? HOUR_MS : 3 * DAY_MS);
       if (hit && typeof hit === "object") body = hit as { events: Json[]; hasNextPage: boolean };
     }
     if (!body) {
