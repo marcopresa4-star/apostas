@@ -22,8 +22,11 @@ import {
   lisbonParts,
   alignScore,
   linkLocalName,
+  slimEvent,
+  isSlimEvent,
   type SofaMap,
   type SofaSeason,
+  type SlimEvent,
 } from "./sofaHistory";
 import { sofaRaw } from "./sofaRaw";
 import { parseSofascoreId } from "./sofascore";
@@ -398,29 +401,15 @@ interface TeamSeasonGame {
   ft: [number, number] | null;
 }
 
-function clubTeamEvent(e: Json, uniqueId: number, seasonId: number): TeamSeasonGame | null {
-  const tournament = (e.tournament ?? {}) as Json;
-  const unique = (tournament.uniqueTournament ?? {}) as Json;
-  if (unique.id !== uniqueId) return null;
-  const season = (e.season ?? {}) as Json;
-  if (season.id !== seasonId) return null;
-  const id = typeof e.id === "number" ? e.id : null;
-  const home = ((e.homeTeam ?? {}) as Json).name;
-  const away = ((e.awayTeam ?? {}) as Json).name;
-  const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
-  if (id === null || typeof home !== "string" || typeof away !== "string" || start === null) return null;
-  const status = ((e.status ?? {}) as Json).type;
-  const hs = ((e.homeScore ?? {}) as Json);
-  const as = ((e.awayScore ?? {}) as Json);
-  const hg = typeof hs.current === "number" ? hs.current : null;
-  const ag = typeof as.current === "number" ? as.current : null;
-  if (status === "finished" && hg !== null && ag !== null) {
-    const { date, time } = lisbonParts(start);
-    return { id, date, time, team1: home, team2: away, ft: [hg, ag] };
+function clubTeamEvent(s: SlimEvent, uniqueId: number, seasonId: number): TeamSeasonGame | null {
+  if (s.uniqueId !== uniqueId) return null;
+  if (s.seasonId !== seasonId) return null;
+  const { date, time } = lisbonParts(s.start);
+  if (s.status === "finished" && s.hg !== null && s.ag !== null) {
+    return { id: s.id, date, time, team1: s.home, team2: s.away, ft: [s.hg, s.ag] };
   }
-  if (status === "notstarted") {
-    const { date, time } = lisbonParts(start);
-    return { id, date, time, team1: home, team2: away, ft: null };
+  if (s.status === "notstarted") {
+    return { id: s.id, date, time, team1: s.home, team2: s.away, ft: null };
   }
   return null;
 }
@@ -430,16 +419,29 @@ export async function teamEventList(
   userId: string,
   teamId: number,
   direction: "last" | "next"
-): Promise<Json[]> {
+): Promise<SlimEvent[]> {
   const key = `teamevents:${teamId}:${direction}:0`;
   const hit = await cacheGet(supabase, userId, key, direction === "last" ? 3 * DAY_MS : HOUR_MS);
   if (hit && typeof hit === "object" && !Array.isArray(hit)) {
-    const events = (hit as { events?: unknown }).events;
-    if (Array.isArray(events)) return events.filter((e): e is Json => typeof e === "object" && e !== null);
+    const raw = (hit as { events?: unknown }).events;
+    if (Array.isArray(raw)) {
+      if (raw.length === 0 || isSlimEvent(raw[0])) return raw as SlimEvent[];
+      // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
+      return raw.flatMap((item) => {
+        if (typeof item !== "object" || item === null || Array.isArray(item)) return [];
+        if (isSlimEvent(item)) return [];
+        const s = slimEvent(item as Json);
+        return s ? [s] : [];
+      });
+    }
   }
   const body = await teamEvents(teamId, direction, 0);
-  await cacheSet(supabase, userId, key, body);
-  return body.events;
+  const slim = body.events.flatMap((e) => {
+    const s = slimEvent(e);
+    return s ? [s] : [];
+  });
+  await cacheSet(supabase, userId, key, { events: slim, hasNextPage: body.hasNextPage });
+  return slim;
 }
 
 const PT_MONTHS = [
@@ -507,8 +509,8 @@ export async function seasonEventsFromTeams(
   const lists = await Promise.all(
     [...teamIdByName.values()].map(async (teamId) => {
       const [last, next] = await Promise.all([
-        teamEventList(supabase, userId, teamId, "last").catch(() => [] as Json[]),
-        teamEventList(supabase, userId, teamId, "next").catch(() => [] as Json[]),
+        teamEventList(supabase, userId, teamId, "last").catch(() => [] as SlimEvent[]),
+        teamEventList(supabase, userId, teamId, "next").catch(() => [] as SlimEvent[]),
       ]);
       return [...last, ...next];
     })

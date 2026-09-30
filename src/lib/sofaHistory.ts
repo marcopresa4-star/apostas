@@ -584,24 +584,40 @@ export async function teamLastGame(
   before: string
 ): Promise<SofaLastGame | null> {
   const key = `teamlast:${teamId}:0`;
-  let body: { events: Json[] } | null = null;
+  let events: SlimEvent[] | null = null;
   const hit = await cacheGet(supabase, userId, key, HOUR_MS);
-  if (hit && typeof hit === "object" && !Array.isArray(hit)) body = hit as { events: Json[] };
-  if (!body) {
-    const live = await teamEvents(teamId, "last", 0);
-    body = { events: live.events };
-    await cacheSet(supabase, userId, key, body);
+  if (hit && typeof hit === "object" && !Array.isArray(hit)) {
+    const raw = (hit as { events?: unknown }).events;
+    if (Array.isArray(raw)) {
+      if (raw.length === 0 || isSlimEvent(raw[0])) {
+        events = raw as SlimEvent[];
+      } else {
+        // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
+        events = [];
+        for (const item of raw) {
+          const o = obj(item);
+          if (!o || isSlimEvent(o)) continue;
+          const s = slimEvent(o);
+          if (s) events.push(s);
+        }
+      }
+    }
   }
-  if (!Array.isArray(body.events)) return null;
+  if (!events) {
+    const live = await teamEvents(teamId, "last", 0);
+    events = live.events.flatMap((e) => {
+      const s = slimEvent(e);
+      return s ? [s] : [];
+    });
+    await cacheSet(supabase, userId, key, { events });
+  }
   let best: SofaLastGame | null = null;
-  for (const e of body.events) {
-    if (str(obj(e.status)?.type) !== "finished") continue;
-    const start = num(e.startTimestamp);
-    if (start === null) continue;
-    const date = lisbonParts(start).date;
+  for (const s of events) {
+    if (s.status !== "finished") continue;
+    const date = lisbonParts(s.start).date;
     if (date >= before) continue;
     if (!best || date > best.date) {
-      best = { date, tournament: str(obj(e.tournament)?.name) };
+      best = { date, tournament: s.tournament };
     }
   }
   return best;
@@ -665,6 +681,51 @@ export interface SofaIntlGame {
   tournament: string;
 }
 
+// One team-list event stripped to what the readers use (ids, names, dates,
+// scores, tournaments). Raw event bodies are 5-10x bigger and would blow the
+// Supabase egress quota; the cache holds these instead.
+export interface SlimEvent {
+  id: number;
+  home: string;
+  away: string;
+  start: number; // startTimestamp (s)
+  status: string; // status.type
+  tournament: string; // tournament.name
+  uniqueId: number | null;
+  seasonId: number | null;
+  hg: number | null; // homeScore.current ?? display
+  ag: number | null;
+}
+
+export function slimEvent(e: Json): SlimEvent | null {
+  const id = num(e.id);
+  const home = str(obj(e.homeTeam)?.name);
+  const away = str(obj(e.awayTeam)?.name);
+  const start = num(e.startTimestamp);
+  if (id === null || !home || !away || start === null) return null;
+  const hs = obj(e.homeScore);
+  const as = obj(e.awayScore);
+  return {
+    id,
+    home,
+    away,
+    start,
+    status: str(obj(e.status)?.type),
+    tournament: str(obj(e.tournament)?.name),
+    uniqueId: num(obj(obj(e.tournament)?.uniqueTournament)?.id),
+    seasonId: num(obj(e.season)?.id),
+    hg: num(hs?.current) ?? num(hs?.display),
+    ag: num(as?.current) ?? num(as?.display),
+  };
+}
+
+// Cached rows from before this diet hold whole raw bodies (homeTeam objects,
+// not home strings); this tells them apart.
+export function isSlimEvent(e: unknown): e is SlimEvent {
+  const s = obj(e);
+  return !!s && typeof s.id === "number" && typeof s.home === "string" && typeof s.away === "string";
+}
+
 // Fully hosted final tournaments are neutral-venue (minus the odd host-nation
 // game, flagged as a limitation): the list responses carry no venue. Anything
 // else (qualifiers, Nations League groups, friendlies) is home/away.
@@ -683,28 +744,24 @@ function guessNeutral(tournament: string): boolean {
   return HOSTED_FINALS.some((re) => re.test(tournament));
 }
 
-function toIntl(e: Json): SofaIntlGame | null {
-  if (str(obj(e.status)?.type) !== "finished") return null;
-  const home = str(obj(e.homeTeam)?.name);
-  const away = str(obj(e.awayTeam)?.name);
+function toIntl(s: SlimEvent): SofaIntlGame | null {
+  if (s.status !== "finished") return null;
+  const home = s.home;
+  const away = s.away;
   if (!home || !away) return null;
   // Senior men's sides only: youth/women tournaments, youth/women opponents
   // and club friendlies that leak into a national side's list would poison
   // the senior model (U23 torneo games, testimonials vs clubs).
-  const tournament = str(obj(e.tournament)?.name);
+  const tournament = s.tournament;
   if (/U\d{2}\b|women|feminino/i.test(tournament)) return null;
   if (/club friendly/i.test(tournament)) return null;
   if (sideTokensIn(slugify(home)).length > 0 || sideTokensIn(slugify(away)).length > 0) return null;
-  const hs = obj(e.homeScore);
-  const as = obj(e.awayScore);
-  const hg = num(hs?.current) ?? num(hs?.display);
-  const ag = num(as?.current) ?? num(as?.display);
-  const start = num(e.startTimestamp);
-  const id = num(e.id);
-  if (hg === null || ag === null || start === null || id === null) return null;
+  const hg = s.hg;
+  const ag = s.ag;
+  if (hg === null || ag === null) return null;
   return {
-    id,
-    date: lisbonParts(start).date,
+    id: s.id,
+    date: lisbonParts(s.start).date,
     home,
     away,
     hg,
@@ -728,22 +785,45 @@ export async function nationalGames(
   const out: SofaIntlGame[] = [];
   for (let page = 0; page < maxPages; page++) {
     const key = `intteam:${teamId}:${page}`;
-    let body: { events: Json[]; hasNextPage: boolean } | null = null;
+    let events: SlimEvent[] | null = null;
+    let hasNextPage = false;
     if (cache) {
       // Page 0 moves (new games land here, e.g. Nations League weeks): it
       // refreshes hourly. Older pages are history and never change.
       const hit = await cacheGet(cache.supabase, cache.userId, key, page === 0 ? HOUR_MS : 3 * DAY_MS);
-      if (hit && typeof hit === "object") body = hit as { events: Json[]; hasNextPage: boolean };
+      if (hit && typeof hit === "object" && !Array.isArray(hit)) {
+        const h = hit as { events?: unknown; hasNextPage?: unknown };
+        if (Array.isArray(h.events)) {
+          if (h.events.length === 0 || isSlimEvent(h.events[0])) {
+            events = h.events as SlimEvent[];
+            hasNextPage = h.hasNextPage === true;
+          } else {
+            // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
+            events = [];
+            for (const item of h.events) {
+              const o = obj(item);
+              if (!o || isSlimEvent(o)) continue;
+              const s = slimEvent(o);
+              if (s) events.push(s);
+            }
+            hasNextPage = h.hasNextPage === true;
+          }
+        }
+      }
     }
-    if (!body) {
-      body = await teamEvents(teamId, "last", page);
-      if (cache) await cacheSet(cache.supabase, cache.userId, key, body);
+    if (!events) {
+      const body = await teamEvents(teamId, "last", page);
+      events = body.events.flatMap((e) => {
+        const s = slimEvent(e);
+        return s ? [s] : [];
+      });
+      hasNextPage = body.hasNextPage;
+      if (cache) await cacheSet(cache.supabase, cache.userId, key, { events, hasNextPage });
     }
-    const { events, hasNextPage } = body;
     if (events.length === 0) break;
     let older = false;
-    for (const e of events) {
-      const g = toIntl(e);
+    for (const s of events) {
+      const g = toIntl(s);
       if (!g) continue;
       if (g.date < since) {
         older = true;

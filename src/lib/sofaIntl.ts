@@ -120,22 +120,16 @@ export async function loadUpcomingIntl(
   await eachBatch(wanted, TEAM_CONCURRENCY, async (m) => {
     if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
     const events = await teamEventList(supabase, userId, m.sofascore_id, "next").catch(() => []);
-    for (const item of events) {
-      const e = (item ?? {}) as Record<string, unknown>;
-      const id = typeof e.id === "number" ? e.id : null;
-      if (id === null || seen.has(id)) continue;
-      if (((e.status ?? {}) as Record<string, unknown>).type !== "notstarted") continue;
-      const tournament: unknown = ((e.tournament ?? {}) as Record<string, unknown>).name;
-      if (typeof tournament !== "string") continue;
+    for (const s of events) {
+      if (seen.has(s.id)) continue;
+      if (s.status !== "notstarted") continue;
+      const tournament = s.tournament;
+      if (!tournament) continue;
       if (nationsLeagueOnly && (!/nations league/i.test(tournament) || /concacaf/i.test(tournament))) continue;
-      const home: unknown = ((e.homeTeam ?? {}) as Record<string, unknown>).name;
-      const away: unknown = ((e.awayTeam ?? {}) as Record<string, unknown>).name;
-      const start = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
-      if (typeof home !== "string" || typeof away !== "string" || !home || !away || start === null) continue;
-      const { date, time } = lisbonParts(start);
+      const { date, time } = lisbonParts(s.start);
       if (date < today) continue;
-      seen.add(id);
-      out.push({ id, date, time, home: toLocal.get(home) ?? home, away: toLocal.get(away) ?? away, tournament });
+      seen.add(s.id);
+      out.push({ id: s.id, date, time, home: toLocal.get(s.home) ?? s.home, away: toLocal.get(s.away) ?? s.away, tournament });
     }
   });
   return out.sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "").localeCompare(b.time ?? ""));
