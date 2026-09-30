@@ -307,6 +307,15 @@ export function BetCard({ bet }: { bet: Bet }) {
           </span>
         )}
         {bet.kind === "live" && <span className="ml-1.5 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold text-red-300">LIVE</span>}
+        {bet.close_odd !== null && bet.odd !== null && bet.close_odd > 1 && bet.status !== "open" && (
+          <span className="ml-1.5 text-[11px] text-neutral-500" title="Odd ao apito final">
+            fecho {oddText(bet.close_odd)}{" "}
+            <span className={`font-medium ${bet.odd >= bet.close_odd ? "text-emerald-400" : "text-red-400"}`}>
+              {bet.odd >= bet.close_odd ? "bateu o fecho" : "ficou do fecho"} {bet.odd >= bet.close_odd ? "+" : ""}
+              {Math.round(((bet.odd - bet.close_odd) / bet.close_odd) * 100)}%
+            </span>
+          </span>
+        )}
         {bet.kind === "live" && bet.status === "open" && bet.sofascore_id && <LiveStatus eventId={bet.sofascore_id} />}
         {bet.status !== "open" && (
           <span

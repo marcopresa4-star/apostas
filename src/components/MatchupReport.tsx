@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
+import MultipleBuilder from "./MultipleBuilder";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
 import H2HPatternCard from "./H2HPatternCard";
@@ -1503,6 +1504,7 @@ export default function MatchupReport({
       </div>
 
       <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
+      <MultipleBuilder markets={oddMarkets} />
 
       <p className="text-xs leading-relaxed text-neutral-500">
         {international

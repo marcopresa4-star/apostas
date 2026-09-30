@@ -90,6 +90,13 @@ function H2HCard({ meetings, home, away }: { meetings: PlayedMatch[]; home: stri
   );
 }
 
+interface ScorerRow {
+  name: string;
+  home: boolean;
+  p: number;
+  fair: number;
+}
+
 function Table({ title, rows }: { title: string; rows: Row[] }) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -252,6 +259,9 @@ function Calculator({
   // stays responsive.
   const [shotmap, setShotmap] = useState<{ minute: number; home: boolean; xg: number | null }[] | null>(null);
   const lastShotmapAt = useRef(0);
+  // Anytime-scorer prices for the probable starters (needs lineups): fetched
+  // rarely, the XI barely moves. Hidden without coverage.
+  const [scorers, setScorers] = useState<{ home: ScorerRow[]; away: ScorerRow[] } | null>(null);
   const now = useNow(5000);
   // The game read from SofaScore, once a minute via the local scraper: score,
   // minute and cards. Every reading overwrites what is typed, so the box
@@ -365,6 +375,39 @@ function Calculator({
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [sofaEventId, syncOn]);
+  // Anytime scorers ride along rarely: the XI barely moves once known.
+  useEffect(() => {
+    if (!sofaEventId) return;
+    let stop = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/sofascore/scorers?id=${encodeURIComponent(String(sofaEventId))}`, {
+          cache: "no-store",
+        });
+        if (stop || !res.ok) return;
+        const body = (await res.json()) as { home?: ScorerRow[]; away?: ScorerRow[] };
+        if (body && Array.isArray(body.home) && Array.isArray(body.away)) {
+          const clean = (rows: ScorerRow[]): ScorerRow[] =>
+            rows.flatMap((r) =>
+              typeof r.name === "string" && r.name && r.p > 0 && r.p < 1 && Number.isFinite(r.fair)
+                ? [{ name: r.name, home: r.home === true, p: r.p, fair: r.fair }]
+                : []
+            );
+          const home = clean(body.home);
+          const away = clean(body.away);
+          if (!stop && (home.length > 0 || away.length > 0)) setScorers({ home, away });
+        }
+      } catch {
+        // No lineups, no scorers: the section stays hidden.
+      }
+    };
+    void load();
+    const id = setInterval(() => void load(), 600_000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [sofaEventId]);
   // The lowest fair odd a suggested bet may have: a bet the model gives 90% is
   // "safe" but pays next to nothing, so it is left out.
   const [minOdd, setMinOdd] = useState("1.5");
@@ -969,6 +1012,34 @@ function Calculator({
           <Table key={g.title} title={g.title} rows={g.rows} />
         ))}
       </div>
+
+      {scorers && (scorers.home.length > 0 || scorers.away.length > 0) && (
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <h3 className="mb-1 text-sm font-semibold text-neutral-300">Marca a qualquer altura</h3>
+          <p className="mb-2 text-[11px] text-neutral-500">
+            Titulares prováveis (85'), pelo ritmo de golos/xG da época. Sem penáltis designados.
+          </p>
+          <div className="space-y-1.5 text-sm">
+            {[...scorers.home, ...scorers.away]
+              .sort((a, b) => b.p - a.p)
+              .slice(0, 8)
+              .map((s) => (
+                <div key={`${s.home ? "h" : "a"}:${s.name}`} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-neutral-200">
+                    {s.name}
+                    <span className={`ml-1.5 text-[10px] ${s.home ? "text-sky-400" : "text-red-400"}`}>
+                      {s.home ? homeName : awayName}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="w-12 text-right font-medium text-amber-300">{pct(s.p)}</span>
+                    <span className="w-14 text-right text-xs text-neutral-500">@{formatOdd(s.fair)}</span>
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {standings && standings.length > 0 && home !== "" && away !== "" && (
         <div>

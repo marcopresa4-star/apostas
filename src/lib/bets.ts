@@ -19,6 +19,11 @@ export interface Bet {
   target_odd: number | null;
   target_minute: number | null;
   settled_auto: boolean;
+  // Bookmaker odd at full time, captured on auto-settlement (closing line):
+  // entry odd vs close_odd tells whether the entry beat the market.
+  close_odd: number | null;
+  // When the bet was created (month grouping for performance).
+  created_at: string | null;
   // Enriched on load (never stored): analysis link, current price, live read.
   analysisHref?: string | null;
   liveOdd?: number | null;

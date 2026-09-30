@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { fairOdd } from "@/lib/footballModel";
+import { LIVE_HAIRCUT, liveCandidates } from "@/lib/liveBet";
+import { predictLive } from "@/lib/liveModel";
 import { oddsKeyFor } from "@/lib/oddsParse";
+import { VALUE_MARGIN } from "@/lib/recommendation";
 
 interface WatchBet {
   id: string;
@@ -81,6 +85,11 @@ export default function WatchWatcher() {
         if (stop || !bet.sofascore_id || fired.current.has(bet.id)) continue;
         const reasons: string[] = [];
         let minute: number | null = null;
+        let phase: string | null = null;
+        let homeGoals: number | null = null;
+        let awayGoals: number | null = null;
+        let redsHome = 0;
+        let redsAway = 0;
         let ok = false;
         try {
           const res = await fetch(`/api/sofascore/event?id=${bet.sofascore_id}&light=1`, {
@@ -90,7 +99,13 @@ export default function WatchWatcher() {
           if (!res.ok) continue;
           const state = ((await res.json()) as { state?: Record<string, unknown> }).state;
           if (!state || (state.phase !== "live" && state.phase !== "halftime")) continue;
+          phase = typeof state.phase === "string" ? state.phase : null;
           minute = typeof state.minute === "number" ? state.minute : null;
+          homeGoals = typeof state.homeGoals === "number" ? state.homeGoals : null;
+          awayGoals = typeof state.awayGoals === "number" ? state.awayGoals : null;
+          const reds = state.reds as { home?: unknown; away?: unknown } | undefined;
+          if (typeof reds?.home === "number") redsHome = reds.home;
+          if (typeof reds?.away === "number") redsAway = reds.away;
           ok = true;
         } catch {
           continue;
@@ -109,7 +124,16 @@ export default function WatchWatcher() {
             reasons.push(`chegou aos ${minute}' (alvo: ${bet.target_minute}')`);
           }
         }
-        if (bet.target_odd !== null) {
+        // One odds read shared by the entry-price alert and the value check.
+        const wantValue =
+          phase === "live" &&
+          minute !== null &&
+          minute < 88 &&
+          homeGoals !== null &&
+          awayGoals !== null &&
+          fails < 2;
+        let byKey: Record<string, number> | null = null;
+        if (bet.target_odd !== null || wantValue) {
           try {
             const res = await fetch(`/api/sofascore/odds?id=${bet.sofascore_id}`, {
               cache: "no-store",
@@ -119,20 +143,70 @@ export default function WatchWatcher() {
               const body = (await res.json()) as {
                 markets?: { choices?: { key?: unknown; odd?: unknown }[] }[];
               };
-              const byKey: Record<string, number> = {};
+              byKey = {};
               for (const m of body.markets ?? []) {
                 for (const c of m.choices ?? []) {
                   if (typeof c.key === "string" && typeof c.odd === "number") byKey[c.key] = c.odd;
                 }
               }
-              const key = oddsKeyFor(bet.market_key, bet.home_team, bet.away_team);
-              const current = key ? byKey[key] : undefined;
-              if (current !== undefined && current >= bet.target_odd) {
-                reasons.push(`odd a ${current.toFixed(2).replace(".", ",")} (alvo: ${bet.target_odd})`);
-              }
             }
           } catch {
             // No price: the minute alone can still fire.
+          }
+        }
+        if (bet.target_odd !== null && byKey) {
+          const key = oddsKeyFor(bet.market_key, bet.home_team, bet.away_team);
+          const current = key ? byKey[key] : undefined;
+          if (current !== undefined && current >= bet.target_odd) {
+            reasons.push(`odd a ${current.toFixed(2).replace(".", ",")} (alvo: ${bet.target_odd})`);
+          }
+        }
+        // Model value: the bookmaker's live price pays what the model demands.
+        // Same priced() as suggestLive in liveBet.ts; unknown keys (combos,
+        // halves:both, next-goal, custom, AH) have no live candidate: skip.
+        if (wantValue && byKey && minute !== null && homeGoals !== null && awayGoals !== null) {
+          try {
+            const res = await fetch(`/api/sofascore/prematch?id=${bet.sofascore_id}`, {
+              cache: "no-store",
+              signal: AbortSignal.timeout(20_000),
+            });
+            if (res.ok) {
+              const pre = (await res.json()) as { home?: unknown; away?: unknown; firstHalfShare?: unknown };
+              const lh = typeof pre.home === "number" ? pre.home : null;
+              const la = typeof pre.away === "number" ? pre.away : null;
+              const fhs = typeof pre.firstHalfShare === "number" ? pre.firstHalfShare : null;
+              if (lh !== null && la !== null && fhs !== null) {
+                const p = predictLive({
+                  lambdaHome: lh,
+                  lambdaAway: la,
+                  firstHalfShare: fhs,
+                  minute,
+                  homeGoals,
+                  awayGoals,
+                  redsHome,
+                  redsAway,
+                });
+                const cand = liveCandidates(
+                  p,
+                  { home: bet.home_team, away: bet.away_team, homeGoals, awayGoals, minute }
+                ).find((c) => c.key === bet.market_key);
+                if (cand && cand.p < 0.97 && cand.p > 0) {
+                  const push = cand.push ?? 0;
+                  const fair = push > 0 ? (1 - push) / cand.p : fairOdd(cand.p);
+                  const cut = cand.p * LIVE_HAIRCUT[cand.group];
+                  const minFair = cut > 0 ? (push > 0 ? (1 - push) / cut : fairOdd(cut)) : Infinity;
+                  const minOdd = minFair * (1 + VALUE_MARGIN[cand.group]);
+                  const key = oddsKeyFor(bet.market_key, bet.home_team, bet.away_team);
+                  const price = key ? byKey[key] : undefined;
+                  const comma = (n: number) => n.toFixed(2).replace(".", ",");
+                  if (price !== undefined && Number.isFinite(minOdd) && price >= minOdd) {
+                    reasons.push(`vale a pena: na casa ${comma(price)} (justa ${comma(fair)})`);
+                  }
+                }
+              }
+            }
+          } catch {
+            // No model price: the entry alerts above still stand.
           }
         }
         if (reasons.length === 0 || stop) continue;
