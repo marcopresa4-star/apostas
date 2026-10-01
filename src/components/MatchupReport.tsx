@@ -792,6 +792,105 @@ function AdjustmentsCard({
   );
 }
 
+// Match preview in plain sentences: who hosts whom (and when, when the
+// calendar knows), each side's last game and recent form, the head to head
+// in one line, and the model's most likely score. Everything comes from the
+// same data as the tables below — never invented.
+function MatchPreview({
+  matches,
+  home,
+  away,
+  leagueLabel,
+  prediction,
+  international,
+  fixtures,
+  now,
+  meetings,
+  h2h,
+}: {
+  matches: PlayedMatch[];
+  home: string;
+  away: string;
+  leagueLabel: string;
+  prediction: Prediction;
+  international: boolean;
+  fixtures: Fixture[];
+  now: Date;
+  meetings: PlayedMatch[];
+  h2h: { home: number; draw: number; away: number };
+}) {
+  const longDate = (date: string) =>
+    new Date(`${date}T00:00:00`).toLocaleDateString("pt-PT", { day: "numeric", month: "long" });
+  const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const upcoming =
+    fixtures
+      .filter(
+        (f) =>
+          !f.ft &&
+          f.date >= todayISO &&
+          ((f.team1 === home && f.team2 === away) || (f.team1 === away && f.team2 === home))
+      )
+      .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  const open =
+    (international ? `${home} defronta ${away}` : `${home} recebe ${away}`) +
+    ` (${leagueLabel})` +
+    (upcoming ? `, a ${longDate(upcoming.date)}` : "");
+  const lastLine = (team: string): string | null => {
+    const g = gamesOf(matches, team)[0] ?? null;
+    if (!g) return null;
+    const word = g.result === "V" ? "uma vitória" : g.result === "E" ? "um empate" : "uma derrota";
+    return `O último jogo de ${team} foi ${word} ${g.gf}–${g.ga} contra ${g.opponent} (${dayMonth(g.date)}).`;
+  };
+  const formLine = (team: string): string | null => {
+    const last6 = gamesOf(matches, team).slice(0, 6);
+    if (last6.length < 3) return null;
+    const w = last6.filter((g) => g.result === "V").length;
+    const d = last6.filter((g) => g.result === "E").length;
+    return `Nos últimos ${last6.length}, ${team} tem ${w}V-${d}E-${last6.length - w - d}D.`;
+  };
+  const venueLine = (team: string, venue: "home" | "away"): string | null => {
+    if (international) return null;
+    const at = gamesOf(matches, team)
+      .filter((g) => !g.neutral && (venue === "home") === g.home)
+      .slice(0, 5);
+    if (at.length < 2) return null;
+    const w = at.filter((g) => g.result === "V").length;
+    const d = at.filter((g) => g.result === "E").length;
+    return `${venue === "home" ? "Em casa" : "Fora"} (${at.length} jogos): ${team} tem ${w}V-${d}E-${at.length - w - d}D.`;
+  };
+  const h2hLine =
+    meetings.length > 0
+      ? `No confronto (${meetings.length} ${meetings.length === 1 ? "jogo" : "jogos"}): ${home} ${h2h.home}V, ${h2h.draw}E, ${away} ${h2h.away}V.`
+      : null;
+  const top = prediction.topScores[0];
+  const predictLine = top
+    ? (() => {
+        const { home: ph, draw: pd, away: pa } = prediction.fullTime;
+        const winner =
+          ph >= pd && ph >= pa
+            ? `vitória de ${home} a ${pct(ph)}`
+            : pa >= pd && pa >= ph
+              ? `vitória de ${away} a ${pct(pa)}`
+              : `empate a ${pct(pd)}`;
+        return `O resultado mais provável é ${home} ${top.home}–${top.away} ${away} (${pct(top.p)}), com ${winner}.`;
+      })()
+    : null;
+  const lines = [open, lastLine(home), lastLine(away), formLine(home), formLine(away), venueLine(home, "home"), venueLine(away, "away"), h2hLine, predictLine].filter(
+    (l): l is string => l !== null
+  );
+  if (lines.length === 0) return null;
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Antevisão</h3>
+      <div className="space-y-1.5 text-sm leading-relaxed text-neutral-300">
+        {lines.map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SuggestedBet({
   picks,
   few,
@@ -1339,6 +1438,19 @@ export default function MatchupReport({
           </p>
         )}
       </div>
+
+      <MatchPreview
+        matches={matches}
+        home={home}
+        away={away}
+        leagueLabel={leagueLabel}
+        prediction={prediction}
+        international={international}
+        fixtures={fixtures}
+        now={now}
+        meetings={meetings}
+        h2h={h2h}
+      />
 
       {adjusted && (
         <AdjustmentsCard
