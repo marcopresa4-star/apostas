@@ -190,10 +190,11 @@ export function liveCandidates(
       });
     }
   }
-  // Second-half totals: over/under 0.5 and 1.5, game and per side, from the
+  // Second-half totals: only from the break on (they take the first-half
+  // table's place): over/under 0.5 and 1.5, game and per side, from the
   // second-half remainder (same measured effects as the totals). Same goals
   // caution as the first-half markets above.
-  {
+  if (minute >= 45) {
     const sh = p.secondHalf;
     const table: Record<string, number> = { "0.5": sh.over05, "1.5": sh.over15 };
     const sideT = (isHome: boolean): Record<string, number> =>

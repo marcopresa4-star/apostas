@@ -624,9 +624,11 @@ function Calculator({
           return [{ title: "Primeira parte (a decorrer)", rows }];
         })()
       : []),
-    {
-      title: "Segunda parte",
-      rows: ([0.5, 1.5] as const).flatMap((line) => {
+    ...(m >= 45
+      ? [
+          {
+            title: "Segunda parte",
+            rows: ([0.5, 1.5] as const).flatMap((line) => {
         const k = String(line);
         const over = k === "0.5" ? p.secondHalf.over05 : p.secondHalf.over15;
         const homeOver = k === "0.5" ? p.secondHalf.homeOver05 : p.secondHalf.homeOver15;
@@ -640,8 +642,10 @@ function Calculator({
           { label: `${awayName} menos de ${dot(line)} (2.ª parte)`, p: 1 - awayOver, key: `shtu:away:${line}` },
         ];
       }),
-    },
-    { title: "Totais por equipa", rows: teamRows },    {
+      },
+    ] : []),
+    { title: "Totais por equipa", rows: teamRows },
+    {
       title: "Ambas marcam",
       rows: [
         { label: "Sim", p: p.bothScore, note: bothDone ? "já marcaram os dois" : undefined, key: "btts:yes" },
