@@ -190,6 +190,44 @@ export function liveCandidates(
       });
     }
   }
+  // Second-half totals: over/under 0.5 and 1.5, game and per side, from the
+  // second-half remainder (same measured effects as the totals). Same goals
+  // caution as the first-half markets above.
+  {
+    const sh = p.secondHalf;
+    const table: Record<string, number> = { "0.5": sh.over05, "1.5": sh.over15 };
+    const sideT = (isHome: boolean): Record<string, number> =>
+      isHome ? { "0.5": sh.homeOver05, "1.5": sh.homeOver15 } : { "0.5": sh.awayOver05, "1.5": sh.awayOver15 };
+    for (const line of [0.5, 1.5]) {
+      out.push(
+        { group: "halves", key: `shover:${line}`, label: `Mais de ${dot(line)} golos (2.ª parte)`, p: table[String(line)], won: (f, htScore) => {
+          if (!htScore) return false;
+          return f[0] + f[1] - (htScore[0] + htScore[1]) > line;
+        } },
+        { group: "halves", key: `shunder:${line}`, label: `Menos de ${dot(line)} golos (2.ª parte)`, p: 1 - table[String(line)], won: (f, htScore) => {
+          if (!htScore) return false;
+          return f[0] + f[1] - (htScore[0] + htScore[1]) < line;
+        } }
+      );
+      for (const side of ["home", "away"] as const) {
+        const team = side === "home" ? home : away;
+        const s = sideT(side === "home")[String(line)];
+        const u = 1 - s;
+        out.push(
+          { group: "halves", key: `shto:${side}:${line}`, label: `${team} mais de ${dot(line)} (2.ª parte)`, p: s, won: (f, htScore) => {
+            if (!htScore) return false;
+            const g = side === "home" ? f[0] - htScore[0] : f[1] - htScore[1];
+            return g > line;
+          } },
+          { group: "halves", key: `shtu:${side}:${line}`, label: `${team} menos de ${dot(line)} (2.ª parte)`, p: u, won: (f, htScore) => {
+            if (!htScore) return false;
+            const g = side === "home" ? f[0] - htScore[0] : f[1] - htScore[1];
+            return g < line;
+          } }
+        );
+      }
+    }
+  }
   // First-half markets, only while the 1st half is ongoing: totals include
   // the goals already scored (all first-half goals so far). Whole lines push
   // on the exact number. Untested like the model's own HT figures (no
@@ -318,7 +356,21 @@ export function livePickWhy(
   };
   // First-half markets (only suggested while the 1st half is ongoing, so the
   // current score IS the half-time score so far).
+  // Second-half markets: the current score is the starting point, so only
+  // live output counts here too.
+  const shsh = /^(shover|shunder):(\d+(?:\.\d+)?)$/.exec(key);
+  if (shsh) {
+    return `2.ª parte com ${h}–${a} aos ${m}'${htXg}.`;
+  }
+  const shteam = /^(shto|shtu):(home|away):(\d+(?:\.\d+)?)$/.exec(key);
+  if (shteam) {
+    const team = shteam[2] === "home" ? home : away;
+    const kh = shteam[2] === "home";
+    return `${team} na 2.ª parte${htXgSide(kh)} (jogo ${h}–${a} aos ${m}').`;
+  }
   const htht = /^(htover|htunder):(\d+(?:\.\d+)?)$/.exec(key);
+  // Second-half markets: the current score is the starting point, so only
+  // live output counts here too.
   if (htht) {
     const line = Number(htht[2]);
     const scoredHT = h + a;

@@ -97,6 +97,30 @@ interface ScorerRow {
   fair: number;
 }
 
+// Most likely final scores, as bars: instant read next to the suggestion.
+function FinalScoresChart({ scores }: { scores: { home: number; away: number; p: number }[] }) {
+  if (scores.length === 0) return null;
+  const max = Math.max(...scores.map((s) => s.p), 0.01);
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Finais mais prováveis</h3>
+      <div className="space-y-1.5 text-sm">
+        {scores.map((s) => (
+          <div key={`${s.home}-${s.away}`} className="flex items-center gap-2">
+            <span className="w-12 shrink-0 tabular-nums text-neutral-200">
+              {s.home}–{s.away}
+            </span>
+            <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-800">
+              <div className="h-full rounded-full bg-amber-500/80" style={{ width: `${(s.p / max) * 100}%` }} />
+            </div>
+            <span className="w-12 shrink-0 text-right font-medium text-amber-300">{pct(s.p)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Table({ title, rows }: { title: string; rows: Row[] }) {
   return (
     <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
@@ -599,8 +623,24 @@ function Calculator({
           return [{ title: "Primeira parte (a decorrer)", rows }];
         })()
       : []),
-    { title: "Totais por equipa", rows: teamRows },
     {
+      title: "Segunda parte",
+      rows: ([0.5, 1.5] as const).flatMap((line) => {
+        const k = String(line);
+        const over = k === "0.5" ? p.secondHalf.over05 : p.secondHalf.over15;
+        const homeOver = k === "0.5" ? p.secondHalf.homeOver05 : p.secondHalf.homeOver15;
+        const awayOver = k === "0.5" ? p.secondHalf.awayOver05 : p.secondHalf.awayOver15;
+        return [
+          { label: `Mais de ${dot(line)} golos (2.ª parte)`, p: over, key: `shover:${line}` },
+          { label: `Menos de ${dot(line)} golos (2.ª parte)`, p: 1 - over, key: `shunder:${line}` },
+          { label: `${homeName} mais de ${dot(line)} (2.ª parte)`, p: homeOver, key: `shto:home:${line}` },
+          { label: `${homeName} menos de ${dot(line)} (2.ª parte)`, p: 1 - homeOver, key: `shtu:home:${line}` },
+          { label: `${awayName} mais de ${dot(line)} (2.ª parte)`, p: awayOver, key: `shto:away:${line}` },
+          { label: `${awayName} menos de ${dot(line)} (2.ª parte)`, p: 1 - awayOver, key: `shtu:away:${line}` },
+        ];
+      }),
+    },
+    { title: "Totais por equipa", rows: teamRows },    {
       title: "Ambas marcam",
       rows: [
         { label: "Sim", p: p.bothScore, note: bothDone ? "já marcaram os dois" : undefined, key: "btts:yes" },
@@ -1028,6 +1068,8 @@ function Calculator({
           parte, a fasquia é 1,8 em vez da escolhida em cima, porque essas chances são aproximação por testar.
         </p>
       </div>
+
+      <FinalScoresChart scores={p.finalScores} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {groups.map((g) => (

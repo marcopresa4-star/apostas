@@ -141,6 +141,11 @@ function againProbs(
   return { home: p.scoresAgain.home, away: p.scoresAgain.away, oneMore: 1 - p.nextGoal.none, form: p.formMult };
 }
 
+// "Cheira a golo" thresholds: warn when the chance of one more goal reaches
+// SMELL_AT, re-arm (may warn again) once it falls back under SMELL_ARM.
+const SMELL_AT = 0.75;
+const SMELL_ARM = 0.65;
+
 // The goal alert: chance of at least one more goal (live model on the
 // pre-match expectation), who has been pressing, and why — each reason only
 // appears when its data exists.
@@ -179,6 +184,33 @@ function GoalAlert({
       stop = true;
     };
   }, [eventId]);
+  // "Cheira a golo": one soft beep + notification when the chance of one more
+  // goal crosses 75% upwards (re-arms below 65%, so an oscillating game can
+  // warn again — including on the first evaluation, when the game already
+  // smells). Live phase only, same toggle and per-game mute as the goal
+  // alerts.
+  const smell = useRef<{ id: number; fired: boolean }>({ id: eventId, fired: false });
+  useEffect(() => {
+    if (smell.current.id !== eventId) smell.current = { id: eventId, fired: false };
+    if (!pre || state.phase !== "live" || !alertsOn() || isMuted(eventId)) return;
+    const m = state.minute ?? 0;
+    const hasXgNow = xg.some((s) => s.xg !== null);
+    const at = (isHome: boolean): number =>
+      xg.filter((s) => s.home === isHome && s.xg !== null && s.minute <= m).reduce((n, s) => n + (s.xg ?? 0), 0);
+    const oneMore = againProbs(pre, state, hasXgNow ? { home: at(true), away: at(false) } : undefined).oneMore;
+    if (oneMore >= SMELL_AT && !smell.current.fired) {
+      smell.current.fired = true;
+      const score =
+        state.homeGoals !== null && state.awayGoals !== null ? `${state.homeGoals}–${state.awayGoals}` : "";
+      alertUser(
+        `Cheira a golo (${Math.round(oneMore * 100)}%): ${homeName} ${score} ${awayName}`.trim(),
+        `O modelo dá ${Math.round(oneMore * 100)}% de haver mais um golo.`,
+        false
+      );
+    } else if (oneMore < SMELL_ARM) {
+      smell.current.fired = false;
+    }
+  });
 
   if (!pre || (state.phase !== "live" && state.phase !== "halftime")) return null;
   const minute = state.minute ?? 0;

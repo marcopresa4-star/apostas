@@ -116,6 +116,17 @@ export interface LivePrediction {
   // Normalized joint of remaining goals (home i, away j): every market
   // above is a sum over it, and so are the handicaps below.
   joint: number[][];
+  // Second-half remainder only: over 0.5/1.5 in total and per side, WITH the
+  // measured second-half effects (score state, regularity, zero-inflation)
+  // and the same red-card and live-form scaling as the totals above.
+  secondHalf: {
+    over05: number;
+    over15: number;
+    homeOver05: number;
+    homeOver15: number;
+    awayOver05: number;
+    awayOver15: number;
+  };
   // First-half remainder distributions (same red-card scaling as above):
   // feeds the 1.ª-parte markets, which count the goals already scored too
   // (all first-half goals while the break hasn't come).
@@ -248,6 +259,47 @@ export function predictLive(
     for (let k = 0; k < pmf.length; k++) if (k > line) p += pmf[k];
     return p;
   };
+  // Second-half-only distributions: the second-half share of each side's
+  // expectation, with the same state/red/form scaling as the totals, the
+  // same regularity, and the zero-inflation on a goalless rest.
+  const mean2Hhome =
+    lambdaHome * second * homeState * redMultiplier(capped, true) * (formMult?.home ?? 1);
+  const mean2Haway =
+    lambdaAway * second * awayState * redMultiplier(capped, false) * (formMult?.away ?? 1);
+  const h2pmf = comPoisson(mean2Hhome, nuNow);
+  const a2pmf = comPoisson(mean2Haway, nuNow);
+  let total2 = 0;
+  for (let i = 0; i <= MAX_GOALS; i++) {
+    for (let j = 0; j <= MAX_GOALS; j++) {
+      total2 += h2pmf[i] * a2pmf[j] * (i === 0 && j === 0 ? zeroNow : 1);
+    }
+  }
+  const n2 = (n: number) => n / total2;
+  const shOver = (line: number): number => {
+    let s = 0;
+    for (let i = 0; i <= MAX_GOALS; i++) {
+      for (let j = 0; j <= MAX_GOALS; j++) {
+        if (i + j > line) s += h2pmf[i] * a2pmf[j] * (i === 0 && j === 0 ? zeroNow : 1);
+      }
+    }
+    return n2(s);
+  };
+  const shTeamOver = (pmf: number[], other: number[], line: number): number => {
+    let s = 0;
+    for (let k = 0; k < pmf.length; k++) {
+      if (k <= line) continue;
+      for (let j = 0; j < other.length; j++) s += pmf[k] * other[j] * (k === 0 && j === 0 ? zeroNow : 1);
+    }
+    return n2(s);
+  };
+  const secondHalf = {
+    over05: shOver(0.5),
+    over15: shOver(1.5),
+    homeOver05: shTeamOver(h2pmf, a2pmf, 0.5),
+    homeOver15: shTeamOver(h2pmf, a2pmf, 1.5),
+    awayOver05: shTeamOver(a2pmf, h2pmf, 0.5),
+    awayOver15: shTeamOver(a2pmf, h2pmf, 1.5),
+  };
   const halfTime = {
     over05: htOver(0.5),
     over15: htOver(1.5),
@@ -312,6 +364,7 @@ export function predictLive(
     awayPmf,
     joint,
     halfTime,
+    secondHalf,
     htHomePmf,
     htAwayPmf,
     formMult,
