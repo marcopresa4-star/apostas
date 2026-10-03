@@ -71,6 +71,27 @@ export function htLiveProbs(
   return { total, home: side(p.htHomePmf, homeGoals), away: side(p.htAwayPmf, awayGoals) };
 }
 
+// Whole-number total-goals lines on the FINAL total (goals already scored
+// count): over/under/push from the same joint as every other live market.
+export function liveTotalLine(
+  p: LivePrediction,
+  homeGoals: number,
+  awayGoals: number,
+  line: number
+): { over: number; under: number; push: number } {
+  const scored = homeGoals + awayGoals;
+  let over = 0;
+  let push = 0;
+  for (let i = 0; i < p.joint.length; i++) {
+    for (let j = 0; j < p.joint[i].length; j++) {
+      const t = scored + i + j;
+      if (t > line) over += p.joint[i][j];
+      else if (t === line) push += p.joint[i][j];
+    }
+  }
+  return { over, under: Math.max(0, 1 - over - push), push };
+}
+
 export function liveCandidates(
   p: LivePrediction,
   ctx: { home: string; away: string; homeGoals: number; awayGoals: number; minute: number }
@@ -92,6 +113,16 @@ export function liveCandidates(
     out.push(
       { group: "goals", key: `over:${line}`, label: `Mais de ${dot(line)} golos`, p: over, won: (f) => f[0] + f[1] > line },
       { group: "goals", key: `under:${line}`, label: `Menos de ${dot(line)} golos`, p: 1 - over, won: (f) => f[0] + f[1] < line }
+    );
+  }
+  // Whole-number lines on the final total (goals already scored count):
+  // exact ties push. Same joint as everything else, via liveTotalLine.
+  for (let k = 1; k <= 3; k++) {
+    const line = total + k;
+    const t = liveTotalLine(p, homeGoals, awayGoals, line);
+    out.push(
+      { group: "goals", key: `over:${line}`, label: `Mais de ${dot(line)} golos`, p: t.over, push: t.push, won: (f) => f[0] + f[1] > line },
+      { group: "goals", key: `under:${line}`, label: `Menos de ${dot(line)} golos`, p: t.under, push: t.push, won: (f) => f[0] + f[1] < line }
     );
   }
   // Both to score: only while it is still open.
@@ -316,7 +347,9 @@ export function livePickWhy(
   }
   const ou = /^(over|under):(\d+(?:\.\d+)?)$/.exec(key);
   if (ou) {
-    return `${score}: ${comma(rem)} esperados (${home} ${comma(rh)}, ${away} ${comma(ra)}${evComma}).${reds}`;
+    const line = Number(ou[2]);
+    const dev = Number.isInteger(line) ? " Com o exato devolve." : "";
+    return `${score}: ${comma(rem)} esperados (${home} ${comma(rh)}, ${away} ${comma(ra)}${evComma}).${dev}${reds}`;
   }
   const team = /^(to|tu):(home|away):(\d+(?:\.\d+)?)$/.exec(key);
   if (team) {

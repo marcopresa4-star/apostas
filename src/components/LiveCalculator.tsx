@@ -7,7 +7,7 @@ import VenueStandings from "./VenueStandings";
 import { predictLive } from "@/lib/liveModel";
 import { oddsKeyFor, type ParsedOdds } from "@/lib/oddsParse";
 import { liveSummary } from "@/lib/liveSummary";
-import { htLiveProbs, LAST_MINUTES, liveCandidates, livePickWhy, suggestLive } from "@/lib/liveBet";
+import { htLiveProbs, LAST_MINUTES, liveCandidates, livePickWhy, liveTotalLine, suggestLive } from "@/lib/liveBet";
 import { clockMinute, rawSnapshot, saveGame, savedFrom, type SavedGame } from "@/lib/liveStore";
 import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
@@ -478,6 +478,15 @@ function Calculator({
     goalRows.push(
       { label: `Mais de ${dot(line)} golos`, p: over, note: `faltam ${k + 1}`, key: `over:${line}` },
       { label: `Menos de ${dot(line)} golos`, p: 1 - over, key: `under:${line}` }
+    );
+  }
+  // Whole-number lines on the final total, with push on exact.
+  for (let k = 1; k <= 3; k++) {
+    const line = total + k;
+    const t = liveTotalLine(p, h, a, line);
+    goalRows.push(
+      { label: `Mais de ${dot(line)} golos`, p: t.over, note: `faltam ${k + 1}`, key: `over:${line}`, push: t.push },
+      { label: `Menos de ${dot(line)} golos`, p: t.under, key: `under:${line}`, push: t.push }
     );
   }
   const bothDone = h > 0 && a > 0;
