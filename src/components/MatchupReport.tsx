@@ -1016,7 +1016,7 @@ function buildMarkets(
   const ht = prediction.halfTime;
   // BTTS combinada com o mais de 2,5, da mesma grelha do modelo.
   const combo = bttsOver25Probs(prediction.lambdaHome, prediction.lambdaAway);
-  const overRows = [0.5, 1.5, 2, 2.5, 3, 3.5, 4.5].flatMap((line) => {
+  const overRows = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5].flatMap((line) => {
     const over =
       prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
     const push = Number.isInteger(line) ? matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, line) : 0;
@@ -1068,15 +1068,16 @@ function buildMarkets(
     },
     {
       title: "Totais por equipa",
-      rows: [0.5, 1.5, 2.5].flatMap((line) =>
+      rows: [0.5, 1, 1.5, 2, 2.5].flatMap((line) =>
         (["home", "away"] as const).flatMap((side) => {
           const mu = side === "home" ? prediction.lambdaHome : prediction.lambdaAway;
           const team = side === "home" ? home : away;
           const overW = teamTotalWinPush(mu, line, "over").win;
           const underW = teamTotalWinPush(mu, line, "under").win;
+          const push = Number.isInteger(line) ? teamTotalWinPush(mu, line, "over").push : 0;
           return [
-            { label: `${team} mais de ${dot(line)}`, p: overW, key: `to:${side}:${line}` },
-            { label: `${team} menos de ${dot(line)}`, p: underW, key: `tu:${side}:${line}` },
+            { label: `${team} mais de ${dot(line)}`, p: overW, key: `to:${side}:${line}`, push },
+            { label: `${team} menos de ${dot(line)}`, p: underW, key: `tu:${side}:${line}`, push },
           ];
         })
       ),

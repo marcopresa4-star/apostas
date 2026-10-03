@@ -489,18 +489,34 @@ function Calculator({
     const pmf = side === "home" ? p.homePmf : p.awayPmf;
     let over = 0;
     for (let i = 0; i < pmf.length; i++) if (scored + i > line) over += pmf[i];
-    return dir === "over" ? over : 1 - over;
+    const push = Number.isInteger(line) ? (pmf[line - scored] ?? 0) : 0;
+    return dir === "over" ? over : Math.max(0, 1 - over - push);
   };
-  const teamRows: Row[] = [0.5, 1.5, 2.5].flatMap((line) =>
+  const teamPush = (side: "home" | "away", line: number): number | undefined => {
+    if (!Number.isInteger(line)) return undefined;
+    const scored = side === "home" ? h : a;
+    const pmf = side === "home" ? p.homePmf : p.awayPmf;
+    const push = pmf[line - scored] ?? 0;
+    return push >= 0.005 ? push : undefined;
+  };
+  const teamRows: Row[] = [0.5, 1, 1.5, 2, 2.5].flatMap((line) =>
     (["home", "away"] as const).flatMap((side) => {
       const team = side === "home" ? homeName : awayName;
+      const push = teamPush(side, line);
       return [
-        { label: `${team} mais de ${dot(line)}`, p: teamTail(side, line, "over"), key: `to:${side}:${line}` },
-        { label: `${team} menos de ${dot(line)}`, p: teamTail(side, line, "under"), key: `tu:${side}:${line}` },
+        { label: `${team} mais de ${dot(line)}`, p: teamTail(side, line, "over"), key: `to:${side}:${line}`, ...(push !== undefined ? { push } : {}) },
+        { label: `${team} menos de ${dot(line)}`, p: teamTail(side, line, "under"), key: `tu:${side}:${line}`, ...(push !== undefined ? { push } : {}) },
       ];
     })
   );
   const dnbDenom = p.fullTime.home + p.fullTime.away;
+  // All live candidates once: the suggestion and the handicap table share
+  // them, so the two can never disagree.
+  const cands = liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a, minute: m });
+  // Handicap rows come straight from the candidates above.
+  const ahRows: Row[] = cands
+    .filter((c) => c.key.startsWith("ah:"))
+    .map((c) => ({ label: c.label, p: c.p, key: c.key, ...(c.push !== undefined ? { push: c.push } : {}) }));
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: "Resultado final",
@@ -526,6 +542,7 @@ function Calculator({
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
+    { title: "Handicap asiático", rows: ahRows },
     ...(m < 45
       ? (() => {
           // Totals include the goals already scored (all first-half goals so
@@ -592,11 +609,7 @@ function Calculator({
   ];
   // The suggested bet: in the last minutes there is nothing left to suggest.
   const suggestion =
-    m >= LAST_MINUTES
-      ? { main: null, others: [] }
-      : suggestLive(liveCandidates(p, { home: homeName, away: awayName, homeGoals: h, awayGoals: a, minute: m }), {
-          minOdd: Number(minOdd),
-        });
+    m >= LAST_MINUTES ? { main: null, others: [] } : suggestLive(cands, { minOdd: Number(minOdd) });
   // The suggestion first, so the odd comparer opens on it.
   const oddMarkets: OddMarket[] = [
     ...(suggestion.main

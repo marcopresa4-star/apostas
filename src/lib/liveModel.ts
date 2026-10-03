@@ -113,6 +113,9 @@ export interface LivePrediction {
   // Full remaining-goals distributions (index = goals still to come).
   homePmf: number[];
   awayPmf: number[];
+  // Normalized joint of remaining goals (home i, away j): every market
+  // above is a sum over it, and so are the handicaps below.
+  joint: number[][];
   // First-half remainder distributions (same red-card scaling as above):
   // feeds the 1.ª-parte markets, which count the goals already scored too
   // (all first-half goals while the break hasn't come).
@@ -281,6 +284,16 @@ export function predictLive(
   const norm = (n: number) => n / total;
   for (const key of Object.keys(over)) over[key] = norm(over[key]);
 
+  // The same normalized joint, exported so handicaps price off exactly the
+  // same distribution as every market above (zero-inflation included).
+  const joint: number[][] = [];
+  for (let i = 0; i <= MAX_GOALS; i++) {
+    joint[i] = [];
+    for (let j = 0; j <= MAX_GOALS; j++) {
+      joint[i][j] = norm(homePmf[i] * awayPmf[j] * (i === 0 && j === 0 ? zeroNow : 1));
+    }
+  }
+
   // Who scores next: in proportion to what each is still expected to score.
   const rate = remainingHome + remainingAway;
   const noGoal = norm(none);
@@ -297,6 +310,7 @@ export function predictLive(
     remainingAway,
     homePmf,
     awayPmf,
+    joint,
     halfTime,
     htHomePmf,
     htAwayPmf,

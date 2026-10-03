@@ -304,12 +304,13 @@ async function CompararBody({
       "home", "draw", "away", "1x", "x2", "12",
       "dnb:home", "dnb:away",
       "btts:yes", "btts:no",
-      "over:0.5", "under:0.5", "over:1.5", "under:1.5",
+      "over:0.5", "under:0.5", "over:1", "under:1", "over:1.5", "under:1.5",
       "over:2", "under:2", "over:2.5", "under:2.5",
       "over:3", "under:3", "over:3.5", "under:3.5",
+      "over:4", "under:4", "over:4.5", "under:4.5",
       "ht:home", "ht:draw", "ht:away",
       ...AH_LINES.flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
-      ...[0.5, 1.5, 2.5].flatMap((line) => [
+      ...[0.5, 1, 1.5, 2, 2.5].flatMap((line) => [
         `to:home:${line}`,
         `tu:home:${line}`,
         `to:away:${line}`,

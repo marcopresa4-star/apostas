@@ -1,6 +1,6 @@
 import type { LivePrediction } from "./liveModel";
 import { fairOdd } from "./footballModel";
-import { VALUE_MARGIN } from "./recommendation";
+import { AH_LINES, VALUE_MARGIN } from "./recommendation";
 
 // A bet worth looking at in a game in progress, from the live model: the results
 // (still to be won, or to be saved) and the goals still to come. The next goal is
@@ -11,7 +11,7 @@ export type LiveGroup = "result" | "goals" | "btts" | "halves";
 export interface LiveCandidate {
   group: LiveGroup;
   // "home", "away", "1x", "x2", "12", "over:<line>", "under:<line>", "btts:yes", "btts:no",
-  // "dnb:home", "to:home:<line>", "htover:<line>", "htto:home:<line>"...
+  // "dnb:home", "to:home:<line>", "ah:home:<line>", "htover:<line>", "htto:home:<line>"...
   key: string;
   label: string;
   p: number;
@@ -110,19 +110,53 @@ export function liveCandidates(
     );
   }
   // Team totals over the game (absolute lines): tail of each side's own
-  // remaining-goals distribution. Lines stay .5, so nothing pushes.
-  for (const line of [0.5, 1.5, 2.5]) {
+  // remaining-goals distribution. Whole lines push on the exact number.
+  for (const line of [0.5, 1, 1.5, 2, 2.5]) {
     for (const side of ["home", "away"] as const) {
       const scored = side === "home" ? homeGoals : awayGoals;
       const pmf = side === "home" ? p.homePmf : p.awayPmf;
       const team = side === "home" ? home : away;
       let over = 0;
       for (let i = 0; i < pmf.length; i++) if (scored + i > line) over += pmf[i];
-      const under = 1 - over;
+      const push = Number.isInteger(line) ? (pmf[line - scored] ?? 0) : 0;
+      const under = Math.max(0, 1 - over - push);
       out.push(
-        { group: "goals", key: `to:${side}:${line}`, label: `${team} mais de ${dot(line)}`, p: over, won: (f) => (side === "home" ? f[0] : f[1]) > line },
-        { group: "goals", key: `tu:${side}:${line}`, label: `${team} menos de ${dot(line)}`, p: under, won: (f) => (side === "home" ? f[0] : f[1]) < line }
+        { group: "goals", key: `to:${side}:${line}`, label: `${team} mais de ${dot(line)}`, p: over, push, won: (f) => (side === "home" ? f[0] : f[1]) > line },
+        { group: "goals", key: `tu:${side}:${line}`, label: `${team} menos de ${dot(line)}`, p: under, push, won: (f) => (side === "home" ? f[0] : f[1]) < line }
       );
+    }
+  }
+  // Asian handicaps on the final score, both sides: cover needs the final
+  // difference plus the line above zero, exact ties push. Same joint (and
+  // normalization) as every market the model returns, via p.joint.
+  for (const line of AH_LINES) {
+    for (const side of ["home", "away"] as const) {
+      const team = side === "home" ? home : away;
+      let win = 0;
+      let push = 0;
+      for (let i = 0; i < p.joint.length; i++) {
+        for (let j = 0; j < p.joint[i].length; j++) {
+          const q = p.joint[i][j];
+          const d =
+            side === "home"
+              ? homeGoals + i - (awayGoals + j) + line
+              : awayGoals + j - (homeGoals + i) + line;
+          if (d > 0) win += q;
+          else if (d === 0) push += q;
+        }
+      }
+      const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${dot(line)}`;
+      out.push({
+        group: "goals",
+        key: `ah:${side}:${line}`,
+        label: `Handicap ${team} ${shown}`,
+        p: win,
+        push,
+        won: (f) => {
+          const d = side === "home" ? f[0] - f[1] : f[1] - f[0];
+          return d + line > 0;
+        },
+      });
     }
   }
   // First-half markets, only while the 1st half is ongoing: totals include
@@ -294,6 +328,16 @@ export function livePickWhy(
     if (team[1] === "to" && scored > line) return `Já coberto: ${side} tem ${scored}.`;
     if (team[1] === "tu" && scored > line) return `Perdido: ${side} já tem ${scored}.`;
     return `Aos ${m}', ${side} tem ${scored} e ${evSide(kh, rest)}.${reds}`;
+  }
+  const ahm = /^ah:(home|away):([+-]?\d+(?:\.\d+)?)$/.exec(key);
+  if (ahm) {
+    const kh = ahm[1] === "home";
+    const team = kh ? home : away;
+    const line = Number(ahm[2]);
+    const diff = kh ? h - a : a - h;
+    const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${dot(line)}`;
+    const dev = Number.isInteger(line) ? " Com o exato devolve." : "";
+    return `${team} ${score} (diferença ${diff > 0 ? "+" : ""}${diff}) com linha ${shown}${evComma}.${dev}`;
   }
   switch (key) {
     case "home":
