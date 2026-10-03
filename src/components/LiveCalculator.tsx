@@ -495,23 +495,24 @@ function Calculator({
   const awayName = away || "Fora";
 
   // "More than X,5 goals" only for the lines still open, with how many are missing.
+  // Whole-number lines sit right after their .5 neighbour, so the table reads
+  // in line order (2,5 · 3,0 · 3,5 …), not .5s first and wholes after.
   const goalRows: Row[] = [];
   for (let k = 0; k < 4; k++) {
-    const line = total + k + 0.5;
-    const over = p.over[String(line)];
+    const half = total + k + 0.5;
+    const over = p.over[String(half)];
     goalRows.push(
-      { label: `Mais de ${dot(line)} golos`, p: over, note: `faltam ${k + 1}`, key: `over:${line}` },
-      { label: `Menos de ${dot(line)} golos`, p: 1 - over, key: `under:${line}` }
+      { label: `Mais de ${dot(half)} golos`, p: over, note: `faltam ${k + 1}`, key: `over:${half}` },
+      { label: `Menos de ${dot(half)} golos`, p: 1 - over, key: `under:${half}` }
     );
-  }
-  // Whole-number lines on the final total, with push on exact.
-  for (let k = 1; k <= 3; k++) {
-    const line = total + k;
-    const t = liveTotalLine(p, h, a, line);
-    goalRows.push(
-      { label: `Mais de ${dot(line)} golos`, p: t.over, note: `faltam ${k + 1}`, key: `over:${line}`, push: t.push },
-      { label: `Menos de ${dot(line)} golos`, p: t.under, key: `under:${line}`, push: t.push }
-    );
+    if (k < 3) {
+      const whole = total + k + 1;
+      const t = liveTotalLine(p, h, a, whole);
+      goalRows.push(
+        { label: `Mais de ${dot(whole)} golos`, p: t.over, note: `faltam ${k + 2}`, key: `over:${whole}`, push: t.push },
+        { label: `Menos de ${dot(whole)} golos`, p: t.under, key: `under:${whole}`, push: t.push }
+      );
+    }
   }
   const bothDone = h > 0 && a > 0;
 
