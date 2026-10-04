@@ -47,6 +47,7 @@ export const LEAGUES = [
   { code: "sco.1", fd: "SC0", label: "Escócia · Premiership" },
   { code: "tr.1", fd: "T1", label: "Turquia · Süper Lig" },
   { code: "gr.1", fd: "G1", label: "Grécia · Super League" },
+  { code: "hr.1", fd: "", label: "Croácia · HNL" },
   { code: "ro.1", fd: "ROU", label: "Roménia · Superliga" },
   { code: "pl.1", fd: "POL", label: "Polónia · Ekstraklasa" },
   { code: "dk.1", fd: "DNK", label: "Dinamarca · Superliga" },
