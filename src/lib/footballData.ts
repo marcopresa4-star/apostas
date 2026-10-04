@@ -27,6 +27,7 @@ const BASE = "https://raw.githubusercontent.com/openfootball/football.json/maste
 
 export const LEAGUES = [
   { code: "pt.1", fd: "P1", label: "Portugal · Primeira Liga" },
+  { code: "pt.2", fd: "", label: "Portugal · Liga Portugal 2" },
   { code: "en.1", fd: "E0", label: "Inglaterra · Premier League" },
   { code: "en.2", fd: "E1", label: "Inglaterra · Championship" },
   { code: "en.3", fd: "E2", label: "Inglaterra · League One" },

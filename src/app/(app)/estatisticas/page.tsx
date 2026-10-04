@@ -490,7 +490,7 @@ async function CompararBody({
 
       {!league && (
         <p className="mt-4 text-xs leading-relaxed text-neutral-500">
-          Ligas disponíveis: Portugal, Inglaterra (4 divisões), Espanha, Itália, Alemanha, França (2 divisões cada),
+          Ligas disponíveis: Portugal (2 divisões), Inglaterra (4 divisões), Espanha, Itália, Alemanha, França (2 divisões cada),
           Países Baixos, Bélgica, Áustria, Escócia, Turquia, Grécia, Roménia, Polónia, Dinamarca, Suíça, México, Japão,
           Brasil, Argentina, EUA, Noruega, Suécia, Finlândia, Irlanda, China e Paraguai (Clausura). Também há as seleções nacionais (todas, ou
           só as da Liga das Nações), com um modelo próprio e campo neutro. Só faltam as que não têm fonte gratuita com
