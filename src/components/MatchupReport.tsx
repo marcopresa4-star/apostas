@@ -16,6 +16,8 @@ import {
   SOLID_GAMES,
   VALUE_MARGIN,
   AH_LINES,
+  ASIAN_QUARTERS,
+  TEAM_ASIAN_QUARTERS,
   ahWinPush,
   baseRates,
   bttsOver25Probs,
@@ -62,6 +64,8 @@ function oddText(p: number): string {
 }
 
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
+// Quarter lines need both decimals ("1,75", not "1,8").
+const qdot = (n: number) => n.toFixed(2).replace(".", ",");
 const shortDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "2-digit" });
 
@@ -1025,6 +1029,20 @@ function buildMarkets(
       { label: `Menos de ${dot(line)} golos`, p: 1 - over - push, key: `under:${line}`, push },
     ];
   });
+  // Asian quarter totals (1.25, 1.75...): each splits the stake over its two
+  // neighbours, so the row prices the effective chance (full wins plus half
+  // the exact middle) with half that middle refunded — same fair-odd maths
+  // as the whole lines above.
+  const asianRows = ASIAN_QUARTERS.flatMap((line) => {
+    const m = Math.round(line);
+    const fullOver = matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, m);
+    const middle = matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, m);
+    const push = middle / 2;
+    return [
+      { label: `Mais de ${qdot(line)} golos`, p: fullOver + push, key: `over:${line}`, push },
+      { label: `Menos de ${qdot(line)} golos`, p: 1 - fullOver - middle + push, key: `under:${line}`, push },
+    ];
+  });
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: "Resultado final",
@@ -1050,6 +1068,7 @@ function buildMarkets(
       ],
     },
     { title: "Golos", rows: overRows },
+    { title: "Total asiático", rows: asianRows },
     {
       title: "Handicap asiático",
       rows: AH_LINES.flatMap((line) =>
@@ -1078,6 +1097,22 @@ function buildMarkets(
           return [
             { label: `${team} mais de ${dot(line)}`, p: overW, key: `to:${side}:${line}`, push },
             { label: `${team} menos de ${dot(line)}`, p: underW, key: `tu:${side}:${line}`, push },
+          ];
+        })
+      ),
+    },
+    {
+      title: "Total asiático por equipa",
+      rows: TEAM_ASIAN_QUARTERS.flatMap((line) =>
+        (["home", "away"] as const).flatMap((side) => {
+          const mu = side === "home" ? prediction.lambdaHome : prediction.lambdaAway;
+          const team = side === "home" ? home : away;
+          const m = Math.round(line);
+          const overW = teamTotalWinPush(mu, m, "over");
+          const underW = teamTotalWinPush(mu, m, "under");
+          return [
+            { label: `${team} mais de ${qdot(line)}`, p: overW.win + overW.push / 2, key: `to:${side}:${line}`, push: overW.push / 2 },
+            { label: `${team} menos de ${qdot(line)}`, p: underW.win + underW.push / 2, key: `tu:${side}:${line}`, push: underW.push / 2 },
           ];
         })
       ),

@@ -308,6 +308,12 @@ async function CompararBody({
       "over:2", "under:2", "over:2.5", "under:2.5",
       "over:3", "under:3", "over:3.5", "under:3.5",
       "over:4", "under:4", "over:4.5", "under:4.5",
+      // Asian quarter totals: the key mapping to the bookmaker's line is
+      // generic (`ou:1.75:over`), so these attach whenever the house prices them.
+      ...[1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25].flatMap((line) => [
+        `over:${line}`,
+        `under:${line}`,
+      ]),
       "ht:home", "ht:draw", "ht:away",
       ...AH_LINES.flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
       ...[0.5, 1, 1.5, 2, 2.5].flatMap((line) => [

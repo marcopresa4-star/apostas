@@ -157,9 +157,17 @@ const MIN_LIFT = 0.04;
 // happened 55,5%), so they pay 8%. Halves are untested: 8% too.
 export const VALUE_MARGIN: Record<PickGroup, number> = { result: 0.03, goals: 0.08, btts: 0.08, halves: 0.08 };
 
-// Asian handicap lines priced everywhere (quarter lines split stakes, so
-// they stay out: no honest single price). Whole lines push on exact.
+// Asian handicap lines priced everywhere. The handicap itself stays on .0/.5
+// lines only; the totals below also price quarter lines (1.25, 1.75...). Whole
+// lines push on exact.
 export const AH_LINES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2];
+// Quarter total-goals lines, game and per side: each splits the stake over its
+// two neighbours, so half the exact-middle mass half-wins and the other half
+// comes back. That folds into the usual price exactly: p counts the full
+// wins plus half the middle, push counts the refunded half, and
+// (1 - push) / p stays the honest fair odd.
+export const ASIAN_QUARTERS = [1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25];
+export const TEAM_ASIAN_QUARTERS = [0.75, 1.25, 1.75, 2.25, 2.75];
 // A bet is only suggested when the team with the fewest games in the data has
 // at least MIN_GAMES. Tested on 2025/26 (18 leagues), the model beats the
 // league's own rates clearly only from SOLID_GAMES up (log-loss gain 0.068,
@@ -222,6 +230,8 @@ export function baseRates(matches: PlayedMatch[]): BaseRates {
 }
 
 const num = (n: number) => n.toFixed(1).replace(".", ",");
+// Quarter lines need both decimals ("1,75", not "1,8").
+const qnum = (n: number) => n.toFixed(2).replace(".", ",");
 
 // A bet the model can price, with its chance already pulled back towards the
 // league's rate for the markets it is less sure about (see TRUST). `push` is
@@ -348,8 +358,9 @@ export function candidatesFor(
     }
   );
   // Asian handicaps and team totals, priced straight from the Poisson means
-  // (goals family caution). Only with matches behind the league rates, and
-  // only .0/.5 lines (quarter lines split stakes — no honest single price).
+  // (goals family caution). Only with matches behind the league rates. The
+  // handicap stays on .0/.5 lines; team totals also price quarter lines (same
+  // half-win/half-refund folding as the game quarters below).
   if (matches.length > 0) {
     const fmtLine = (line: number): string =>
       Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${num(line)}`;
@@ -403,6 +414,75 @@ export function candidatesFor(
         }
       }
     }
+  // Asian quarter totals for the game (1.25, 1.75...): pure Poisson like the
+  // whole lines above (the model's grid only holds .5 lines). The league rate
+  // is the average of the two neighbours' shares — the empirical version of
+  // the same full-wins-plus-half-the-middle count.
+  const asianBase = (test: (total: number) => boolean): number =>
+    matches.filter((m) => test(m.ft[0] + m.ft[1])).length / matches.length;
+  for (const line of ASIAN_QUARTERS) {
+    const m = Math.round(line);
+    const fullOver = matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, m);
+    const middle = matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, m);
+    const fullUnder = 1 - fullOver - middle;
+    const lo = line - 0.25;
+    const hi = line + 0.25;
+    candidates.push(
+      {
+        group: "goals",
+        key: `over:${line}`,
+        label: `Mais de ${qnum(line)} golos`,
+        p: fullOver + middle / 2,
+        base: (asianBase((t) => t > lo) + asianBase((t) => t > hi)) / 2,
+        push: middle / 2,
+        won: ([h, a]) => h + a > m,
+      },
+      {
+        group: "goals",
+        key: `under:${line}`,
+        label: `Menos de ${qnum(line)} golos`,
+        p: fullUnder + middle / 2,
+        base: (asianBase((t) => t < lo) + asianBase((t) => t < hi)) / 2,
+        push: middle / 2,
+        won: ([h, a]) => h + a < m,
+      }
+    );
+  }
+  // Same for each side's own total (0.75 upwards): the win/push split at the
+  // middle integer comes straight from the Poisson of its expected goals.
+  for (const line of TEAM_ASIAN_QUARTERS) {
+    const m = Math.round(line);
+    const lo = line - 0.25;
+    const hi = line + 0.25;
+    for (const side of ["home", "away"] as const) {
+      const mu = side === "home" ? prediction.lambdaHome : prediction.lambdaAway;
+      const team = side === "home" ? home : away;
+      const scored = matches.map((mt) => (side === "home" ? mt.ft[0] : mt.ft[1]));
+      const share = (test: (g: number) => boolean): number => scored.filter(test).length / matches.length;
+      const o = teamTotalWinPush(mu, m, "over");
+      const u = teamTotalWinPush(mu, m, "under");
+      candidates.push(
+        {
+          group: "goals",
+          key: `to:${side}:${line}`,
+          label: `${team} mais de ${qnum(line)}`,
+          p: o.win + o.push / 2,
+          base: (share((g) => g > lo) + share((g) => g > hi)) / 2,
+          push: o.push / 2,
+          won: ([h, a]) => (side === "home" ? h : a) > m,
+        },
+        {
+          group: "goals",
+          key: `tu:${side}:${line}`,
+          label: `${team} menos de ${qnum(line)}`,
+          p: u.win + u.push / 2,
+          base: (share((g) => g < lo) + share((g) => g < hi)) / 2,
+          push: u.push / 2,
+          won: ([h, a]) => (side === "home" ? h : a) < m,
+        }
+      );
+    }
+  }
   }
   // Halves markets price the two halves as independent Poisson halves (the
   // same assumption the model's own half-time grid makes): a goal in each
@@ -609,7 +689,12 @@ export function pickWhy(
   }
   if (key.startsWith("over:") || key.startsWith("under:")) {
     const total = prediction.lambdaHome + prediction.lambdaAway;
-    return `Esperados ${comma(total)} golos no jogo; a média da liga é ${comma(rates.perTeam * 2)}.`;
+    const lv = Number(key.split(":")[1]);
+    // Quarter lines half-refund on the exact middle ("Mais de 1,75" with
+    // exactly 2: half wins, half comes back).
+    const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
+    const half = frac === 0.25 || frac === 0.75 ? ` Com exatamente ${Math.round(lv)}, metade devolve.` : "";
+    return `Esperados ${comma(total)} golos no jogo; a média da liga é ${comma(rates.perTeam * 2)}.${half}`;
   }
   if (key.startsWith("htover:") || key.startsWith("htunder:")) {
     const line = key.split(":")[1] ?? "";
@@ -650,8 +735,11 @@ export function pickWhy(
     const parts = key.split(":");
     const team = parts[1] === "away" ? away : home;
     const line = parts[2] ?? "";
+    const lv = Number(line);
+    const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
+    const half = frac === 0.25 || frac === 0.75 ? ` Com exatamente ${Math.round(lv)}, metade devolve.` : "";
     const dir = key.startsWith("to:") ? "mais" : "menos";
-    return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")}.`;
+    return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")}.${half}`;
   }
   if (key === "halves:both" || key === "halves:home" || key === "halves:away") {
     const fhs = rates.firstHalfShare;
