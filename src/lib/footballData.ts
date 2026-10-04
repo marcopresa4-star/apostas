@@ -41,6 +41,7 @@ export const LEAGUES = [
   { code: "fr.1", fd: "F1", label: "França · Ligue 1" },
   { code: "fr.2", fd: "F2", label: "França · Ligue 2" },
   { code: "nl.1", fd: "N1", label: "Países Baixos · Eredivisie" },
+  { code: "nl.2", fd: "", label: "Países Baixos · Eerste Divisie" },
   { code: "be.1", fd: "B1", label: "Bélgica · Pro League" },
   { code: "at.1", fd: "AUT", label: "Áustria · Bundesliga" },
   { code: "sco.1", fd: "SC0", label: "Escócia · Premiership" },
