@@ -207,13 +207,15 @@ export default function SofaLiveTable({
       g.away.toLowerCase().includes(q)
     );
   });
-  // Pinned games always on top, in kickoff order; the rest follows it too.
+  // Pinned games form one flat block on top (no league headers: the same
+  // league would otherwise headline twice); the rest groups by league.
   const byKickoff = [...visible].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
-  const rows = [...byKickoff.filter((g) => pinned.has(String(g.id))), ...byKickoff.filter((g) => !pinned.has(String(g.id)))];
-  // Groups in order of appearance (pinned block first, like the rows).
+  const pinnedRows = byKickoff.filter((g) => pinned.has(String(g.id)));
+  const restRows = byKickoff.filter((g) => !pinned.has(String(g.id)));
+  // Groups in order of appearance.
   const groups = useMemo(() => {
     const out: { league: string; games: SofaLiveEntry[] }[] = [];
-    for (const g of rows) {
+    for (const g of restRows) {
       const league = leagueOf(g);
       const last = out[out.length - 1];
       if (last && last.league === league) last.games.push(g);
@@ -222,6 +224,105 @@ export default function SofaLiveTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return out;
   }, [games, stats, query, favOnly, pinned]);
+
+  // One game row, shared by the pinned block and the league groups.
+  const gameRow = (g: SofaLiveEntry) => {
+    const r = rings[g.id];
+    const d = detail[g.id];
+    const f = form[g.id];
+    const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
+    const isPinned = pinned.has(String(g.id));
+    return (
+      <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
+        <td className="py-3 pr-0 pl-4">
+          <button
+            type="button"
+            onClick={() => togglePin(g)}
+            title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
+            className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
+          >
+            📌
+          </button>
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap">
+          {g.phase === "halftime" ? (
+            <span className="font-semibold text-emerald-400">Intervalo</span>
+          ) : (
+            <PeriodLabel g={g} />
+          )}
+        </td>
+        <td className="min-w-56 px-4 py-3">
+          <span className="block text-neutral-100">
+            {g.home} <span className="text-neutral-600">vs</span> {g.away}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-center text-base font-semibold whitespace-nowrap text-neutral-100">
+          {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
+          {d?.ht && <span className="ml-1.5 text-[11px] font-normal text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
+        </td>
+        {!compact && (
+          <>
+            <td className="px-3 py-3 text-center">
+              <Ring value={r?.home.gm ?? null} tone="green" />
+            </td>
+            <td className="px-3 py-3 text-center">
+              <Ring value={r?.home.gs ?? null} tone="orange" />
+            </td>
+            <td className="px-3 py-3 text-center">
+              <Ring value={r?.home.venue ?? null} tone="green" />
+            </td>
+            <td className="px-3 py-3 text-center">
+              <Ring value={r?.away.venue ?? null} tone="orange" />
+            </td>
+            <td className="px-3 py-3 text-center">
+              <Btts value={r ? Math.max(r.home.btts ?? -1, r.away.btts ?? -1) : null} />
+            </td>
+            <td className="px-3 py-3">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
+            <td className="px-3 py-3">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
+            <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
+              {d?.odds ? d.odds.home.toFixed(2).replace(".", ",") : "—"}
+            </td>
+            <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
+              {d?.odds ? d.odds.draw.toFixed(2).replace(".", ",") : "—"}
+            </td>
+            <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
+              {d?.odds ? d.odds.away.toFixed(2).replace(".", ",") : "—"}
+            </td>
+          </>
+        )}
+        <td className="px-4 py-3 text-right whitespace-nowrap">
+          {added.has(g.id) ? (
+            <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
+              ✓ Nos Jogos
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled={pendingId === g.id}
+              onClick={() => {
+                setPendingId(g.id);
+                startTransition(async () => {
+                  try {
+                    await addWatchedMatch(g.home, g.away, null, null, `id:${g.id}`);
+                    setAdded((prev) => new Set(prev).add(g.id));
+                  } finally {
+                    setPendingId(null);
+                  }
+                });
+              }}
+              title="Passar para os Jogos"
+              className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
+            >
+              {pendingId === g.id ? "…" : "+ Jogos"}
+            </button>
+          )}
+          <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
+            Analisar →
+          </Link>
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div>
@@ -255,7 +356,7 @@ export default function SofaLiveTable({
         </button>
         {(query || favOnly || pinned.size > 0) && (
           <span className="text-xs text-neutral-500">
-            {rows.length} de {games.length} jogos
+            {visible.length} de {games.length} jogos
             {pinned.size > 0 && ` · ${pinned.size} afixado${pinned.size === 1 ? "" : "s"}`}
           </span>
         )}
@@ -286,6 +387,20 @@ export default function SofaLiveTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/70">
+            {pinnedRows.length > 0 && (
+              <Fragment key="pinned">
+                <tr className="bg-emerald-500/[0.06]">
+                  <td colSpan={compact ? 5 : 14} className="px-4 py-2 text-xs">
+                    <span className="mr-1.5">📌</span>
+                    <span className="font-semibold text-neutral-200">Afixados</span>{" "}
+                    <span className="text-neutral-500">
+                      {pinnedRows.length} {pinnedRows.length === 1 ? "jogo" : "jogos"}
+                    </span>
+                  </td>
+                </tr>
+                {pinnedRows.map(gameRow)}
+              </Fragment>
+            )}
             {groups.map((grp, gi) => (
               <Fragment key={`g${gi}`}>
                 <tr className="bg-neutral-800/40">
@@ -304,108 +419,12 @@ export default function SofaLiveTable({
                     </span>
                   </td>
                 </tr>
-                {grp.games.map((g) => {
-                  const r = rings[g.id];
-                  const d = detail[g.id];
-                  const f = form[g.id];
-                  const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
-                  const isPinned = pinned.has(String(g.id));
-                  return (
-                    <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
-                      <td className="py-3 pr-0 pl-4">
-                        <button
-                          type="button"
-                          onClick={() => togglePin(g)}
-                          title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
-                          className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
-                        >
-                          📌
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {g.phase === "halftime" ? (
-                          <span className="font-semibold text-emerald-400">Intervalo</span>
-                        ) : (
-                          <PeriodLabel g={g} />
-                        )}
-                      </td>
-                      <td className="min-w-56 px-4 py-3">
-                        <span className="block text-neutral-100">
-                          {g.home} <span className="text-neutral-600">vs</span> {g.away}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-base font-semibold whitespace-nowrap text-neutral-100">
-                        {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
-                        {d?.ht && <span className="ml-1.5 text-[11px] font-normal text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
-                      </td>
-                      {!compact && (
-                        <>
-                          <td className="px-3 py-3 text-center">
-                            <Ring value={r?.home.gm ?? null} tone="green" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Ring value={r?.home.gs ?? null} tone="orange" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Ring value={r?.home.venue ?? null} tone="green" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Ring value={r?.away.venue ?? null} tone="orange" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <Btts value={r ? Math.max(r.home.btts ?? -1, r.away.btts ?? -1) : null} />
-                          </td>
-                          <td className="px-3 py-3">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
-                          <td className="px-3 py-3">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
-                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-                            {d?.odds ? d.odds.home.toFixed(2).replace(".", ",") : "—"}
-                          </td>
-                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-                            {d?.odds ? d.odds.draw.toFixed(2).replace(".", ",") : "—"}
-                          </td>
-                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-                            {d?.odds ? d.odds.away.toFixed(2).replace(".", ",") : "—"}
-                          </td>
-                        </>
-                      )}
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {added.has(g.id) ? (
-                          <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
-                            ✓ Nos Jogos
-                          </Link>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={pendingId === g.id}
-                            onClick={() => {
-                              setPendingId(g.id);
-                              startTransition(async () => {
-                                try {
-                                  await addWatchedMatch(g.home, g.away, null, null, `id:${g.id}`);
-                                  setAdded((prev) => new Set(prev).add(g.id));
-                                } finally {
-                                  setPendingId(null);
-                                }
-                              });
-                            }}
-                            title="Passar para os Jogos"
-                            className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
-                          >
-                            {pendingId === g.id ? "…" : "+ Jogos"}
-                          </button>
-                        )}
-                        <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
-                          Analisar →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {grp.games.map(gameRow)}
               </Fragment>
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && (
+        {visible.length === 0 && (
           <p className="px-4 py-8 text-center text-sm text-neutral-500">
             Nada corresponde ao filtro. Marca ligas com ★ ou limpa a pesquisa.
           </p>
