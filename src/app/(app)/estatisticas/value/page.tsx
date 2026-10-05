@@ -14,21 +14,11 @@ import { leagueRates } from "@/lib/footballModel";
 import { loadAutoTune } from "@/lib/autoTune";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
+import ValueFilters from "@/components/ValueFilters";
+import { DEFAULT_VALUE_MARKETS, VALUE_MARKETS, VALUE_MARKET_KEYS } from "@/lib/valueMarkets";
 
 // Club leagues only: internationals have no pre-match odds flow.
-const MARKETS = [
-  { key: "home", label: "1X2 Casa" },
-  { key: "draw", label: "Empate" },
-  { key: "away", label: "1X2 Fora" },
-  { key: "over:1.5", label: "Mais de 1,5" },
-  { key: "under:1.5", label: "Menos de 1,5" },
-  { key: "over:2.5", label: "Mais de 2,5" },
-  { key: "under:2.5", label: "Menos de 2,5" },
-  { key: "btts:yes", label: "BTTS Sim" },
-  { key: "btts:no", label: "BTTS Não" },
-] as const;
-
-const DEFAULT_MARKETS = ["home", "over:1.5", "over:2.5", "btts:yes"];
+const marketByKey = new Map(VALUE_MARKETS.map((m) => [m.key, m.label]));
 // Bounds the odds sweep: each fixture costs one (cached) odds read.
 const MAX_EVENTS = 60;
 // Odds reads go in small batches: the local scraper answers one at a time.
@@ -57,19 +47,14 @@ export default async function ValuePage({
 
   const run = first(params.analisar) === "1";
   const selLigas = list(params.ligas);
-  const selMercados = list(params.mercados);
+  const selMercados = list(params.mercados).filter((k) => VALUE_MARKET_KEYS.includes(k));
   const ligas = selLigas.length > 0 ? selLigas : leagues.map((l) => l.code);
-  const mercados = selMercados.length > 0 ? selMercados : [...DEFAULT_MARKETS];
+  const mercados = selMercados.length > 0 ? selMercados : [...DEFAULT_VALUE_MARKETS];
   const edgeMin = [3, 5, 8, 10].includes(Number(first(params.edge))) ? Number(first(params.edge)) / 100 : 0.05;
   const oddMaxRaw = first(params.oddmax);
   const oddMax = ["1.8", "2.5", "3", "5"].includes(oddMaxRaw) ? Number(oddMaxRaw) : null;
   const conf = ["media", "alta"].includes(first(params.conf)) ? first(params.conf) : "qualquer";
   const datas = ["hoje", "amanha", "14d"].includes(first(params.datas)) ? first(params.datas) : "7d";
-
-  const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-amber-500/50 bg-amber-500/15 text-amber-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
-  const chip =
-    "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-neutral-600";
 
   return (
     <div data-wide>
@@ -81,111 +66,10 @@ export default async function ValuePage({
 
       <EstatisticasTabs />
 
-      <form method="get" action="/estatisticas/value" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
-        <input type="hidden" name="analisar" value="1" />
-        <div className="space-y-5">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Competições ({ligas.length} de {leagues.length})
-            </p>
-            <details className="rounded-xl border border-neutral-800 bg-neutral-950 p-3">
-              <summary className="cursor-pointer text-sm text-neutral-300">
-                Escolher competições ({ligas.length} selecionadas)
-              </summary>
-              <div className="mt-3 flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
-                {leagues.map((l) => (
-                  <label key={l.code} className={chip}>
-                    <input type="checkbox" name="ligas" value={l.code} defaultChecked={ligas.includes(l.code)} className="accent-amber-500" />
-                    {l.label}
-                  </label>
-                ))}
-              </div>
-            </details>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Mercados</p>
-            <div className="flex flex-wrap gap-1.5">
-              {MARKETS.map((m) => (
-                <label key={m.key} className={chip}>
-                  <input type="checkbox" name="mercados" value={m.key} defaultChecked={mercados.includes(m.key)} className="accent-amber-500" />
-                  {m.label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Edge mínimo (EV)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[3, 5, 8, 10].map((e) => (
-                  <label key={e} className={pill(edgeMin === e / 100)}>
-                    <input type="radio" name="edge" value={String(e)} defaultChecked={edgeMin === e / 100} className="sr-only" />
-                    +{e}%
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Odd máxima</p>
-              <div className="flex flex-wrap gap-1.5">
-                {["1.8", "2.5", "3", "5"].map((o) => (
-                  <label key={o} className={pill(oddMaxRaw === o)}>
-                    <input type="radio" name="oddmax" value={o} defaultChecked={oddMaxRaw === o} className="sr-only" />
-                    {o.replace(".", ",")}
-                  </label>
-                ))}
-                <label className={pill(oddMax === null)}>
-                  <input type="radio" name="oddmax" value="" defaultChecked={oddMax === null} className="sr-only" />
-                  Sem limite
-                </label>
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Confiança mínima</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { v: "qualquer", l: "Qualquer" },
-                  { v: "media", l: "Média+ (5+ jogos)" },
-                  { v: "alta", l: "Alta (12+ jogos)" },
-                ].map((c) => (
-                  <label key={c.v} className={pill(conf === c.v)}>
-                    <input type="radio" name="conf" value={c.v} defaultChecked={conf === c.v} className="sr-only" />
-                    {c.l}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Datas</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { v: "hoje", l: "Hoje" },
-                  { v: "amanha", l: "Amanhã" },
-                  { v: "7d", l: "Próx. 7 dias" },
-                  { v: "14d", l: "Próx. 14 dias" },
-                ].map((d) => (
-                  <label key={d.v} className={pill(datas === d.v)}>
-                    <input type="radio" name="datas" value={d.v} defaultChecked={datas === d.v} className="sr-only" />
-                    {d.l}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <button
-              type="submit"
-              className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
-            >
-              Analisar jogos
-            </button>
-            <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-              Só contam jogos com odds reais da casa (regra geral, poucos dias antes do jogo) e equipas com 5+ jogos nos
-              dados. A primeira análise demora minutos em cache fria; depois é rápido.
-            </p>
-          </div>
-        </div>
-      </form>
+      <ValueFilters
+        leagues={leagues.map((l) => ({ code: l.code, label: l.label }))}
+        initial={{ ligas, mercados, edge: edgeMin, oddmax: oddMaxRaw, conf, datas }}
+      />
 
       {run && (
         <Suspense
@@ -246,7 +130,6 @@ async function ValueResults({
 
   const supabase = await createClient();
   const tune = userId ? await loadAutoTune(supabase, userId).catch(() => null) : null;
-  const marketByKey = new Map(MARKETS.map((m) => [m.key as string, m.label]));
 
   let fixturesTotal = 0;
   let oddsTotal = 0;
