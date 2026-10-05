@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { activeTeams, isoDaysAgo } from "./internationalData";
 import type { IntlGame } from "./internationalModel";
 import { lisbonParts, loadMaps, nationalGames } from "./sofaHistory";
+import type { StaleTracker } from "./sofaCache";
 import { teamEventList } from "./sofaLeague";
 import { slugify } from "./slugify";
 
@@ -15,6 +16,9 @@ export interface SofaIntl {
   teams: string[];
   unlinked: string[];
   mapped: number;
+  // Any read served expired cache (scraper down): pages warn instead of
+  // pretending the data is fresh.
+  stale: boolean;
 }
 
 // The local scraper answers reads one at a time: firing every linked team
@@ -62,9 +66,10 @@ export async function loadSofaInternational(
   };
 
   const seen = new Map<number, IntlGame>();
+  const tracker: StaleTracker = { stale: false };
   await eachBatch(maps, TEAM_CONCURRENCY, async (m) => {
     if (!Number.isInteger(m.sofascore_id) || m.sofascore_id <= 0) return;
-    const games = await nationalGames(m.sofascore_id, since, 20, { supabase, userId }).catch(() => []);
+    const games = await nationalGames(m.sofascore_id, since, 20, { supabase, userId }, tracker).catch(() => []);
     for (const g of games) {
       if (seen.has(g.id)) continue;
       if (outOfScope(g.home) || outOfScope(g.away)) continue;
@@ -85,6 +90,7 @@ export async function loadSofaInternational(
     teams: activeTeams(games, now),
     unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)),
     mapped: maps.length,
+    stale: tracker.stale,
   };
 }
 

@@ -8,8 +8,9 @@ import type { PlayedMatch } from "./footballModel";
 import { slugify } from "./slugify";
 import { sideTokensIn } from "./sportscoreSlug";
 import { tokens } from "./teamNames";
-import { sofaRaw } from "./sofaRaw";
-import { cacheGet, cacheSet, DAY_MS, HOUR_MS } from "./sofaCache";
+import { sofaRaw, ScraperOffline } from "./sofaRaw";
+import { cacheGet, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
+export type { StaleTracker } from "./sofaCache";
 
 type Json = Record<string, unknown>;
 const obj = (x: unknown): Json | null =>
@@ -17,6 +18,40 @@ const obj = (x: unknown): Json | null =>
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
+
+// Cache-then-fetch with an offline fallback: a fresh row wins; otherwise the
+// fetch runs, and when the scraper is down the expired row is served instead
+// of failing (flagged on the tracker, so pages can warn). `fetch` returns
+// the parsed payload, or null when there is nothing worth caching (empty
+// seasons, unparseable bodies) — null is never cached. Anything that is not
+// the scraper being offline still throws, like before.
+// Exported for the club adapter (teamEventList), which caches the same way.
+export async function cachedRead<T>(
+  supabase: SupabaseClient,
+  userId: string,
+  key: string,
+  ttlMs: number,
+  fetch: () => Promise<T | null>,
+  tracker?: StaleTracker,
+  valid?: (v: unknown) => boolean
+): Promise<T | null> {
+  const hit = await cacheGet(supabase, userId, key, ttlMs);
+  if (hit !== null && hit !== undefined && (!valid || valid(hit))) return hit as T;
+  try {
+    const fresh = await fetch();
+    if (fresh !== null && fresh !== undefined) await cacheSet(supabase, userId, key, fresh);
+    return fresh;
+  } catch (err) {
+    if (err instanceof ScraperOffline) {
+      const stale = await cacheGetMeta(supabase, userId, key);
+      if (stale !== null && stale !== undefined && (!valid || valid(stale))) {
+        if (tracker) tracker.stale = true;
+        return stale as T;
+      }
+    }
+    throw err;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Mapping table (sofascore_maps)
@@ -198,22 +233,32 @@ export interface SofaSeason {
 export async function tournamentSeasons(
   supabase: SupabaseClient,
   userId: string,
-  uniqueId: number
+  uniqueId: number,
+  tracker?: StaleTracker
 ): Promise<SofaSeason[]> {
   const key = `seasons:${uniqueId}`;
-  const hit = await cacheGet(supabase, userId, key, 7 * DAY_MS);
-  if (Array.isArray(hit)) return hit as SofaSeason[];
-  const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/seasons`);
-  const list = obj(body)?.seasons;
-  const out: SofaSeason[] = Array.isArray(list)
-    ? list.flatMap((s) => {
-        const e = obj(s);
-        const id = num(e?.id);
-        return e && id !== null ? [{ id, name: str(e.name), year: str(e.year) }] : [];
-      })
-    : [];
-  if (out.length > 0) await cacheSet(supabase, userId, key, out);
-  return out;
+  // Seasons only grow ~1x/year, so a month-long TTL just delays seeing a brand-new season (still empty at first).
+  const data = await cachedRead<SofaSeason[]>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/seasons`);
+      const list = obj(body)?.seasons;
+      const out: SofaSeason[] = Array.isArray(list)
+        ? list.flatMap((s) => {
+            const e = obj(s);
+            const id = num(e?.id);
+            return e && id !== null ? [{ id, name: str(e.name), year: str(e.year) }] : [];
+          })
+        : [];
+      return out.length > 0 ? out : null;
+    },
+    tracker,
+    Array.isArray
+  );
+  return data ?? [];
 }
 
 export async function tournamentRounds(
@@ -221,22 +266,32 @@ export async function tournamentRounds(
   userId: string,
   uniqueId: number,
   seasonId: number,
-  current: boolean
+  current: boolean,
+  tracker?: StaleTracker
 ): Promise<{ currentRound: number | null; rounds: number[] }> {
   const key = `rounds:${uniqueId}:${seasonId}`;
-  const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
-  if (hit && typeof hit === "object") return hit as { currentRound: number | null; rounds: number[] };
-  const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/rounds`);
-  const rounds = obj(body)?.rounds;
-  const list: number[] = Array.isArray(rounds)
-    ? rounds.flatMap((r) => {
-        const n = num(obj(r)?.round);
-        return n !== null ? [n] : [];
-      })
-    : [];
-  const out = { currentRound: num(obj(obj(body)?.currentRound)?.round), rounds: list };
-  if (list.length > 0) await cacheSet(supabase, userId, key, out);
-  return out;
+  // Round numbers are fixed; currentRound advances ~1x/week, so 6h stays fresh while refetching 6x less.
+  const data = await cachedRead<{ currentRound: number | null; rounds: number[] }>(
+    supabase,
+    userId,
+    key,
+    current ? 6 * HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/rounds`);
+      const rounds = obj(body)?.rounds;
+      const list: number[] = Array.isArray(rounds)
+        ? rounds.flatMap((r) => {
+            const n = num(obj(r)?.round);
+            return n !== null ? [n] : [];
+          })
+        : [];
+      if (list.length === 0) return null;
+      return { currentRound: num(obj(obj(body)?.currentRound)?.round), rounds: list };
+    },
+    tracker,
+    (v): boolean => !!v && typeof v === "object" && !Array.isArray(v)
+  );
+  return data ?? { currentRound: null, rounds: [] };
 }
 
 // Kickoff in Europe/Lisbon wall time (the files use local dates too): a 17:45
@@ -302,22 +357,34 @@ export async function roundFixtures(
   uniqueId: number,
   seasonId: number,
   round: number,
-  current: boolean
+  current: boolean,
+  tracker?: StaleTracker
 ): Promise<SofaFixture[]> {
   const key = `roundfx:${uniqueId}:${seasonId}:${round}`;
-  const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
-  if (Array.isArray(hit)) return hit as SofaFixture[];
-  const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/events/round/${round}`);
-  const events = obj(body)?.events;
-  const out: SofaFixture[] = Array.isArray(events)
-    ? events.flatMap((item) => {
-        const f = obj(item) ? toFixture(obj(item)!, round) : null;
-        return f ? [f] : [];
-      })
-    : [];
-  out.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
-  await cacheSet(supabase, userId, key, out);
-  return out;
+  const data = await cachedRead<SofaFixture[]>(
+    supabase,
+    userId,
+    key,
+    current ? HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/events/round/${round}`);
+      const events = obj(body)?.events;
+      const out: SofaFixture[] = Array.isArray(events)
+        ? events.flatMap((item) => {
+            const f = obj(item) ? toFixture(obj(item)!, round) : null;
+            return f ? [f] : [];
+          })
+        : [];
+      out.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+      // An empty round (404 past the end, or nothing scheduled yet) is cached
+      // too: refetching it every load would never find anything new until the
+      // TTL lapses anyway.
+      return out;
+    },
+    tracker,
+    Array.isArray
+  );
+  return data ?? [];
 }
 
 // Shots on target [home, away] of one event, from its statistics endpoint
@@ -326,30 +393,41 @@ export async function roundFixtures(
 export async function eventShots(
   supabase: SupabaseClient,
   userId: string,
-  eventId: number
+  eventId: number,
+  tracker?: StaleTracker
 ): Promise<[number, number] | null> {
   const key = `stat:${eventId}`;
-  const hit = await cacheGet(supabase, userId, key, 30 * DAY_MS);
-  // [] cached means "looked, nothing there".
-  if (Array.isArray(hit)) return hit.length === 2 && hit.every((n) => typeof n === "number") ? (hit as [number, number]) : null;
-  const body = await sofaRaw<unknown>(`/event/${eventId}/statistics`);
-  let out: [number, number] | null = null;
-  const periods = obj(body)?.statistics;
-  if (Array.isArray(periods)) {
-    const all = periods.map(obj).find((p) => p?.period === "ALL") ?? periods.map(obj)[0];
-    const groups = Array.isArray(all?.groups) ? (all!.groups as unknown[]) : [];
-    const overview = groups.map(obj).find((g) => g?.groupName === "Match overview") ?? groups.map(obj)[0];
-    const items = Array.isArray(overview?.statisticsItems) ? (overview!.statisticsItems as unknown[]) : [];
-    for (const item of items) {
-      const row = obj(item);
-      if (row?.name === "Shots on target" && typeof row.home === "number" && typeof row.away === "number") {
-        out = [row.home, row.away];
-        break;
+  // {sot} wrapper so "looked, nothing there" (null) caches like before.
+  const data = await cachedRead<{ sot: [number, number] | null }>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      const body = await sofaRaw<unknown>(`/event/${eventId}/statistics`);
+      let out: [number, number] | null = null;
+      const periods = obj(body)?.statistics;
+      if (Array.isArray(periods)) {
+        const all = periods.map(obj).find((p) => p?.period === "ALL") ?? periods.map(obj)[0];
+        const groups = Array.isArray(all?.groups) ? (all!.groups as unknown[]) : [];
+        const overview = groups.map(obj).find((g) => g?.groupName === "Match overview") ?? groups.map(obj)[0];
+        const items = Array.isArray(overview?.statisticsItems) ? (overview!.statisticsItems as unknown[]) : [];
+        for (const item of items) {
+          const row = obj(item);
+          if (row?.name === "Shots on target" && typeof row.home === "number" && typeof row.away === "number") {
+            out = [row.home, row.away];
+            break;
+          }
+        }
       }
-    }
-  }
-  await cacheSet(supabase, userId, key, out ?? []);
-  return out;
+      return { sot: out };
+    },
+    tracker,
+    (v): boolean => !!v && typeof v === "object" && !Array.isArray(v)
+  );
+  if (!data) return null;
+  const sot = data.sot;
+  return sot !== null && sot.length === 2 && sot.every((n) => typeof n === "number") ? sot : null;
 }
 
 // Finished games of one round, oldest first. 404 (round past the end) -> [].
@@ -362,19 +440,20 @@ export async function roundResults(
   seasonId: number,
   round: number,
   current: boolean,
-  shots = false
+  shots = false,
+  tracker?: StaleTracker
 ): Promise<PlayedMatch[]> {
   const key = `round:${uniqueId}:${seasonId}:${round}${shots ? ":sot" : ""}`;
   const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
   if (Array.isArray(hit)) return hit as PlayedMatch[];
   // One call per round serves both: the fixtures cache holds everything,
   // results filter the finished games out of it.
-  const fixtures = await roundFixtures(supabase, userId, uniqueId, seasonId, round, current);
+  const fixtures = await roundFixtures(supabase, userId, uniqueId, seasonId, round, current, tracker);
   const finished = fixtures.filter((f) => f.ft);
   const sotById = new Map<number, [number, number]>();
   if (shots) {
     const shots = await Promise.all(
-      finished.map(async (f) => ({ id: f.id, sot: await eventShots(supabase, userId, f.id).catch(() => null) }))
+      finished.map(async (f) => ({ id: f.id, sot: await eventShots(supabase, userId, f.id, tracker).catch(() => null) }))
     );
     for (const s of shots) if (s.sot) sotById.set(s.id, s.sot);
   }
@@ -401,10 +480,11 @@ export async function seasonResults(
   uniqueId: number,
   seasonId: number,
   current: boolean,
-  shots = false
+  shots = false,
+  tracker?: StaleTracker
 ): Promise<PlayedMatch[]> {
-  const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current);
-  const lists = await Promise.all(rounds.map((r) => roundResults(supabase, userId, uniqueId, seasonId, r, current, shots)));
+  const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current, tracker);
+  const lists = await Promise.all(rounds.map((r) => roundResults(supabase, userId, uniqueId, seasonId, r, current, shots, tracker)));
   const seen = new Set<string>();
   return lists
     .flat()
@@ -430,10 +510,11 @@ export async function seasonFixtures(
   uniqueId: number,
   seasonId: number,
   current: boolean,
-  today = ""
+  today = "",
+  tracker?: StaleTracker
 ): Promise<SofaFixture[]> {
-  const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current);
-  const lists = await Promise.all(rounds.map((r) => roundFixtures(supabase, userId, uniqueId, seasonId, r, current)));
+  const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current, tracker);
+  const lists = await Promise.all(rounds.map((r) => roundFixtures(supabase, userId, uniqueId, seasonId, r, current, tracker)));
   const byTie = new Map<string, SofaFixture[]>();
   for (const f of lists.flat()) {
     const key = `${f.round}|${[f.team1, f.team2].sort().join("~")}`;
@@ -484,9 +565,10 @@ export async function seasonStandings(
   userId: string,
   uniqueId: number,
   seasonId: number,
-  current: boolean
+  current: boolean,
+  tracker?: StaleTracker
 ): Promise<SofaStandingRow[]> {
-  const tables = await seasonStandingsTables(supabase, userId, uniqueId, seasonId, current);
+  const tables = await seasonStandingsTables(supabase, userId, uniqueId, seasonId, current, tracker);
   return tables.flatMap((t) => t.rows);
 }
 
@@ -503,41 +585,51 @@ export async function seasonStandingsTables(
   userId: string,
   uniqueId: number,
   seasonId: number,
-  current: boolean
+  current: boolean,
+  tracker?: StaleTracker
 ): Promise<SofaStandingTable[]> {
   const key = `standingstables:${uniqueId}:${seasonId}`;
-  const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
-  if (Array.isArray(hit)) return hit as SofaStandingTable[];
-  const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/standings/total`);
-  const tables = obj(body)?.standings;
-  const out: SofaStandingTable[] = Array.isArray(tables)
-    ? tables.flatMap((t): SofaStandingTable[] => {
-        const table = obj(t);
-        if (!table) return [];
-        const items = Array.isArray(table.rows) ? (table.rows as unknown[]) : [];
-        const rows = items.flatMap((item) => {
-          const r = obj(item);
-          if (!r) return [];
-          return [
-            {
-              position: num(r.position) ?? 0,
-              team: str(obj(r.team)?.name),
-              played: num(r.matches) ?? 0,
-              wins: num(r.wins) ?? 0,
-              draws: num(r.draws) ?? 0,
-              losses: num(r.losses) ?? 0,
-              goalsFor: num(r.scoresFor) ?? 0,
-              goalsAgainst: num(r.scoresAgainst) ?? 0,
-              points: num(r.points) ?? 0,
-            },
-          ];
-        });
-        if (rows.length === 0) return [];
-        return [{ name: str(table.name) || str(table.description) || "", rows }];
-      })
-    : [];
-  if (out.length > 0) await cacheSet(supabase, userId, key, out);
-  return out;
+  // Standings move at most 1x/day (after games), so 12h is the freshness floor that halves daily refetchs.
+  const data = await cachedRead<SofaStandingTable[]>(
+    supabase,
+    userId,
+    key,
+    current ? 12 * HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/standings/total`);
+      const tables = obj(body)?.standings;
+      const out: SofaStandingTable[] = Array.isArray(tables)
+        ? tables.flatMap((t): SofaStandingTable[] => {
+            const table = obj(t);
+            if (!table) return [];
+            const items = Array.isArray(table.rows) ? (table.rows as unknown[]) : [];
+            const rows = items.flatMap((item) => {
+              const r = obj(item);
+              if (!r) return [];
+              return [
+                {
+                  position: num(r.position) ?? 0,
+                  team: str(obj(r.team)?.name),
+                  played: num(r.matches) ?? 0,
+                  wins: num(r.wins) ?? 0,
+                  draws: num(r.draws) ?? 0,
+                  losses: num(r.losses) ?? 0,
+                  goalsFor: num(r.scoresFor) ?? 0,
+                  goalsAgainst: num(r.scoresAgainst) ?? 0,
+                  points: num(r.points) ?? 0,
+                },
+              ];
+            });
+            if (rows.length === 0) return [];
+            return [{ name: str(table.name) || str(table.description) || "", rows }];
+          })
+        : [];
+      return out.length > 0 ? out : null;
+    },
+    tracker,
+    Array.isArray
+  );
+  return data ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -581,36 +673,44 @@ export async function teamLastGame(
   supabase: SupabaseClient,
   userId: string,
   teamId: number,
-  before: string
+  before: string,
+  tracker?: StaleTracker
 ): Promise<SofaLastGame | null> {
   const key = `teamlast:${teamId}:0`;
+  // Page 0 only shifts when a new game is played (~weekly); 6h keeps the stale window inside the quiet night hours.
+  const cached = await cachedRead<{ events?: unknown }>(
+    supabase,
+    userId,
+    key,
+    6 * HOUR_MS,
+    async () => {
+      const live = await teamEvents(teamId, "last", 0);
+      const events = live.events.flatMap((e) => {
+        const s = slimEvent(e);
+        return s ? [s] : [];
+      });
+      return { events };
+    },
+    tracker,
+    (v): boolean => !!v && typeof v === "object" && !Array.isArray(v)
+  );
   let events: SlimEvent[] | null = null;
-  const hit = await cacheGet(supabase, userId, key, HOUR_MS);
-  if (hit && typeof hit === "object" && !Array.isArray(hit)) {
-    const raw = (hit as { events?: unknown }).events;
-    if (Array.isArray(raw)) {
-      if (raw.length === 0 || isSlimEvent(raw[0])) {
-        events = raw as SlimEvent[];
-      } else {
-        // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
-        events = [];
-        for (const item of raw) {
-          const o = obj(item);
-          if (!o || isSlimEvent(o)) continue;
-          const s = slimEvent(o);
-          if (s) events.push(s);
-        }
+  const raw = cached?.events;
+  if (Array.isArray(raw)) {
+    if (raw.length === 0 || isSlimEvent(raw[0])) {
+      events = raw as SlimEvent[];
+    } else {
+      // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
+      events = [];
+      for (const item of raw) {
+        const o = obj(item);
+        if (!o || isSlimEvent(o)) continue;
+        const s = slimEvent(o);
+        if (s) events.push(s);
       }
     }
   }
-  if (!events) {
-    const live = await teamEvents(teamId, "last", 0);
-    events = live.events.flatMap((e) => {
-      const s = slimEvent(e);
-      return s ? [s] : [];
-    });
-    await cacheSet(supabase, userId, key, { events });
-  }
+  if (!events) return null;
   let best: SofaLastGame | null = null;
   for (const s of events) {
     if (s.status !== "finished") continue;
@@ -634,36 +734,47 @@ export interface SofaGoalMark {
 export async function eventGoalMinutes(
   supabase: SupabaseClient,
   userId: string,
-  eventId: number
+  eventId: number,
+  tracker?: StaleTracker
 ): Promise<SofaGoalMark[] | null> {
   const key = `goalmin:${eventId}`;
-  const hit = await cacheGet(supabase, userId, key, 30 * DAY_MS);
-  if (Array.isArray(hit)) {
-    return hit.every((g) => typeof g === "object" && g !== null) ? (hit as SofaGoalMark[]) : null;
-  }
-  let events: Json[];
-  try {
-    const body = await sofaRaw<unknown>(`/event/${eventId}/incidents`);
-    const raw = obj(body)?.incidents;
-    if (!Array.isArray(raw)) {
-      await cacheSet(supabase, userId, key, []);
-      return null;
-    }
-    events = raw.flatMap((e) => (obj(e) ? [obj(e)!] : []));
-  } catch {
-    return null;
-  }
-  const out: SofaGoalMark[] = [];
-  for (const e of events) {
-    const type = str(e.incidentType).toLowerCase();
-    if (!type.includes("goal") && !type.includes("penalt")) continue;
-    const minute = num(e.time);
-    if (minute === null || minute < 1 || minute > 130) continue;
-    const own = str(e.incidentClass).toLowerCase().includes("own");
-    out.push({ minute, home: own ? e.isHome !== true : e.isHome === true });
-  }
-  await cacheSet(supabase, userId, key, out);
-  return out;
+  // {marks} wrapper: null means "looked, nothing usable" (skipped by the
+  // caller), [] means "parsed, no goals" (counted as empty) — same as before.
+  const data = await cachedRead<{ marks: SofaGoalMark[] | null }>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      let body: unknown;
+      try {
+        body = await sofaRaw<unknown>(`/event/${eventId}/incidents`);
+      } catch (err) {
+        if (err instanceof ScraperOffline) throw err;
+        return null;
+      }
+      const raw = obj(body)?.incidents;
+      if (!Array.isArray(raw)) return { marks: null };
+      const events = raw.flatMap((e) => (obj(e) ? [obj(e)!] : []));
+      const out: SofaGoalMark[] = [];
+      for (const e of events) {
+        const type = str(e.incidentType).toLowerCase();
+        if (!type.includes("goal") && !type.includes("penalt")) continue;
+        const minute = num(e.time);
+        if (minute === null || minute < 1 || minute > 130) continue;
+        const own = str(e.incidentClass).toLowerCase().includes("own");
+        out.push({ minute, home: own ? e.isHome !== true : e.isHome === true });
+      }
+      return { marks: out };
+    },
+    tracker,
+    (v): boolean =>
+      !!v && typeof v === "object" && !Array.isArray(v) && (Array.isArray((v as { marks?: unknown }).marks) || (v as { marks?: unknown }).marks === null)
+  );
+  if (!data) return null;
+  const marks = data.marks;
+  if (marks === null) return null;
+  return marks.every((g) => typeof g === "object" && g !== null) ? (marks as SofaGoalMark[]) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +891,8 @@ export async function nationalGames(
   teamId: number,
   since: string,
   maxPages = 20,
-  cache?: { supabase: SupabaseClient; userId: string }
+  cache?: { supabase: SupabaseClient; userId: string },
+  tracker?: StaleTracker
 ): Promise<SofaIntlGame[]> {
   const out: SofaIntlGame[] = [];
   for (let page = 0; page < maxPages; page++) {
@@ -788,9 +900,8 @@ export async function nationalGames(
     let events: SlimEvent[] | null = null;
     let hasNextPage = false;
     if (cache) {
-      // Page 0 moves (new games land here, e.g. Nations League weeks): it
-      // refreshes hourly. Older pages are history and never change.
-      const hit = await cacheGet(cache.supabase, cache.userId, key, page === 0 ? HOUR_MS : 3 * DAY_MS);
+      // Page 0 moves only when a new game lands (national sides play ~monthly): 12h refreshes are plenty; older pages are history.
+      const hit = await cacheGet(cache.supabase, cache.userId, key, page === 0 ? 12 * HOUR_MS : 30 * DAY_MS);
       if (hit && typeof hit === "object" && !Array.isArray(hit)) {
         const h = hit as { events?: unknown; hasNextPage?: unknown };
         if (Array.isArray(h.events)) {
@@ -812,13 +923,25 @@ export async function nationalGames(
       }
     }
     if (!events) {
-      const body = await teamEvents(teamId, "last", page);
-      events = body.events.flatMap((e) => {
-        const s = slimEvent(e);
-        return s ? [s] : [];
-      });
-      hasNextPage = body.hasNextPage;
-      if (cache) await cacheSet(cache.supabase, cache.userId, key, { events, hasNextPage });
+      try {
+        const body = await teamEvents(teamId, "last", page);
+        events = body.events.flatMap((e) => {
+          const s = slimEvent(e);
+          return s ? [s] : [];
+        });
+        hasNextPage = body.hasNextPage;
+        if (cache) await cacheSet(cache.supabase, cache.userId, key, { events, hasNextPage });
+      } catch (err) {
+        // Scraper down: serve the expired page instead of failing — and stop
+        // paging when even that is missing (partial data beats none).
+        if (!(err instanceof ScraperOffline) || !cache) throw err;
+        const stale = await cacheGetMeta(cache.supabase, cache.userId, key);
+        const h = obj(stale) as { events?: unknown; hasNextPage?: unknown } | null;
+        if (!h || !Array.isArray(h.events)) break;
+        if (tracker) tracker.stale = true;
+        events = (h.events.length === 0 || isSlimEvent(h.events[0]) ? h.events : []) as SlimEvent[];
+        hasNextPage = h.hasNextPage === true;
+      }
     }
     if (events.length === 0) break;
     let older = false;
@@ -1049,8 +1172,9 @@ export async function seasonTeamNames(
   userId: string,
   uniqueId: number,
   seasonId: number,
-  current: boolean
+  current: boolean,
+  tracker?: StaleTracker
 ): Promise<string[]> {
-  const rows = await seasonStandings(supabase, userId, uniqueId, seasonId, current);
+  const rows = await seasonStandings(supabase, userId, uniqueId, seasonId, current, tracker);
   return [...new Set(rows.map((r) => r.team).filter(Boolean))];
 }

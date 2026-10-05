@@ -1,6 +1,6 @@
 import type { LivePrediction } from "./liveModel";
 import { fairOdd } from "./footballModel";
-import { AH_LINES, VALUE_MARGIN } from "./recommendation";
+import { AH_LINES, TEAM_ASIAN_QUARTERS, VALUE_MARGIN, quarterHalfWins } from "./recommendation";
 
 // A bet worth looking at in a game in progress, from the live model: the results
 // (still to be won, or to be saved) and the goals still to come. The next goal is
@@ -23,6 +23,8 @@ export interface LiveCandidate {
 }
 
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
+// Quarter lines need both decimals ("1,75", not "1,8").
+const qdot = (n: number) => n.toFixed(2).replace(".", ",");
 
 export interface HtLineProb {
   over: number;
@@ -125,6 +127,22 @@ export function liveCandidates(
       { group: "goals", key: `under:${line}`, label: `Menos de ${dot(line)} golos`, p: t.under, push: t.push, won: (f) => f[0] + f[1] < line }
     );
   }
+  // Asian quarter totals on the FINAL total (goals already scored count):
+  // each splits the stake over its neighbours — half-win middles count half
+  // as won, half-loss middles don't, and half the middle always comes back
+  // (see quarterHalfWins). Only middles still ahead of the score: the rest
+  // is already decided. Same joint as everything else.
+  for (let k = 1; k <= 3; k++) {
+    const m = total + k;
+    const t = liveTotalLine(p, homeGoals, awayGoals, m);
+    const push = t.push / 2;
+    for (const line of [m - 0.25, m + 0.25]) {
+      out.push(
+        { group: "goals", key: `over:${line}`, label: `Mais de ${qdot(line)} golos`, p: quarterHalfWins(line, "over") ? t.over + push : t.over, push, won: (f) => f[0] + f[1] > m },
+        { group: "goals", key: `under:${line}`, label: `Menos de ${qdot(line)} golos`, p: quarterHalfWins(line, "under") ? t.under + push : t.under, push, won: (f) => f[0] + f[1] < m }
+      );
+    }
+  }
   // Both to score: only while it is still open.
   if (homeGoals === 0 || awayGoals === 0) {
     out.push(
@@ -141,7 +159,8 @@ export function liveCandidates(
     );
   }
   // Team totals over the game (absolute lines): tail of each side's own
-  // remaining-goals distribution. Whole lines push on the exact number.
+  // remaining-goals distribution. Whole lines push on the exact number,
+  // quarter lines split over their neighbours like the game quarters above.
   for (const line of [0.5, 1, 1.5, 2, 2.5]) {
     for (const side of ["home", "away"] as const) {
       const scored = side === "home" ? homeGoals : awayGoals;
@@ -154,6 +173,23 @@ export function liveCandidates(
       out.push(
         { group: "goals", key: `to:${side}:${line}`, label: `${team} mais de ${dot(line)}`, p: over, push, won: (f) => (side === "home" ? f[0] : f[1]) > line },
         { group: "goals", key: `tu:${side}:${line}`, label: `${team} menos de ${dot(line)}`, p: under, push, won: (f) => (side === "home" ? f[0] : f[1]) < line }
+      );
+    }
+  }
+  for (const line of TEAM_ASIAN_QUARTERS) {
+    const m = Math.round(line);
+    for (const side of ["home", "away"] as const) {
+      const scored = side === "home" ? homeGoals : awayGoals;
+      const pmf = side === "home" ? p.homePmf : p.awayPmf;
+      const team = side === "home" ? home : away;
+      let over = 0;
+      for (let i = 0; i < pmf.length; i++) if (scored + i > m) over += pmf[i];
+      const half = pmf[m - scored] ?? 0;
+      const under = Math.max(0, 1 - over - half);
+      const push = half / 2;
+      out.push(
+        { group: "goals", key: `to:${side}:${line}`, label: `${team} mais de ${qdot(line)}`, p: quarterHalfWins(line, "over") ? over + push : over, push, won: (f) => (side === "home" ? f[0] : f[1]) > m },
+        { group: "goals", key: `tu:${side}:${line}`, label: `${team} menos de ${qdot(line)}`, p: quarterHalfWins(line, "under") ? under + push : under, push, won: (f) => (side === "home" ? f[0] : f[1]) < m }
       );
     }
   }
@@ -401,7 +437,15 @@ export function livePickWhy(
   const ou = /^(over|under):(\d+(?:\.\d+)?)$/.exec(key);
   if (ou) {
     const line = Number(ou[2]);
-    const dev = Number.isInteger(line) ? " Com o exato devolve." : "";
+    const frac = Math.abs(line % 1);
+    const dir = ou[1] === "over" ? "over" : "under";
+    const dev = Number.isInteger(line)
+      ? " Com o exato devolve."
+      : frac === 0.25 || frac === 0.75
+        ? quarterHalfWins(line, dir as "over" | "under")
+          ? ` Com o exato (${Math.round(line)}), metade devolve.`
+          : ` Com o exato (${Math.round(line)}), metade perde.`
+        : "";
     return `${score}: ${comma(rem)} esperados (${home} ${comma(rh)}, ${away} ${comma(ra)}${evComma}).${dev}${reds}`;
   }
   const team = /^(to|tu):(home|away):(\d+(?:\.\d+)?)$/.exec(key);
@@ -413,7 +457,14 @@ export function livePickWhy(
     const kh = team[2] === "home";
     if (team[1] === "to" && scored > line) return `Já coberto: ${side} tem ${scored}.`;
     if (team[1] === "tu" && scored > line) return `Perdido: ${side} já tem ${scored}.`;
-    return `Aos ${m}', ${side} tem ${scored} e ${evSide(kh, rest)}.${reds}`;
+    const frac = Math.abs(line % 1);
+    const dir = team[1] === "to" ? "over" : "under";
+    const dev = frac === 0.25 || frac === 0.75
+      ? quarterHalfWins(line, dir as "over" | "under")
+        ? ` Com o exato (${Math.round(line)}), metade devolve.`
+        : ` Com o exato (${Math.round(line)}), metade perde.`
+      : "";
+    return `Aos ${m}', ${side} tem ${scored} e ${evSide(kh, rest)}.${dev}${reds}`;
   }
   const ahm = /^ah:(home|away):([+-]?\d+(?:\.\d+)?)$/.exec(key);
   if (ahm) {

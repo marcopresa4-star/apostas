@@ -36,6 +36,33 @@ export async function cacheGet(
   }
 }
 
+// The cached payload whatever its age (null when never read): the offline
+// fallback serves this instead of failing when the scraper is down.
+export async function cacheGetMeta(
+  supabase: SupabaseClient,
+  userId: string,
+  key: string
+): Promise<unknown | null> {
+  try {
+    const { data, error } = await supabase
+      .from("sofascore_cache")
+      .select("payload")
+      .eq("user_id", userId)
+      .eq("key", key)
+      .maybeSingle();
+    if (error || !data) return null;
+    return (data as { payload: unknown }).payload ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Flagged when any read in the chain served expired cache: pages turn it
+// into a "dados em cache" banner. One per top-level load, passed down.
+export interface StaleTracker {
+  stale: boolean;
+}
+
 export async function cacheSet(
   supabase: SupabaseClient,
   userId: string,

@@ -178,6 +178,8 @@ export function settleWon(
     default: {
       const ou = /^(over|under):(\d+(?:\.\d+)?)$/.exec(key);
       if (ou) {
+        // Quarter lines split stakes — no honest won/lost alone: manual.
+        if (!validAsianLine(ou[2])) return null;
         const line = Number(ou[2]);
         if (!Number.isFinite(line)) return null;
         const total = h + a;
@@ -186,6 +188,7 @@ export function settleWon(
       }
       const htou = /^(htover|htunder):(\d+(?:\.\d+)?)$/.exec(key);
       if (htou) {
+        if (!validAsianLine(htou[2])) return null;
         const ht = extra?.ht ?? null;
         const line = Number(htou[2]);
         if (!ht || !Number.isFinite(line)) return null;
@@ -197,6 +200,7 @@ export function settleWon(
       // half-time score like the lines above. Whole lines refund on exact.
       const htt = /^(htto|httu):(home|away):(\d+(?:\.\d+)?)$/.exec(key);
       if (htt) {
+        if (!validAsianLine(htt[3])) return null;
         const ht = extra?.ht ?? null;
         const line = Number(htt[3]);
         if (!ht || !Number.isFinite(line)) return null;

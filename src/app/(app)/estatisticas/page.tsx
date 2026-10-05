@@ -7,7 +7,7 @@ import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
 import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd, oddsKeyFor } from "@/lib/oddsParse";
-import { AH_LINES } from "@/lib/recommendation";
+import { AH_ALL_LINES } from "@/lib/recommendation";
 import { HOUR_MS } from "@/lib/sofaCache";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
@@ -183,14 +183,14 @@ async function CompararBody({
 
   const now = new Date();
   const supabase = await createClient();
-  let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
+  let sofaMeta: { games: number; latest: string | null; unlinked: string[]; stale: boolean } | null = null;
   let data: LeagueData | null = null;
   let sofaTables: { name: string; rows: OfficialStanding[] }[] = [];
   if (league && userId) {
     if (useSofa) {
       const sofa = await loadSofaLeague(supabase, userId, league.code, { history: true }).catch(() => null);
       if (sofa) {
-        sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
+        sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked, stale: sofa.stale };
         data = sofa.data;
         sofaTables = sofa.tables;
       }
@@ -212,6 +212,7 @@ async function CompararBody({
           games: recent.length,
           latest: recent.at(-1)?.date ?? null,
           unlinked: sofa.unlinked,
+          stale: sofa.stale,
         };
         data = {
           matches: recent.map(toPlayed),
@@ -315,7 +316,7 @@ async function CompararBody({
         `under:${line}`,
       ]),
       "ht:home", "ht:draw", "ht:away",
-      ...AH_LINES.flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
+      ...AH_ALL_LINES.flatMap((line) => [`ah:home:${line}`, `ah:away:${line}`]),
       ...[0.5, 1, 1.5, 2, 2.5].flatMap((line) => [
         `to:home:${line}`,
         `tu:home:${line}`,
@@ -416,6 +417,7 @@ async function CompararBody({
             <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {sofaMeta.games} jogos nos
             últimos 8 anos{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}.
             Campo neutro estimado pelo torneio (sem recinto nos dados). Clubes, olímpicas e regiões ficam de fora sozinhos.
+            {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
           </p>
           {sofaMeta.unlinked.length > 0 && (
             <details className="mt-1">
@@ -432,6 +434,7 @@ async function CompararBody({
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos nas últimas 3
           épocas{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
           {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
+          {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
         </p>
       )}
 
@@ -479,6 +482,8 @@ async function CompararBody({
           home={casa}
           away={fora}
           leagueLabel={league.label}
+          leagueCode={liga}
+          gameDate={matchDate || todayISO}
           latest={data.latest}
           swapHref={swapHref}
           now={now}

@@ -551,6 +551,16 @@ function Calculator({
   const ahRows: Row[] = cands
     .filter((c) => c.key.startsWith("ah:"))
     .map((c) => ({ label: c.label, p: c.p, key: c.key, ...(c.push !== undefined ? { push: c.push } : {}) }));
+  // Asian quarter rows the same way: the table can never disagree with the
+  // suggestion, and the keys match the pre-match ones (final total).
+  const quarterKey = /^(over|under):\d+\.(25|75)$/;
+  const asianRows: Row[] = cands
+    .filter((c) => quarterKey.test(c.key))
+    .map((c) => ({ label: c.label, p: c.p, key: c.key, ...(c.push !== undefined ? { push: c.push } : {}) }));
+  const quarterTeamKey = /^(to|tu):(home|away):\d+\.(25|75)$/;
+  const asianTeamRows: Row[] = cands
+    .filter((c) => quarterTeamKey.test(c.key))
+    .map((c) => ({ label: c.label, p: c.p, key: c.key, ...(c.push !== undefined ? { push: c.push } : {}) }));
   const groups: { title: string; rows: Row[] }[] = [
     {
       title: "Resultado final",
@@ -576,6 +586,7 @@ function Calculator({
       ],
     },
     { title: "Golos até ao fim", rows: goalRows },
+    { title: "Total asiático", rows: asianRows },
     { title: "Handicap asiático", rows: ahRows },
     ...(m < 45
       ? (() => {
@@ -645,6 +656,7 @@ function Calculator({
       },
     ] : []),
     { title: "Totais por equipa", rows: teamRows },
+    { title: "Total asiático por equipa", rows: asianTeamRows },
     {
       title: "Ambas marcam",
       rows: [

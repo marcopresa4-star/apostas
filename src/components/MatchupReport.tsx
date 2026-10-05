@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
 import OddChecker, { type OddMarket } from "./OddChecker";
+import CalibrationLogger from "./CalibrationLogger";
 import MultipleBuilder from "./MultipleBuilder";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
@@ -15,7 +16,7 @@ import {
   MIN_GAMES,
   SOLID_GAMES,
   VALUE_MARGIN,
-  AH_LINES,
+  AH_ALL_LINES,
   ASIAN_QUARTERS,
   TEAM_ASIAN_QUARTERS,
   ahWinPush,
@@ -25,6 +26,7 @@ import {
   matchTotalOver,
   matchTotalPush,
   pickWhy,
+  quarterHalfWins,
   recommend,
   teamTotalWinPush,
   type Pick,
@@ -1030,17 +1032,16 @@ function buildMarkets(
     ];
   });
   // Asian quarter totals (1.25, 1.75...): each splits the stake over its two
-  // neighbours, so the row prices the effective chance (full wins plus half
-  // the exact middle) with half that middle refunded — same fair-odd maths
-  // as the whole lines above.
+  // neighbours — half-win middles count half as won, half-loss middles don't,
+  // and half the middle always comes back (see quarterHalfWins).
   const asianRows = ASIAN_QUARTERS.flatMap((line) => {
     const m = Math.round(line);
     const fullOver = matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, m);
     const middle = matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, m);
     const push = middle / 2;
     return [
-      { label: `Mais de ${qdot(line)} golos`, p: fullOver + push, key: `over:${line}`, push },
-      { label: `Menos de ${qdot(line)} golos`, p: 1 - fullOver - middle + push, key: `under:${line}`, push },
+      { label: `Mais de ${qdot(line)} golos`, p: quarterHalfWins(line, "over") ? fullOver + push : fullOver, key: `over:${line}`, push },
+      { label: `Menos de ${qdot(line)} golos`, p: quarterHalfWins(line, "under") ? 1 - fullOver - middle + push : 1 - fullOver - middle, key: `under:${line}`, push },
     ];
   });
   const groups: { title: string; rows: Row[] }[] = [
@@ -1071,11 +1072,17 @@ function buildMarkets(
     { title: "Total asiático", rows: asianRows },
     {
       title: "Handicap asiático",
-      rows: AH_LINES.flatMap((line) =>
+      rows: AH_ALL_LINES.flatMap((line) =>
         (["home", "away"] as const).map((side) => {
           const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
           const team = side === "home" ? home : away;
-          const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${dot(line)}`;
+          const frac = Math.abs(line % 1);
+          const shown =
+            frac === 0.25 || frac === 0.75
+              ? `${line > 0 ? "+" : ""}${qdot(line)}`
+              : Number.isInteger(line)
+                ? `${line > 0 ? "+" : ""}${line}`
+                : `${line > 0 ? "+" : ""}${dot(line)}`;
           return {
             label: `Handicap ${team} ${shown}`,
             p: win,
@@ -1111,8 +1118,8 @@ function buildMarkets(
           const overW = teamTotalWinPush(mu, m, "over");
           const underW = teamTotalWinPush(mu, m, "under");
           return [
-            { label: `${team} mais de ${qdot(line)}`, p: overW.win + overW.push / 2, key: `to:${side}:${line}`, push: overW.push / 2 },
-            { label: `${team} menos de ${qdot(line)}`, p: underW.win + underW.push / 2, key: `tu:${side}:${line}`, push: underW.push / 2 },
+            { label: `${team} mais de ${qdot(line)}`, p: quarterHalfWins(line, "over") ? overW.win + overW.push / 2 : overW.win, key: `to:${side}:${line}`, push: overW.push / 2 },
+            { label: `${team} menos de ${qdot(line)}`, p: quarterHalfWins(line, "under") ? underW.win + underW.push / 2 : underW.win, key: `tu:${side}:${line}`, push: underW.push / 2 },
           ];
         })
       ),
@@ -1212,6 +1219,8 @@ export default function MatchupReport({
   home,
   away,
   leagueLabel,
+  leagueCode,
+  gameDate,
   latest,
   swapHref,
   now,
@@ -1240,6 +1249,9 @@ export default function MatchupReport({
   home: string;
   away: string;
   leagueLabel: string;
+  // League code + game date for the calibration log (first suggestion per game).
+  leagueCode: string;
+  gameDate: string;
   latest: string | null;
   swapHref: string;
   now: Date;
@@ -1502,6 +1514,15 @@ export default function MatchupReport({
       )}
 
       <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} realOpenByKey={realOpenByKey} whyCtx={{ matches, home, away, prediction }} />
+      {picks.length > 0 && (
+        <CalibrationLogger
+          league={leagueCode}
+          home={home}
+          away={away}
+          gameDate={gameDate}
+          picks={picks.map((p) => ({ key: p.key, group: p.group, label: p.label, p: p.p, base: p.base, fair: p.fairOdd }))}
+        />
+      )}
 
       {priced.length > 0 && <ValueHunt items={priced} />}
 

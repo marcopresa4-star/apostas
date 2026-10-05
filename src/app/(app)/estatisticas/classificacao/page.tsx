@@ -45,6 +45,7 @@ export default async function ClassificacaoPage({
     games: number;
     latest: string | null;
     unlinked: string[];
+    stale: boolean;
     tables: { name: string; rows: { position: number; team: string; played: number; wins: number; draws: number; losses: number; gf: number; ga: number; points: number }[] }[];
   } | null = null;
   if (league) {
@@ -52,7 +53,7 @@ export default async function ClassificacaoPage({
       const loaded = await loadSofaLeague(supabase, user!.id, league.code).catch(() => null);
       if (loaded) {
         data = loaded.data;
-        sofa = { seasons: loaded.seasonNames.slice(0, 3), games: loaded.data.matches.length, latest: loaded.data.latest, unlinked: loaded.unlinked, tables: loaded.tables };
+        sofa = { seasons: loaded.seasonNames.slice(0, 3), games: loaded.data.matches.length, latest: loaded.data.latest, unlinked: loaded.unlinked, stale: loaded.stale, tables: loaded.tables };
       }
     } else {
       data = await loadLeague(league.code, now);
@@ -183,6 +184,7 @@ export default async function ClassificacaoPage({
                 {sofa.seasons.join(" · ")}); último resultado{" "}
                 {sofa.latest ? `${sofa.latest.slice(8, 10)}/${sofa.latest.slice(5, 7)}` : "—"}.
                 Primeira carga demora ~1 min (lê jornada a jornada); depois é cache.
+                {sofa.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
               </p>
               {sofa.unlinked.length > 0 && (
                 <p className="mt-1 text-amber-300/90">

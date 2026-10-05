@@ -9,6 +9,7 @@ import { slugify } from "./slugify";
 import { todayISO } from "./searchParams";
 import type { Fixture, PlayedMatch } from "./footballModel";
 import {
+  cachedRead,
   loadMaps,
   seasonFixtures,
   seasonResults,
@@ -27,6 +28,7 @@ import {
   type SofaMap,
   type SofaSeason,
   type SlimEvent,
+  type StaleTracker,
 } from "./sofaHistory";
 import { sofaRaw } from "./sofaRaw";
 import { parseSofascoreId } from "./sofascore";
@@ -51,6 +53,9 @@ export interface SofaLeague {
   // get one each): official W/D/L/points with local spellings, for the table
   // selector. Strength columns still come from our own ratings.
   tables: { name: string; rows: OfficialStanding[] }[];
+  // Any read served expired cache (scraper down): pages warn instead of
+  // pretending the data is fresh.
+  stale: boolean;
 }
 
 export interface OfficialStanding {
@@ -92,8 +97,9 @@ export async function loadSofaLeague(
   const map = maps.find((m) => m.name_key === code);
   if (!map) return null;
   const uniqueId = map.sofascore_id;
+  const tracker: StaleTracker = { stale: false };
 
-  const seasons: SofaSeason[] = await tournamentSeasons(supabase, userId, uniqueId).catch(() => []);
+  const seasons: SofaSeason[] = await tournamentSeasons(supabase, userId, uniqueId, tracker).catch(() => []);
   if (seasons.length === 0) return null;
 
   // The season being played: the newest season with any fixtures at all (a
@@ -108,7 +114,7 @@ export async function loadSofaLeague(
   if (wantFixtures) {
     const today = todayISO(new Date());
     for (let i = 0; i < Math.min(2, seasons.length); i++) {
-      const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today).catch(() => []);
+      const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today, tracker).catch(() => []);
       fixturesBySeason.set(seasons[i].id, fx);
       if (fx.length > 0) {
         currentIdx = i;
@@ -150,13 +156,13 @@ export async function loadSofaLeague(
   // Collect it from the teams' own event lists instead (league games only).
   let fallback: { results: PlayedMatch[]; fixtures: Fixture[] } | null = null;
   if (currentFx.length === 0) {
-    const rows = await seasonStandings(supabase, userId, uniqueId, current.id, true).catch(() => []);
+    const rows = await seasonStandings(supabase, userId, uniqueId, current.id, true, tracker).catch(() => []);
     const names = [...new Set(rows.map((r) => r.team))];
     const { resolved: teamIdByName } = await resolveLeagueTeamIds(supabase, userId, teamMaps, names).catch(
       () => ({ resolved: new Map<string, number>(), missing: names })
     );
     if (teamIdByName.size > 0) {
-      fallback = await seasonEventsFromTeams(supabase, userId, uniqueId, current.id, teamIdByName).catch(
+      fallback = await seasonEventsFromTeams(supabase, userId, uniqueId, current.id, teamIdByName, tracker).catch(
         () => null
       );
     }
@@ -165,7 +171,7 @@ export async function loadSofaLeague(
   // The model reads the last three seasons with games.
   const wanted = seasons.slice(currentIdx, currentIdx + 3);
   const matchLists = await Promise.all(
-    wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, wantShots).catch(() => [] as PlayedMatch[]))
+    wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, wantShots, tracker).catch(() => [] as PlayedMatch[]))
   );
   const seenMatch = new Set(
     matchLists.flat().map((m) => `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`)
@@ -207,7 +213,7 @@ export async function loadSofaLeague(
 
   const older = options.history ? seasons.slice(currentIdx + 3, currentIdx + 10) : [];
   const historyLists = await Promise.all(
-    older.map((s) => seasonResults(supabase, userId, uniqueId, s.id, false).catch(() => [] as PlayedMatch[]))
+    older.map((s) => seasonResults(supabase, userId, uniqueId, s.id, false, false, tracker).catch(() => [] as PlayedMatch[]))
   );
   const history = historyLists.flat().map(convertMatch).sort((a, b) => a.date.localeCompare(b.date));
 
@@ -230,7 +236,7 @@ export async function loadSofaLeague(
   // overall table leads where conferences exist). One cached read.
   let tables: { name: string; rows: OfficialStanding[] }[] = [];
   try {
-    const st = await seasonStandingsTables(supabase, userId, uniqueId, current.id, true).catch(
+    const st = await seasonStandingsTables(supabase, userId, uniqueId, current.id, true, tracker).catch(
       () => []
     );
     tables = st
@@ -253,7 +259,7 @@ export async function loadSofaLeague(
   } catch {
     // No official tables: the page falls back to counting our own fixtures.
   }
-  return { data, unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)), seasonNames: seasons.map((s) => s.name), tables };
+  return { data, unlinked: [...unlinked].sort((a, b) => a.localeCompare(b)), seasonNames: seasons.map((s) => s.name), tables, stale: tracker.stale };
 }
 
 // Finds the mapped league holding both clubs, from their local spellings
@@ -418,30 +424,36 @@ export async function teamEventList(
   supabase: SupabaseClient,
   userId: string,
   teamId: number,
-  direction: "last" | "next"
+  direction: "last" | "next",
+  tracker?: StaleTracker
 ): Promise<SlimEvent[]> {
   const key = `teamevents:${teamId}:${direction}:0`;
-  const hit = await cacheGet(supabase, userId, key, direction === "last" ? 3 * DAY_MS : HOUR_MS);
-  if (hit && typeof hit === "object" && !Array.isArray(hit)) {
-    const raw = (hit as { events?: unknown }).events;
-    if (Array.isArray(raw)) {
-      if (raw.length === 0 || isSlimEvent(raw[0])) return raw as SlimEvent[];
-      // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
-      return raw.flatMap((item) => {
-        if (typeof item !== "object" || item === null || Array.isArray(item)) return [];
-        if (isSlimEvent(item)) return [];
-        const s = slimEvent(item as Json);
+  const data = await cachedRead<{ events?: unknown; hasNextPage?: unknown }>(
+    supabase,
+    userId,
+    key,
+    direction === "last" ? 3 * DAY_MS : HOUR_MS,
+    async () => {
+      const body = await teamEvents(teamId, direction, 0);
+      const slim = body.events.flatMap((e) => {
+        const s = slimEvent(e);
         return s ? [s] : [];
       });
-    }
-  }
-  const body = await teamEvents(teamId, direction, 0);
-  const slim = body.events.flatMap((e) => {
-    const s = slimEvent(e);
+      return { events: slim, hasNextPage: body.hasNextPage };
+    },
+    tracker,
+    (v): boolean => !!v && typeof v === "object" && !Array.isArray(v)
+  );
+  const raw = data?.events;
+  if (!Array.isArray(raw)) return [];
+  if (raw.length === 0 || isSlimEvent(raw[0])) return raw as SlimEvent[];
+  // Legacy whole-body rows: parse on the fly, refresh slim on TTL.
+  return raw.flatMap((item) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return [];
+    if (isSlimEvent(item)) return [];
+    const s = slimEvent(item as Json);
     return s ? [s] : [];
   });
-  await cacheSet(supabase, userId, key, { events: slim, hasNextPage: body.hasNextPage });
-  return slim;
 }
 
 const PT_MONTHS = [
@@ -500,7 +512,8 @@ export async function seasonEventsFromTeams(
   userId: string,
   uniqueId: number,
   seasonId: number,
-  teamIdByName: Map<string, number>
+  teamIdByName: Map<string, number>,
+  tracker?: StaleTracker
 ): Promise<{ results: PlayedMatch[]; fixtures: SofaFixtureWithId[] }> {
   const seen = new Set<number>();
   const results: PlayedMatch[] = [];
@@ -509,8 +522,8 @@ export async function seasonEventsFromTeams(
   const lists = await Promise.all(
     [...teamIdByName.values()].map(async (teamId) => {
       const [last, next] = await Promise.all([
-        teamEventList(supabase, userId, teamId, "last").catch(() => [] as SlimEvent[]),
-        teamEventList(supabase, userId, teamId, "next").catch(() => [] as SlimEvent[]),
+        teamEventList(supabase, userId, teamId, "last", tracker).catch(() => [] as SlimEvent[]),
+        teamEventList(supabase, userId, teamId, "next", tracker).catch(() => [] as SlimEvent[]),
       ]);
       return [...last, ...next];
     })
@@ -577,7 +590,8 @@ export async function teamGoalTiming(
   userId: string,
   leagueCode: string,
   localTeam: string,
-  limit = 10
+  limit = 10,
+  tracker?: StaleTracker
 ): Promise<GoalTiming | null> {
   const tournaments = await loadMaps(supabase, userId, "tournament");
   const uniqueId = tournaments.find((m) => m.name_key === leagueCode)?.sofascore_id ?? null;
@@ -586,11 +600,11 @@ export async function teamGoalTiming(
   const link = teams.find((m) => m.local_name === localTeam) ?? teams.find((m) => m.name === localTeam);
   if (!link) return null;
   const sofaName = link.name;
-  const seasons = await tournamentSeasons(supabase, userId, uniqueId).catch(() => []);
+  const seasons = await tournamentSeasons(supabase, userId, uniqueId, tracker).catch(() => []);
   const today = new Date().toISOString().slice(0, 10);
   const games: { id: number; date: string; isHome: boolean }[] = [];
   for (let i = 0; i < seasons.length && games.length < limit; i++) {
-    const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today).catch(() => []);
+    const fx = await seasonFixtures(supabase, userId, uniqueId, seasons[i].id, i === 0, today, tracker).catch(() => []);
     for (const f of fx) {
       if (!f.ft || f.date >= today) continue;
       if (f.team1 === sofaName) games.push({ id: f.id, date: f.date, isHome: true });
@@ -603,7 +617,7 @@ export async function teamGoalTiming(
   const scored = emptyBlocks();
   const conceded = emptyBlocks();
   let counted = 0;
-  const marks = await Promise.all(games.map((g) => eventGoalMinutes(supabase, userId, g.id).catch(() => null)));
+  const marks = await Promise.all(games.map((g) => eventGoalMinutes(supabase, userId, g.id, tracker).catch(() => null)));
   marks.forEach((list, i) => {
     if (!list) return;
     counted++;

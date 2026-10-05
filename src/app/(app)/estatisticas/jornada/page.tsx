@@ -113,14 +113,14 @@ async function JornadaBody({
   const mapped = league !== null && maps.some((m) => m.name_key === league.code);
   const intlLinked =
     userId !== null && (await loadMaps(supabase, userId, "team")).some((m) => m.name_key.startsWith("int:"));
-  let sofaMeta: { games: number; latest: string | null; unlinked: string[] } | null = null;
-  let intlMeta: { games: number; latest: string | null } | null = null;
+  let sofaMeta: { games: number; latest: string | null; unlinked: string[]; stale: boolean } | null = null;
+  let intlMeta: { games: number; latest: string | null; stale: boolean } | null = null;
   let intlFit: ReturnType<typeof fitInternational> | null = null;
   let data: Awaited<ReturnType<typeof loadLeague>> = null;
   if (league && mapped && userId) {
     const sofa = await loadSofaLeague(supabase, userId, league.code).catch(() => null);
     if (sofa) {
-      sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked };
+      sofaMeta = { games: sofa.data.matches.length, latest: sofa.data.latest, unlinked: sofa.unlinked, stale: sofa.stale };
       data = sofa.data;
     }
   } else if (league && intlLinked && userId) {
@@ -154,7 +154,7 @@ async function JornadaBody({
         season: { id: "12m", from: isoDaysAgo(now, 365), to: today, label: "últimos 12 meses" },
         calendar: "rounds",
       };
-      intlMeta = { games: recent.length, latest: recent.at(-1)?.date ?? null };
+      intlMeta = { games: recent.length, latest: recent.at(-1)?.date ?? null, stale: intl.stale };
     }
   }
 
@@ -262,6 +262,7 @@ async function JornadaBody({
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos para o modelo
           {sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
           {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
+          {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
         </p>
       )}
       {league && data === null && (
@@ -274,6 +275,7 @@ async function JornadaBody({
           <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {intlMeta.games} jogos nos
           últimos 8 anos{intlMeta.latest ? `, até ${intlMeta.latest.slice(8, 10)}/${intlMeta.latest.slice(5, 7)}` : ""}.
           Jogos de grupo têm dono da casa.
+          {intlMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
         </p>
       )}
 

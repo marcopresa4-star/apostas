@@ -244,6 +244,10 @@ export default async function LivePage({
   } else if (data) {
     expected = { ...TYPICAL, firstHalfShare: leagueRates(data.matches, now).firstHalfShare };
   }
+  // Any read served expired cache (scraper down): warn once, next to the source.
+  if ((sofaLeague?.stale || sofaIntl?.stale) && (chosen || data)) {
+    sourceLines.push("Scraper desligado — dados em cache, podem estar desatualizados.");
+  }
   if (!chosen) {
     sourceLines.push(
       "Valores típicos de uma liga (1,4 e 1,1 golos): não há dados destas equipas. Não dizem nada sobre a força de cada uma."

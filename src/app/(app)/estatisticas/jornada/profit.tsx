@@ -3,7 +3,8 @@ import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd } from "@/lib/oddsParse";
 import { formatOdd } from "@/lib/multiples";
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// Finished games keep frozen closing-ish prices forever, so a month-long TTL only skips useless refetchs.
+const SETTLED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_GAMES = 20;
 
 export interface ProfitGame {
@@ -32,7 +33,7 @@ export default async function CheckedProfit({
   const recent = games.slice(0, MAX_GAMES);
   const settled = await Promise.all(
     recent.map(async (g) => {
-      const parsed = await eventOdds(supabase, userId, g.eventId, WEEK_MS).catch(() => null);
+      const parsed = await eventOdds(supabase, userId, g.eventId, SETTLED_TTL_MS).catch(() => null);
       let odd: number | undefined;
       if (parsed) {
         const byKey: Record<string, number> = {};

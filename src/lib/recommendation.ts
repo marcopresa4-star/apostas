@@ -37,7 +37,12 @@ function diffDist(lh: number, la: number): number[] {
 }
 
 // Asian handicap from one side's view: P(cover), P(push) for a signed line
-// (home -1.5, away +1). Direct Poisson like the halves above.
+// (home -1.5, away +1). Direct Poisson like the halves above. Quarter lines
+// split the stake over their two neighbours: the middle goal-difference
+// half-wins or half-loses (the view is always the side's own difference).
+// Either way half of it comes back, so push counts half the middle — only
+// the counted wins differ (full covers plus half the middle on half-win,
+// full covers alone on half-loss).
 export function ahWinPush(
   lh: number,
   la: number,
@@ -45,6 +50,25 @@ export function ahWinPush(
   line: number
 ): { win: number; push: number } {
   const dd = diffDist(lh, la);
+  const frac = Math.abs(line % 1);
+  if (frac === 0.25 || frac === 0.75) {
+    let win = 0;
+    let halfWin = 0;
+    let halfLoss = 0;
+    for (let d = -8; d <= 8; d++) {
+      const v = side === "home" ? d : -d;
+      const w1 = v + (line - 0.25) > 0;
+      const w2 = v + (line + 0.25) > 0;
+      const tied = v + (line - 0.25) === 0 || v + (line + 0.25) === 0;
+      if (w1 && w2) win += dd[d + 8];
+      else if (tied) {
+        if (w1 || w2) halfWin += dd[d + 8];
+        else halfLoss += dd[d + 8];
+      }
+    }
+    const half = halfWin + halfLoss;
+    return { win: win + halfWin / 2, push: half / 2 };
+  }
   let win = 0;
   let push = 0;
   for (let d = -8; d <= 8; d++) {
@@ -161,13 +185,25 @@ export const VALUE_MARGIN: Record<PickGroup, number> = { result: 0.03, goals: 0.
 // lines only; the totals below also price quarter lines (1.25, 1.75...). Whole
 // lines push on exact.
 export const AH_LINES = [-2, -1.5, -1, -0.5, 0.5, 1, 1.5, 2];
+// Quarter handicaps (±0.25, ±0.75...): priced like the quarter totals, with
+// the middle goal-difference half-won or half-lost (see quarterHalfWins).
+export const AH_QUARTER_LINES = [-1.75, -1.25, -0.75, -0.25, 0.25, 0.75, 1.25, 1.75];
+export const AH_ALL_LINES = [...AH_LINES, ...AH_QUARTER_LINES].sort((a, b) => a - b);
 // Quarter total-goals lines, game and per side: each splits the stake over its
-// two neighbours, so half the exact-middle mass half-wins and the other half
-// comes back. That folds into the usual price exactly: p counts the full
-// wins plus half the middle, push counts the refunded half, and
-// (1 - push) / p stays the honest fair odd.
+// two neighbours. On a half-win middle (over x.75, under x.25) half the stake
+// wins and half comes back; on a half-loss middle (over x.25, under x.75)
+// half comes back and half is lost. Either way the refunded half prices as
+// push = middle/2 — only the counted wins differ (full wins plus half the
+// middle on half-win, full wins alone on half-loss). (1 - push) / p stays
+// the honest fair odd in both cases.
 export const ASIAN_QUARTERS = [1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.25];
 export const TEAM_ASIAN_QUARTERS = [0.75, 1.25, 1.75, 2.25, 2.75];
+// Whether a quarter line's exact middle half-wins (the other half comes back
+// on top) or half-loses (only the half back).
+export const quarterHalfWins = (line: number, dir: "over" | "under"): boolean => {
+  const frac = Math.abs(line % 1);
+  return dir === "over" ? frac === 0.75 : frac === 0.25;
+};
 // A bet is only suggested when the team with the fewest games in the data has
 // at least MIN_GAMES. Tested on 2025/26 (18 leagues), the model beats the
 // league's own rates clearly only from SOLID_GAMES up (log-loss gain 0.068,
@@ -359,25 +395,32 @@ export function candidatesFor(
   );
   // Asian handicaps and team totals, priced straight from the Poisson means
   // (goals family caution). Only with matches behind the league rates. The
-  // handicap stays on .0/.5 lines; team totals also price quarter lines (same
-  // half-win/half-refund folding as the game quarters below).
+  // handicap covers .0/.5 lines plus quarter lines (same half-win/half-refund
+  // folding as the quarter totals below); team totals also price quarters.
   if (matches.length > 0) {
-    const fmtLine = (line: number): string =>
-      Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${num(line)}`;
-    for (const line of AH_LINES) {
+    const fmtLine = (line: number): string => {
+      const sign = line > 0 ? "+" : "";
+      const frac = Math.abs(line % 1);
+      return frac === 0.25 || frac === 0.75 ? `${sign}${qnum(line)}` : Number.isInteger(line) ? `${sign}${line}` : `${sign}${num(line)}`;
+    };
+    for (const line of AH_ALL_LINES) {
       for (const side of ["home", "away"] as const) {
         const { win, push } = ahWinPush(prediction.lambdaHome, prediction.lambdaAway, side, line);
         const team = side === "home" ? home : away;
-        const covered = matches.filter((m) => {
-          const d = side === "home" ? m.ft[0] - m.ft[1] : m.ft[1] - m.ft[0];
-          return d + line > 0;
-        }).length;
+        const covered =
+          matches.filter((m) => {
+            const d = side === "home" ? m.ft[0] - m.ft[1] : m.ft[1] - m.ft[0];
+            return d + (line - 0.25) > 0;
+          }).length + matches.filter((m) => {
+            const d = side === "home" ? m.ft[0] - m.ft[1] : m.ft[1] - m.ft[0];
+            return d + (line + 0.25) > 0;
+          }).length;
         candidates.push({
           group: "goals",
           key: `ah:${side}:${line}`,
           label: `Handicap ${team} ${fmtLine(line)}`,
           p: win,
-          base: covered / matches.length,
+          base: covered / (2 * matches.length),
           push,
           won: ([h, a]) => {
             const d = side === "home" ? h - a : a - h;
@@ -427,23 +470,24 @@ export function candidatesFor(
     const fullUnder = 1 - fullOver - middle;
     const lo = line - 0.25;
     const hi = line + 0.25;
+    const push = middle / 2;
     candidates.push(
       {
         group: "goals",
         key: `over:${line}`,
         label: `Mais de ${qnum(line)} golos`,
-        p: fullOver + middle / 2,
+        p: quarterHalfWins(line, "over") ? fullOver + push : fullOver,
         base: (asianBase((t) => t > lo) + asianBase((t) => t > hi)) / 2,
-        push: middle / 2,
+        push,
         won: ([h, a]) => h + a > m,
       },
       {
         group: "goals",
         key: `under:${line}`,
         label: `Menos de ${qnum(line)} golos`,
-        p: fullUnder + middle / 2,
+        p: quarterHalfWins(line, "under") ? fullUnder + push : fullUnder,
         base: (asianBase((t) => t < lo) + asianBase((t) => t < hi)) / 2,
-        push: middle / 2,
+        push,
         won: ([h, a]) => h + a < m,
       }
     );
@@ -466,7 +510,7 @@ export function candidatesFor(
           group: "goals",
           key: `to:${side}:${line}`,
           label: `${team} mais de ${qnum(line)}`,
-          p: o.win + o.push / 2,
+          p: quarterHalfWins(line, "over") ? o.win + o.push / 2 : o.win,
           base: (share((g) => g > lo) + share((g) => g > hi)) / 2,
           push: o.push / 2,
           won: ([h, a]) => (side === "home" ? h : a) > m,
@@ -475,7 +519,7 @@ export function candidatesFor(
           group: "goals",
           key: `tu:${side}:${line}`,
           label: `${team} menos de ${qnum(line)}`,
-          p: u.win + u.push / 2,
+          p: quarterHalfWins(line, "under") ? u.win + u.push / 2 : u.win,
           base: (share((g) => g < lo) + share((g) => g < hi)) / 2,
           push: u.push / 2,
           won: ([h, a]) => (side === "home" ? h : a) < m,
@@ -690,10 +734,15 @@ export function pickWhy(
   if (key.startsWith("over:") || key.startsWith("under:")) {
     const total = prediction.lambdaHome + prediction.lambdaAway;
     const lv = Number(key.split(":")[1]);
-    // Quarter lines half-refund on the exact middle ("Mais de 1,75" with
-    // exactly 2: half wins, half comes back).
+    // Quarter lines split on the exact middle: half the stake comes back,
+    // and the other half wins (half-win) or is lost (half-loss).
     const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
-    const half = frac === 0.25 || frac === 0.75 ? ` Com exatamente ${Math.round(lv)}, metade devolve.` : "";
+    const isQuarter = frac === 0.25 || frac === 0.75;
+    const half = !isQuarter
+      ? ""
+      : quarterHalfWins(lv, key.startsWith("over:") ? "over" : "under")
+        ? ` Com exatamente ${Math.round(lv)}, metade devolve.`
+        : ` Com exatamente ${Math.round(lv)}, metade perde.`;
     return `Esperados ${comma(total)} golos no jogo; a média da liga é ${comma(rates.perTeam * 2)}.${half}`;
   }
   if (key.startsWith("htover:") || key.startsWith("htunder:")) {
@@ -729,7 +778,25 @@ export function pickWhy(
     const parts = key.split(":");
     const team = parts[1] === "away" ? away : home;
     const line = parts[2] ?? "";
-    return `${team} tem de cobrir ${line.replace(".", ",")} para este jogo, pelos golos esperados.`;
+    const lv = Number(line);
+    const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
+    // Quarter handicaps split on the exact margin: half the stake comes back,
+    // and the other half wins (half-win) or is lost (half-loss).
+    // (The view is always the side's own goal difference, home or away.)
+    let half = "";
+    if (frac === 0.25 || frac === 0.75) {
+      const wholeHalf = Number.isInteger(lv + 0.25) ? lv + 0.25 : lv - 0.25;
+      const margin = -wholeHalf;
+      const wins = (lv > 0) === (frac === 0.25);
+      const fate = wins ? "metade devolve" : "metade perde";
+      half =
+        margin > 0
+          ? ` Ganhando por exatamente ${margin}, ${fate}.`
+          : margin < 0
+            ? ` Perdendo por exatamente ${-margin}, ${fate}.`
+            : ` Com empate, ${fate}.`;
+    }
+    return `${team} tem de cobrir ${line.replace(".", ",")} para este jogo, pelos golos esperados.${half}`;
   }
   if (key.startsWith("to:") || key.startsWith("tu:")) {
     const parts = key.split(":");
@@ -737,7 +804,12 @@ export function pickWhy(
     const line = parts[2] ?? "";
     const lv = Number(line);
     const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
-    const half = frac === 0.25 || frac === 0.75 ? ` Com exatamente ${Math.round(lv)}, metade devolve.` : "";
+    const isQuarter = frac === 0.25 || frac === 0.75;
+    const half = !isQuarter
+      ? ""
+      : quarterHalfWins(lv, key.startsWith("to:") ? "over" : "under")
+        ? ` Com exatamente ${Math.round(lv)}, metade devolve.`
+        : ` Com exatamente ${Math.round(lv)}, metade perde.`;
     const dir = key.startsWith("to:") ? "mais" : "menos";
     return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")}.${half}`;
   }
