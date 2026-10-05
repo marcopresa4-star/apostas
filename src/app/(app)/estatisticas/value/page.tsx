@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import { fixtureEventId, loadSofaLeague } from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
+import { cacheGet, cacheSet } from "@/lib/sofaCache";
 import { findRealOdd } from "@/lib/oddsParse";
 import { predict } from "@/lib/footballModel";
 import { HOUR_MS } from "@/lib/sofaCache";
@@ -26,6 +27,21 @@ const ODD_CONCURRENCY = 8;
 
 const list = (v: string | string[] | undefined): string[] =>
   v === undefined ? [] : (Array.isArray(v) ? v : [v]).flatMap((s) => s.split(",")).map((s) => s.trim()).filter(Boolean);
+
+// Bounded parallelism: the local scraper answers one read at a time, so
+// unbounded Promise.all just queues hundreds of chains behind each other.
+async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) {
+      const k = i++;
+      out[k] = await fn(items[k]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
 
 const pct = (n: number): string => `${Math.round(n * 100)}%`;
 const oddText = (n: number): string => (Number.isFinite(n) && n > 1 ? n.toFixed(2).replace(".", ",") : "—");
@@ -134,85 +150,103 @@ async function ValueResults({
   let fixturesTotal = 0;
   let oddsTotal = 0;
   let truncated = false;
-  const picks: ValuePick[] = [];
+  let picks: ValuePick[] = [];
 
-  for (const code of ligas) {
-    if (!userId) break;
+  // Repeat views reuse the verdict for 10 minutes (pre-match odds move slowly
+  // next to the 1h odds cache): without this, every refresh re-reads every
+  // league and every odd.
+  const cacheKey = `value:${today}|${datas}|${[...ligas].sort().join(",")}|${[...mercados].sort().join(",")}|${edgeMin}|${oddMax ?? "x"}|${conf}`;
+  const cached = userId ? await cacheGet(supabase, userId, cacheKey, 10 * 60_000).catch(() => null) : null;
+  const hit =
+    cached && typeof cached === "object" && !Array.isArray(cached)
+      ? (cached as { picks: ValuePick[]; fixturesTotal: number; oddsTotal: number; truncated: boolean })
+      : null;
+  if (hit && Array.isArray(hit.picks)) {
+    ({ picks, fixturesTotal, oddsTotal, truncated } = hit);
+  } else {
+    // Leagues go 4 at a time (each loads seasons, fixtures and results).
+    await pool(ligas, 4, sweepLeague);
+    if (userId) await cacheSet(supabase, userId, cacheKey, { picks, fixturesTotal, oddsTotal, truncated }).catch(() => {});
+  }
+
+  async function sweepLeague(code: string): Promise<void> {
+    if (!userId || truncated) return;
     const league = LEAGUES.find((l) => l.code === code) ?? null;
     // Mapped leagues read from SofaScore; the rest (none, currently) from files.
     const sofa = await loadSofaLeague(supabase, userId, code, { history: false, shots: false }).catch(() => null);
     const data = sofa?.data ?? (await loadLeague(code, now).catch(() => null));
-    if (!data) continue;
+    if (!data) return;
     const base = baseRates(data.matches);
     const fhs = leagueRates(data.matches, now).firstHalfShare;
     const upcoming = data.fixtures
       .filter((f) => !f.ft && inWindow(f.date))
       .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
     fixturesTotal += upcoming.length;
-    for (let i = 0; i < upcoming.length; i += ODD_CONCURRENCY) {
-      for (const f of upcoming.slice(i, i + ODD_CONCURRENCY)) {
-        if (oddsTotal >= MAX_EVENTS) {
-          truncated = true;
-          break;
-        }
-        const eventId = fixtureEventId(f);
-        if (!eventId) continue;
-        oddsTotal++;
-        const prediction = predict(data.matches, f.team1, f.team2, now);
-        const games = Math.min(prediction.gamesHome, prediction.gamesAway);
-        if (games < MIN_GAMES) continue;
-        if (conf === "alta" && games < SOLID_GAMES) continue;
-        const parsed = await eventOdds(supabase, userId, eventId, HOUR_MS).catch(() => null);
-        if (!parsed) continue;
-        const byKey: Record<string, number> = {};
-        for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
-        const cands = new Map(candidatesFor(prediction, base, f.team1, f.team2, fhs, data.matches, tune).map((c) => [c.key, c]));
-        // Empate não é candidato (nunca se sugere), mas é mercado: mesma
-        // conta do pull-back da família resultado.
-        if (mercados.includes("draw") && !cands.has("draw")) {
-          const trust = TRUST.result * (tune?.groups.result?.trustMult ?? 1);
-          const p = base.draw + trust * (prediction.fullTime.draw - base.draw);
-          cands.set("draw", {
-            group: "result",
-            key: "draw",
-            label: "Empate",
-            p,
-            base: base.draw,
-            won: ([h, a]) => h === a,
-          });
-        }
-        for (const key of mercados) {
-          const c = cands.get(key);
-          if (!c || c.p <= 0) continue;
-          const odd = findRealOdd(byKey, key, f.team1, f.team2);
-          if (odd === undefined || odd <= 1) continue;
-          if (oddMax !== null && odd > oddMax) continue;
-          const fair = c.push ? (1 - c.push) / c.p : 1 / c.p;
-          const edge = c.p * odd - 1;
-          if (edge < edgeMin) continue;
-          picks.push({
-            league: code,
-            leagueLabel: league?.label ?? code,
-            home: f.team1,
-            away: f.team2,
-            date: f.date,
-            time: f.time ?? null,
-            market: marketByKey.get(key) ?? key,
-            p: c.p,
-            odd,
-            fair,
-            edge,
-            games,
-            why: pickWhy(
-              { key: c.key, group: c.group, label: c.label, p: c.p, base: c.base, fairOdd: fair, minOdd: fair, won: c.won },
-              { matches: data.matches, home: f.team1, away: f.team2, prediction }
-            ),
-          });
-        }
+    // Model numbers first (pure CPU), then the odds reads 8 at a time.
+    const jobs = upcoming.flatMap((f) => {
+      const eventId = fixtureEventId(f);
+      if (!eventId) return [];
+      const prediction = predict(data.matches, f.team1, f.team2, now);
+      const games = Math.min(prediction.gamesHome, prediction.gamesAway);
+      if (games < MIN_GAMES) return [];
+      if (conf === "alta" && games < SOLID_GAMES) return [];
+      return [{ f, eventId, prediction, games }];
+    });
+    await pool(jobs, ODD_CONCURRENCY, async ({ f, eventId, prediction, games }) => {
+      if (truncated) return;
+      if (oddsTotal >= MAX_EVENTS) {
+        truncated = true;
+        return;
       }
-      if (truncated) break;
-    }
-    if (truncated) break;
+      oddsTotal++;
+      const parsed = await eventOdds(supabase, userId, eventId, HOUR_MS).catch(() => null);
+      if (!parsed) return;
+      const byKey: Record<string, number> = {};
+      for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+      const cands = new Map(candidatesFor(prediction, base, f.team1, f.team2, fhs, data.matches, tune).map((c) => [c.key, c]));
+      // Empate não é candidato (nunca se sugere), mas é mercado: mesma
+      // conta do pull-back da família resultado.
+      if (mercados.includes("draw") && !cands.has("draw")) {
+        const trust = TRUST.result * (tune?.groups.result?.trustMult ?? 1);
+        const p = base.draw + trust * (prediction.fullTime.draw - base.draw);
+        cands.set("draw", {
+          group: "result",
+          key: "draw",
+          label: "Empate",
+          p,
+          base: base.draw,
+          won: ([h, a]) => h === a,
+        });
+      }
+      for (const key of mercados) {
+        const c = cands.get(key);
+        if (!c || c.p <= 0) continue;
+        const odd = findRealOdd(byKey, key, f.team1, f.team2);
+        if (odd === undefined || odd <= 1) continue;
+        if (oddMax !== null && odd > oddMax) continue;
+        const fair = c.push ? (1 - c.push) / c.p : 1 / c.p;
+        const edge = c.p * odd - 1;
+        if (edge < edgeMin) continue;
+        picks.push({
+          league: code,
+          leagueLabel: league?.label ?? code,
+          home: f.team1,
+          away: f.team2,
+          date: f.date,
+          time: f.time ?? null,
+          market: marketByKey.get(key) ?? key,
+          p: c.p,
+          odd,
+          fair,
+          edge,
+          games,
+          why: pickWhy(
+            { key: c.key, group: c.group, label: c.label, p: c.p, base: c.base, fairOdd: fair, minOdd: fair, won: c.won },
+            { matches: data.matches, home: f.team1, away: f.team2, prediction }
+          ),
+        });
+      }
+    });
   }
 
   picks.sort((a, b) => b.edge - a.edge);
