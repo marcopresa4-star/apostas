@@ -17,7 +17,7 @@ export default function EstatisticasTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="mb-6 flex gap-2 overflow-x-auto pb-1">
+    <nav className="sticky top-[52px] z-10 -mx-4 mb-6 flex gap-2 overflow-x-auto bg-neutral-950/90 px-4 py-2 backdrop-blur-md md:top-0">
       {TABS.map((tab) => {
         const active = pathname === tab.href;
         return (
