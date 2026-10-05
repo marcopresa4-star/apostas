@@ -129,7 +129,7 @@ export default async function ClassificacaoPage({
   );
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 text-sm text-neutral-500">
         A classificação da época e a força de cada equipa a marcar e a defender, calculadas a partir dos resultados.

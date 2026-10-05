@@ -78,7 +78,7 @@ export default async function EstatisticasPage({
   const useSofaIntl = international && intlMaps && user !== null;
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 text-sm text-neutral-500">
         Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se

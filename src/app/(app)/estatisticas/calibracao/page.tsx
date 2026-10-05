@@ -132,7 +132,7 @@ export default async function CalibracaoPage() {
     .slice(0, 20);
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Acerto real das sugestões do Comparar: o que o modelo disse contra o que aconteceu, por família de mercado.

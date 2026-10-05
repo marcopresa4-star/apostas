@@ -256,7 +256,7 @@ async function JornadaBody({
   const checkedWon = checked.filter((c) => c.won).length;
 
   return (
-    <>
+    <div data-wide>
       {sofaMeta && (
         <p className="-mt-1 mb-3 rounded-xl border border-sky-800/50 bg-sky-950/20 px-4 py-2.5 text-xs leading-relaxed text-neutral-300">
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos para o modelo
@@ -393,6 +393,6 @@ async function JornadaBody({
       {!league && (
         <p className="text-sm text-neutral-500">Escolhe uma liga para ver os próximos jogos.</p>
       )}
-    </>
+    </div>
   );
 }

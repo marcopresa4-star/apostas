@@ -72,7 +72,7 @@ export default async function ValuePage({
   const datas = ["hoje", "amanha", "14d"].includes(first(params.datas)) ? first(params.datas) : "7d";
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">💎 Value Bets</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Compara a odd da casa com a probabilidade do modelo: só aparece onde a odd paga acima do justo (valor
