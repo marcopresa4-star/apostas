@@ -5,6 +5,8 @@ import CalibrationLogger from "./CalibrationLogger";
 import MultipleBuilder from "./MultipleBuilder";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
+import EloChart from "./EloChart";
+import ReportTabs from "./ReportTabs";
 import H2HPatternCard from "./H2HPatternCard";
 import type { StandingsLine } from "./StandingsTable";
 import VenueStandings from "./VenueStandings";
@@ -32,6 +34,7 @@ import {
   type Pick,
 } from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
+import { eloCurves } from "@/lib/elo";
 import type { AutoTune } from "@/lib/autoTune";
 import type { PickGroup } from "@/lib/recommendation";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
@@ -1465,8 +1468,10 @@ export default function MatchupReport({
     return `Ajuste automático (${tune.total} decididas no teu histórico): ${tuned.map((g) => `${pt[g]} conta ${Math.round(tune.groups[g].trustMult * 100)}%`).join(" · ")}.`;
   })();
 
-  return (
-    <div className="mt-6 space-y-4 tabular-nums" data-wide>
+  const elo = eloCurves([...history, ...matches], home, away);
+
+  const previsao = (
+    <>
       <div className={CARD}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -1554,63 +1559,76 @@ export default function MatchupReport({
       {priced.length > 0 && <ValueHunt items={priced} />}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
-          {groups.map((g) => (
-            <MarketTable key={g.title} title={g.title} rows={g.rows} />
-          ))}
-        </div>
+        {groups.map((g) => (
+          <MarketTable key={g.title} title={g.title} rows={g.rows} />
+        ))}
+      </div>
 
-        <div className="space-y-4">
-          <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
-          <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
 
-          <div className={CARD}>
-            <h3 className="mb-2 text-sm font-semibold text-neutral-300">Confrontos diretos</h3>
-            {meetings.length === 0 ? (
-              <p className="text-xs text-neutral-500">
-                {international
-                  ? `Sem jogos entre as duas seleções nos dados${historyFrom ? `, desde ${historyFrom}` : ""}.`
-                  : `Sem jogos entre as duas equipas nesta liga${historyFrom ? `, desde a época ${historyFrom}` : ""}. Só contam os jogos deste campeonato: taças e jogos noutras divisões não estão nos dados.`}
-              </p>
-            ) : (
-              <>
-                <p className="mb-2 text-xs text-neutral-400">
-                  {home}: {h2h.home} vitórias · {h2h.draw} empates · {away}: {h2h.away} vitórias
-                  <span className="block text-[11px] text-neutral-500">
-                    {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"}{" "}
-                    {international ? "entre seleções" : "nesta liga"}
-                    {historyFrom ? `, desde ${international ? "" : "a época "}${historyFrom}` : ""}
-                  </span>
-                </p>
-                <div className="space-y-1 text-xs">
-                  {meetings.slice(0, 8).map((m) => (
-                    <div key={`${m.date}-${m.team1}`} className="flex items-center justify-between gap-2 text-neutral-300">
-                      <span className="text-neutral-500">
-                        {shortDate(m.date)}
-                        {m.competition && (
-                          <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-emerald-500/80">
-                            {m.competition}
-                            {m.neutral ? " · neutro" : ""}
-                          </span>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-right">
-                        {m.team1} <span className="font-semibold text-neutral-100">{m.ft[0]}–{m.ft[1]}</span> {m.team2}
-                      </span>
-                    </div>
-                  ))}
-                  {meetings.length > 8 && (
-                    <p className="pt-1 text-[11px] text-neutral-500">e mais {meetings.length - 8} anteriores</p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
 
-        </div>
+      <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
+      <MultipleBuilder markets={oddMarkets} />
+
+      <p className="text-xs leading-relaxed text-neutral-500">
+        {international
+          ? "Estimativa estatística a partir dos resultados dos últimos anos (modelo de Poisson que ajusta o ataque e a defesa de todas as seleções ao mesmo tempo, descontando a força de quem enfrentaram). Não sabe de convocatórias, lesões, castigos, onze inicial nem motivação, e nas seleções o plantel muda muito de jogo para jogo. Testado nos jogos entre julho de 2025 e agosto de 2026 (cerca de 1.040 jogos, cada um previsto só com os anteriores), acertou em quem ganha em 61% dos jogos, contra 48% se se apostasse sempre no resultado mais comum. Usa-o como referência, não como garantia."
+          : "Estimativa estatística a partir dos golos das últimas épocas (modelo de Poisson). Não sabe de lesões, castigos, onze inicial nem motivação. Testado nos jogos de 2025/26 das 7 maiores ligas, previu bem quem ganha (acertou em cerca de 55% dos jogos, contra 46% se se apostasse sempre na média da liga), mas em mais/menos golos e ambas marcam ficou perto da média da liga, por isso nesses mercados vale pouco mais do que a média. Usa-o como referência, não como garantia."}
+      </p>
+    </>
+  );
+
+  const ficha = (
+    <>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
+        <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
       </div>
 
       <FormCurve home={home} away={away} homeCurve={homeCurve} awayCurve={awayCurve} />
+      <EloChart home={home} away={away} homeCurve={elo.home} awayCurve={elo.away} />
+
+      <div className={CARD}>
+        <h3 className="mb-2 text-sm font-semibold text-neutral-300">Confrontos diretos</h3>
+        {meetings.length === 0 ? (
+          <p className="text-xs text-neutral-500">
+            {international
+              ? `Sem jogos entre as duas seleções nos dados${historyFrom ? `, desde ${historyFrom}` : ""}.`
+              : `Sem jogos entre as duas equipas nesta liga${historyFrom ? `, desde a época ${historyFrom}` : ""}. Só contam os jogos deste campeonato: taças e jogos noutras divisões não estão nos dados.`}
+          </p>
+        ) : (
+          <>
+            <p className="mb-2 text-xs text-neutral-400">
+              {home}: {h2h.home} vitórias · {h2h.draw} empates · {away}: {h2h.away} vitórias
+              <span className="block text-[11px] text-neutral-500">
+                {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"}{" "}
+                {international ? "entre seleções" : "nesta liga"}
+                {historyFrom ? `, desde ${international ? "" : "a época "}${historyFrom}` : ""}
+              </span>
+            </p>
+            <div className="space-y-1 text-xs">
+              {meetings.slice(0, 8).map((m) => (
+                <div key={`${m.date}-${m.team1}`} className="flex items-center justify-between gap-2 text-neutral-300">
+                  <span className="text-neutral-500">
+                    {shortDate(m.date)}
+                    {m.competition && (
+                      <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-emerald-500/80">
+                        {m.competition}
+                        {m.neutral ? " · neutro" : ""}
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-right">
+                    {m.team1} <span className="font-semibold text-neutral-100">{m.ft[0]}–{m.ft[1]}</span> {m.team2}
+                  </span>
+                </div>
+              ))}
+              {meetings.length > 8 && (
+                <p className="pt-1 text-[11px] text-neutral-500">e mais {meetings.length - 8} anteriores</p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {timing && (timing.home || timing.away) && (
         <GoalTimingCard home={home} away={away} timing={timing} />
@@ -1698,15 +1716,12 @@ export default function MatchupReport({
           <TeamSeason team={away} fixtures={fixtures} extras={extras.away.filter((g) => g.date >= seasonStart)} today={today} international={international} />
         </div>
       </div>
+    </>
+  );
 
-      <OddChecker markets={oddMarkets} realByKey={realByKey} realOpenByKey={realOpenByKey} />
-      <MultipleBuilder markets={oddMarkets} />
-
-      <p className="text-xs leading-relaxed text-neutral-500">
-        {international
-          ? "Estimativa estatística a partir dos resultados dos últimos anos (modelo de Poisson que ajusta o ataque e a defesa de todas as seleções ao mesmo tempo, descontando a força de quem enfrentaram). Não sabe de convocatórias, lesões, castigos, onze inicial nem motivação, e nas seleções o plantel muda muito de jogo para jogo. Testado nos jogos entre julho de 2025 e agosto de 2026 (cerca de 1.040 jogos, cada um previsto só com os anteriores), acertou em quem ganha em 61% dos jogos, contra 48% se se apostasse sempre no resultado mais comum. Usa-o como referência, não como garantia."
-          : "Estimativa estatística a partir dos golos das últimas épocas (modelo de Poisson). Não sabe de lesões, castigos, onze inicial nem motivação. Testado nos jogos de 2025/26 das 7 maiores ligas, previu bem quem ganha (acertou em cerca de 55% dos jogos, contra 46% se se apostasse sempre na média da liga), mas em mais/menos golos e ambas marcam ficou perto da média da liga, por isso nesses mercados vale pouco mais do que a média. Usa-o como referência, não como garantia."}
-      </p>
+  return (
+    <div className="tabular-nums" data-wide>
+      <ReportTabs ficha={ficha} previsao={previsao} />
     </div>
   );
 }
