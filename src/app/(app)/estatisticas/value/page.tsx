@@ -66,10 +66,10 @@ export default async function ValuePage({
   const conf = ["media", "alta"].includes(first(params.conf)) ? first(params.conf) : "qualquer";
   const datas = ["hoje", "amanha", "14d"].includes(first(params.datas)) ? first(params.datas) : "7d";
 
-  const field =
-    "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors focus:border-amber-500";
   const pill = (on: boolean) =>
-    `rounded-full px-3 py-1 text-xs font-medium transition ${on ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40" : "text-neutral-400 hover:bg-neutral-800"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-amber-500/50 bg-amber-500/15 text-amber-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
+  const chip =
+    "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-neutral-600";
 
   return (
     <div data-wide>
@@ -83,96 +83,108 @@ export default async function ValuePage({
 
       <form method="get" action="/estatisticas/value" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
         <input type="hidden" name="analisar" value="1" />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <details>
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-neutral-400">
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
               Competições ({ligas.length} de {leagues.length})
-            </summary>
-            <div className="mt-2 flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
-              {leagues.map((l) => (
-                <label key={l.code} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2 py-1 text-xs text-neutral-300">
-                  <input type="checkbox" name="ligas" value={l.code} defaultChecked={ligas.includes(l.code)} className="accent-amber-500" />
-                  {l.label}
-                </label>
-              ))}
-            </div>
-          </details>
+            </p>
+            <details className="rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+              <summary className="cursor-pointer text-sm text-neutral-300">
+                Escolher competições ({ligas.length} selecionadas)
+              </summary>
+              <div className="mt-3 flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
+                {leagues.map((l) => (
+                  <label key={l.code} className={chip}>
+                    <input type="checkbox" name="ligas" value={l.code} defaultChecked={ligas.includes(l.code)} className="accent-amber-500" />
+                    {l.label}
+                  </label>
+                ))}
+              </div>
+            </details>
+          </div>
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Mercados</p>
             <div className="flex flex-wrap gap-1.5">
               {MARKETS.map((m) => (
-                <label key={m.key} className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2 py-1 text-xs text-neutral-300">
+                <label key={m.key} className={chip}>
                   <input type="checkbox" name="mercados" value={m.key} defaultChecked={mercados.includes(m.key)} className="accent-amber-500" />
                   {m.label}
                 </label>
               ))}
             </div>
           </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Edge mínimo (EV)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[3, 5, 8, 10].map((e) => (
-                <label key={e} className={pill(edgeMin === e / 100)}>
-                  <input type="radio" name="edge" value={String(e)} defaultChecked={edgeMin === e / 100} className="sr-only" />
-                  +{e}%
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Edge mínimo (EV)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[3, 5, 8, 10].map((e) => (
+                  <label key={e} className={pill(edgeMin === e / 100)}>
+                    <input type="radio" name="edge" value={String(e)} defaultChecked={edgeMin === e / 100} className="sr-only" />
+                    +{e}%
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Odd máxima</p>
+              <div className="flex flex-wrap gap-1.5">
+                {["1.8", "2.5", "3", "5"].map((o) => (
+                  <label key={o} className={pill(oddMaxRaw === o)}>
+                    <input type="radio" name="oddmax" value={o} defaultChecked={oddMaxRaw === o} className="sr-only" />
+                    {o.replace(".", ",")}
+                  </label>
+                ))}
+                <label className={pill(oddMax === null)}>
+                  <input type="radio" name="oddmax" value="" defaultChecked={oddMax === null} className="sr-only" />
+                  Sem limite
                 </label>
-              ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Confiança mínima</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { v: "qualquer", l: "Qualquer" },
+                  { v: "media", l: "Média+ (5+ jogos)" },
+                  { v: "alta", l: "Alta (12+ jogos)" },
+                ].map((c) => (
+                  <label key={c.v} className={pill(conf === c.v)}>
+                    <input type="radio" name="conf" value={c.v} defaultChecked={conf === c.v} className="sr-only" />
+                    {c.l}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Datas</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { v: "hoje", l: "Hoje" },
+                  { v: "amanha", l: "Amanhã" },
+                  { v: "7d", l: "Próx. 7 dias" },
+                  { v: "14d", l: "Próx. 14 dias" },
+                ].map((d) => (
+                  <label key={d.v} className={pill(datas === d.v)}>
+                    <input type="radio" name="datas" value={d.v} defaultChecked={datas === d.v} className="sr-only" />
+                    {d.l}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Odd máxima</p>
-            <div className="flex flex-wrap gap-1.5">
-              {["1.8", "2.5", "3", "5"].map((o) => (
-                <label key={o} className={pill(oddMaxRaw === o)}>
-                  <input type="radio" name="oddmax" value={o} defaultChecked={oddMaxRaw === o} className="sr-only" />
-                  {o.replace(".", ",")}
-                </label>
-              ))}
-              <label className={pill(oddMax === null)}>
-                <input type="radio" name="oddmax" value="" defaultChecked={oddMax === null} className="sr-only" />
-                Sem limite
-              </label>
-            </div>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Confiança mínima</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { v: "qualquer", l: "Qualquer" },
-                { v: "media", l: "Média+ (5+ jogos)" },
-                { v: "alta", l: "Alta (12+ jogos)" },
-              ].map((c) => (
-                <label key={c.v} className={pill(conf === c.v)}>
-                  <input type="radio" name="conf" value={c.v} defaultChecked={conf === c.v} className="sr-only" />
-                  {c.l}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Datas</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { v: "hoje", l: "Hoje" },
-                { v: "amanha", l: "Amanhã" },
-                { v: "7d", l: "Próx. 7 dias" },
-                { v: "14d", l: "Próx. 14 dias" },
-              ].map((d) => (
-                <label key={d.v} className={pill(datas === d.v)}>
-                  <input type="radio" name="datas" value={d.v} defaultChecked={datas === d.v} className="sr-only" />
-                  {d.l}
-                </label>
-              ))}
-            </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
+            >
+              Analisar jogos
+            </button>
+            <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+              Só contam jogos com odds reais da casa (regra geral, poucos dias antes do jogo) e equipas com 5+ jogos nos
+              dados. A primeira análise demora minutos em cache fria; depois é rápido.
+            </p>
           </div>
         </div>
-        <button type="submit" className={`${field} mt-4 bg-amber-600 font-medium text-white hover:bg-amber-500`}>
-          Analisar jogos
-        </button>
-        <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-          Só contam jogos com odds reais da casa (regra geral, poucos dias antes do jogo) e equipas com 5+ jogos nos
-          dados. A primeira análise demora minutos em cache fria; depois é rápido.
-        </p>
       </form>
 
       {run && (
