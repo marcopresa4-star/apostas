@@ -17,14 +17,14 @@ export default function EstatisticasTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="mb-6 flex flex-wrap gap-2">
+    <nav className="mb-6 flex gap-2 overflow-x-auto pb-1">
       {TABS.map((tab) => {
         const active = pathname === tab.href;
         return (
           <Link
             key={tab.href}
             href={tab.href}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
               active
                 ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
                 : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
