@@ -22,6 +22,14 @@ const NAV_ITEMS = [
     active: "bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg shadow-amber-600/30",
     adminOnly: true,
   },
+  {
+    href: "/bots",
+    label: "Bots",
+    icon: "🤖",
+    chip: "bg-sky-500/15 text-sky-400",
+    active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
+    adminOnly: true,
+  },
 ];
 
 function isActivePath(pathname: string, href: string) {
