@@ -233,7 +233,7 @@ export default function SofaLiveTable({
     const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
     const isPinned = pinned.has(String(g.id));
     return (
-      <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
+      <tr key={g.id} className={`transition-colors hover:bg-neutral-800/40 ${isPinned ? "bg-emerald-500/[0.04]" : ""}`}>
         <td className="py-3 pr-0 pl-4">
           <button
             type="button"
@@ -361,7 +361,7 @@ export default function SofaLiveTable({
           </span>
         )}
       </div>
-      <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+      <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
         {pinnedRows.length > 0 && (
           <div className="grid grid-cols-1 gap-3 border-b border-neutral-800 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {pinnedRows.map((g) => {
@@ -406,7 +406,7 @@ export default function SofaLiveTable({
           </div>
         )}
         <table className="w-full min-w-[64rem] text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
             <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="px-2 py-2.5 font-semibold"></th>
               <th className="px-3 py-2.5 text-left font-semibold">Minuto</th>

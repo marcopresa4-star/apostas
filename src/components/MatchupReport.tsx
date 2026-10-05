@@ -1482,15 +1482,15 @@ export default function MatchupReport({
 
         <div className="mt-3 grid grid-cols-3 gap-2 text-center">
           <div>
-            <p className="text-2xl font-bold text-emerald-400">{pct(prediction.fullTime.home)}</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-emerald-400">{pct(prediction.fullTime.home)}</p>
             <p className="text-[11px] uppercase tracking-wide text-neutral-500">Casa · @{oddText(prediction.fullTime.home)}</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-neutral-300">{pct(prediction.fullTime.draw)}</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-neutral-300">{pct(prediction.fullTime.draw)}</p>
             <p className="text-[11px] uppercase tracking-wide text-neutral-500">Empate · @{oddText(prediction.fullTime.draw)}</p>
           </div>
           <div>
-            <p className="text-2xl font-bold text-sky-400">{pct(prediction.fullTime.away)}</p>
+            <p className="text-3xl font-bold tabular-nums tracking-tight text-sky-400">{pct(prediction.fullTime.away)}</p>
             <p className="text-[11px] uppercase tracking-wide text-neutral-500">Fora · @{oddText(prediction.fullTime.away)}</p>
           </div>
         </div>

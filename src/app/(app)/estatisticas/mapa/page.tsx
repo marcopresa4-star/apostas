@@ -149,9 +149,9 @@ export default async function MapaPage({
         </div>
       )}
 
-      <div className="max-w-4xl overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+      <div className="max-w-4xl max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
         <table className="w-full min-w-[40rem] text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
             <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="px-3 py-2 font-semibold">Liga</th>
               <th className="px-3 py-2 font-semibold">SofaScore</th>
@@ -162,7 +162,7 @@ export default async function MapaPage({
             {leagues.map((l) => {
               const m = byCode.get(l.code);
               return (
-                <tr key={l.code}>
+                <tr key={l.code} className="transition-colors hover:bg-neutral-800/40">
                   <td className="px-3 py-2.5 text-neutral-200">{l.label}</td>
                   <td className="px-3 py-2.5 text-xs text-neutral-400">
                     {m ? (
@@ -263,9 +263,9 @@ export default async function MapaPage({
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+          <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
             <table className="w-full min-w-[36rem] text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
                 <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2 font-semibold">Equipa (ficheiros)</th>
                   <th className="px-3 py-2 font-semibold">SofaScore</th>
@@ -276,7 +276,7 @@ export default async function MapaPage({
                 {localTeams.map((t) => {
                   const m = teamBySlug.get(slugify(t));
                   return (
-                    <tr key={t}>
+                    <tr key={t} className="transition-colors hover:bg-neutral-800/40">
                       <td className="px-3 py-2 text-neutral-200">{t}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400">
                         {m ? <span className="font-medium text-emerald-400">{m.name}</span> : <span className="text-neutral-600">por ligar</span>}
@@ -353,9 +353,9 @@ export default async function MapaPage({
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+          <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
             <table className="w-full min-w-[36rem] text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
                 <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2 font-semibold">Seleção (ficheiros)</th>
                   <th className="px-3 py-2 font-semibold">SofaScore</th>
@@ -366,7 +366,7 @@ export default async function MapaPage({
                 {intlTeams.map((t) => {
                   const m = intlBySlug.get(`int:${slugify(t)}`);
                   return (
-                    <tr key={t}>
+                    <tr key={t} className="transition-colors hover:bg-neutral-800/40">
                       <td className="px-3 py-2 text-neutral-200">{t}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400">
                         {m ? <span className="font-medium text-emerald-400">{m.name}</span> : <span className="text-neutral-600">por ligar</span>}
