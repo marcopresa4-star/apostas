@@ -292,7 +292,7 @@ export default async function LivePage({
   const formTeams = league ? teams : [];
 
   return (
-    <div>
+    <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Um jogo a decorrer: cola o link do jogo no SofaScore (lido pelo scraper local, de minuto a minuto) ou escolhe um
