@@ -8,7 +8,6 @@ const TABS = [
   { href: "/estatisticas/jornada", label: "Jogos da jornada" },
   { href: "/estatisticas/classificacao", label: "Classificação e força" },
   { href: "/estatisticas/live", label: "Calculadora live" },
-  { href: "/estatisticas/value", label: "Value Bets" },
   { href: "/estatisticas/calibracao", label: "Calibração" },
   { href: "/estatisticas/ao-vivo", label: "Ao vivo agora" },
   { href: "/estatisticas/mapa", label: "Mapa SofaScore" },

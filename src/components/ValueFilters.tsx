@@ -38,7 +38,7 @@ export default function ValueFilters({
   const groups = ["Resultado", "Golos", "Por equipa"] as const;
 
   return (
-    <form method="get" action="/estatisticas/value" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+    <form method="get" action="/value" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
       <input type="hidden" name="analisar" value="1" />
       <div className="space-y-5">
         <div>

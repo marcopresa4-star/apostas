@@ -30,6 +30,14 @@ const NAV_ITEMS = [
     active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
     adminOnly: true,
   },
+  {
+    href: "/value",
+    label: "Value Bets",
+    icon: "💎",
+    chip: "bg-emerald-500/15 text-emerald-400",
+    active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
+    adminOnly: true,
+  },
 ];
 
 function isActivePath(pathname: string, href: string) {

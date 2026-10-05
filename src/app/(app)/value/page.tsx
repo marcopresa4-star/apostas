@@ -14,7 +14,6 @@ import { baseRates, candidatesFor, MIN_GAMES, pickWhy, SOLID_GAMES, TRUST } from
 import { leagueRates } from "@/lib/footballModel";
 import { loadAutoTune } from "@/lib/autoTune";
 import { first } from "@/lib/searchParams";
-import EstatisticasTabs from "@/components/EstatisticasTabs";
 import ValueFilters from "@/components/ValueFilters";
 import { DEFAULT_VALUE_MARKETS, VALUE_MARKETS, VALUE_MARKET_KEYS } from "@/lib/valueMarkets";
 
@@ -74,13 +73,11 @@ export default async function ValuePage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-xl font-semibold">💎 Value Bets</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Compara a odd da casa com a probabilidade do modelo: só aparece onde a odd paga acima do justo (valor
         esperado positivo). Valor não é garantia — é vantagem a longo prazo. Gere a banca com responsabilidade.
       </p>
-
-      <EstatisticasTabs />
 
       <ValueFilters
         leagues={leagues.map((l) => ({ code: l.code, label: l.label }))}
