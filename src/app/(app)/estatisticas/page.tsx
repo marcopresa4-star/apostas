@@ -20,6 +20,7 @@ import MatchupReport from "@/components/MatchupReport";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import { first, todayISO as todayOf } from "@/lib/searchParams";
 import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
+import { loadAutoTune } from "@/lib/autoTune";
 
 const DAY_MS = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -149,6 +150,51 @@ export default async function EstatisticasPage({
   );
 }
 
+// The last analysed games (from the calibration log): one click re-opens
+// them, without picking league and teams again. Only on the idle screen.
+async function RecentAnalyses({ userId }: { userId: string }) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calibration_picks")
+    .select("league, home, away")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(60);
+  const seen = new Set<string>();
+  const games: { league: string; home: string; away: string }[] = [];
+  for (const r of (data ?? []) as { league: string; home: string; away: string }[]) {
+    const id = `${r.league}|${r.home}|${r.away}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    games.push(r);
+    if (games.length >= 8) break;
+  }
+  if (games.length === 0) return null;
+  return (
+    <div className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+      <h2 className="mb-2 text-sm font-semibold text-neutral-300">Últimas análises</h2>
+      <div className="flex flex-wrap gap-2">
+        {games.map((g) => {
+          const label = LEAGUES.find((l) => l.code === g.league)?.label ?? g.league;
+          const href = `/estatisticas?${new URLSearchParams({ liga: g.league, casa: g.home, fora: g.away })}`;
+          return (
+            <Link
+              key={`${g.league}|${g.home}|${g.away}`}
+              href={href}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 transition hover:border-neutral-600"
+            >
+              <p className="text-sm font-medium text-neutral-100">
+                {g.home} <span className="text-neutral-500">vs</span> {g.away}
+              </p>
+              <p className="text-[11px] text-neutral-500">{label}</p>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Everything below the tabs streams in: slow SofaScore loads no longer hold
 // the whole page. Props are plain params (serializable for the boundary).
 async function CompararBody({
@@ -186,6 +232,9 @@ async function CompararBody({
   let sofaMeta: { games: number; latest: string | null; unlinked: string[]; stale: boolean } | null = null;
   let data: LeagueData | null = null;
   let sofaTables: { name: string; rows: OfficialStanding[] }[] = [];
+  // Self-tuning from the calibration log (null until 50 decided picks per
+  // family): the report prices with it when present.
+  const tune = userId ? await loadAutoTune(supabase, userId).catch(() => null) : null;
   if (league && userId) {
     if (useSofa) {
       const sofa = await loadSofaLeague(supabase, userId, league.code, { history: true }).catch(() => null);
@@ -496,7 +545,12 @@ async function CompararBody({
           realByKey={realByKey}
           realOpenByKey={realOpenByKey}
           tables={sofaTables.length > 0 ? sofaTables : undefined}
+          tune={tune}
         />
+      )}
+
+      {!league && userId && (
+        <RecentAnalyses userId={userId} />
       )}
 
       {!league && (

@@ -3,22 +3,26 @@
 // Só importa módulos client-safe (puros, sem "server-only" nem next/):
 // recommendation.ts (via footballModel.ts, puro), bets.ts e oddsParse.ts.
 //
-// Convenção de preço da app: fair = (1 - push) / p, onde `p` conta as
-// vitórias totais mais metade do meio (linhas de quartos) e `push` a metade
-// devolvida. O retorno esperado E fecha a 1.00 quando o meio é half-win
-// (over x.75, under x.25); ver teste "half-loss" abaixo para a excepção.
+// Convenção de preço da app: fair = (1 - push) / p. Nas linhas de quartos,
+// `push` é sempre metade do meio; `p` conta os full wins mais metade do meio
+// no caso half-win (over x.75, under x.25) e só os full wins no caso
+// half-loss (over x.25, under x.75). O retorno esperado E fecha a 1.00 nos
+// dois casos (ver testes half-win/half-loss abaixo).
 import { describe, it, expect } from "vitest";
 import { predictionFromLambdas, type PlayedMatch } from "../footballModel";
 import {
+  ahWinPush,
   baseRates,
   candidatesFor,
   matchTotalOver,
   matchTotalPush,
   pickWhy,
+  quarterHalfWins,
   recommend,
   teamTotalWinPush,
   type Pick,
 } from "../recommendation";
+import { tuneFromRows } from "../autoTune";
 import { settleWon } from "../bets";
 import { oddsKeyFor } from "../oddsParse";
 
@@ -294,5 +298,139 @@ describe("histerese e edge cases", () => {
         }
       }
     }
+  });
+});
+
+// Distribuição da diferença de golos (casa - fora), directa e independente
+// do diffDist interno: P(D=d) = soma_a P(a;la)·P(a+d;lh).
+function diffDirect(d: number, lh: number, la: number): number {
+  let p = 0;
+  for (let a = 0; a <= 14; a++) p += poisDirect(a, la) * poisDirect(a + d, lh);
+  return p;
+}
+
+describe("handicap de quartos: preço justo", () => {
+  it("casa -1.75 (half-win no 2-0): p conta metade do meio", () => {
+    // Metades -2.0 e -1.5: full win com diferença >= 3, meio com d = 2.
+    const w = [3, 4, 5, 6, 7, 8].reduce((s, d) => s + diffDirect(d, LH, LA), 0);
+    const h = diffDirect(2, LH, LA);
+    const { win, push } = ahWinPush(LH, LA, "home", -1.75);
+    expect(win).toBeCloseTo(w + h / 2, 6);
+    expect(push).toBeCloseTo(h / 2, 6);
+    const fair = (1 - push) / win;
+    expect(w * fair + h * ((fair + 1) / 2)).toBeCloseTo(1, 6);
+  });
+
+  it("casa -1.25 (half-loss no 1-0): p conta só full wins", () => {
+    // Metades -1.0 e -1.5: full win com diferença >= 2, meio com d = 1
+    // (metade devolve, metade perde).
+    const w = [2, 3, 4, 5, 6, 7, 8].reduce((s, d) => s + diffDirect(d, LH, LA), 0);
+    const h = diffDirect(1, LH, LA);
+    const { win, push } = ahWinPush(LH, LA, "home", -1.25);
+    expect(win).toBeCloseTo(w, 6);
+    expect(push).toBeCloseTo(h / 2, 6);
+    const fair = (1 - push) / win;
+    expect(w * fair + h * 0.5).toBeCloseTo(1, 6);
+  });
+
+  it("fora +1.25 (half-win ao perder por 1): conta metade do meio", () => {
+    // Metades +1.0 e +1.5 sobre (a-h): full win com a-h >= 0, meio com -1
+    // (metade ganha, metade devolve). Grelha truncada como o diffDist
+    // interno (|diferença| <= 8, golos <= 14).
+    let full = 0;
+    let mid = 0;
+    for (let a = 0; a <= 14; a++) {
+      for (let hg = 0; hg <= 14; hg++) {
+        if (Math.abs(a - hg) > 8) continue;
+        const q = poisDirect(hg, LH) * poisDirect(a, LA);
+        if (a - hg >= 0) full += q;
+        else if (a - hg === -1) mid += q;
+      }
+    }
+    const { win, push } = ahWinPush(LH, LA, "away", 1.25);
+    expect(win).toBeCloseTo(full + mid / 2, 6);
+    expect(push).toBeCloseTo(mid / 2, 6);
+    const fair = (1 - push) / win;
+    expect(full * fair + mid * ((fair + 1) / 2)).toBeCloseTo(1, 6);
+  });
+
+  it("quarterHalfWins: over x.75 e under x.25 ganham metade", () => {
+    expect(quarterHalfWins(1.75, "over")).toBe(true);
+    expect(quarterHalfWins(2.25, "under")).toBe(true);
+    expect(quarterHalfWins(2.25, "over")).toBe(false);
+    expect(quarterHalfWins(1.75, "under")).toBe(false);
+  });
+});
+
+describe("quartos da 1.ª parte: preço justo", () => {
+  it("over 0.75 HT fecha a E = 1 (half-win com exactamente 1)", () => {
+    const pred = predictionFromLambdas(LH, LA, 0.44, 30, 30);
+    const w = pred.halfTime.over10;
+    const h = pred.halfTime.push10;
+    const p = w + h / 2;
+    const push = h / 2;
+    const fair = (1 - push) / p;
+    expect(w * fair + h * ((fair + 1) / 2)).toBeCloseTo(1, 6);
+  });
+
+  it("over 1.25 HT fecha a E = 1 (half-loss com exactamente 1)", () => {
+    const pred = predictionFromLambdas(LH, LA, 0.44, 30, 30);
+    const w = pred.halfTime.over10;
+    const h = pred.halfTime.push10;
+    const fair = (1 - h / 2) / w;
+    expect(w * fair + h * 0.5).toBeCloseTo(1, 6);
+  });
+
+  it("candidatesFor com intervalo nos dados inclui htover:0.75 e htunder:1.25", () => {
+    const withHt: PlayedMatch[] = fakeMatches(200, 7).map((m, i) => ({
+      ...m,
+      ht: [Math.min(m.ft[0], i % 3 === 0 ? 1 : 0), 0] as [number, number],
+    }));
+    const pred = predictionFromLambdas(LH, LA, 0.44, 30, 30);
+    const base = baseRates(withHt);
+    const cands = candidatesFor(pred, base, "AFC", "BFC", 0.44, withHt);
+    const over = cands.find((c) => c.key === "htover:0.75");
+    const under = cands.find((c) => c.key === "htunder:1.25");
+    if (!over || !under) throw new Error("candidatos HT de quartos em falta");
+    // O push não leva pull-back; o p sim (metade para a média da liga).
+    expect(over.push).toBeCloseTo(pred.halfTime.push10 / 2, 6);
+    const rawOver = pred.halfTime.over10 + pred.halfTime.push10 / 2;
+    expect(over.p).toBeCloseTo(over.base + 0.5 * (rawOver - over.base), 6);
+    const wUnder = 1 - pred.halfTime.over10 - pred.halfTime.push10;
+    const rawUnder = wUnder + pred.halfTime.push10 / 2;
+    expect(under.p).toBeCloseTo(under.base + 0.5 * (rawUnder - under.base), 6);
+    expect(under.push).toBeCloseTo(pred.halfTime.push10 / 2, 6);
+  });
+});
+
+describe("auto-afinação pela calibração", () => {
+  const rows = (n: number, hits: number, p: number, base: number, group = "goals") =>
+    Array.from({ length: n }, (_, i) => ({
+      pick_group: group,
+      p,
+      base,
+      result: i < hits ? "won" : "lost",
+    }));
+
+  it("abaixo de 50 decididas não afina nada", () => {
+    const tune = tuneFromRows(rows(10, 5, 0.6, 0.5));
+    expect(tune.groups.goals.tuned).toBe(false);
+    expect(tune.groups.goals.trustMult).toBe(1);
+    expect(tune.groups.goals.marginMult).toBe(1);
+  });
+
+  it("família a correr quente encolhe a confiança e pede mais margem", () => {
+    // Diz 60%, acontece 50% em 60 casos: lift realizado 0, previsto 0.1.
+    const tune = tuneFromRows(rows(60, 30, 0.6, 0.5));
+    expect(tune.groups.goals.tuned).toBe(true);
+    expect(tune.groups.goals.trustMult).toBeCloseTo(0.3, 6);
+    expect(tune.groups.goals.marginMult).toBeCloseTo(1.2, 6);
+  });
+
+  it("família calibrada mantém tudo", () => {
+    const tune = tuneFromRows(rows(60, 36, 0.6, 0.5));
+    expect(tune.groups.goals.tuned).toBe(true);
+    expect(tune.groups.goals.trustMult).toBeCloseTo(1, 6);
+    expect(tune.groups.goals.marginMult).toBeCloseTo(1, 6);
   });
 });

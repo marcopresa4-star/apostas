@@ -17,6 +17,8 @@ import { formatOdd } from "@/lib/multiples";
 const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
+// Quarter lines need both decimals ("1,75", not "1,8").
+const qdot = (n: number) => n.toFixed(2).replace(".", ",");
 const pct = (p: number) => (p > 0 && p < 0.1 ? `${(p * 100).toFixed(1).replace(".", ",")}%` : `${Math.round(p * 100)}%`);
 const oddText = (p: number) => (p >= 0.005 ? formatOdd(fairOdd(p)) : "—");
 
@@ -593,11 +595,12 @@ function Calculator({
           // Totals include the goals already scored (all first-half goals so
           // far): a covered line reads 100%, a dead one 0%.
           const ht = htLiveProbs(p, h, a);
-          const htLabel = (line: number): string => (line === 1 ? "1 golo" : `${dot(line)} golos`);
+          const htLabel = (line: number): string =>
+            line === 1 ? "1 golo" : Math.abs(line % 1) === 0.25 || Math.abs(line % 1) === 0.75 ? `${qdot(line)} golos` : `${dot(line)} golos`;
           const rows: Row[] = [];
-          for (const line of [0.5, 1, 1.5]) {
+          for (const line of [0.5, 0.75, 1, 1.25, 1.5]) {
             const t = ht.total[String(line)];
-            const push = Number.isInteger(line) && t.push >= 0.005 ? t.push : undefined;
+            const push = t.push >= 0.005 ? t.push : undefined;
             rows.push(
               {
                 label: `Mais de ${htLabel(line)} (1.ª parte)`,
@@ -615,7 +618,7 @@ function Calculator({
             for (const side of ["home", "away"] as const) {
               const team = side === "home" ? homeName : awayName;
               const s = (side === "home" ? ht.home : ht.away)[String(line)];
-              const spush = Number.isInteger(line) && s.push >= 0.005 ? s.push : undefined;
+              const spush = s.push >= 0.005 ? s.push : undefined;
               rows.push(
                 {
                   label: `${team} mais de ${htLabel(line)} (1.ª parte)`,

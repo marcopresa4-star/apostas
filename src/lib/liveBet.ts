@@ -1,6 +1,6 @@
 import type { LivePrediction } from "./liveModel";
 import { fairOdd } from "./footballModel";
-import { AH_LINES, TEAM_ASIAN_QUARTERS, VALUE_MARGIN, quarterHalfWins } from "./recommendation";
+import { AH_ALL_LINES, TEAM_ASIAN_QUARTERS, VALUE_MARGIN, quarterHalfWins } from "./recommendation";
 
 // A bet worth looking at in a game in progress, from the live model: the results
 // (still to be won, or to be saved) and the goals still to come. The next goal is
@@ -62,12 +62,30 @@ export function htLiveProbs(
       const push = Number.isInteger(line) ? (pmf[line - scoredSide] ?? 0) : 0;
       out[String(line)] = mk(over, push);
     }
+    // Quarter lines split on exactly 1 (with the goals already scored): over
+    // 0.75 and under 1.25 half-win there, over 1.25 and under 0.75 half-lose.
+    for (const line of [0.75, 1.25]) {
+      let full = 0;
+      for (let k = 0; k < pmf.length; k++) if (scoredSide + k > 1) full += pmf[k];
+      const half = pmf[1 - scoredSide] ?? 0;
+      const push = half / 2;
+      const over = quarterHalfWins(line, "over") ? full + push : full;
+      out[String(line)] = mk(over, push);
+    }
     return out;
   };
   const total: Record<string, HtLineProb> = {};
   for (const line of [0.5, 1, 1.5]) {
     const over = joint((i, j) => scored + i + j > line);
     const push = Number.isInteger(line) ? joint((i, j) => scored + i + j === line) : 0;
+    total[String(line)] = mk(over, push);
+  }
+  // Same split for the game total.
+  for (const line of [0.75, 1.25]) {
+    const full = joint((i, j) => scored + i + j > 1);
+    const half = joint((i, j) => scored + i + j === 1);
+    const push = half / 2;
+    const over = quarterHalfWins(line, "over") ? full + push : full;
     total[String(line)] = mk(over, push);
   }
   return { total, home: side(p.htHomePmf, homeGoals), away: side(p.htAwayPmf, awayGoals) };
@@ -195,12 +213,15 @@ export function liveCandidates(
   }
   // Asian handicaps on the final score, both sides: cover needs the final
   // difference plus the line above zero, exact ties push. Same joint (and
-  // normalization) as every market the model returns, via p.joint.
-  for (const line of AH_LINES) {
+  // normalization) as every market the model returns, via p.joint. Quarter
+  // lines split over their neighbours: the middle difference half-wins or
+  // half-loses (see quarterHalfWins), with half of it refunded either way.
+  for (const line of AH_ALL_LINES) {
     for (const side of ["home", "away"] as const) {
       const team = side === "home" ? home : away;
       let win = 0;
-      let push = 0;
+      let halfWin = 0;
+      let half = 0;
       for (let i = 0; i < p.joint.length; i++) {
         for (let j = 0; j < p.joint[i].length; j++) {
           const q = p.joint[i][j];
@@ -208,17 +229,32 @@ export function liveCandidates(
             side === "home"
               ? homeGoals + i - (awayGoals + j) + line
               : awayGoals + j - (homeGoals + i) + line;
-          if (d > 0) win += q;
-          else if (d === 0) push += q;
+          const frac = Math.abs(line % 1);
+          if (frac === 0.25 || frac === 0.75) {
+            const v1 = d - 0.25;
+            const v2 = d + 0.25;
+            if (v1 > 0 && v2 > 0) win += q;
+            else if (v1 === 0 || v2 === 0) {
+              half += q;
+              if (v1 > 0 || v2 > 0) halfWin += q;
+            }
+          } else if (d > 0) win += q;
+          else if (d === 0) half += q;
         }
       }
-      const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${line > 0 ? "+" : ""}${dot(line)}`;
+      const frac = Math.abs(line % 1);
+      const isQuarter = frac === 0.25 || frac === 0.75;
+      const shown = isQuarter
+        ? `${line > 0 ? "+" : ""}${qdot(line)}`
+        : Number.isInteger(line)
+          ? `${line > 0 ? "+" : ""}${line}`
+          : `${line > 0 ? "+" : ""}${dot(line)}`;
       out.push({
         group: "goals",
         key: `ah:${side}:${line}`,
         label: `Handicap ${team} ${shown}`,
-        p: win,
-        push,
+        p: isQuarter ? win + halfWin / 2 : win,
+        push: isQuarter ? half / 2 : half,
         won: (f) => {
           const d = side === "home" ? f[0] - f[1] : f[1] - f[0];
           return d + line > 0;
@@ -271,10 +307,11 @@ export function liveCandidates(
   // score effect inside the half), so they share the goals caution.
   if (minute < 45) {
     const ht = htLiveProbs(p, homeGoals, awayGoals);
-    const htLabel = (line: number): string => (line === 1 ? "1 golo" : `${dot(line)} golos`);
-    for (const line of [0.5, 1, 1.5]) {
+    const htLabel = (line: number): string =>
+      line === 1 ? "1 golo" : Math.abs(line % 1) === 0.25 || Math.abs(line % 1) === 0.75 ? `${qdot(line)} golos` : `${dot(line)} golos`;
+    for (const line of [0.5, 0.75, 1, 1.25, 1.5]) {
       const t = ht.total[String(line)];
-      const push = Number.isInteger(line) && t.push >= 0.005 ? t.push : undefined;
+      const push = t.push >= 0.005 ? t.push : undefined;
       out.push(
         {
           group: "halves",
@@ -296,7 +333,7 @@ export function liveCandidates(
       for (const side of ["home", "away"] as const) {
         const team = side === "home" ? home : away;
         const s = (side === "home" ? ht.home : ht.away)[String(line)];
-        const spush = Number.isInteger(line) && s.push >= 0.005 ? s.push : undefined;
+        const spush = s.push >= 0.005 ? s.push : undefined;
         out.push(
           {
             group: "halves",
@@ -411,7 +448,14 @@ export function livePickWhy(
   if (htht) {
     const line = Number(htht[2]);
     const scoredHT = h + a;
-    const dev = Number.isInteger(line) ? " Com exatamente 1 devolve." : "";
+    const frac = Math.abs(line % 1);
+    const dev = Number.isInteger(line)
+      ? " Com exatamente 1 devolve."
+      : frac === 0.25 || frac === 0.75
+        ? quarterHalfWins(line, htht[1] === "htover" ? "over" : "under")
+          ? " Com exatamente 1, metade devolve."
+          : " Com exatamente 1, metade perde."
+        : "";
     if (htht[1] === "htover") {
       if (scoredHT > line) return `Já ${h}–${a} na 1.ª parte.`;
       return `Vão ${h}–${a} aos ${m}'${htXg} na 1.ª parte.${dev}`;
@@ -424,7 +468,14 @@ export function livePickWhy(
     const team = htteam[2] === "home" ? home : away;
     const s = htteam[2] === "home" ? h : a;
     const line = Number(htteam[3]);
-    const dev = Number.isInteger(line) ? " Com exatamente 1 devolve." : "";
+    const frac = Math.abs(line % 1);
+    const dev = Number.isInteger(line)
+      ? " Com exatamente 1 devolve."
+      : frac === 0.25 || frac === 0.75
+        ? quarterHalfWins(line, htteam[1] === "htto" ? "over" : "under")
+          ? " Com exatamente 1, metade devolve."
+          : " Com exatamente 1, metade perde."
+        : "";
     if (htteam[1] === "htto") {
       if (s > line) return `Já ${team} com ${s} na 1.ª parte.`;
       const kh = htteam[2] === "home";
@@ -472,8 +523,25 @@ export function livePickWhy(
     const team = kh ? home : away;
     const line = Number(ahm[2]);
     const diff = kh ? h - a : a - h;
-    const shown = Number.isInteger(line) ? `${line > 0 ? "+" : ""}${line}` : `${dot(line)}`;
-    const dev = Number.isInteger(line) ? " Com o exato devolve." : "";
+    const frac = Math.abs(line % 1);
+    const shown =
+      frac === 0.25 || frac === 0.75
+        ? `${line > 0 ? "+" : ""}${line.toFixed(2).replace(".", ",")}`
+        : Number.isInteger(line)
+          ? `${line > 0 ? "+" : ""}${line}`
+          : `${dot(line)}`;
+    let dev = Number.isInteger(line) ? " Com o exato devolve." : "";
+    if (frac === 0.25 || frac === 0.75) {
+      const wholeHalf = Number.isInteger(line + 0.25) ? line + 0.25 : line - 0.25;
+      const margin = -wholeHalf;
+      const fate = (line > 0) === (frac === 0.25) ? "metade devolve" : "metade perde";
+      dev =
+        margin > 0
+          ? ` Ganhando por exatamente ${margin}, ${fate}.`
+          : margin < 0
+            ? ` Perdendo por exatamente ${-margin}, ${fate}.`
+            : ` Com empate, ${fate}.`;
+    }
     return `${team} ${score} (diferença ${diff > 0 ? "+" : ""}${diff}) com linha ${shown}${evComma}.${dev}`;
   }
   switch (key) {

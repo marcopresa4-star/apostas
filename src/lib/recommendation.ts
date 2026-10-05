@@ -1,4 +1,5 @@
 import { OVER_LINES, fairOdd, leagueRates, strengthOf, type PlayedMatch, type Prediction } from "./footballModel";
+import type { AutoTune } from "./autoTune";
 
 // Small Poisson toolkit for the markets the score grids don't spell out
 // (handicaps, team totals, halves): same Poisson assumption as the grids.
@@ -294,7 +295,8 @@ export function candidatesFor(
   home: string,
   away: string,
   firstHalfShare = 0.44,
-  matches: PlayedMatch[] = []
+  matches: PlayedMatch[] = [],
+  tune?: AutoTune | null
 ): Candidate[] {
   const ft = prediction.fullTime;
   const candidates: Candidate[] = [
@@ -654,9 +656,80 @@ export function candidatesFor(
         );
       }
     }
+    // First-half quarter totals (0.75, 1.25, game and per side): each splits
+    // on exactly 1 goal — over 0.75 and under 1.25 half-win there, over 1.25
+    // and under 0.75 half-lose (see quarterHalfWins). Same halves caution.
+    const htQName = (line: number): string => `${qnum(line)} golos`;
+    for (const line of [0.75, 1.25]) {
+      const fullOver = ht.over10;
+      const middle = ht.push10;
+      const fullUnder = 1 - fullOver - middle;
+      const push = middle / 2;
+      const lo = line - 0.25;
+      const hi = line + 0.25;
+      candidates.push(
+        {
+          group: "halves",
+          key: `htover:${line}`,
+          label: `Mais de ${htQName(line)} (1.ª parte)`,
+          p: quarterHalfWins(line, "over") ? fullOver + push : fullOver,
+          base: (totOver(lo) + totOver(hi)) / 2,
+          push,
+          won: ([h, a], htScore) => !!htScore && htScore[0] + htScore[1] > 1,
+        },
+        {
+          group: "halves",
+          key: `htunder:${line}`,
+          label: `Menos de ${htQName(line)} (1.ª parte)`,
+          p: quarterHalfWins(line, "under") ? fullUnder + push : fullUnder,
+          base: (withHt.filter((m) => m.ht![0] + m.ht![1] < lo).length / n + withHt.filter((m) => m.ht![0] + m.ht![1] < hi).length / n) / 2,
+          push,
+          won: ([h, a], htScore) => !!htScore && htScore[0] + htScore[1] < 1,
+        }
+      );
+      for (const side of ["home", "away"] as const) {
+        const team = side === "home" ? home : away;
+        const g = side === "home"
+          ? { over10: ht.homeOver10, push10: ht.homePush10 }
+          : { over10: ht.awayOver10, push10: ht.awayPush10 };
+        const sFullOver = g.over10;
+        const sMiddle = g.push10;
+        const sFullUnder = 1 - sFullOver - sMiddle;
+        const sPush = sMiddle / 2;
+        candidates.push(
+          {
+            group: "halves",
+            key: `htto:${side}:${line}`,
+            label: `${team} mais de ${htQName(line)} (1.ª parte)`,
+            p: quarterHalfWins(line, "over") ? sFullOver + sPush : sFullOver,
+            base: (teamGoals.filter((g) => g > lo).length / teamGoals.length + teamGoals.filter((g) => g > hi).length / teamGoals.length) / 2,
+            push: sPush,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              return (side === "home" ? htScore[0] : htScore[1]) > 1;
+            },
+          },
+          {
+            group: "halves",
+            key: `httu:${side}:${line}`,
+            label: `${team} menos de ${htQName(line)} (1.ª parte)`,
+            p: quarterHalfWins(line, "under") ? sFullUnder + sPush : sFullUnder,
+            base: (teamGoals.filter((g) => g < lo).length / teamGoals.length + teamGoals.filter((g) => g < hi).length / teamGoals.length) / 2,
+            push: sPush,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              return (side === "home" ? htScore[0] : htScore[1]) < 1;
+            },
+          }
+        );
+      }
+    }
   }
 
-  return candidates.map((c) => ({ ...c, p: c.base + TRUST[c.group] * (c.p - c.base) }));
+  // The pull-back towards the league rate, with the self-tuning multiplier
+  // when the calibration log has enough decided picks in this family.
+  const trustOf = (group: PickGroup): number => TRUST[group] * (tune?.groups[group]?.trustMult ?? 1);
+  return candidates.map((c) => ({ ...c, p: c.base + trustOf(c.group) * (c.p - c.base) }));
 }
 
 export function recommend(
@@ -665,9 +738,10 @@ export function recommend(
   home: string,
   away: string,
   firstHalfShare = 0.44,
-  matches: PlayedMatch[] = []
+  matches: PlayedMatch[] = [],
+  tune?: AutoTune | null
 ): Pick[] {
-  const ranked = candidatesFor(prediction, base, home, away, firstHalfShare, matches)
+  const ranked = candidatesFor(prediction, base, home, away, firstHalfShare, matches, tune)
     .filter((c) => c.p >= MIN_P && c.p <= MAX_P && c.p - c.base >= MIN_LIFT)
     .sort((a, b) => b.p - b.base - (a.p - a.base));
 
@@ -680,6 +754,7 @@ export function recommend(
     used.add(c.group);
     // With pushes, the fair odd pays the refund out: (1 - push) / win.
     const fair = c.p > 0 ? (c.push ? (1 - c.push) / c.p : fairOdd(c.p)) : Infinity;
+    const margin = VALUE_MARGIN[c.group] * (tune?.groups[c.group]?.marginMult ?? 1);
     picks.push({
       group: c.group,
       key: c.key,
@@ -688,7 +763,7 @@ export function recommend(
       base: c.base,
       push: c.push,
       fairOdd: fair,
-      minOdd: fair === Infinity ? Infinity : fair * (1 + VALUE_MARGIN[c.group]),
+      minOdd: fair === Infinity ? Infinity : fair * (1 + margin),
       won: c.won,
     });
     if (picks.length === MAX_PICKS) break;
@@ -747,18 +822,36 @@ export function pickWhy(
   }
   if (key.startsWith("htover:") || key.startsWith("htunder:")) {
     const line = key.split(":")[1] ?? "";
+    const lv = Number(line);
     const fhs = rates.firstHalfShare;
     const htExp = (prediction.lambdaHome + prediction.lambdaAway) * fhs;
     const avgHt = rates.perTeam * 2 * fhs;
-    const dev = line === "1" ? " Com exatamente 1 devolve." : "";
+    const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
+    const dev =
+      line === "1"
+        ? " Com exatamente 1 devolve."
+        : frac === 0.25 || frac === 0.75
+          ? quarterHalfWins(lv, key.startsWith("htover:") ? "over" : "under")
+            ? " Com exatamente 1, metade devolve."
+            : " Com exatamente 1, metade perde."
+          : "";
     return `Esperados ${comma(htExp)} golos na 1.ª parte (média da liga ${comma(avgHt)}).${dev}`;
   }
   if (key.startsWith("htto:") || key.startsWith("httu:")) {
     const parts = key.split(":");
     const team = parts[1] === "away" ? away : home;
     const line = parts[2] ?? "";
+    const lv = Number(line);
+    const frac = Number.isFinite(lv) ? Math.abs(lv % 1) : 0;
     const dir = key.startsWith("htto:") ? "mais" : "menos";
-    const dev = line === "1" ? " Com exatamente 1 devolve." : "";
+    const dev =
+      line === "1"
+        ? " Com exatamente 1 devolve."
+        : frac === 0.25 || frac === 0.75
+          ? quarterHalfWins(lv, key.startsWith("htto:") ? "over" : "under")
+            ? " Com exatamente 1, metade devolve."
+            : " Com exatamente 1, metade perde."
+          : "";
     return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")} na 1.ª parte.${dev}`;
   }
   if (key === "btts:yes" || key === "btts:no") {

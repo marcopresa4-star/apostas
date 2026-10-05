@@ -32,6 +32,8 @@ import {
   type Pick,
 } from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
+import type { AutoTune } from "@/lib/autoTune";
+import type { PickGroup } from "@/lib/recommendation";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
 import { extraToFixture, extraToTeamGame, type ExtraGame } from "@/lib/extraGames";
 import {
@@ -905,6 +907,7 @@ function SuggestedBet({
   realByKey,
   realOpenByKey,
   whyCtx,
+  tuneNote,
 }: {
   picks: Pick[];
   few: boolean;
@@ -919,6 +922,8 @@ function SuggestedBet({
   realOpenByKey?: Record<string, number>;
   // What the "why" sentence is built from (same numbers, never invented).
   whyCtx?: { matches: PlayedMatch[]; home: string; away: string; prediction: Prediction };
+  // Self-tuning note from the calibration log, if any family is adjusted.
+  tuneNote?: string | null;
 }) {
   const [main, ...others] = picks;
   const steam = (key: string, current: number): string | null => {
@@ -1004,6 +1009,7 @@ function SuggestedBet({
         a indicada (a odd justa com margem: 3% no resultado, 8% nos golos e em ambas marcam). Compara no quadro em baixo. Acertar muitas vezes
         não é o mesmo que ganhar dinheiro, porque os favoritos pagam pouco. Nos golos e em ambas marcam a chance está
         puxada para a {avg}, porque o modelo exagera nesses mercados.
+        {tuneNote && <> {tuneNote}</>}
       </p>
     </div>
   );
@@ -1135,22 +1141,29 @@ function buildMarkets(
     },
     ...(withHalfTime
       ? (() => {
-          const htName = (line: number): string => (line === 1 ? "1 golo" : `${dot(line)} golos`);
+          const htName = (line: number): string =>
+            line === 1 ? "1 golo" : Math.abs(line % 1) === 0.25 || Math.abs(line % 1) === 0.75 ? `${qdot(line)} golos` : `${dot(line)} golos`;
           const tot: Record<string, { over: number; push: number }> = {
             "0.5": { over: ht.over05, push: 0 },
+            "0.75": { over: ht.over10 + ht.push10 / 2, push: ht.push10 / 2 },
             "1": { over: ht.over10, push: ht.push10 },
+            "1.25": { over: ht.over10, push: ht.push10 / 2 },
             "1.5": { over: ht.over15, push: 0 },
           };
           const sideProbs = (isHome: boolean): Record<string, { over: number; push: number }> =>
             isHome
               ? {
                   "0.5": { over: ht.homeOver05, push: 0 },
+                  "0.75": { over: ht.homeOver10 + ht.homePush10 / 2, push: ht.homePush10 / 2 },
                   "1": { over: ht.homeOver10, push: ht.homePush10 },
+                  "1.25": { over: ht.homeOver10, push: ht.homePush10 / 2 },
                   "1.5": { over: ht.homeOver15, push: 0 },
                 }
               : {
                   "0.5": { over: ht.awayOver05, push: 0 },
+                  "0.75": { over: ht.awayOver10 + ht.awayPush10 / 2, push: ht.awayPush10 / 2 },
                   "1": { over: ht.awayOver10, push: ht.awayPush10 },
+                  "1.25": { over: ht.awayOver10, push: ht.awayPush10 / 2 },
                   "1.5": { over: ht.awayOver15, push: 0 },
                 };
           const rows: Row[] = [
@@ -1158,9 +1171,9 @@ function buildMarkets(
             { label: "Empate ao intervalo", p: ht.draw, key: "ht:draw" },
             { label: "Fora ganha ao intervalo", p: ht.away, key: "ht:away" },
           ];
-          for (const line of [0.5, 1, 1.5]) {
+          for (const line of [0.5, 0.75, 1, 1.25, 1.5]) {
             const t = tot[String(line)];
-            const push = Number.isInteger(line) && t.push >= 0.005 ? t.push : undefined;
+            const push = t.push >= 0.005 ? t.push : undefined;
             rows.push(
               {
                 label: `Mais de ${htName(line)} (1.ª parte)`,
@@ -1178,7 +1191,7 @@ function buildMarkets(
             for (const side of ["home", "away"] as const) {
               const team = side === "home" ? home : away;
               const s = sideProbs(side === "home")[String(line)];
-              const spush = Number.isInteger(line) && s.push >= 0.005 ? s.push : undefined;
+              const spush = s.push >= 0.005 ? s.push : undefined;
               rows.push(
                 {
                   label: `${team} mais de ${htName(line)} (1.ª parte)`,
@@ -1233,6 +1246,7 @@ export default function MatchupReport({
   realByKey,
   realOpenByKey,
   tables,
+  tune,
 }: {
   matches: PlayedMatch[];
   // Older seasons, for the head to head only.
@@ -1265,6 +1279,9 @@ export default function MatchupReport({
   venueWeight: number;
   // Goal timing per 15' of each side (last games with incident data), or null.
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
+  // Self-tuning from the calibration log (null until 50 decided picks per
+  // family): shrinks hot families and demands more edge from them.
+  tune?: AutoTune | null;
   // The bookmaker's real odds by model key, when this exact game is priced.
   realByKey?: Record<string, number>;
   // Opening odds by model key, for the line movement readout.
@@ -1411,21 +1428,22 @@ export default function MatchupReport({
   const fragile = !few && minGames < SOLID_GAMES;
   const base = baseRates(matches);
   const fhs = leagueRates(matches, now).firstHalfShare;
-  const picks = few ? [] : recommend(prediction, base, home, away, fhs, matches);
+  const picks = few ? [] : recommend(prediction, base, home, away, fhs, matches, tune);
   // Value hunt input: every priced market with a real odd, ranked client-side.
-  const priced: ValueItem[] = candidatesFor(prediction, base, home, away, fhs, matches)
+  const priced: ValueItem[] = candidatesFor(prediction, base, home, away, fhs, matches, tune)
     .flatMap((c) => {
     const real = realByKey?.[c.key];
     if (real === undefined) return [];
     const push = c.push ?? 0;
     const fair = c.p > 0 ? (push > 0 ? (1 - push) / c.p : fairOdd(c.p)) : Infinity;
     if (!Number.isFinite(fair)) return [];
+    const margin = VALUE_MARGIN[c.group] * (tune?.groups[c.group]?.marginMult ?? 1);
     return [
       {
         key: c.key,
         label: c.label,
         p: c.p,
-        minOdd: fair * (1 + VALUE_MARGIN[c.group]),
+        minOdd: fair * (1 + margin),
         real,
         why: pickWhy({ key: c.key } as Pick, { matches, home, away, prediction }),
       },
@@ -1437,6 +1455,15 @@ export default function MatchupReport({
     ...picks.map((p) => ({ group: "Aposta sugerida", label: p.label, p: p.p, key: p.key })),
     ...odd,
   ];
+
+  // Self-tuning note: which families the calibration log already adjusts.
+  const tuneNote = (() => {
+    if (!tune) return null;
+    const pt: Record<PickGroup, string> = { result: "resultado", goals: "golos", btts: "ambas marcam", halves: "partes" };
+    const tuned = (Object.keys(pt) as PickGroup[]).filter((g) => tune.groups[g]?.tuned);
+    if (tuned.length === 0) return null;
+    return `Ajuste automático (${tune.total} decididas no teu histórico): ${tuned.map((g) => `${pt[g]} conta ${Math.round(tune.groups[g].trustMult * 100)}%`).join(" · ")}.`;
+  })();
 
   return (
     <div className="mt-6 space-y-4 tabular-nums" data-wide>
@@ -1513,7 +1540,7 @@ export default function MatchupReport({
         />
       )}
 
-      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} realOpenByKey={realOpenByKey} whyCtx={{ matches, home, away, prediction }} />
+      <SuggestedBet picks={picks} few={few} fragileGames={fragile ? minGames : null} avg={avg} realByKey={realByKey} realOpenByKey={realOpenByKey} whyCtx={{ matches, home, away, prediction }} tuneNote={tuneNote} />
       {picks.length > 0 && (
         <CalibrationLogger
           league={leagueCode}

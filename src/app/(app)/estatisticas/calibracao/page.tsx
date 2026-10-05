@@ -117,6 +117,15 @@ export default async function CalibracaoPage() {
   const groups = ["result", "goals", "btts", "halves"] as const;
   const groupName: Record<string, string> = { result: "Resultado", goals: "Golos", btts: "Ambas marcam", halves: "Partes" };
   const overall = agg(decided);
+  const byLeague = new Map<string, Row[]>();
+  for (const r of decided) {
+    const list = byLeague.get(r.league) ?? [];
+    list.push(r);
+    byLeague.set(r.league, list);
+  }
+  const leagueRows = [...byLeague.entries()]
+    .map(([code, list]) => ({ code, ...agg(list) }))
+    .sort((a, b) => b.n - a.n);
   const recent = settled
     .filter((r) => r.settled_at)
     .sort((a, b) => (b.settled_at ?? "").localeCompare(a.settled_at ?? ""))
@@ -171,6 +180,26 @@ export default async function CalibracaoPage() {
           );
         })}
       </div>
+
+      {leagueRows.length > 0 && (
+        <div className="mb-4 max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-neutral-300">Por liga</h3>
+          <div className="space-y-1 text-xs tabular-nums">
+            {leagueRows.map((l) => (
+              <div key={l.code} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-neutral-300">{labelOf(l.code)}</span>
+                <span className="shrink-0 text-neutral-200">
+                  <span className="font-bold text-emerald-400">{pct(l.hits / l.n)}</span> em {l.n} · dita {pct(l.avgP)}
+                  {l.n < 30 && <span className="text-neutral-500"> · poucos casos</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+            Onde o acerto fica abaixo do dito, confia menos; onde acompanha, confia mais.
+          </p>
+        </div>
+      )}
 
       {recent.length > 0 && (
         <div className="max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
