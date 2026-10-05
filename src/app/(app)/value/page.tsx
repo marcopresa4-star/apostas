@@ -288,7 +288,7 @@ async function ValueResults({
                   <p className="text-[11px] text-neutral-500">
                     {p.leagueLabel} · {p.market} · {dayMonth(p.date)}
                     {p.time ? ` às ${p.time.slice(0, 5)}` : ""} ·{" "}
-                    <span className={p.games >= SOLID_GAMES ? "text-emerald-400" : "text-amber-400"}>
+                    <span className={p.games >= SOLID_GAMES ? "text-emerald-400" : "text-emerald-400"}>
                       {p.games >= SOLID_GAMES ? "Alta" : "Média"} confiança
                     </span>
                   </p>
@@ -316,7 +316,7 @@ async function ValueResults({
               {p.why && <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">Porquê: {p.why}</p>}
               <Link
                 href={`/estatisticas?${new URLSearchParams({ liga: p.league, casa: p.home, fora: p.away })}`}
-                className="mt-2 inline-block text-xs font-medium text-amber-400 hover:underline"
+                className="mt-2 inline-block text-xs font-medium text-emerald-400 hover:underline"
               >
                 Analisar no Comparar →
               </Link>

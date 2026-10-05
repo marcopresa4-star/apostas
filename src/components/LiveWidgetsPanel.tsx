@@ -168,7 +168,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
             onClick={() => void toggleAlerts()}
             title={alerts ? "Desligar alerta de golo (som)" : "Ligar alerta de golo (som)"}
             className={`text-xs font-medium transition ${
-              alerts ? "text-amber-300 hover:text-amber-200" : "text-neutral-500 hover:text-neutral-300"
+              alerts ? "text-emerald-300 hover:text-emerald-200" : "text-neutral-500 hover:text-neutral-300"
             }`}
           >
             {alerts ? "🔔 Alertas" : "🔕 Alertas"}

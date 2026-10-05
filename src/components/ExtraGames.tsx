@@ -27,7 +27,7 @@ const toRow = (g: ExtraGame): Row => ({
 });
 
 const INPUT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-amber-500";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-emerald-500";
 
 // A team's games that the free data does not have (cups, Europe, friendlies).
 // Each complete row travels in the form as one hidden field, so an unfinished
@@ -111,7 +111,7 @@ export default function ExtraGames({ name, initial }: { name: string; initial: E
             </div>
             {game && <input type="hidden" name={name} value={encodeExtra(game)} />}
             {!game && (row.date || row.opponent || row.gf || row.ga) && (
-              <p className="mt-1 text-[11px] text-amber-400">
+              <p className="mt-1 text-[11px] text-emerald-400">
                 Falta a data, o adversário ou o resultado: este jogo ainda não conta.
               </p>
             )}
@@ -122,7 +122,7 @@ export default function ExtraGames({ name, initial }: { name: string; initial: E
         <button
           type="button"
           onClick={() => setRows((prev) => [...prev, emptyRow()])}
-          className="text-xs font-medium text-amber-400 hover:underline"
+          className="text-xs font-medium text-emerald-400 hover:underline"
         >
           + Adicionar jogo
         </button>

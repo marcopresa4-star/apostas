@@ -18,8 +18,8 @@ const NAV_ITEMS = [
     href: "/estatisticas",
     label: "Estatísticas",
     icon: "🧮",
-    chip: "bg-amber-500/15 text-amber-400",
-    active: "bg-gradient-to-r from-amber-600 to-amber-500 shadow-lg shadow-amber-600/30",
+    chip: "bg-emerald-500/15 text-emerald-400",
+    active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
     adminOnly: true,
   },
   {

@@ -129,7 +129,7 @@ export default function BotsClient({
             setEditing(null);
             setFormOpen(true);
           }}
-          className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
         >
           + Novo bot
         </button>

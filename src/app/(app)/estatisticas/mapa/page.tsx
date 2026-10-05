@@ -68,7 +68,7 @@ export default async function MapaPage({
   const intlResults = selecoes && tq3 ? await searchTeams(tq3).catch(() => []) : [];
 
   const field =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
+    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
   const mapped = maps.length;
 
   return (
@@ -119,7 +119,7 @@ export default async function MapaPage({
               </option>
             ))}
           </select>
-          <button type="submit" className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition hover:bg-amber-500">
+          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
             Procurar
           </button>
         </div>
@@ -179,7 +179,7 @@ export default async function MapaPage({
                         <>
                           <a
                             href={`/estatisticas/mapa?${new URLSearchParams({ testar: l.code })}`}
-                            className="text-xs font-medium text-amber-400 hover:underline"
+                            className="text-xs font-medium text-emerald-400 hover:underline"
                           >
                             Testar
                           </a>
@@ -235,7 +235,7 @@ export default async function MapaPage({
                   </option>
                 ))}
               </select>
-              <button type="submit" className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition hover:bg-amber-500">
+              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
                 Procurar
               </button>
             </div>
@@ -323,7 +323,7 @@ export default async function MapaPage({
                   </option>
                 ))}
               </select>
-              <button type="submit" className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition hover:bg-amber-500">
+              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
                 Procurar
               </button>
             </div>

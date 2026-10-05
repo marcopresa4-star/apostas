@@ -106,7 +106,7 @@ export default async function ClassificacaoPage({
       href={`/estatisticas/classificacao?${new URLSearchParams({ liga, ordem: value, ...(activeTable ? { tabela: activeTable.name } : {}) })}`}
       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
         order === value
-          ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
+          ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
           : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
       }`}
     >
@@ -145,7 +145,7 @@ export default async function ClassificacaoPage({
       {league && !tournamentMap && (
         <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
-          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+          <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore
           </Link>
           .
@@ -187,7 +187,7 @@ export default async function ClassificacaoPage({
                 {sofa.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
               </p>
               {sofa.unlinked.length > 0 && (
-                <p className="mt-1 text-amber-300/90">
+                <p className="mt-1 text-emerald-300/90">
                   Grafias por ligar no Mapa ({sofa.unlinked.length}): {sofa.unlinked.join(", ")}. Contam separadas na
                   tabela.
                 </p>
@@ -199,7 +199,7 @@ export default async function ClassificacaoPage({
 
           <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-neutral-500">
             {PHASED.has(league.code) && (
-              <p className="text-amber-400/90">
+              <p className="text-emerald-400/90">
                 Esta liga tem fases finais, grupos ou pontos que se dividem a meio da época: a tabela soma todos os
                 jogos que estão nos dados e pode não ser igual à oficial.
               </p>

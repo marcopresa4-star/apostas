@@ -6,7 +6,7 @@ import type { ExtraGame } from "@/lib/extraGames";
 import ExtraGames from "./ExtraGames";
 
 const SELECT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 
 export interface AdjustValues {
   lesoes_casa: string;
@@ -156,7 +156,7 @@ export default function MatchupForm({
           </div>
           {international && (
             <label className="flex cursor-pointer items-start gap-2 text-sm text-neutral-300">
-              <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="mt-1 accent-amber-500" />
+              <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="mt-1 accent-emerald-500" />
               <span>
                 Campo neutro
                 <span className="block text-[11px] text-neutral-500">
@@ -166,7 +166,7 @@ export default function MatchupForm({
             </label>
           )}
           <details open={hasAdjust} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium text-amber-400">
+            <summary className="cursor-pointer text-sm font-medium text-emerald-400">
               Ajustes (opcional): lesões, castigos, descanso e motivação
             </summary>
 
@@ -308,7 +308,7 @@ export default function MatchupForm({
               </select>
               <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
                 Com mais de 0%, conta mais o que a equipa da casa faz em casa e o que a de fora faz fora. Testei isto
-                nos jogos de 2025/26 das 7 maiores ligas e <span className="text-amber-400">piorou</span> a previsão
+                nos jogos de 2025/26 das 7 maiores ligas e <span className="text-emerald-400">piorou</span> a previsão
                 de quem ganha, mais quanto maior o peso (acerto de 55,1% a 0%, 54,9% a 25%, 54,5% a 50% e 54,3% a
                 100%): a diferença entre casa e fora é, em grande parte, ruído. Só a Espanha melhorou um pouco. Usa só
                 se souberes porque é que esta equipa é diferente.
@@ -358,7 +358,7 @@ export default function MatchupForm({
 
           <button
             type="submit"
-            className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
+            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
           >
             Calcular
           </button>

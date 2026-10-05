@@ -15,7 +15,7 @@ import { fairOdd, type PlayedMatch } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
 
 const INPUT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
+  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
 // Quarter lines need both decimals ("1,75", not "1,8").
 const qdot = (n: number) => n.toFixed(2).replace(".", ",");
@@ -113,9 +113,9 @@ function FinalScoresChart({ scores }: { scores: { home: number; away: number; p:
               {s.home}–{s.away}
             </span>
             <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-neutral-800">
-              <div className="h-full rounded-full bg-amber-500/80" style={{ width: `${(s.p / max) * 100}%` }} />
+              <div className="h-full rounded-full bg-emerald-500/80" style={{ width: `${(s.p / max) * 100}%` }} />
             </div>
-            <span className="w-12 shrink-0 text-right font-medium text-amber-300">{pct(s.p)}</span>
+            <span className="w-12 shrink-0 text-right font-medium text-emerald-300">{pct(s.p)}</span>
           </div>
         ))}
       </div>
@@ -138,7 +138,7 @@ function Table({ title, rows }: { title: string; rows: Row[] }) {
               )}
             </span>
             <span className="flex shrink-0 items-center gap-3">
-              <span className="w-12 text-right font-medium text-amber-300">{pct(row.p)}</span>
+              <span className="w-12 text-right font-medium text-emerald-300">{pct(row.p)}</span>
               <span className="w-14 text-right text-xs text-neutral-500">
                 @{Number.isFinite(rowFair(row)) ? formatOdd(rowFair(row)) : "—"}
               </span>
@@ -726,7 +726,7 @@ function Calculator({
       {hasSync && (
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs">
           <label className="flex cursor-pointer items-center gap-2 text-neutral-300">
-            <input type="checkbox" checked={syncOn} onChange={(e) => setSyncOn(e.target.checked)} className="accent-amber-500" />
+            <input type="checkbox" checked={syncOn} onChange={(e) => setSyncOn(e.target.checked)} className="accent-emerald-500" />
             Ler o resultado, o minuto e os cartões do {sourceName}, sozinho (de minuto a minuto)
           </label>
           {syncOn && (
@@ -742,7 +742,7 @@ function Calculator({
                 </span>
               )}
               {liveState?.phase === "halftime" && (
-                <span className="text-amber-400">
+                <span className="text-emerald-400">
                   Intervalo · {liveState.homeGoals ?? "?"}–{liveState.awayGoals ?? "?"}
                 </span>
               )}
@@ -753,7 +753,7 @@ function Calculator({
               )}
               {liveState?.phase === "upcoming" && <span className="text-neutral-300">O jogo ainda não começou.</span>}
               {liveState?.phase === "unknown" && (
-                <span className="text-amber-400">
+                <span className="text-emerald-400">
                   Estado que não conheço: &quot;{liveState.raw.statusText || liveState.raw.status}&quot;. Escreve à mão.
                 </span>
               )}
@@ -764,17 +764,17 @@ function Calculator({
             </p>
           )}
           {syncOn && staleInfo && (
-            <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
+            <p className="mt-1.5 rounded-lg bg-emerald-950 px-3 py-2 text-emerald-300">
               Os dados que o {sourceName} tem deste jogo estão atrasados (de há {Math.round(staleInfo.ageMs / 60_000)} min) e
               dizem &quot;{staleInfo.state.raw.statusText || staleInfo.state.raw.status}&quot;. Ignoro-os: escreve o resultado
               e o minuto à mão, ou tenta de novo daqui a um minuto.
             </p>
           )}
           {syncOn && syncInfo?.kind === "ok" && syncInfo.notes.length > 0 && (
-            <p className="mt-1.5 text-[11px] text-amber-400">{syncInfo.notes.join(" ")}</p>
+            <p className="mt-1.5 text-[11px] text-emerald-400">{syncInfo.notes.join(" ")}</p>
           )}
           {syncOn && redCards > 0 && liveState && (
-            <p className="mt-1.5 rounded-lg bg-amber-950 px-3 py-2 text-amber-300">
+            <p className="mt-1.5 rounded-lg bg-emerald-950 px-3 py-2 text-emerald-300">
               Cartões vermelhos: {homeName} {liveState.reds.home}, {awayName} {liveState.reds.away}. O modelo
               conta-os como estimativa (com menos um em campo, a equipa marca ~25% menos do que ainda faltava e
               sofre ~20% mais) — valores por testar, não medidos.
@@ -811,7 +811,7 @@ function Calculator({
           )}
           <p className="mt-1.5 text-[11px] text-neutral-500">
             Dados de{" "}
-            <a href="https://www.sofascore.com" target="_blank" rel="noopener" className="text-amber-400 hover:underline">
+            <a href="https://www.sofascore.com" target="_blank" rel="noopener" className="text-emerald-400 hover:underline">
               SofaScore
             </a>
             .
@@ -847,12 +847,12 @@ function Calculator({
                   anchor.current = { minute: m, at: Date.now() };
                   setRunning(e.target.checked);
                 }}
-                className="accent-amber-500"
+                className="accent-emerald-500"
               />
               Deixar o minuto andar sozinho
             </label>
             {running && (
-              <p className="mt-1 text-[11px] leading-snug text-amber-400/90">
+              <p className="mt-1 text-[11px] leading-snug text-emerald-400/90">
                 Sobe um minuto por minuto real. Não sabe do intervalo: desliga aos 45&apos; e volta a ligar quando a
                 2.ª parte começar (com o minuto 46).
               </p>
@@ -942,7 +942,7 @@ function Calculator({
         </div>
 
         <details className="mt-4">
-          <summary className="cursor-pointer text-xs font-medium text-amber-400 hover:underline">
+          <summary className="cursor-pointer text-xs font-medium text-emerald-400 hover:underline">
             Golos esperados antes do jogo: {dot(expectedHome)} – {dot(expectedAway)}
             {fromModel ? " (do modelo)" : " (valores típicos)"}
           </summary>
@@ -982,8 +982,8 @@ function Calculator({
         </p>
       </div>
 
-      <div className="rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5">
-        <h3 className="mb-2 text-sm font-semibold text-amber-300">O que ainda pode acontecer</h3>
+      <div className="rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-5">
+        <h3 className="mb-2 text-sm font-semibold text-emerald-300">O que ainda pode acontecer</h3>
         <ul className="list-disc space-y-1.5 pl-4 text-sm leading-relaxed text-neutral-200 marker:text-neutral-600">
           {liveSummary(p, { home: homeName, away: awayName, minute: m, homeGoals: h, awayGoals: a }).map((line) => (
             <li key={line}>{line}</li>
@@ -1083,7 +1083,7 @@ function Calculator({
           em 6.062 jogos de 2025/26: a aposta principal que o modelo dava 60,5% aconteceu em 59,4% (com odd justa mínima de
           1,5); nos golos o modelo é otimista (dizia 58,9% e aconteceu 55,5%), por isso a chance é cortada mais. Sem os
           dados das equipas (valores típicos) o resultado foi praticamente igual (60,1%), porque perto do intervalo quase
-          tudo vem do resultado e do tempo que falta. <span className="text-amber-400">A outros minutos não consigo testar.</span>{" "}
+          tudo vem do resultado e do tempo que falta. <span className="text-emerald-400">A outros minutos não consigo testar.</span>{" "}
           Acertar muitas vezes não é o mesmo que ganhar dinheiro: compara com a odd da casa aqui em baixo. Na 1.ª
           parte, a fasquia é 1,8 em vez da escolhida em cima, porque essas chances são aproximação por testar.
         </p>
@@ -1116,7 +1116,7 @@ function Calculator({
                     </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-3">
-                    <span className="w-12 text-right font-medium text-amber-300">{pct(s.p)}</span>
+                    <span className="w-12 text-right font-medium text-emerald-300">{pct(s.p)}</span>
                     <span className="w-14 text-right text-xs text-neutral-500">@{formatOdd(s.fair)}</span>
                   </span>
                 </div>
@@ -1155,7 +1155,7 @@ function Calculator({
         marca mais) e que os golos são mais regulares do que o acaso puro. Foi medido em 4.431 jogos e testado ao{" "}
         <span className="text-neutral-400">intervalo</span> em 2.220 jogos de 2025/26 que não usei para o medir: a
         probabilidade de &quot;mais um golo até ao fim&quot; previu 86,2% e aconteceu 86,0%, e em quem ganha e em ambas
-        marcam bateu a média histórica. <span className="text-amber-400">A outros minutos não consigo testar</span>, porque
+        marcam bateu a média histórica. <span className="text-emerald-400">A outros minutos não consigo testar</span>, porque
         os dados não têm o minuto dos golos: aí é uma extrapolação razoável e mais nada. Conta os vermelhos como
         estimativa (menos um em campo ≈ −25% do que ainda marcava, +20% para o outro lado), mas isso é palpite
         meu, não medido. Não sabe de lesões. Quando o jogo está sincronizado, o xG ao vivo ajusta o que falta

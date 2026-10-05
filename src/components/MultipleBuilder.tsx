@@ -53,7 +53,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
                         checked={on}
                         disabled={full}
                         onChange={() => toggle(id)}
-                        className="h-4 w-4 accent-amber-500"
+                        className="h-4 w-4 accent-emerald-500"
                       />
                       <span className="min-w-0 flex-1 truncate text-neutral-200">{m.label}</span>
                       <span className="shrink-0 text-xs text-neutral-500">
@@ -71,7 +71,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
         <div className="mt-3 border-t border-neutral-800 pt-3 text-sm text-neutral-300">
           <p>
             Modelo: <span className="font-medium text-neutral-100">{percent(p)}</span> · odd justa{" "}
-            <span className="font-medium text-amber-300">{formatOdd(fair)}</span>{" "}
+            <span className="font-medium text-emerald-300">{formatOdd(fair)}</span>{" "}
             <span className="text-xs text-neutral-500">
               ({legs.map((l) => l.label).join(" + ")})
             </span>
@@ -82,7 +82,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Odd combinada da casa (ex: 3,50)"
-            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500"
+            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
           />
           {valid && value !== null && (
             <>

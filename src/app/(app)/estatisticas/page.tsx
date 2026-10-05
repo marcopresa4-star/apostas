@@ -97,11 +97,11 @@ export default async function EstatisticasPage({
           name="analisar"
           defaultValue={first(params.analisar)}
           placeholder="Ou cola o link do jogo no SofaScore (mesmo por começar)…"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-amber-500"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
         />
         <button
           type="submit"
-          className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white transition hover:bg-amber-500"
+          className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500"
         >
           Analisar
         </button>
@@ -118,7 +118,7 @@ export default async function EstatisticasPage({
       {league && !useSofa && !useSofaIntl && (
         <p className="mb-3 rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
-          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+          <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore
           </Link>
           .
@@ -470,7 +470,7 @@ async function CompararBody({
           </p>
           {sofaMeta.unlinked.length > 0 && (
             <details className="mt-1">
-              <summary className="cursor-pointer text-amber-300/90 hover:underline">
+              <summary className="cursor-pointer text-emerald-300/90 hover:underline">
                 Grafias por ligar no Mapa ({sofaMeta.unlinked.length})
               </summary>
               <p className="mt-1 text-neutral-400">{sofaMeta.unlinked.join(", ")}.</p>
@@ -564,7 +564,7 @@ async function CompararBody({
             href="https://github.com/openfootball/football.json"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-amber-400 hover:underline"
+            className="text-emerald-400 hover:underline"
           >
             openfootball
           </Link>{" "}

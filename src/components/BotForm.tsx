@@ -169,9 +169,9 @@ export default function BotForm({
     onClose();
   };
 
-  const field = "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500";
+  const field = "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500";
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-amber-500/50 bg-amber-500/15 text-amber-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
 
   return (
@@ -205,7 +205,7 @@ export default function BotForm({
         </div>
 
         <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3">
-          <input type="checkbox" checked={d.silent} onChange={(e) => set("silent", e.target.checked)} className="mt-1 accent-amber-500" />
+          <input type="checkbox" checked={d.silent} onChange={(e) => set("silent", e.target.checked)} className="mt-1 accent-emerald-500" />
           <span className="text-xs text-neutral-300">
             <span className="font-semibold">Modo silencioso</span> — regista o alerta e mostra na lista, mas não envia
             notificação. Útil para testar um bot novo sem spam.
@@ -223,7 +223,7 @@ export default function BotForm({
                   type="checkbox"
                   checked={d.leagues.includes(l.code)}
                   onChange={() => set("leagues", d.leagues.includes(l.code) ? d.leagues.filter((x) => x !== l.code) : [...d.leagues, l.code])}
-                  className="accent-amber-500"
+                  className="accent-emerald-500"
                 />
                 {l.label}
               </label>
@@ -276,7 +276,7 @@ export default function BotForm({
           <div className="mt-3 space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
             <p className="text-sm font-medium text-neutral-200">📈 Odd mínima ao vivo (opcional)</p>
             <label className="flex items-center gap-2 text-xs text-neutral-300">
-              <input type="checkbox" checked={d.useOdd} onChange={(e) => set("useOdd", e.target.checked)} className="accent-amber-500" />
+              <input type="checkbox" checked={d.useOdd} onChange={(e) => set("useOdd", e.target.checked)} className="accent-emerald-500" />
               Só alerta se a odd estiver acima de
             </label>
             {d.useOdd && (
@@ -334,7 +334,7 @@ export default function BotForm({
               <button
                 type="button"
                 onClick={() => set("pregame", [...d.pregame, { side: "either", metric: "sh_over15", pct: 60 }])}
-                className="text-xs font-medium text-amber-400 hover:underline"
+                className="text-xs font-medium text-emerald-400 hover:underline"
               >
                 + adicionar critério
               </button>
@@ -342,7 +342,7 @@ export default function BotForm({
           </div>
 
           <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3">
-            <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-amber-500" />
+            <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-emerald-500" />
             <span className="text-xs text-neutral-300">
               <span className="font-semibold">Re-disparo no mesmo jogo</span> — permite disparar mais de uma vez se as
               condições voltarem a acontecer.
@@ -368,7 +368,7 @@ export default function BotForm({
                 const on = s.k in d.stats;
                 return (
                   <div key={s.k} className="flex items-center gap-2">
-                    <input type="checkbox" checked={on} onChange={() => toggleStat(s.k)} className="accent-amber-500" />
+                    <input type="checkbox" checked={on} onChange={() => toggleStat(s.k)} className="accent-emerald-500" />
                     <span className="min-w-0 flex-1 text-xs text-neutral-300">{s.label}</span>
                     {on && (
                       <span className="flex shrink-0 items-center gap-1">
@@ -378,7 +378,7 @@ export default function BotForm({
                           max={100}
                           value={d.stats[s.k]}
                           onChange={(e) => set("stats", { ...d.stats, [s.k]: Number(e.target.value) })}
-                          className="w-16 rounded-lg border border-amber-700/60 bg-neutral-900 px-2 py-1 text-right text-xs font-medium text-amber-300 outline-none"
+                          className="w-16 rounded-lg border border-emerald-700/60 bg-neutral-900 px-2 py-1 text-right text-xs font-medium text-emerald-300 outline-none"
                         />
                         <span className="text-[11px] text-neutral-500">{s.unit}</span>
                       </span>
@@ -399,7 +399,7 @@ export default function BotForm({
               ))}
             </select>
             <label className="mt-2 flex items-center gap-2 text-xs text-neutral-300">
-              <input type="checkbox" checked={d.useProb} onChange={(e) => set("useProb", e.target.checked)} className="accent-amber-500" />
+              <input type="checkbox" checked={d.useProb} onChange={(e) => set("useProb", e.target.checked)} className="accent-emerald-500" />
               Só alerta se o modelo der pelo menos
             </label>
             {d.useProb && (
@@ -452,7 +452,7 @@ export default function BotForm({
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
           >
             {saving ? "A guardar…" : initial ? "Guardar" : "✓ Criar bot"}
           </button>

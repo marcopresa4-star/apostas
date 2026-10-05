@@ -41,7 +41,7 @@ function VenueBlock({ host, guest, split }: { host: string; guest: string; split
             <dt className="text-neutral-500">Ambas marcam</dt>
             <dd className="text-right text-neutral-200">{pct(split.btts)}</dd>
           </dl>
-          {split.games < 5 && <p className="mt-1.5 text-[11px] text-amber-400">Poucos jogos: pode ser só acaso.</p>}
+          {split.games < 5 && <p className="mt-1.5 text-[11px] text-emerald-400">Poucos jogos: pode ser só acaso.</p>}
         </>
       )}
     </div>

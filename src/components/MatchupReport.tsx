@@ -105,7 +105,7 @@ function MarketTable({ title, rows }: { title: string; rows: Row[] }) {
               )}
             </span>
             <span className="flex shrink-0 items-center gap-3">
-              <span className="w-12 text-right font-medium text-amber-300">{pct(row.p)}</span>
+              <span className="w-12 text-right font-medium text-emerald-300">{pct(row.p)}</span>
               <span className="w-14 text-right text-xs text-neutral-500">
                 @{Number.isFinite(rowFair(row)) ? formatOdd(rowFair(row)) : "—"}
               </span>
@@ -247,7 +247,7 @@ function TeamCard({
               <span className="block text-xs text-neutral-200">
                 {f.team1} <span className="font-bold text-neutral-100">?–?</span> {f.team2}
               </span>
-              <span className="block text-[10px] text-amber-400">resultado ainda não nos dados</span>
+              <span className="block text-[10px] text-emerald-400">resultado ainda não nos dados</span>
             </span>
           </span>
         ))}
@@ -260,13 +260,13 @@ function TeamCard({
       </div>
 
       {pending.length > 0 && (
-        <p className="mt-2 text-[11px] text-amber-400">
+        <p className="mt-2 text-[11px] text-emerald-400">
           ? = jogo já disputado sem resultado nos dados (a fonte atrasa-se alguns dias). Os números abaixo não
           o contam.
         </p>
       )}
       {typed > 0 && (
-        <p className="mt-2 text-[11px] text-amber-500/80">
+        <p className="mt-2 text-[11px] text-emerald-500/80">
           Inclui {typed} {typed === 1 ? "jogo acrescentado" : "jogos acrescentados"} por ti.
         </p>
       )}
@@ -297,7 +297,7 @@ const dayMonth = (date: string) => date.slice(8, 10) + "/" + date.slice(5, 7);
 
 const SCORE_STYLE = {
   V: "bg-emerald-600/30 text-emerald-300",
-  E: "bg-amber-500/25 text-amber-300",
+  E: "bg-emerald-500/25 text-emerald-300",
   D: "bg-red-600/30 text-red-300",
 } as const;
 
@@ -312,7 +312,7 @@ function GameRow({ fixture, team, today }: { fixture: Fixture; team: string; tod
       <span className="text-neutral-500">
         {dayMonth(fixture.date)}
         {fixture.competition && (
-          <span title={fixture.competition} className="block truncate text-[9px] leading-tight text-amber-500/80">
+          <span title={fixture.competition} className="block truncate text-[9px] leading-tight text-emerald-500/80">
             {fixture.competition}
           </span>
         )}
@@ -374,7 +374,7 @@ function TeamSeason({
       )}
 
       {behind && (
-        <p className="mt-1.5 text-[11px] text-amber-400">
+        <p className="mt-1.5 text-[11px] text-emerald-400">
           ? = resultado ainda não nos dados: a fonte atualiza-se com alguns dias de atraso.
         </p>
       )}
@@ -393,7 +393,7 @@ function TeamSeason({
       )}
 
       <details className="mt-3">
-        <summary className="cursor-pointer text-xs font-medium text-amber-400 hover:underline">
+        <summary className="cursor-pointer text-xs font-medium text-emerald-400 hover:underline">
           {international ? "Ver todos os jogos dos últimos 12 meses" : "Ver todos os jogos da época"} ({all.length})
         </summary>
         <div className="mt-2 divide-y divide-neutral-800/60">
@@ -772,7 +772,7 @@ function AdjustmentsCard({
           <p className="text-xs text-neutral-300">
             <span className="font-medium text-neutral-100">Forma em casa e fora:</span> peso de{" "}
             {Math.round(venueWeight * 100)}% (
-            <span className="text-amber-400">nos testes piorou a previsão de quem ganha</span>)
+            <span className="text-emerald-400">nos testes piorou a previsão de quem ganha</span>)
           </p>
         )}
       </div>
@@ -967,8 +967,8 @@ function SuggestedBet({
   };
 
   return (
-    <div className="rounded-xl border border-amber-700/50 bg-amber-950/20 p-4">
-      <h3 className="mb-2 text-sm font-semibold text-amber-300">Aposta sugerida</h3>
+    <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/20 p-4">
+      <h3 className="mb-2 text-sm font-semibold text-emerald-300">Aposta sugerida</h3>
 
       {few ? (
         <p className="text-sm text-neutral-400">
@@ -983,7 +983,7 @@ function SuggestedBet({
       ) : (
         <>
           {fragileGames !== null && (
-            <p className="mb-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
+            <p className="mb-2 rounded-lg bg-emerald-950 px-3 py-2 text-xs text-emerald-300">
               Estimativa frágil: uma das equipas só tem {fragileGames} jogos nos dados. Abaixo de {SOLID_GAMES} o modelo
               ainda não ganha à {avg}, por isso vê esta sugestão como palpite, não como vantagem.
             </p>
@@ -991,7 +991,7 @@ function SuggestedBet({
           <p className="text-base font-semibold text-neutral-100">{main.label}</p>
           {line(main)}
           {others.length > 0 && (
-            <div className="mt-3 space-y-2 border-t border-amber-900/40 pt-3">
+            <div className="mt-3 space-y-2 border-t border-emerald-900/40 pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Outras opções</p>
               {others.map((pick) => (
                 <div key={pick.label}>
@@ -1475,7 +1475,7 @@ export default function MatchupReport({
               {home} <span className="text-neutral-500">vs</span> {away}
             </h2>
           </div>
-          <Link href={swapHref} className="text-xs font-medium text-amber-400 hover:underline">
+          <Link href={swapHref} className="text-xs font-medium text-emerald-400 hover:underline">
             ↔ Trocar casa e fora
           </Link>
         </div>
@@ -1506,7 +1506,7 @@ export default function MatchupReport({
           . Dados até {latest ? shortDate(latest) : "?"}.
         </p>
         {(few || fragile) && (
-          <p className="mt-2 rounded-lg bg-amber-950 px-3 py-2 text-xs text-amber-300">
+          <p className="mt-2 rounded-lg bg-emerald-950 px-3 py-2 text-xs text-emerald-300">
             {few
               ? `Há poucos jogos destas equipas nos dados (${prediction.gamesHome} e ${prediction.gamesAway}), por isso a estimativa é frágil e não sugiro aposta.`
               : `Uma das equipas só tem ${minGames} jogos nos dados (${prediction.gamesHome} e ${prediction.gamesAway}). Abaixo de ${SOLID_GAMES}, o modelo ainda não ganha à ${avg}, por isso a estimativa é frágil.`}
@@ -1588,7 +1588,7 @@ export default function MatchupReport({
                       <span className="text-neutral-500">
                         {shortDate(m.date)}
                         {m.competition && (
-                          <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-amber-500/80">
+                          <span title={m.competition} className="block max-w-[6.5rem] truncate text-[9px] leading-tight text-emerald-500/80">
                             {m.competition}
                             {m.neutral ? " · neutro" : ""}
                           </span>

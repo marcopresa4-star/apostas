@@ -29,7 +29,7 @@ export default function ValueFilters({
   const [openComp, setOpenComp] = useState(false);
 
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-amber-500/50 bg-amber-500/15 text-amber-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
   const chip =
     "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-neutral-600";
   const toggle = (list: string[], v: string, set: (l: string[]) => void) =>
@@ -59,7 +59,7 @@ export default function ValueFilters({
                     value={l.code}
                     checked={ligas.includes(l.code)}
                     onChange={() => toggle(ligas, l.code, setLigas)}
-                    className="accent-amber-500"
+                    className="accent-emerald-500"
                   />
                   {l.label}
                 </label>
@@ -93,7 +93,7 @@ export default function ValueFilters({
                         value={m.key}
                         checked={mercados.includes(m.key)}
                         onChange={() => toggle(mercados, m.key, setMercados)}
-                        className="accent-amber-500"
+                        className="accent-emerald-500"
                       />
                       {m.label}
                     </label>
@@ -165,7 +165,7 @@ export default function ValueFilters({
         <div>
           <button
             type="submit"
-            className="rounded-lg bg-amber-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
+            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
           >
             Analisar jogos
           </button>

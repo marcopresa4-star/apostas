@@ -284,7 +284,7 @@ export default async function LivePage({
         ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
         : null;
   const field =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-amber-500";
+    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 
   // Leagues for the hand picker: mapped clubs plus internationals when linked.
   const intlForm = intlAvailable ? LEAGUES.filter((l) => isInternational(l.code)) : [];
@@ -312,7 +312,7 @@ export default async function LivePage({
                 href={`/estatisticas/live?${new URLSearchParams({ jogo: g.id })}`}
                 className={`rounded-xl border px-3 py-2 transition ${
                   dash?.id === g.id
-                    ? "border-amber-500/60 bg-amber-500/10"
+                    ? "border-emerald-500/60 bg-emerald-500/10"
                     : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"
                 }`}
               >
@@ -332,7 +332,7 @@ export default async function LivePage({
         </section>
       )}
       {jogo !== "" && !dash && (
-        <p className="mb-4 max-w-4xl text-xs text-amber-400">
+        <p className="mb-4 max-w-4xl text-xs text-emerald-400">
           Esse jogo já não está nos Jogos (já não tem apostas por decidir). Escolhe outro ou cola o link.
         </p>
       )}
@@ -349,13 +349,13 @@ export default async function LivePage({
           />
           <button
             type="submit"
-            className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 font-medium text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500"
+            className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
           >
             Analisar
           </button>
         </div>
         <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
-          <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="accent-amber-500" />
+          <input type="checkbox" name="neutro" value="1" defaultChecked={neutral} className="accent-emerald-500" />
           Campo neutro (só conta nas seleções: Mundial, fases finais)
         </label>
         <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
@@ -374,7 +374,7 @@ export default async function LivePage({
       {game ? (
         <p className="mb-4 max-w-4xl text-xs text-neutral-500">
           Este jogo fica guardado neste navegador, com o minuto e o resultado.{" "}
-          <Link href="/estatisticas/live" className="font-medium text-amber-400 hover:underline">
+          <Link href="/estatisticas/live" className="font-medium text-emerald-400 hover:underline">
             Outro jogo
           </Link>
         </p>
@@ -390,9 +390,9 @@ export default async function LivePage({
           <LiveTeamsForm leagues={formLeagues} liga={sofaEventId || dash ? "" : (league?.code ?? "")} teams={sofaEventId || dash ? [] : formTeams} casa={sofaEventId || dash ? "" : casa} fora={sofaEventId || dash ? "" : fora} />
         </div>
         {formLeagues.length === 0 && (
-          <p className="mt-2 text-xs text-amber-400">
+          <p className="mt-2 text-xs text-emerald-400">
             Nenhuma liga mapeada ainda.{" "}
-            <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+            <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
               Mapear ligas no Mapa SofaScore
             </Link>
             .
@@ -417,14 +417,14 @@ export default async function LivePage({
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-sm leading-relaxed text-neutral-500">
           Ainda não escolheste nenhum jogo. Cola em cima o link do SofaScore, escolhe um dos teus jogos ou escolhe as
           equipas à mão. Se só quiseres experimentar, podes abrir{" "}
-          <Link href="/estatisticas/live?tipico=1" className="text-amber-400 hover:underline">
+          <Link href="/estatisticas/live?tipico=1" className="text-emerald-400 hover:underline">
             a calculadora sem jogo
           </Link>
           , que usa valores típicos de uma liga (1,4 e 1,1 golos esperados) e não diz nada sobre nenhum jogo em concreto.
         </p>
       )}
       {typical && sofaEventId === null && !chosen && (
-        <p className="mb-4 max-w-4xl rounded-lg bg-amber-950 px-4 py-3 text-xs text-amber-300">
+        <p className="mb-4 max-w-4xl rounded-lg bg-emerald-950 px-4 py-3 text-xs text-emerald-300">
           Sem jogo escolhido: os golos esperados são os valores típicos de uma liga (1,4 e 1,1) e o minuto e o resultado
           são só um exemplo. Serve para experimentar; para um jogo a sério, cola o link ou escolhe as equipas.
         </p>

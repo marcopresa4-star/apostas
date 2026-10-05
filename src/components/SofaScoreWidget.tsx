@@ -265,7 +265,7 @@ function GoalAlert({
           type="button"
           onClick={() => setMuted(toggleMuted(eventId))}
           title={muted ? "Ligar alertas deste jogo" : "Calar este jogo (os outros continuam)"}
-          className={`text-xs transition ${muted ? "text-neutral-600 hover:text-neutral-400" : "text-amber-300 hover:text-amber-200"}`}
+          className={`text-xs transition ${muted ? "text-neutral-600 hover:text-neutral-400" : "text-emerald-300 hover:text-emerald-200"}`}
         >
           {muted ? "🔕" : "🔔"}
         </button>
@@ -306,7 +306,7 @@ function GoalAlert({
       )}
       {reasons.length > 0 && (
         <details className="mt-1.5">
-          <summary className="cursor-pointer text-[11px] font-medium text-amber-400 hover:underline">
+          <summary className="cursor-pointer text-[11px] font-medium text-emerald-400 hover:underline">
             Porquê
           </summary>
           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-neutral-400">
@@ -469,7 +469,7 @@ function Lineups({
       : r >= 7
         ? "bg-emerald-600/20 text-emerald-300"
         : r >= 6
-          ? "bg-amber-600/20 text-amber-300"
+          ? "bg-emerald-600/20 text-emerald-300"
           : "bg-red-600/20 text-red-300";
   const column = (side: LineupSide, team: string, color: string) => {
     const starters = side.players.filter((p) => !p.sub);
@@ -490,7 +490,7 @@ function Lineups({
               <span className="min-w-0 flex-1 truncate text-neutral-200">
                 {p.num !== null && <span className="mr-1 text-neutral-600">{p.num}</span>}
                 {p.name}
-                {p.captain && <span className="ml-1 text-[10px] text-amber-400">C</span>}
+                {p.captain && <span className="ml-1 text-[10px] text-emerald-400">C</span>}
                 {p.goals > 0 && <span className="ml-1 text-[10px]">⚽{p.goals > 1 ? p.goals : ""}</span>}
               </span>
               {p.xg >= 0.15 && (
@@ -1099,7 +1099,7 @@ export default function SofaScoreWidget({
                 state?.phase === "live"
                   ? "bg-red-500/15 text-red-300"
                   : state?.phase === "halftime"
-                    ? "bg-amber-500/15 text-amber-300"
+                    ? "bg-emerald-500/15 text-emerald-300"
                     : "bg-neutral-800 text-neutral-400"
               }`}
             >
@@ -1276,7 +1276,7 @@ export default function SofaScoreWidget({
           href={`https://www.sofascore.com/football/match/#/id:${eventId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs font-medium text-amber-400 hover:underline"
+          className="text-xs font-medium text-emerald-400 hover:underline"
         >
           Abrir o jogo no SofaScore →
         </a>

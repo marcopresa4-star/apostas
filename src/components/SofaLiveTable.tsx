@@ -95,7 +95,7 @@ function Header({
         type="button"
         onClick={() => onSort(sortKey)}
         title={`Ordenar por ${label.toLowerCase()}`}
-        className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-200 ${active === sortKey ? "text-amber-300" : ""}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-200 ${active === sortKey ? "text-emerald-300" : ""}`}
       >
         {label}
         <span aria-hidden className="text-[9px]">{active === sortKey ? (dir === 1 ? "▲" : "▼") : "△"}</span>
@@ -251,7 +251,7 @@ export default function SofaLiveTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Filtrar por liga ou equipa…"
-          className="w-64 max-w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-amber-500"
+          className="w-64 max-w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
         />
         <button
           type="button"
@@ -259,7 +259,7 @@ export default function SofaLiveTable({
           title={favOnly ? "Mostrar todas as ligas" : "Mostrar só ligas favoritas"}
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             favOnly
-              ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
+              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
               : "border border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200"
           }`}
         >
@@ -296,20 +296,20 @@ export default function SofaLiveTable({
             const league = leagueOf(g);
             const isPinned = pinned.has(String(g.id));
             return (
-              <tr key={g.id} className={isPinned ? "bg-amber-500/[0.04]" : undefined}>
+              <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
                 <td className="py-2.5 pr-0 pl-3">
                   <button
                     type="button"
                     onClick={() => togglePin(g)}
                     title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
-                    className={`text-sm transition ${isPinned ? "text-amber-400" : "text-neutral-700 hover:text-neutral-400"}`}
+                    className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
                   >
                     📌
                   </button>
                 </td>
                 <td className="px-3 py-2.5 whitespace-nowrap">
                   {g.phase === "halftime" ? (
-                    <span className="font-semibold text-amber-400">Intervalo</span>
+                    <span className="font-semibold text-emerald-400">Intervalo</span>
                   ) : (
                     <PeriodLabel g={g} />
                   )}
@@ -319,7 +319,7 @@ export default function SofaLiveTable({
                     type="button"
                     onClick={() => toggleFavLeague(league)}
                     title={favLeagues.has(league) ? "Tirar das favoritas" : "Marcar liga como favorita"}
-                    className={`mr-1 transition ${favLeagues.has(league) ? "text-amber-400" : "text-neutral-700 hover:text-neutral-400"}`}
+                    className={`mr-1 transition ${favLeagues.has(league) ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
                   >
                     ★
                   </button>
@@ -362,7 +362,7 @@ export default function SofaLiveTable({
                       {pendingId === g.id ? "…" : "+ Jogos"}
                     </button>
                   )}
-                  <Link href={href} className="text-xs font-medium text-amber-400 hover:underline">
+                  <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
                     Analisar →
                   </Link>
                 </td>

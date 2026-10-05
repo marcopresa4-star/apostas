@@ -189,14 +189,14 @@ export default function LiveSavedGames() {
           const suggestion = over ? null : suggestionFor(g, showMinute, showHome, showAway);
           return (
             <li key={g.key} className="flex items-center justify-between gap-3 py-2">
-              <Link href={g.href} className="min-w-0 flex-1 hover:text-amber-300">
+              <Link href={g.href} className="min-w-0 flex-1 hover:text-emerald-300">
                 <p className="truncate text-sm font-medium text-neutral-100">
                   {g.home} <span className="text-neutral-500">vs</span> {g.away}
                 </p>
                 <p className="text-xs text-neutral-400">
                   {showHome}–{showAway} ·{" "}
                   {finished ? "terminado" : over ? "provavelmente terminou" : `${showMinute}'`}
-                  {g.running && !over && !finished && <span className="ml-1.5 text-amber-400">· minuto a andar</span>}
+                  {g.running && !over && !finished && <span className="ml-1.5 text-emerald-400">· minuto a andar</span>}
                 </p>
                 {suggestion && (
                   <p className="truncate text-xs text-emerald-400">

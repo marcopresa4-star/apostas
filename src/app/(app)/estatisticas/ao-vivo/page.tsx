@@ -120,7 +120,7 @@ async function AoVivoBoard() {
             ? "Scraper SofaScore desligado"
             : `${games.length} ${games.length === 1 ? "jogo em direto" : "jogos em direto"} agora`}
         </p>
-        <a href="/estatisticas/ao-vivo" className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500">
+        <a href="/estatisticas/ao-vivo" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">
           Atualizar
         </a>
       </div>

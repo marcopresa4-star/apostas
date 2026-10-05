@@ -62,7 +62,7 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
         <select
           value={index}
           onChange={(e) => setChosen(`${markets[Number(e.target.value)].group}|${markets[Number(e.target.value)].label}`)}
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
         >
           {groups.map((group) => (
             <optgroup key={group} label={group}>
@@ -82,7 +82,7 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Ex: 1.85"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-amber-500"
+          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
         />
       </div>
 

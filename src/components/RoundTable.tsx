@@ -54,7 +54,7 @@ export default function RoundTable({
                 </p>
                 <Link
                   href={`/estatisticas?${new URLSearchParams({ liga, casa: f.team1, fora: f.team2, ...(fonte === "sofa" ? { fonte: "sofa" } : {}) })}`}
-                  className="font-medium text-neutral-100 hover:text-amber-300 hover:underline"
+                  className="font-medium text-neutral-100 hover:text-emerald-300 hover:underline"
                   title="Abrir a comparação destas equipas"
                 >
                   {f.team1} <span className="text-neutral-500">vs</span> {f.team2}
@@ -67,7 +67,7 @@ export default function RoundTable({
                 </td>
               )}
               {status === "missing" && (
-                <td colSpan={5} className="px-3 py-2.5 text-xs text-amber-400">
+                <td colSpan={5} className="px-3 py-2.5 text-xs text-emerald-400">
                   Já foi jogado, mas o resultado ainda não está nos dados.
                 </td>
               )}
@@ -99,7 +99,7 @@ export default function RoundTable({
                           {fragile && (
                             <span
                               title="Uma das equipas tem poucos jogos nos dados: o modelo ainda não ganha à média da liga"
-                              className="ml-1.5 rounded bg-amber-950 px-1 text-[10px] font-semibold text-amber-300"
+                              className="ml-1.5 rounded bg-emerald-950 px-1 text-[10px] font-semibold text-emerald-300"
                             >
                               frágil
                             </span>

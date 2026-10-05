@@ -64,7 +64,7 @@ export default async function JornadaPage({
       {league && !mapped && !intlLinked && (
         <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
-          <Link href="/estatisticas/mapa" className="font-medium text-amber-400 hover:underline">
+          <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore
           </Link>
           .
@@ -304,7 +304,7 @@ async function JornadaBody({
                   href={`/estatisticas/jornada?${new URLSearchParams({ liga: league.code, jornada: r.name })}`}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                     r.name === chosen.name
-                      ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40"
+                      ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
                       : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
                   }`}
                 >
