@@ -21,6 +21,8 @@ describe("eloCurves", () => {
     expect(home[0].elo).toBeGreaterThan(1500);
     expect(away[0].elo).toBeLessThan(1500);
     expect(home[0].elo - 1500).toBe(1500 - away[0].elo);
+    expect(Math.abs(home[0].delta + away[0].delta)).toBeLessThanOrEqual(0.1);
+    expect(home[0]).toMatchObject({ opponent: "B", atHome: true, gf: 2, ga: 0 });
   });
 
   it("home draw loses a little, away draw gains (home edge priced in)", () => {

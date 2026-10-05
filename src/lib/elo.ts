@@ -10,6 +10,12 @@ const HOME_EDGE = 50;
 export interface EloPoint {
   date: string;
   elo: number;
+  opponent: string;
+  atHome: boolean;
+  gf: number;
+  ga: number;
+  // Rating change from this game (vs the previous point, or vs 1500 first).
+  delta: number;
 }
 
 const expected = (a: number, b: number): number => 1 / (1 + Math.pow(10, -(a - b) / 400));
@@ -36,14 +42,21 @@ export function eloCurves(
     const nextA = ra + K * ((1 - scoreHome) - (1 - expHome));
     rating.set(m.team1, nextH);
     rating.set(m.team2, nextA);
-    for (const [team, value] of [
-      [m.team1, nextH],
-      [m.team2, nextA],
-    ] as const) {
+    const push = (team: string, value: number, before: number, foe: string, atHome: boolean, gf: number, ga: number): void => {
       const curve = curves.get(team) ?? [];
-      curve.push({ date: m.date, elo: Math.round(value) });
+      curve.push({
+        date: m.date,
+        elo: Math.round(value),
+        opponent: foe,
+        atHome,
+        gf,
+        ga,
+        delta: Math.round((value - before) * 10) / 10,
+      });
       curves.set(team, curve);
-    }
+    };
+    push(m.team1, nextH, rh, m.team2, true, m.ft[0], m.ft[1]);
+    push(m.team2, nextA, ra, m.team1, false, m.ft[1], m.ft[0]);
   }
   const take = (team: string): EloPoint[] => (curves.get(team) ?? []).slice(-limit);
   return { home: take(home), away: take(away) };
