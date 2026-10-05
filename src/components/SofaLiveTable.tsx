@@ -362,6 +362,49 @@ export default function SofaLiveTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+        {pinnedRows.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 border-b border-neutral-800 p-4 sm:grid-cols-2 xl:grid-cols-3">
+            {pinnedRows.map((g) => {
+              const d = detail[g.id];
+              const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
+              return (
+                <div key={g.id} className="rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <p className="truncate text-[11px] text-neutral-500">{leagueOf(g)}</p>
+                    <button
+                      type="button"
+                      onClick={() => togglePin(g)}
+                      title="Desafixar"
+                      className="shrink-0 text-sm text-emerald-400 transition hover:text-neutral-400"
+                    >
+                      📌
+                    </button>
+                  </div>
+                  <div className="mb-2">
+                    {g.phase === "halftime" ? (
+                      <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
+                    ) : g.minute !== null ? (
+                      <span className="text-xs font-semibold text-red-400">● {g.minute}&apos; AO VIVO</span>
+                    ) : (
+                      <PeriodLabel g={g} />
+                    )}
+                  </div>
+                  <p className="truncate text-sm text-neutral-200">{g.home}</p>
+                  <div className="my-1 flex items-baseline gap-2">
+                    <span className="text-2xl font-bold tabular-nums text-emerald-400">
+                      {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
+                    </span>
+                    {d?.ht && <span className="text-xs text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
+                  </div>
+                  <p className="mb-3 truncate text-sm text-neutral-200">{g.away}</p>
+                  <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
+                    Analisar no live →
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <table className="w-full min-w-[64rem] text-sm">
           <thead>
             <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
@@ -387,20 +430,6 @@ export default function SofaLiveTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/70">
-            {pinnedRows.length > 0 && (
-              <Fragment key="pinned">
-                <tr className="bg-emerald-500/[0.06]">
-                  <td colSpan={compact ? 5 : 14} className="px-4 py-2 text-xs">
-                    <span className="mr-1.5">📌</span>
-                    <span className="font-semibold text-neutral-200">Afixados</span>{" "}
-                    <span className="text-neutral-500">
-                      {pinnedRows.length} {pinnedRows.length === 1 ? "jogo" : "jogos"}
-                    </span>
-                  </td>
-                </tr>
-                {pinnedRows.map(gameRow)}
-              </Fragment>
-            )}
             {groups.map((grp, gi) => (
               <Fragment key={`g${gi}`}>
                 <tr className="bg-neutral-800/40">
