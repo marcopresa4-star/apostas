@@ -37,8 +37,9 @@ export default async function BotsPage() {
     <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🤖 Bots</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Robôs que vigiam jogos ao vivo e avisam quando as tuas condições se verificam — com esta página aberta. Com a
-        app fechada nada corre (não há servidor sempre-ligado), nem há push para o telemóvel: o alerta é do browser.
+        Robôs que vigiam jogos ao vivo e avisam quando as tuas condições se verificam — em qualquer página do site,
+        com um separador aberto. De browser fechado nada corre (não há servidor sempre-ligado), nem há push para o
+        telemóvel: o alerta é do browser.
       </p>
       <BotsClient bots={bots ?? []} alerts={alerts ?? []} leagues={leagues} />
     </div>

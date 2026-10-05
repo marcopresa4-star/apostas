@@ -42,7 +42,6 @@ export default function BotsClient({
   leagues: { code: string; label: string }[];
 }) {
   const router = useRouter();
-  const [watching, setWatching] = useState(bots.some((b) => b.enabled));
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<BotRow | null>(null);
   const [extra, setExtra] = useState<Fired[]>([]);
@@ -53,6 +52,8 @@ export default function BotsClient({
   const [sort, setSort] = useState("padrao");
   const [perm, setPerm] = useState<string>(typeof Notification !== "undefined" ? Notification.permission : "denied");
   const seen = useRef<Set<string>>(new Set());
+  // The global watcher (layout) polls on every page; this button is only the
+  // manual trigger. No auto-poll here, or every check would run twice.
 
   const check = useCallback(async () => {
     setChecking(true);
@@ -89,11 +90,9 @@ export default function BotsClient({
   }, [perm, router]);
 
   useEffect(() => {
-    if (!watching || bots.every((b) => !b.enabled)) return;
-    check();
-    const t = setInterval(check, 60_000);
-    return () => clearInterval(t);
-  }, [watching, bots, check]);
+    // Seed the seen set so a fresh page load does not re-notify old alerts.
+    for (const a of alerts) seen.current.add(a.id);
+  }, [alerts]);
 
   const askPerm = async () => {
     try {
@@ -136,13 +135,6 @@ export default function BotsClient({
         </button>
         <button
           type="button"
-          onClick={() => setWatching((w) => !w)}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${watching ? "bg-emerald-600 text-white hover:bg-emerald-500" : "border border-neutral-700 text-neutral-300 hover:border-neutral-500"}`}
-        >
-          {watching ? "● A vigiar" : "○ Vigiar"}
-        </button>
-        <button
-          type="button"
           onClick={check}
           disabled={checking}
           className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 disabled:opacity-50"
@@ -160,6 +152,9 @@ export default function BotsClient({
         )}
         <span className="text-xs text-neutral-500">
           {offline ? "Scraper desligado." : lastCheck ? `Última verificação ${lastCheck}.` : "Por verificar."}{" "}
+          {bots.some((b) => b.enabled)
+            ? "Vigilância ativa em todas as páginas."
+            : "Sem bots ativos: nada a vigiar."}{" "}
           {perm === "granted" ? "Notificações ligadas." : "Notificações desligadas (só a lista)."}
         </span>
       </div>
