@@ -37,6 +37,14 @@ const NAV_ITEMS = [
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
     adminOnly: true,
   },
+  {
+    href: "/estatisticas/ao-vivo",
+    label: "Ao vivo agora",
+    icon: "🔴",
+    chip: "bg-red-500/15 text-red-400",
+    active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
+    adminOnly: true,
+  },
 ];
 
 function isActivePath(pathname: string, href: string) {
