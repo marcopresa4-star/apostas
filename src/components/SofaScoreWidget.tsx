@@ -1129,6 +1129,7 @@ export default function SofaScoreWidget({
           <iframe
             src={`https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`}
             loading="lazy"
+            scrolling="no"
             referrerPolicy="no-referrer-when-downgrade"
             title={`SofaScore live tracker · evento ${eventId}`}
             className="h-[320px] w-full border-0 transition-transform duration-500"
