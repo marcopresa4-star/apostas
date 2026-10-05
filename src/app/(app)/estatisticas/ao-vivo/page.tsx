@@ -2,16 +2,52 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps, seasonTeamNames, tournamentSeasons } from "@/lib/sofaHistory";
+import { sofaRaw } from "@/lib/sofaRaw";
+import { eventOdds } from "@/lib/sofaOdds";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { findGameByNames } from "@/lib/liveMatch";
 import { gamesOf, summarize, type PlayedMatch, type TeamGame } from "@/lib/footballModel";
 import { Suspense } from "react";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
-import SofaLiveTable, { type SofaBoardStats } from "@/components/SofaLiveTable";
+import SofaLiveTable, { type SofaBoardDetail, type SofaBoardRings, type SofaBoardStats } from "@/components/SofaLiveTable";
 
 const RECENT = 5;
 const form = (games: TeamGame[]) => games.slice(0, RECENT).map((g) => g.result);
+
+// Last-5 averages per side (overall scored/conceded, venue split, BTTS
+// share): the rings on the board. Null when there is nothing to average.
+function ringOf(games: TeamGame[], venue: "home" | "away"): { gm: number | null; gs: number | null; venue: number | null; btts: number | null } {
+  const last = games.slice(0, RECENT);
+  const avg = (list: TeamGame[], f: (g: TeamGame) => number): number | null =>
+    list.length > 0 ? list.reduce((s, g) => s + f(g), 0) / list.length : null;
+  const atVenue = last.filter((g) => !g.neutral && (venue === "home") === g.home);
+  return {
+    gm: avg(last, (g) => g.gf),
+    gs: avg(last, (g) => g.ga),
+    venue: venue === "home" ? avg(atVenue, (g) => g.gf) : avg(atVenue, (g) => g.ga),
+    btts: last.length > 0 ? last.filter((g) => g.gf > 0 && g.ga > 0).length / last.length : null,
+  };
+}
+
+// Bounded parallelism for the per-game detail reads below.
+async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) {
+      const k = i++;
+      out[k] = await fn(items[k]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null;
+const obj = (x: unknown): Record<string, unknown> | null =>
+  typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
 
 export default async function AoVivoPage() {
   await requireAdmin();
@@ -65,6 +101,8 @@ async function AoVivoBoard() {
   // games whose clubs aren't linked show score only.
   const stats: Record<number, SofaBoardStats> = {};
   const forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }> = {};
+  const rings: Record<number, SofaBoardRings> = {};
+  const detail: Record<number, SofaBoardDetail> = {};
   if (games.length > 0) {
     const supabase = await createClient();
     const {
@@ -108,7 +146,37 @@ async function AoVivoBoard() {
         if (homeGames.length === 0 && awayGames.length === 0) continue;
         stats[g.id] = { home: summarize(homeGames.slice(0, RECENT)), away: summarize(awayGames.slice(0, RECENT)), leagueLabel: found.label };
         forms[g.id] = { home: form(homeGames), away: form(awayGames) };
+        rings[g.id] = { home: ringOf(homeGames, "home"), away: ringOf(awayGames, "away") };
       }
+      // Per-game detail (interval score + live 1X2) for mapped games only:
+      // the world list is long, and each game costs two scraper reads.
+      const mapped = games.filter((g) => stats[g.id]);
+      await pool(mapped, 6, async (g) => {
+        try {
+          const body = await sofaRaw<unknown>(`/event/${g.id}`);
+          const event = obj(obj(body)?.event ?? body) ?? {};
+          const hs = obj(event.homeScore);
+          const as = obj(event.awayScore);
+          const h1 = num(hs?.period1);
+          const a1 = num(as?.period1);
+          const d: SofaBoardDetail = { ht: h1 !== null && a1 !== null ? [h1, a1] : null };
+          try {
+            const parsed = await eventOdds(supabase, user.id, g.id, 60_000).catch(() => null);
+            if (parsed) {
+              const byKey: Record<string, number> = {};
+              for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+              if (byKey["ft:home"] && byKey["ft:draw"] && byKey["ft:away"]) {
+                d.odds = { home: byKey["ft:home"], draw: byKey["ft:draw"], away: byKey["ft:away"] };
+              }
+            }
+          } catch {
+            // Odds are garnish: the row stands without them.
+          }
+          detail[g.id] = d;
+        } catch {
+          // Event read failed: the list row (minute + score) still stands.
+        }
+      });
     }
   }
 
@@ -136,7 +204,7 @@ async function AoVivoBoard() {
           vez — tenta atualizar daqui a pouco.
         </p>
       ) : (
-        <SofaLiveTable games={games} stats={stats} form={forms} />
+        <SofaLiveTable games={games} stats={stats} form={forms} rings={rings} detail={detail} />
       )}
     </>
   );

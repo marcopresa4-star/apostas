@@ -1,16 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
-import type { Summary } from "@/lib/footballModel";
 import { addWatchedMatch } from "@/app/(app)/actions";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
+export interface BoardRing {
+  gm: number | null;
+  gs: number | null;
+  // Venue split: scored at home (casa) or conceded away (fora).
+  venue: number | null;
+  btts: number | null;
+}
+
+export interface SofaBoardRings {
+  home: BoardRing;
+  away: BoardRing;
+}
+
+export interface SofaBoardDetail {
+  // Half-time score, only read for mapped leagues (one extra read per game).
+  ht: [number, number] | null;
+  // Live 1X2, when the feed prices the game.
+  odds?: { home: number; draw: number; away: number };
+}
+
+// Legacy shape (kept for the caller): per-side over/under summaries.
 export interface SofaBoardStats {
-  home: Summary | null;
-  away: Summary | null;
+  home: { gfPerGame: number; gaPerGame: number } | null;
+  away: { gfPerGame: number; gaPerGame: number } | null;
   leagueLabel: string;
 }
 
@@ -55,59 +75,42 @@ function PeriodLabel({ g }: { g: SofaLiveEntry }) {
   return <span className="font-semibold text-red-400">{label}</span>;
 }
 
-function Stats({ s }: { s: Summary | null }) {
-  if (!s) return <td className="px-2 py-2 text-center text-neutral-700">—</td>;
+// Average ring (mockup style): value inside, arc proportional (scale 0–3 goals).
+function Ring({ value, tone }: { value: number | null; tone: "green" | "orange" }) {
+  if (value === null) return <span className="text-neutral-700">—</span>;
+  const frac = Math.min(1, Math.max(0, value / 3));
+  const color = tone === "green" ? "#34d399" : "#fb923c";
   return (
-    <td className="px-2 py-2 text-center text-neutral-300">
-      {num1(s.gfPerGame)}–{num1(s.gaPerGame)}
-    </td>
+    <span className="inline-flex items-center gap-1.5">
+      <svg width="22" height="22" viewBox="0 0 22 22" role="img" aria-label={num1(value)}>
+        <circle cx="11" cy="11" r="9" fill="none" stroke="#3f3f46" strokeWidth="2.5" />
+        <circle
+          cx="11"
+          cy="11"
+          r="9"
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={`${(frac * 56.5).toFixed(1)} 56.5`}
+          transform="rotate(-90 11 11)"
+        />
+      </svg>
+      <span className="text-xs font-medium text-neutral-200">{num1(value)}</span>
+    </span>
   );
 }
 
-type SortKey = "minute" | "league" | "game" | "score" | "home" | "away" | "formHome" | "formAway";
-
-const minuteValue = (g: SofaLiveEntry): number =>
-  g.phase === "halftime" ? 45 : (g.minute ?? -1);
-
-const formPoints = (form: ("V" | "E" | "D")[]): number =>
-  form.reduce((n, r) => n + (r === "V" ? 3 : r === "E" ? 1 : 0), 0);
-
-function Header({
-  label,
-  sortKey,
-  active,
-  dir,
-  onSort,
-  center,
-  title,
-}: {
-  label: string;
-  sortKey: SortKey;
-  active: SortKey | null;
-  dir: 1 | -1;
-  onSort: (key: SortKey) => void;
-  center?: boolean;
-  title?: string;
-}) {
-  return (
-    <th className={`px-2 py-2 font-semibold ${center ? "text-center" : "text-left"}`} title={title}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        title={`Ordenar por ${label.toLowerCase()}`}
-        className={`inline-flex items-center gap-1 uppercase tracking-wide hover:text-neutral-200 ${active === sortKey ? "text-emerald-300" : ""}`}
-      >
-        {label}
-        <span aria-hidden className="text-[9px]">{active === sortKey ? (dir === 1 ? "▲" : "▼") : "△"}</span>
-      </button>
-    </th>
-  );
+function Btts({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-neutral-700">—</span>;
+  const cls = value >= 0.6 ? "bg-emerald-500/15 text-emerald-300" : value >= 0.4 ? "bg-amber-500/15 text-amber-300" : "bg-red-500/15 text-red-300";
+  return <span className={`rounded-md px-1.5 py-0.5 text-xs font-semibold ${cls}`}>{Math.round(value * 100)}%</span>;
 }
 
-// The live board keyed by SofaScore event id. "Analisar" opens the live
-// calculator with ?sofascore=id:. Columns sort both ways on click.
-// Leagues can be favorited (★) and filtered to; games can be pinned (📌) to
-// the top. Both persist in this browser.
+// The live board grouped by league, like a fixtures board: one header row
+// per competition, then its games in kickoff order. "Analisar" opens the live
+// calculator with ?sofascore=id:. Leagues can be favorited (★) and filtered
+// to; games can be pinned (📌) to the top. Both persist in this browser.
 const FAV_LEAGUES_KEY = "apostas:favLeagues";
 const PINNED_GAMES_KEY = "apostas:pinnedGames";
 
@@ -125,15 +128,18 @@ export default function SofaLiveTable({
   games,
   stats,
   form,
+  rings,
+  detail,
 }: {
   games: SofaLiveEntry[];
   stats: Record<number, SofaBoardStats>;
   form: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }>;
+  rings: Record<number, SofaBoardRings>;
+  detail: Record<number, SofaBoardDetail>;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [dir, setDir] = useState<1 | -1>(1);
   const [query, setQuery] = useState("");
   const [favOnly, setFavOnly] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [added, setAdded] = useState<Set<number>>(new Set());
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
@@ -145,43 +151,6 @@ export default function SofaLiveTable({
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
   }, []);
-  const onSort = (key: SortKey) => {
-    if (sortKey === key) setDir((d) => (d === 1 ? -1 : 1));
-    else {
-      setSortKey(key);
-      setDir(1);
-    }
-  };
-
-  const sorted = useMemo(() => {
-    if (!sortKey) return games;
-    const val = (g: SofaLiveEntry): string | number => {
-      switch (sortKey) {
-        case "minute":
-          return minuteValue(g);
-        case "league":
-          return (stats[g.id]?.leagueLabel ?? g.competition).toLowerCase();
-        case "game":
-          return `${g.home} ${g.away}`.toLowerCase();
-        case "score":
-          return (g.homeGoals ?? -1) * 100 + (g.awayGoals ?? -1);
-        case "home":
-          return stats[g.id]?.home ? stats[g.id].home!.gfPerGame - stats[g.id].home!.gaPerGame : -999;
-        case "away":
-          return stats[g.id]?.away ? stats[g.id].away!.gfPerGame - stats[g.id].away!.gaPerGame : -999;
-        case "formHome":
-          return form[g.id] ? formPoints(form[g.id].home) : -1;
-        case "formAway":
-          return form[g.id] ? formPoints(form[g.id].away) : -1;
-      }
-    };
-    return [...games].sort((a, b) => {
-      const va = val(a);
-      const vb = val(b);
-      const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb));
-      return cmp !== 0 ? cmp * dir : a.kickoff.localeCompare(b.kickoff);
-    });
-  }, [games, stats, form, sortKey, dir]);
 
   const leagueOf = (g: SofaLiveEntry): string => stats[g.id]?.leagueLabel ?? g.competition;
 
@@ -229,7 +198,7 @@ export default function SofaLiveTable({
   };
 
   const q = query.trim().toLowerCase();
-  const visible = sorted.filter((g) => {
+  const visible = games.filter((g) => {
     if (favOnly && !favLeagues.has(leagueOf(g))) return false;
     if (!q) return true;
     return (
@@ -238,10 +207,21 @@ export default function SofaLiveTable({
       g.away.toLowerCase().includes(q)
     );
   });
-  // Pinned games always on top, in kickoff order; the rest follows the sort.
-  const pinnedRows = visible.filter((g) => pinned.has(String(g.id)));
-  const restRows = visible.filter((g) => !pinned.has(String(g.id)));
-  const rows = [...pinnedRows, ...restRows];
+  // Pinned games always on top, in kickoff order; the rest follows it too.
+  const byKickoff = [...visible].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
+  const rows = [...byKickoff.filter((g) => pinned.has(String(g.id))), ...byKickoff.filter((g) => !pinned.has(String(g.id)))];
+  // Groups in order of appearance (pinned block first, like the rows).
+  const groups = useMemo(() => {
+    const out: { league: string; games: SofaLiveEntry[] }[] = [];
+    for (const g of rows) {
+      const league = leagueOf(g);
+      const last = out[out.length - 1];
+      if (last && last.league === league) last.games.push(g);
+      else out.push({ league, games: [g] });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return out;
+  }, [games, stats, query, favOnly, pinned]);
 
   return (
     <div>
@@ -265,6 +245,14 @@ export default function SofaLiveTable({
         >
           ★ Favoritas{favLeagues.size > 0 ? ` (${favLeagues.size})` : ""}
         </button>
+        <button
+          type="button"
+          onClick={() => setCompact((v) => !v)}
+          title={compact ? "Ver com estatísticas" : "Ver só resultado"}
+          className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-400 transition hover:text-neutral-200"
+        >
+          {compact ? "▦ Compacta" : "☰ Detalhada"}
+        </button>
         {(query || favOnly || pinned.size > 0) && (
           <span className="text-xs text-neutral-500">
             {rows.length} de {games.length} jogos
@@ -273,109 +261,158 @@ export default function SofaLiveTable({
         )}
       </div>
       <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
-      <table className="w-full min-w-[62rem] text-sm">
-        <thead>
-          <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
-            <th className="px-2 py-2 font-semibold"></th>
-            <Header label="Minuto" sortKey="minute" active={sortKey} dir={dir} onSort={onSort} />
-            <Header label="Liga" sortKey="league" active={sortKey} dir={dir} onSort={onSort} />
-            <Header label="Jogo" sortKey="game" active={sortKey} dir={dir} onSort={onSort} />
-            <Header label="Resultado" sortKey="score" active={sortKey} dir={dir} onSort={onSort} center />
-            <Header label="GM–GS casa" sortKey="home" active={sortKey} dir={dir} onSort={onSort} center title="Golos marcados e sofridos por jogo, últimos 5" />
-            <Header label="GM–GS fora" sortKey="away" active={sortKey} dir={dir} onSort={onSort} center title="Golos marcados e sofridos por jogo, últimos 5" />
-            <Header label="Forma casa" sortKey="formHome" active={sortKey} dir={dir} onSort={onSort} />
-            <Header label="Forma fora" sortKey="formAway" active={sortKey} dir={dir} onSort={onSort} />
-            <th className="px-3 py-2 font-semibold"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-neutral-800/70">
-          {rows.map((g) => {
-            const s = stats[g.id];
-            const f = form[g.id];
-            const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
-            const league = leagueOf(g);
-            const isPinned = pinned.has(String(g.id));
-            return (
-              <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
-                <td className="py-2.5 pr-0 pl-3">
-                  <button
-                    type="button"
-                    onClick={() => togglePin(g)}
-                    title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
-                    className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
-                  >
-                    📌
-                  </button>
-                </td>
-                <td className="px-3 py-2.5 whitespace-nowrap">
-                  {g.phase === "halftime" ? (
-                    <span className="font-semibold text-emerald-400">Intervalo</span>
-                  ) : (
-                    <PeriodLabel g={g} />
-                  )}
-                </td>
-                <td className="max-w-[9rem] truncate px-3 py-2.5 text-xs text-neutral-400" title={league}>
-                  <button
-                    type="button"
-                    onClick={() => toggleFavLeague(league)}
-                    title={favLeagues.has(league) ? "Tirar das favoritas" : "Marcar liga como favorita"}
-                    className={`mr-1 transition ${favLeagues.has(league) ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
-                  >
-                    ★
-                  </button>
-                  {league}
-                </td>
-                <td className="px-3 py-2.5">
-                  <span className="text-neutral-100">{g.home}</span> <span className="text-neutral-600">vs</span>{" "}
-                  <span className="text-neutral-100">{g.away}</span>
-                </td>
-                <td className="px-3 py-2.5 text-center font-semibold text-neutral-100">
-                  {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
-                </td>
-                <Stats s={s?.home ?? null} />
-                <Stats s={s?.away ?? null} />
-                <td className="px-2 py-2.5">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
-                <td className="px-2 py-2.5">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
-                <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                  {added.has(g.id) ? (
-                    <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
-                      ✓ Nos Jogos
-                    </Link>
-                  ) : (
+        <table className="w-full min-w-[64rem] text-sm">
+          <thead>
+            <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
+              <th className="px-2 py-2 font-semibold"></th>
+              <th className="px-3 py-2 text-left font-semibold">Minuto</th>
+              <th className="px-3 py-2 text-left font-semibold">Liga</th>
+              <th className="px-3 py-2 text-left font-semibold">Jogo</th>
+              <th className="px-3 py-2 text-center font-semibold">Resultado</th>
+              {!compact && (
+                <>
+                  <th className="px-2 py-2 text-center font-semibold" title="Golos marcados por jogo, últimos 5">GM</th>
+                  <th className="px-2 py-2 text-center font-semibold" title="Golos sofridos por jogo, últimos 5">GS</th>
+                  <th className="px-2 py-2 text-center font-semibold" title="Marcados em casa / sofridos fora, últimos 5">GM-C</th>
+                  <th className="px-2 py-2 text-center font-semibold" title="Sofridos fora / marcados em casa, últimos 5">GS-F</th>
+                  <th className="px-2 py-2 text-center font-semibold" title="Ambas marcam, últimos 5">BTS</th>
+                  <th className="px-2 py-2 text-left font-semibold">Frm-C</th>
+                  <th className="px-2 py-2 text-left font-semibold">Frm-F</th>
+                  <th className="px-2 py-2 text-center font-semibold">1</th>
+                  <th className="px-2 py-2 text-center font-semibold">X</th>
+                  <th className="px-2 py-2 text-center font-semibold">2</th>
+                </>
+              )}
+              <th className="px-3 py-2 font-semibold"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-800/70">
+            {groups.map((grp) => (
+              <Fragment key={`h-${grp.league}`}>
+                <tr className="bg-neutral-800/40">
+                  <td colSpan={compact ? 6 : 15} className="px-3 py-1.5 text-xs">
                     <button
                       type="button"
-                      disabled={pendingId === g.id}
-                      onClick={() => {
-                        setPendingId(g.id);
-                        startTransition(async () => {
-                          try {
-                            await addWatchedMatch(g.home, g.away, null, null, `id:${g.id}`);
-                            setAdded((prev) => new Set(prev).add(g.id));
-                          } finally {
-                            setPendingId(null);
-                          }
-                        });
-                      }}
-                      title="Passar para os Jogos"
-                      className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
+                      onClick={() => toggleFavLeague(grp.league)}
+                      title={favLeagues.has(grp.league) ? "Tirar das favoritas" : "Marcar liga como favorita"}
+                      className={`mr-1.5 transition ${favLeagues.has(grp.league) ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
                     >
-                      {pendingId === g.id ? "…" : "+ Jogos"}
+                      ★
                     </button>
-                  )}
-                  <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
-                    Analisar →
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {rows.length === 0 && (
-        <p className="px-4 py-8 text-center text-sm text-neutral-500">
-          Nada corresponde ao filtro. Marca ligas com ★ ou limpa a pesquisa.
-        </p>
-      )}
+                    <span className="font-semibold text-neutral-200">{grp.league}</span>{" "}
+                    <span className="text-neutral-500">
+                      {grp.games.length} {grp.games.length === 1 ? "jogo" : "jogos"}
+                    </span>
+                  </td>
+                </tr>
+                {grp.games.map((g) => {
+                  const r = rings[g.id];
+                  const d = detail[g.id];
+                  const f = form[g.id];
+                  const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
+                  const isPinned = pinned.has(String(g.id));
+                  return (
+                    <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
+                      <td className="py-2.5 pr-0 pl-3">
+                        <button
+                          type="button"
+                          onClick={() => togglePin(g)}
+                          title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
+                          className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
+                        >
+                          📌
+                        </button>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        {g.phase === "halftime" ? (
+                          <span className="font-semibold text-emerald-400">Intervalo</span>
+                        ) : (
+                          <PeriodLabel g={g} />
+                        )}
+                      </td>
+                      <td className="max-w-[9rem] truncate px-3 py-2.5 text-xs text-neutral-400" title={leagueOf(g)}>
+                        {leagueOf(g)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-neutral-100">{g.home}</span> <span className="text-neutral-600">vs</span>{" "}
+                        <span className="text-neutral-100">{g.away}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-neutral-100">
+                        {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
+                        {d?.ht && <span className="ml-1 text-[11px] font-normal text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
+                      </td>
+                      {!compact && (
+                        <>
+                          <td className="px-2 py-2.5 text-center">
+                            <Ring value={r?.home.gm ?? null} tone="green" />
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <Ring value={r?.home.gs ?? null} tone="orange" />
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <Ring value={r?.home.venue ?? null} tone="green" />
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <Ring value={r?.away.venue ?? null} tone="orange" />
+                          </td>
+                          <td className="px-2 py-2.5 text-center">
+                            <Btts value={r ? Math.max(r.home.btts ?? -1, r.away.btts ?? -1) : null} />
+                          </td>
+                          <td className="px-2 py-2.5">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
+                          <td className="px-2 py-2.5">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
+                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                            {d?.odds ? d.odds.home.toFixed(2).replace(".", ",") : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                            {d?.odds ? d.odds.draw.toFixed(2).replace(".", ",") : "—"}
+                          </td>
+                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                            {d?.odds ? d.odds.away.toFixed(2).replace(".", ",") : "—"}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                        {added.has(g.id) ? (
+                          <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
+                            ✓ Nos Jogos
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={pendingId === g.id}
+                            onClick={() => {
+                              setPendingId(g.id);
+                              startTransition(async () => {
+                                try {
+                                  await addWatchedMatch(g.home, g.away, null, null, `id:${g.id}`);
+                                  setAdded((prev) => new Set(prev).add(g.id));
+                                } finally {
+                                  setPendingId(null);
+                                }
+                              });
+                            }}
+                            title="Passar para os Jogos"
+                            className="mr-2 text-xs font-medium text-sky-400 hover:underline disabled:opacity-50"
+                          >
+                            {pendingId === g.id ? "…" : "+ Jogos"}
+                          </button>
+                        )}
+                        <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
+                          Analisar →
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm text-neutral-500">
+            Nada corresponde ao filtro. Marca ligas com ★ ou limpa a pesquisa.
+          </p>
+        )}
       </div>
     </div>
   );
