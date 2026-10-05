@@ -264,33 +264,32 @@ export default function SofaLiveTable({
         <table className="w-full min-w-[64rem] text-sm">
           <thead>
             <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
-              <th className="px-2 py-2 font-semibold"></th>
-              <th className="px-3 py-2 text-left font-semibold">Minuto</th>
-              <th className="px-3 py-2 text-left font-semibold">Liga</th>
-              <th className="px-3 py-2 text-left font-semibold">Jogo</th>
-              <th className="px-3 py-2 text-center font-semibold">Resultado</th>
+              <th className="px-2 py-2.5 font-semibold"></th>
+              <th className="px-3 py-2.5 text-left font-semibold">Minuto</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Jogo</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Resultado</th>
               {!compact && (
                 <>
-                  <th className="px-2 py-2 text-center font-semibold" title="Golos marcados por jogo, últimos 5">GM</th>
-                  <th className="px-2 py-2 text-center font-semibold" title="Golos sofridos por jogo, últimos 5">GS</th>
-                  <th className="px-2 py-2 text-center font-semibold" title="Marcados em casa / sofridos fora, últimos 5">GM-C</th>
-                  <th className="px-2 py-2 text-center font-semibold" title="Sofridos fora / marcados em casa, últimos 5">GS-F</th>
-                  <th className="px-2 py-2 text-center font-semibold" title="Ambas marcam, últimos 5">BTS</th>
-                  <th className="px-2 py-2 text-left font-semibold">Frm-C</th>
-                  <th className="px-2 py-2 text-left font-semibold">Frm-F</th>
-                  <th className="px-2 py-2 text-center font-semibold">1</th>
-                  <th className="px-2 py-2 text-center font-semibold">X</th>
-                  <th className="px-2 py-2 text-center font-semibold">2</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="Golos marcados por jogo, últimos 5">GM</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="Golos sofridos por jogo, últimos 5">GS</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="Marcados em casa, últimos 5">GM-C</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="Sofridos fora, últimos 5">GS-F</th>
+                  <th className="px-3 py-2.5 text-center font-semibold" title="Ambas marcam, últimos 5">BTS</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">Frm-C</th>
+                  <th className="px-3 py-2.5 text-left font-semibold">Frm-F</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">1</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">X</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">2</th>
                 </>
               )}
-              <th className="px-3 py-2 font-semibold"></th>
+              <th className="px-3 py-2.5 font-semibold"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/70">
             {groups.map((grp, gi) => (
               <Fragment key={`g${gi}`}>
                 <tr className="bg-neutral-800/40">
-                  <td colSpan={compact ? 6 : 15} className="px-3 py-1.5 text-xs">
+                  <td colSpan={compact ? 5 : 14} className="px-4 py-2 text-xs">
                     <button
                       type="button"
                       onClick={() => toggleFavLeague(grp.league)}
@@ -313,7 +312,7 @@ export default function SofaLiveTable({
                   const isPinned = pinned.has(String(g.id));
                   return (
                     <tr key={g.id} className={isPinned ? "bg-emerald-500/[0.04]" : undefined}>
-                      <td className="py-2.5 pr-0 pl-3">
+                      <td className="py-3 pr-0 pl-4">
                         <button
                           type="button"
                           onClick={() => togglePin(g)}
@@ -323,55 +322,53 @@ export default function SofaLiveTable({
                           📌
                         </button>
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {g.phase === "halftime" ? (
                           <span className="font-semibold text-emerald-400">Intervalo</span>
                         ) : (
                           <PeriodLabel g={g} />
                         )}
                       </td>
-                      <td className="max-w-[9rem] truncate px-3 py-2.5 text-xs text-neutral-400" title={leagueOf(g)}>
-                        {leagueOf(g)}
+                      <td className="min-w-56 px-4 py-3">
+                        <span className="block text-neutral-100">
+                          {g.home} <span className="text-neutral-600">vs</span> {g.away}
+                        </span>
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span className="text-neutral-100">{g.home}</span> <span className="text-neutral-600">vs</span>{" "}
-                        <span className="text-neutral-100">{g.away}</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-neutral-100">
+                      <td className="px-4 py-3 text-center text-base font-semibold whitespace-nowrap text-neutral-100">
                         {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
-                        {d?.ht && <span className="ml-1 text-[11px] font-normal text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
+                        {d?.ht && <span className="ml-1.5 text-[11px] font-normal text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
                       </td>
                       {!compact && (
                         <>
-                          <td className="px-2 py-2.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <Ring value={r?.home.gm ?? null} tone="green" />
                           </td>
-                          <td className="px-2 py-2.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <Ring value={r?.home.gs ?? null} tone="orange" />
                           </td>
-                          <td className="px-2 py-2.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <Ring value={r?.home.venue ?? null} tone="green" />
                           </td>
-                          <td className="px-2 py-2.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <Ring value={r?.away.venue ?? null} tone="orange" />
                           </td>
-                          <td className="px-2 py-2.5 text-center">
+                          <td className="px-3 py-3 text-center">
                             <Btts value={r ? Math.max(r.home.btts ?? -1, r.away.btts ?? -1) : null} />
                           </td>
-                          <td className="px-2 py-2.5">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
-                          <td className="px-2 py-2.5">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
-                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                          <td className="px-3 py-3">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
+                          <td className="px-3 py-3">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
+                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
                             {d?.odds ? d.odds.home.toFixed(2).replace(".", ",") : "—"}
                           </td>
-                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
                             {d?.odds ? d.odds.draw.toFixed(2).replace(".", ",") : "—"}
                           </td>
-                          <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">
+                          <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
                             {d?.odds ? d.odds.away.toFixed(2).replace(".", ",") : "—"}
                           </td>
                         </>
                       )}
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
                         {added.has(g.id) ? (
                           <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
                             ✓ Nos Jogos
