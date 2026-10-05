@@ -17,7 +17,7 @@ export default async function AoVivoPage() {
   await requireAdmin();
 
   return (
-    <div data-wide>
+    <div>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Todos os jogos em direto agora, do mundo inteiro, via SofaScore. Nas ligas mapeadas vêm também os golos por jogo e a forma

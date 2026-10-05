@@ -72,7 +72,7 @@ export default async function MapaPage({
   const mapped = maps.length;
 
   return (
-    <div data-wide>
+    <div>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Mapeamento SofaScore (fase 1): dizer onde vive cada liga no SofaScore para o histórico vir de lá em vez dos
