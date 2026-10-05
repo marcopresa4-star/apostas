@@ -287,8 +287,8 @@ export default function SofaLiveTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800/70">
-            {groups.map((grp) => (
-              <Fragment key={`h-${grp.league}`}>
+            {groups.map((grp, gi) => (
+              <Fragment key={`g${gi}`}>
                 <tr className="bg-neutral-800/40">
                   <td colSpan={compact ? 6 : 15} className="px-3 py-1.5 text-xs">
                     <button
