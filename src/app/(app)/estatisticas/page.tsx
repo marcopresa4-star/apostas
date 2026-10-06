@@ -13,7 +13,7 @@ import { loadSofaInternational } from "@/lib/sofaIntl";
 import { activeTeams, isoDaysAgo, toPlayed } from "@/lib/internationalData";
 import { WINDOW_YEARS } from "@/lib/internationalModel";
 import { fitInternational, predictInternational } from "@/lib/internationalModel";
-import { lastLeagueGameDate, nextLeagueGameDate } from "@/lib/footballModel";
+import { lastLeagueGameDate, nextLeagueGameDate, headToHead } from "@/lib/footballModel";
 import { daysBetween, encodeExtra, parseExtras, restFor, type LastGame } from "@/lib/extraGames";
 import MatchupForm, { type AdjustValues } from "@/components/MatchupForm";
 import MatchupReport from "@/components/MatchupReport";
@@ -21,6 +21,7 @@ import EstatisticasTabs from "@/components/EstatisticasTabs";
 import { first, todayISO as todayOf } from "@/lib/searchParams";
 import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
 import { loadAutoTune } from "@/lib/autoTune";
+import { WEIGHT_KEYS, isNeutralW, predictWeighted, weightsFromParams, type ModelWeights, type TeamStyle, type WeightsCtx } from "@/lib/modelWeights";
 
 const DAY_MS = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -39,7 +40,10 @@ export default async function EstatisticasPage({
   let casa = first(params.casa);
   let fora = first(params.fora);
   const raw: Record<string, string> = Object.fromEntries(ADJUST_KEYS.map((key) => [key, first(params[key])]));
-  const formaLocal = first(params.forma_local);
+  // Model weights (sliders): neutral by default, so plain links predict exactly as before.
+  const wraw: Record<string, string> = Object.fromEntries(WEIGHT_KEYS.map((key) => [key, first(params[key])]));
+  wraw.forma_local = first(params.forma_local);
+  const { weights, styles } = weightsFromParams(wraw);
 
   const supabase = await createClient();
   const {
@@ -67,8 +71,8 @@ export default async function EstatisticasPage({
   const league = LEAGUES.find((l) => l.code === liga) ?? null;
   const international = league !== null && isInternational(league.code);
   const neutral = international && first(params.neutro) === "1";
-  const venuePercent = !international && [25, 50, 75, 100].includes(Number(formaLocal)) ? Number(formaLocal) : 0;
   const askedDate = DATE.test(first(params.data_jogo)) ? first(params.data_jogo) : "";
+  const weightsKey = international ? "" : JSON.stringify([weights, styles]);
 
   const maps = !international && user ? await loadMaps(supabase, user.id, "tournament") : [];
   // SofaScore only: unmapped leagues/selects fall back to a teach-me note.
@@ -126,7 +130,7 @@ export default async function EstatisticasPage({
       )}
 
       <Suspense
-        key={`${liga}|${casa}|${fora}|${useSofa}|${useSofaIntl}|${askedDate}|${neutral}|${venuePercent}|${first(params.analisar)}`}
+        key={`${liga}|${casa}|${fora}|${useSofa}|${useSofaIntl}|${askedDate}|${neutral}|${weightsKey}|${first(params.analisar)}`}
         fallback={
           <p className="mt-4 rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
             A carregar os jogos… (a primeira vez em modo SofaScore demora vários minutos; depois é cache)
@@ -140,7 +144,9 @@ export default async function EstatisticasPage({
           raw={raw}
           neutral={neutral}
           askedDate={askedDate}
-          venuePercent={venuePercent}
+          weights={weights}
+          styles={styles}
+          wraw={wraw}
           useSofa={useSofa}
           useSofaIntl={useSofaIntl}
           userId={user?.id ?? null}
@@ -204,7 +210,9 @@ async function CompararBody({
   raw,
   neutral,
   askedDate,
-  venuePercent,
+  weights,
+  styles,
+  wraw,
   useSofa,
   useSofaIntl,
   userId,
@@ -215,7 +223,9 @@ async function CompararBody({
   raw: Record<string, string>;
   neutral: boolean;
   askedDate: string;
-  venuePercent: number;
+  weights: ModelWeights;
+  styles: { home: TeamStyle; away: TeamStyle };
+  wraw: Record<string, string>;
   useSofa: boolean;
   useSofaIntl: boolean;
   userId: string | null;
@@ -291,7 +301,34 @@ async function CompararBody({
   // National teams have their own model: every team's attack and defence are
   // fitted together, and a neutral venue takes the home advantage away.
   const fit = ready && international && data ? fitInternational(data.intl ?? [], now) : null;
-  const predictFn = fit ? (ratio: number) => predictInternational(fit, casa, fora, { neutral, ratio }) : undefined;
+  let predictFn = fit ? (ratio: number) => predictInternational(fit, casa, fora, { neutral, ratio }) : undefined;
+
+  // Model weights (clubs only): table positions from the official table when
+  // the source has one, head-to-head averages from every season in the data.
+  // Neutral weights reproduce predict() exactly, so plain links are untouched.
+  if (ready && data && !international) {
+    const official = sofaTables.length > 0 ? sofaTables[0] : null;
+    const posOf = (team: string): number | null => {
+      if (!official) return null;
+      const at = official.rows.findIndex((r) => r.team === team);
+      return at >= 0 ? at + 1 : null;
+    };
+    const meetings = headToHead([...data.history, ...data.matches], casa, fora);
+    const avgFor = (team: string): number | null => {
+      if (meetings.length === 0) return null;
+      const total = meetings.reduce((s, m) => s + (m.team1 === team ? m.ft[0] : m.ft[1]), 0);
+      return total / meetings.length;
+    };
+    const wctx: WeightsCtx = {
+      homePos: posOf(casa),
+      awayPos: posOf(fora),
+      teamCount: official ? official.rows.length : 0,
+      h2hHome: avgFor(casa),
+      h2hAway: avgFor(fora),
+      h2hGames: meetings.length,
+    };
+    predictFn = (ratio: number) => predictWeighted(data.matches, casa, fora, now, ratio, weights, styles, wctx);
+  }
 
   // When these two meet in the league, from the calendar (home side as chosen).
   const scheduled =
@@ -434,10 +471,29 @@ async function CompararBody({
   }
   if (askedDate) swap.set("data_jogo", askedDate);
   if (neutral) swap.set("neutro", "1");
-  if (venuePercent > 0) swap.set("forma_local", String(venuePercent));
+  for (const key of WEIGHT_KEYS) {
+    if (key === "estilo_casa") {
+      if (wraw.estilo_fora) swap.set("estilo_casa", wraw.estilo_fora);
+    } else if (key === "estilo_fora") {
+      if (wraw.estilo_casa) swap.set("estilo_fora", wraw.estilo_casa);
+    } else if (wraw[key]) {
+      swap.set(key, wraw[key]);
+    }
+  }
   for (const game of extras.casa) swap.append("extra_fora", encodeExtra(game));
   for (const game of extras.fora) swap.append("extra_casa", encodeExtra(game));
   const swapHref = `/estatisticas?${swap}`;
+
+  // "Repor predefinições" keeps everything but the weights and styles.
+  const reset = new URLSearchParams({ liga, casa, fora });
+  for (const key of ADJUST_KEYS) {
+    if (raw[key]) reset.set(key, raw[key]);
+  }
+  if (askedDate) reset.set("data_jogo", askedDate);
+  if (neutral) reset.set("neutro", "1");
+  for (const game of extras.casa) reset.append("extra_casa", encodeExtra(game));
+  for (const game of extras.fora) reset.append("extra_fora", encodeExtra(game));
+  const resetWeightsHref = `/estatisticas?${reset}`;
 
   // Under the rest field: what was worked out for the game's date, or else
   // what the calendar says. All competitions count (plus the typed-in games).
@@ -499,7 +555,9 @@ async function CompararBody({
         extras={extras}
         matchDate={askedDate}
         scheduledDate={scheduled}
-        formaLocal={String(venuePercent)}
+        pesos={wraw}
+        pesosAtivos={!isNeutralW(weights, styles)}
+        resetPesosHref={resetWeightsHref}
         international={international}
         neutral={neutral}
       />
@@ -540,7 +598,7 @@ async function CompararBody({
           adjust={adjust}
           extras={{ home: extras.casa, away: extras.fora }}
           notes={notes}
-          venueWeight={venuePercent / 100}
+          venueWeight={weights.venue / 100}
           timing={timing}
           realByKey={realByKey}
           realOpenByKey={realOpenByKey}
