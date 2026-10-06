@@ -107,6 +107,21 @@ const ODD_KEY: Record<string, string | null> = {
   btts: "btts:yes",
 };
 
+// Bounded parallelism: the local scraper answers one read at a time, so
+// unbounded Promise.all just queues dozens of chains behind each other.
+async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let k = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (k < items.length) {
+      const n = k++;
+      out[n] = await fn(items[n]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 interface Fired {
   id: string;
   bot_id: string;
@@ -147,17 +162,17 @@ export async function POST() {
     .is("hit", null)
     .order("created_at", { ascending: false })
     .limit(MAX_SETTLE);
-  for (const a of open ?? []) {
+  await pool(open ?? [], 6, async (a) => {
     try {
       const body = await sofaRaw<unknown>(`/event/${a.event_id}`);
       const event = obj((body as Record<string, unknown> | null)?.event ?? body);
       const finished = String(obj(event?.status)?.type ?? "").toLowerCase() === "finished";
-      if (!finished) continue;
+      if (!finished) return;
       const hs = obj(event?.homeScore);
       const as = obj(event?.awayScore);
       const fhg = num(hs?.current) ?? num(hs?.display);
       const fag = num(as?.current) ?? num(as?.display);
-      if (fhg === null || fag === null) continue;
+      if (fhg === null || fag === null) return;
       await supabase
         .from("bot_alerts")
         .update({ hit: settleAlert(a.market as Bot["market"], a.hg, a.ag, fhg, fag) })
@@ -165,7 +180,7 @@ export async function POST() {
     } catch {
       // Next run.
     }
-  }
+  });
 
   let live;
   try {
@@ -190,19 +205,19 @@ export async function POST() {
   const stats: Record<string, { checked: number; passing: number }> = {};
   for (const b of active) stats[b.id] = { checked: 0, passing: 0 };
 
-  for (const g of games) {
+  await pool(games, 4, async (g) => {
     let resolved: Awaited<ReturnType<typeof resolveSofaLink>> | null = null;
     try {
       resolved = await resolveSofaLink(supabase, user.id, `id:${g.id}`);
     } catch {
-      continue;
+      return;
     }
-    if (!resolved || "error" in resolved || !resolved.leagueCode || !resolved.casa || !resolved.fora) continue;
+    if (!resolved || "error" in resolved || !resolved.leagueCode || !resolved.casa || !resolved.fora) return;
     const leagueCode = resolved.leagueCode;
     const casa = resolved.casa;
     const fora = resolved.fora;
     const mine = active.filter((b) => b.leagues.length === 0 || b.leagues.includes(leagueCode));
-    if (mine.length === 0) continue;
+    if (mine.length === 0) return;
 
     // One event read serves score, minute, phase and cards for every bot.
     let snap: { minute: number; phase: "live" | "halftime"; hg: number; ag: number; rh: number; ra: number; yh: number } | null = null;
@@ -218,7 +233,7 @@ export async function POST() {
       const desc = String(st?.description ?? "");
       const m = /(\d{1,3})(?:\s*\+\s*(\d{1,2}))?/.exec(desc);
       const minute = phase === "halftime" ? 45 : m ? Math.min(130, Number(m[1]) + (m[2] ? Number(m[2]) : 0)) : (g.minute ?? 0);
-      if (hg === null || ag === null) continue;
+      if (hg === null || ag === null) return;
       // Cards from incidents (goals carry minute order with them too).
       const inc = obj(body as Record<string, unknown>)?.incidents;
       let yh = 0;
@@ -238,32 +253,48 @@ export async function POST() {
       }
       snap = { minute, phase, hg, ag, rh, ra, yh: yh + ya };
     } catch (err) {
-      if (err instanceof ScraperOffline) return Response.json({ error: "scraper-offline" }, { status: 503 });
-      continue;
+      if (err instanceof ScraperOffline) return; // transient: next minute retries
+      return;
     }
-    if (!snap) continue;
+    if (!snap) return;
 
-    // Shared per-game reads, once: stats, shots, pre-match expectation.
-    let statVals: Partial<StatValues> | null = null;
-    let shots: Shot[] | null = null;
+    // Shared per-game reads, once: stats, shots, pre-match expectation, odds.
+    // Independent of each other, so they go together (Supabase cache hits
+    // resolve without touching the serial scraper).
     const needStats = mine.some((b) => b.stats.some((s) => !["yellows_total", "reds_total", "pressure_recent"].includes(s.k)));
     const needShots = mine.some((b) => b.stats.some((s) => ["shots_total", "shots_home", "shots_away", "pressure_recent"].includes(s.k)));
     const needModel = mine.some((b) => b.min_prob !== null && b.min_prob !== undefined);
     const needOdds = mine.some((b) => b.min_odd !== null && b.min_odd !== undefined);
-    if (needStats) {
-      try {
-        statVals = parseStats(await sofaRaw<unknown>(`/event/${g.id}/statistics`));
-      } catch {
-        statVals = {};
-      }
-    }
-    if (needShots) {
-      try {
-        shots = parseShots(await sofaRaw<unknown>(`/event/${g.id}/shotmap`));
-      } catch {
-        shots = [];
-      }
-    }
+    const [statRes, shotRes, preRes, oddRes] = await Promise.all([
+      needStats
+        ? sofaRaw<unknown>(`/event/${g.id}/statistics`).then(
+            (b) => ({ ok: true as const, v: parseStats(b) }),
+            () => ({ ok: false as const, v: {} as Partial<StatValues> })
+          )
+        : Promise.resolve(null),
+      needShots
+        ? sofaRaw<unknown>(`/event/${g.id}/shotmap`).then(
+            (b) => ({ ok: true as const, v: parseShots(b) }),
+            () => ({ ok: false as const, v: [] as Shot[] })
+          )
+        : Promise.resolve(null),
+      needModel ? prematchFor(supabase, user.id, g.id).then(
+        (v) => ({ ok: true as const, v }),
+        () => ({ ok: false as const, v: null })
+      ) : Promise.resolve(null),
+      needOdds
+        ? eventOdds(supabase, user.id, g.id, 60_000)
+            .catch(() => null)
+            .then((parsed) => {
+              if (!parsed) return { ok: false as const, v: null as Record<string, number> | null };
+              const byKey: Record<string, number> = {};
+              for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+              return { ok: true as const, v: byKey };
+            })
+        : Promise.resolve(null),
+    ]);
+    const statVals = statRes?.v ?? null;
+    const shots = shotRes?.v ?? null;
     const vals: Partial<StatValues> = { ...(statVals ?? {}) };
     if (shots) {
       vals.shots_home = shots.filter((s) => s.home).length;
@@ -274,26 +305,8 @@ export async function POST() {
     vals.yellows_total = snap.yh;
     vals.reds_total = snap.rh + snap.ra;
 
-    let pre: Awaited<ReturnType<typeof prematchFor>> | null = null;
-    if (needModel) {
-      try {
-        pre = await prematchFor(supabase, user.id, g.id);
-      } catch {
-        pre = null;
-      }
-    }
-    let byKey: Record<string, number> | null = null;
-    if (needOdds) {
-      try {
-        const parsed = await eventOdds(supabase, user.id, g.id, 60_000).catch(() => null);
-        if (parsed) {
-          byKey = {};
-          for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
-        }
-      } catch {
-        byKey = null;
-      }
-    }
+    const pre = preRes?.v ?? null;
+    const byKey = oddRes?.v ?? null;
 
     for (const b of mine) {
       stats[b.id].checked++;
@@ -393,7 +406,7 @@ export async function POST() {
         created_at: (ins as { created_at: string }).created_at,
       });
     }
-  }
+  });
 
   return Response.json({ fired, stats, games: games.length, truncated: live.games.length > MAX_GAMES });
 }
