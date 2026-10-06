@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import { fixtureEventId, loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
+import { cacheGet, cacheSet } from "@/lib/sofaCache";
 import type { Fixture } from "@/lib/footballModel";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import { first } from "@/lib/searchParams";
@@ -100,6 +101,23 @@ interface DayGame {
   live: { minute: number | null; phase: string; hg: number | null; ag: number | null } | null;
 }
 
+type CachedDay = { code: string; games: Omit<DayGame, "live">[] }[];
+
+// Bounded parallelism: the local scraper answers one read at a time, so
+// unbounded Promise.all just queues dozens of chains behind each other.
+async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) {
+      const k = i++;
+      out[k] = await fn(items[k]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 async function DayBoard({ day, today }: { day: string; today: string }) {
   const supabase = await createClient();
   const {
@@ -112,19 +130,22 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
   const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
-  const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [], offline: true }));
-  const liveById = new Map(live.map((g) => [g.id, g]));
-
-  const byLeague: { code: string; games: DayGame[] }[] = [];
-  await Promise.all(
-    leagues.map(async (l) => {
+  // The fixtures of a day barely move (only results trickle in): cache them
+  // 30 minutes. The live merge below stays fresh on every load.
+  const cacheKey = `dayboard:${day}`;
+  const cached = await cacheGet(supabase, user.id, cacheKey, 30 * 60_000).catch(() => null);
+  const hit = Array.isArray(cached) ? (cached as CachedDay) : null;
+  let rows: CachedDay = [];
+  if (hit) {
+    rows = hit.filter((r) => leagues.some((l) => l.code === r.code));
+  } else {
+    const found: CachedDay = [];
+    await pool(leagues, 4, async (l) => {
       const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false }).catch(() => null);
       if (!loaded) return;
-      const games: DayGame[] = [];
+      const games: Omit<DayGame, "live">[] = [];
       for (const f of loaded.data.fixtures) {
         if (f.date !== day) continue;
-        const eventId = fixtureEventId(f as Fixture & { sid?: number });
-        const lg = eventId !== null ? liveById.get(eventId) : undefined;
         games.push({
           league: l.code,
           leagueLabel: labelOf(l.code),
@@ -132,36 +153,41 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
           away: f.team2,
           time: f.time ?? null,
           ft: f.ft,
-          eventId,
-          live: lg
-            ? { minute: lg.minute, phase: lg.phase, hg: lg.homeGoals, ag: lg.awayGoals }
-            : null,
-        });
-      }
-      // Fallback: match live games by teams when the fixture carries no event id.
-      for (const g of live) {
-        if (games.some((x) => x.eventId === g.id)) continue;
-        const same = loaded.data.fixtures.find(
-          (f) => f.date === day && ((f.team1 === g.home && f.team2 === g.away) || (f.team1 === g.away && f.team2 === g.home))
-        );
-        if (!same) continue;
-        games.push({
-          league: l.code,
-          leagueLabel: labelOf(l.code),
-          home: same.team1,
-          away: same.team2,
-          time: same.time ?? null,
-          ft: same.ft,
-          eventId: g.id,
-          live: { minute: g.minute, phase: g.phase, hg: g.homeGoals, ag: g.awayGoals },
+          eventId: fixtureEventId(f as Fixture & { sid?: number }),
         });
       }
       if (games.length > 0) {
         games.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
-        byLeague.push({ code: l.code, games });
+        found.push({ code: l.code, games });
       }
-    })
-  );
+    });
+    rows = found;
+    if (rows.length > 0) await cacheSet(supabase, user.id, cacheKey, rows).catch(() => {});
+  }
+
+  const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [], offline: true }));
+  const liveById = new Map(live.map((g) => [g.id, g]));
+  const usedLive = new Set<number>();
+  const byLeague: { code: string; games: DayGame[] }[] = rows.map((r) => ({
+    code: r.code,
+    games: r.games.map((g) => {
+      const lg = g.eventId !== null ? liveById.get(g.eventId) : undefined;
+      if (lg) {
+        usedLive.add(lg.id);
+        return { ...g, live: { minute: lg.minute, phase: lg.phase, hg: lg.homeGoals, ag: lg.awayGoals } };
+      }
+      // Fallback: match live games by teams when the fixture carries no event id.
+      const same = live.find(
+        (x) => !usedLive.has(x.id) && ((x.home === g.home && x.away === g.away) || (x.home === g.away && x.away === g.home))
+      );
+      if (same) usedLive.add(same.id);
+      return {
+        ...g,
+        eventId: same ? same.id : g.eventId,
+        live: same ? { minute: same.minute, phase: same.phase, hg: same.homeGoals, ag: same.awayGoals } : null,
+      };
+    }),
+  }));
   byLeague.sort((a, b) => a.games[0].leagueLabel.localeCompare(b.games[0].leagueLabel));
   const liveCount = byLeague.flatMap((l) => l.games).filter((g) => g.live).length;
 
