@@ -31,7 +31,7 @@ export default function DayFilters({
       onChange={(e) => {
         // The league select applies at once; the team box waits for Enter.
         // The country select submits deferred (below), after its league reset.
-        if ((e.target as HTMLSelectElement).name === "liga") (e.currentTarget as HTMLFormElement).requestSubmit();
+        if (e.target instanceof HTMLSelectElement && e.target.name === "liga") e.currentTarget.requestSubmit();
       }}
       className="mb-4 flex max-w-4xl flex-wrap items-center gap-2"
     >
