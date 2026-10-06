@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS = [
-  { href: "/estatisticas", label: "Comparar equipas" },
   { href: "/estatisticas/jogos-dia", label: "Jogos por dia" },
   { href: "/estatisticas/jornada", label: "Jogos da jornada" },
-  { href: "/estatisticas/classificacao", label: "Classificação e força" },
   { href: "/estatisticas/live", label: "Calculadora live" },
-  { href: "/estatisticas/calibracao", label: "Calibração" },
   { href: "/estatisticas/ao-vivo", label: "Ao vivo agora" },
+  { href: "/estatisticas", label: "Comparar equipas" },
+  { href: "/estatisticas/classificacao", label: "Classificação e força" },
+  { href: "/estatisticas/calibracao", label: "Calibração" },
   { href: "/estatisticas/mapa", label: "Mapa SofaScore" },
 ];
 
