@@ -169,7 +169,7 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
   } else {
     const found: CachedDay = [];
     await pool(leagues, 4, async (l) => {
-      const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false }).catch(() => null);
+      const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false, seasons: 1 }).catch(() => null);
       if (!loaded) return;
       const games: Omit<DayGame, "live">[] = [];
       for (const f of loaded.data.fixtures) {

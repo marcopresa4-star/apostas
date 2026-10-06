@@ -86,13 +86,17 @@ export async function loadSofaLeague(
   supabase: SupabaseClient,
   userId: string,
   code: string,
-  options: { history?: boolean; fixtures?: boolean; shots?: boolean } = {}
+  options: { history?: boolean; fixtures?: boolean; shots?: boolean; seasons?: number } = {}
 ): Promise<SofaLeague | null> {
   const wantFixtures = options.fixtures ?? true;
   // The live board only needs results for form chips: skipping per-event
   // shot reads (hundreds of them on a cold cache) makes it dramatically
   // faster. Everything else keeps shots (they feed team strength).
   const wantShots = options.shots ?? true;
+  // How many seasons with games the model reads (default 3). Day boards only
+  // need the current season's fixtures: seasons: 1 skips two thirds of the
+  // round reads.
+  const seasonCount = Math.min(10, Math.max(1, Math.trunc(options.seasons ?? 3) || 3));
   const maps = await loadMaps(supabase, userId, "tournament");
   const map = maps.find((m) => m.name_key === code);
   if (!map) return null;
@@ -168,8 +172,9 @@ export async function loadSofaLeague(
     }
   }
 
-  // The model reads the last three seasons with games.
-  const wanted = seasons.slice(currentIdx, currentIdx + 3);
+  // The model reads the last seasons with games (three, unless the caller
+  // asked for fewer).
+  const wanted = seasons.slice(currentIdx, currentIdx + seasonCount);
   const matchLists = await Promise.all(
     wanted.map((s, i) => seasonResults(supabase, userId, uniqueId, s.id, i === 0, wantShots, tracker).catch(() => [] as PlayedMatch[]))
   );
@@ -211,7 +216,7 @@ export async function loadSofaLeague(
   }
   order.sort((a, b) => a.localeCompare(b));
 
-  const older = options.history ? seasons.slice(currentIdx + 3, currentIdx + 10) : [];
+  const older = options.history ? seasons.slice(currentIdx + seasonCount, currentIdx + seasonCount + 7) : [];
   const historyLists = await Promise.all(
     older.map((s) => seasonResults(supabase, userId, uniqueId, s.id, false, false, tracker).catch(() => [] as PlayedMatch[]))
   );
