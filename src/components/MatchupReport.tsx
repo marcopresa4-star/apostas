@@ -6,6 +6,7 @@ import MultipleBuilder from "./MultipleBuilder";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
 import EloChart from "./EloChart";
+import ForecastDashboard from "./ForecastDashboard";
 import ReportTabs from "./ReportTabs";
 import H2HPatternCard from "./H2HPatternCard";
 import type { StandingsLine } from "./StandingsTable";
@@ -66,10 +67,6 @@ function pct(p: number): string {
   return p < 0.1 ? `${(p * 100).toFixed(1).replace(".", ",")}%` : `${Math.round(p * 100)}%`;
 }
 
-function oddText(p: number): string {
-  return p >= 0.005 ? formatOdd(fairOdd(p)) : "—";
-}
-
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
 // Quarter lines need both decimals ("1,75", not "1,8").
 const qdot = (n: number) => n.toFixed(2).replace(".", ",");
@@ -116,16 +113,6 @@ function MarketTable({ title, rows }: { title: string; rows: Row[] }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ResultBar({ home, draw, away }: { home: number; draw: number; away: number }) {
-  return (
-    <div className="flex h-2.5 overflow-hidden rounded-full bg-neutral-800">
-      <div className="bg-emerald-500" style={{ width: `${home * 100}%` }} />
-      <div className="bg-neutral-500" style={{ width: `${draw * 100}%` }} />
-      <div className="bg-sky-500" style={{ width: `${away * 100}%` }} />
     </div>
   );
 }
@@ -1485,24 +1472,6 @@ export default function MatchupReport({
           </Link>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-3xl font-bold tabular-nums tracking-tight text-emerald-400">{pct(prediction.fullTime.home)}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Casa · @{oddText(prediction.fullTime.home)}</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold tabular-nums tracking-tight text-neutral-300">{pct(prediction.fullTime.draw)}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Empate · @{oddText(prediction.fullTime.draw)}</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold tabular-nums tracking-tight text-sky-400">{pct(prediction.fullTime.away)}</p>
-            <p className="text-[11px] uppercase tracking-wide text-neutral-500">Fora · @{oddText(prediction.fullTime.away)}</p>
-          </div>
-        </div>
-        <div className="mt-2">
-          <ResultBar {...prediction.fullTime} />
-        </div>
-
         <p className="mt-3 text-xs text-neutral-400">
           Golos esperados:{" "}
           <span className="font-medium text-neutral-200">
@@ -1518,6 +1487,8 @@ export default function MatchupReport({
           </p>
         )}
       </div>
+
+      <ForecastDashboard prediction={prediction} matches={matches} home={home} away={away} now={now} />
 
       <MatchPreview
         matches={matches}
