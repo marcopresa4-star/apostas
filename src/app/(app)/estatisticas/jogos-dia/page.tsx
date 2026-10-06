@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
-import { loadMaps } from "@/lib/sofaHistory";
+import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons } from "@/lib/sofaHistory";
 import { fixtureEventId, loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet } from "@/lib/sofaCache";
@@ -167,22 +167,76 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
   if (hit) {
     rows = hit.filter((r) => leagues.some((l) => l.code === r.code));
   } else {
+    // Day boards read a window of rounds around the current one (3 reads per
+    // league instead of the whole season): today's games live there, barring
+    // rescheduled ties. Seasons with no rounds at all (MLS-style) fall back
+    // to the full league load for that league only.
+    const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
+    const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+    const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
     const found: CachedDay = [];
     await pool(leagues, 4, async (l) => {
-      const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false, seasons: 1 }).catch(() => null);
-      if (!loaded) return;
+      const map = maps.find((m) => m.name_key === l.code);
+      if (!map) return;
+      const seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id).catch(() => []);
+      const readWindow = async (idx: number) => {
+        const s = seasons[idx];
+        if (!s) return null;
+        const { rounds, currentRound } = await tournamentRounds(supabase, user.id, map.sofascore_id, s.id, true).catch(() => ({
+          rounds: [] as number[],
+          currentRound: null as number | null,
+        }));
+        if (rounds.length === 0) return null;
+        const want =
+          currentRound !== null
+            ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
+            : rounds.slice(0, 3);
+        if (want.length === 0) return null;
+        const lists = await Promise.all(
+          want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).catch(() => []))
+        );
+        return lists.flat();
+      };
+      let fx = await readWindow(0);
+      if ((!fx || fx.length === 0) && seasons.length > 1) fx = await readWindow(1);
+      if (!fx) {
+        // No rounds at all: full load so these leagues still show something.
+        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false, seasons: 1 }).catch(() => null);
+        if (!loaded) return;
+        const games: Omit<DayGame, "live">[] = [];
+        for (const f of loaded.data.fixtures) {
+          if (f.date !== day) continue;
+          if (equipa && !`${f.team1} ${f.team2}`.toLowerCase().includes(equipa)) continue;
+          games.push({
+            league: l.code,
+            leagueLabel: labelOf(l.code),
+            home: f.team1,
+            away: f.team2,
+            time: f.time ?? null,
+            ft: f.ft,
+            eventId: fixtureEventId(f as Fixture & { sid?: number }),
+          });
+        }
+        if (games.length > 0) {
+          games.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
+          found.push({ code: l.code, games });
+        }
+        return;
+      }
       const games: Omit<DayGame, "live">[] = [];
-      for (const f of loaded.data.fixtures) {
+      for (const f of fx) {
         if (f.date !== day) continue;
-        if (equipa && !`${f.team1} ${f.team2}`.toLowerCase().includes(equipa)) continue;
+        const home = convert(f.team1);
+        const away = convert(f.team2);
+        if (equipa && !`${home} ${away}`.toLowerCase().includes(equipa)) continue;
         games.push({
           league: l.code,
           leagueLabel: labelOf(l.code),
-          home: f.team1,
-          away: f.team2,
+          home,
+          away,
           time: f.time ?? null,
           ft: f.ft,
-          eventId: fixtureEventId(f as Fixture & { sid?: number }),
+          eventId: f.id,
         });
       }
       if (games.length > 0) {
