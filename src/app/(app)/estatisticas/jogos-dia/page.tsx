@@ -9,6 +9,7 @@ import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet } from "@/lib/sofaCache";
 import type { Fixture } from "@/lib/footballModel";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
+import DayFilters from "@/components/DayFilters";
 import { first } from "@/lib/searchParams";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -32,6 +33,20 @@ export default async function JogosDiaPage({
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const day = DATE.test(first(params.data)) ? first(params.data) : today;
+  const pais = first(params.pais).trim();
+  const ligaSel = first(params.liga).trim();
+  const equipa = first(params.equipa).trim().toLowerCase();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const maps = user ? await loadMaps(supabase, user.id, "tournament").catch(() => []) : [];
+  const codes = new Set(maps.map((m) => m.name_key));
+  const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
+  const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
+  const countries = [...new Set(leagues.map((l) => countryOf(l.label as string)))].sort((a, b) => a.localeCompare(b));
+  const filterLeagues = leagues.map((l) => ({ code: l.code, label: l.label as string, country: countryOf(l.label as string) }));
 
   return (
     <div data-wide>
@@ -76,15 +91,22 @@ export default async function JogosDiaPage({
         <span className="text-sm text-neutral-400">{dayMonth(day)}</span>
       </div>
 
+      <DayFilters
+        day={day}
+        countries={countries}
+        leagues={filterLeagues}
+        initial={{ pais, liga: ligaSel, equipa: first(params.equipa).trim() }}
+      />
+
       <Suspense
-        key={day}
+        key={`${day}|${pais}|${ligaSel}|${equipa}`}
         fallback={
           <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
             A carregar os jogos do dia… (a primeira vez demora, depois é cache)
           </p>
         }
       >
-        <DayBoard day={day} today={today} />
+        <DayBoard day={day} today={today} pais={pais} ligaSel={ligaSel} equipa={equipa} />
       </Suspense>
     </div>
   );
@@ -118,7 +140,7 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   return out;
 }
 
-async function DayBoard({ day, today }: { day: string; today: string }) {
+async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; today: string; pais: string; ligaSel: string; equipa: string }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -127,7 +149,13 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
 
   const maps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
   const codes = new Set(maps.map((m) => m.name_key));
-  const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
+  const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
+  const leagues = LEAGUES.filter((l) => {
+    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (ligaSel && l.code !== ligaSel) return false;
+    if (pais && countryOf(l.label as string) !== pais) return false;
+    return true;
+  });
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
   // The fixtures of a day barely move (only results trickle in): cache them
@@ -146,6 +174,7 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
       const games: Omit<DayGame, "live">[] = [];
       for (const f of loaded.data.fixtures) {
         if (f.date !== day) continue;
+        if (equipa && !`${f.team1} ${f.team2}`.toLowerCase().includes(equipa)) continue;
         games.push({
           league: l.code,
           leagueLabel: labelOf(l.code),
@@ -168,9 +197,12 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
   const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [], offline: true }));
   const liveById = new Map(live.map((g) => [g.id, g]));
   const usedLive = new Set<number>();
-  const byLeague: { code: string; games: DayGame[] }[] = rows.map((r) => ({
-    code: r.code,
-    games: r.games.map((g) => {
+  const byLeague: { code: string; games: DayGame[] }[] = rows
+    .map((r) => ({
+      code: r.code,
+      games: r.games
+        .filter((g) => !equipa || `${g.home} ${g.away}`.toLowerCase().includes(equipa))
+        .map((g) => {
       const lg = g.eventId !== null ? liveById.get(g.eventId) : undefined;
       if (lg) {
         usedLive.add(lg.id);
@@ -187,7 +219,7 @@ async function DayBoard({ day, today }: { day: string; today: string }) {
         live: same ? { minute: same.minute, phase: same.phase, hg: same.homeGoals, ag: same.awayGoals } : null,
       };
     }),
-  }));
+  })).filter((r) => r.games.length > 0);
   byLeague.sort((a, b) => a.games[0].leagueLabel.localeCompare(b.games[0].leagueLabel));
   const liveCount = byLeague.flatMap((l) => l.games).filter((g) => g.live).length;
 
