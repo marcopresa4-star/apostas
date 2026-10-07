@@ -36,7 +36,6 @@ import {
 } from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
 import { eloCurves } from "@/lib/elo";
-import type { GameLineups } from "@/lib/sofaLineups";
 import type { AutoTune } from "@/lib/autoTune";
 import type { PickGroup } from "@/lib/recommendation";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
@@ -1270,7 +1269,6 @@ export default function MatchupReport({
   notes,
   venueWeight,
   timing,
-  lineups,
   realByKey,
   realOpenByKey,
   tables,
@@ -1307,8 +1305,6 @@ export default function MatchupReport({
   venueWeight: number;
   // Goal timing per 15' of each side (last games with incident data), or null.
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
-  // Probable/confirmed XIs when the feed publishes them (~1h before kickoff).
-  lineups?: GameLineups | null;
   // The bookmaker's real odds by model key, when this exact game is priced.
   realByKey?: Record<string, number>;
   // Self-tuning from the calibration log (null until 50 decided picks per
@@ -1595,41 +1591,6 @@ export default function MatchupReport({
         <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
         <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
       </div>
-
-      {lineups && (lineups.home.length > 0 || lineups.away.length > 0) && (
-        <div className={CARD}>
-          <h3 className="mb-1 text-sm font-semibold text-neutral-300">
-            Onzes {lineups.confirmed ? "confirmados" : "prováveis"}
-          </h3>
-          <p className="mb-2 text-[11px] text-neutral-500">
-            {lineups.confirmed ? "Publicados pela casa." : "Ainda provisórios: saem os confirmados cerca de 1h antes do jogo."}
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {(
-              [
-                [home, lineups.home],
-                [away, lineups.away],
-              ] as const
-            ).map(([team, xi]) => (
-              <div key={team}>
-                <p className="mb-1 text-xs font-medium text-neutral-200">{team}</p>
-                {xi.length === 0 ? (
-                  <p className="text-xs text-neutral-500">Ainda sem onze publicado.</p>
-                ) : (
-                  <ol className="space-y-0.5 text-xs text-neutral-300">
-                    {xi.map((p) => (
-                      <li key={p.name} className="flex justify-between gap-2">
-                        <span className="truncate">{p.name}</span>
-                        {p.pos && <span className="shrink-0 text-neutral-500">{p.pos}</span>}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <FormCurve home={home} away={away} homeCurve={homeCurve} awayCurve={awayCurve} />
       <EloChart home={home} away={away} homeCurve={elo.home} awayCurve={elo.away} />

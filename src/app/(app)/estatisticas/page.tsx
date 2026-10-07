@@ -21,7 +21,6 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
 }
 import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
-import { fetchLineups, type GameLineups } from "@/lib/sofaLineups";
 import { findRealOdd, oddsKeyFor } from "@/lib/oddsParse";
 import { AH_ALL_LINES } from "@/lib/recommendation";
 import { HOUR_MS } from "@/lib/sofaCache";
@@ -412,7 +411,6 @@ async function CompararBody({
   // upcoming lists (same orientation only — flipped sides would invert 1X2).
   let realByKey: Record<string, number> = {};
   let realOpenByKey: Record<string, number> = {};
-  let lineups: GameLineups | null = null;
   const fillRealOdds = async (uid: string, eventId: number): Promise<void> => {
     const parsed = await eventOdds(supabase, uid, eventId, HOUR_MS).catch(() => null);
     if (!parsed) return;
@@ -458,11 +456,7 @@ async function CompararBody({
     const fx = data.fixtures.find((f) => f.team1 === casa && f.team2 === fora && f.date === matchDate);
     const eventId = fx ? fixtureEventId(fx) : null;
     if (eventId) {
-      const [, lu] = await Promise.all([
-        fillRealOdds(userId, eventId),
-        fetchLineups(supabase, userId, eventId).catch(() => null),
-      ]);
-      lineups = lu;
+      await fillRealOdds(userId, eventId);
     }
   } else if (useSofaIntl && data && userId && casa && fora) {
     const { loadUpcomingIntl } = await import("@/lib/sofaIntl");
@@ -645,7 +639,6 @@ async function CompararBody({
           timing={timing}
           realByKey={realByKey}
           realOpenByKey={realOpenByKey}
-          lineups={lineups}
           tables={sofaTables.length > 0 ? sofaTables : undefined}
           tune={tune}
         />
