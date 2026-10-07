@@ -419,7 +419,7 @@ function FormCurve({
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Evolução da força (ataque, últimos {n} jogos)</h3>
       <CurveChart
         aria={`Evolução do ataque de ${home} e ${away}`}
-        yLabel={dot2}
+        yFormat="comma2"
         refValue={1}
         refLabel="média"
         minSpan={0.12}

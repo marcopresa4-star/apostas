@@ -42,7 +42,7 @@ export default function EloChart({
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Elo das equipas (últimos {n} jogos)</h3>
       <CurveChart
         aria={`Elo de ${home} e ${away}`}
-        yLabel={(v) => String(Math.round(v))}
+        yFormat="int"
         refValue={1500}
         refLabel="base"
         minSpan={24}

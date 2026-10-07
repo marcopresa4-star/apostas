@@ -48,19 +48,22 @@ const PADB = 24;
 
 export default function CurveChart({
   series,
-  yLabel,
+  yFormat,
   refValue,
   refLabel,
   minSpan,
   aria,
 }: {
   series: CurveSeries[];
-  yLabel: (v: number) => string;
+  // Server-safe format key (functions can't cross the server/client boundary).
+  yFormat: "int" | "comma2";
   refValue?: number;
   refLabel?: string;
   minSpan?: number;
   aria: string;
 }) {
+  const yLabel = (v: number): string =>
+    yFormat === "int" ? String(Math.round(v)) : v.toFixed(2).replace(".", ",");
   const [hover, setHover] = useState<number | null>(null);
   const n = Math.max(0, ...series.map((s) => s.points.length));
   if (n < 2) return null;
