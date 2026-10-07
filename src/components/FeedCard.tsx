@@ -102,7 +102,7 @@ export default function FeedCard({
         </Link>
       </div>
       {snaps.length > 0 ? (
-        <LiveEvolutionChart snaps={snaps} modelAt={modelAt} homeName={homeName} awayName={awayName} />
+        <LiveEvolutionChart snaps={snaps} modelAt={modelAt} homeName={homeName} awayName={awayName} showBreak={live?.phase === "halftime" || live?.phase === "finished"} />
       ) : (
         <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
           {live ? "A acumular leituras (1/min)…" : "O gráfico começa ao apito inicial."}

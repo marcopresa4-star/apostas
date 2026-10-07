@@ -217,11 +217,16 @@ export default function LiveEvolutionChart({
   modelAt,
   homeName,
   awayName,
+  showBreak = false,
 }: {
   snaps: EvoSnap[];
   modelAt: (s: EvoSnap) => EvoModel;
   homeName: string;
   awayName: string;
+  // The break really started (halftime/finished out there): the INT line
+  // marks the interval, not the 45' tick — first-half stoppage stays left
+  // of it. Past-45 snapshots imply the break on their own.
+  showBreak?: boolean;
 }) {
   const defs = useMemo(() => seriesDefs(homeName, awayName), [homeName, awayName]);
   const byId = useMemo(() => new Map(defs.map((d) => [d.id, d])), [defs]);
@@ -286,9 +291,10 @@ export default function LiveEvolutionChart({
 
   // Goal markers: snapshots where a side's total went up.
   const goals = goalMarkers(snaps);
-  // The break line only draws once the game gets there (minute 45 reached):
-  // no floating INT over a first half still in progress.
-  const showInt = snaps.some((s) => s.minute >= 45);
+  // The break line only draws once the interval really starts out there
+  // (or the game already went past it): no floating INT over first-half
+  // play, stoppage included.
+  const showInt = showBreak || snaps.some((s) => s.minute > 45);
 
   const pathFor = (d: Series): string => {
     // Contiguous segments (gaps stay gaps), each drawn smooth (Catmull-Rom).

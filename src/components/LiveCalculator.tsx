@@ -1231,6 +1231,7 @@ function Calculator({
             });
             return { mais1: 1 - q.nextGoal.none, over25: q.over["2.5"] ?? null, btts: q.bothScore ?? null, exp: q.remainingHome + q.remainingAway };
           }}
+          showBreak={liveState?.phase === "halftime" || liveState?.phase === "finished"}
         />
       )}
 
