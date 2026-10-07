@@ -4,8 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseSofascoreId } from "@/lib/sofascore";
 import { sofaRaw } from "@/lib/sofaRaw";
-
-export const FEED_MAX = 5;
+import { FEED_MAX } from "@/lib/feed";
 
 async function authed() {
   const supabase = await createClient();

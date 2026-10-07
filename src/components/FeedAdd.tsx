@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { addFeedGameAction, FEED_MAX } from "@/app/(app)/feed/actions";
+import { addFeedGameAction } from "@/app/(app)/feed/actions";
+import { FEED_MAX } from "@/lib/feed";
 
 // Adds a game to the live feed by SofaScore link or id (before kickoff is
 // fine: the chart starts when the game does).
