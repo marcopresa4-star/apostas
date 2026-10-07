@@ -265,128 +265,147 @@ export default function LiveEvolutionChart({
       </div>
       <p className="mb-2 text-[11px] text-neutral-500">
         Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
-        (remates, golos e modelo); posse e cantos só contam da tua entrada. Clica na legenda para esconder
-        séries sem mexer no filtro.
+        (remates, golos e modelo); posse e cantos só contam da tua entrada.
       </p>
-      <div className="relative">
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="w-full"
-          role="img"
-          aria-label="Evolução ao vivo"
-          onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
-          onClick={onMove}
-        >
-          {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-            <line
-              key={f}
-              x1={PADL}
-              x2={W - PADR}
-              y1={PADT + f * (H - PADT - PADB)}
-              y2={PADT + f * (H - PADT - PADB)}
-              stroke="#27272a"
-              strokeWidth="1"
-            />
-          ))}
-          <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
-          <text x={x(45)} y={H - 8} textAnchor="middle" fontSize="9" fill="#71717a">
-            45
-          </text>
-          {[0, 15, 30, 60, 75, 90].map(
-            (t) =>
-              t <= xMax && (
-                <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="9" fill="#71717a">
-                  {t}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_11rem]">
+        <div>
+          <div className="relative">
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full"
+              role="img"
+              aria-label="Evolução ao vivo"
+              onMouseMove={onMove}
+              onMouseLeave={() => setHover(null)}
+              onClick={onMove}
+            >
+              {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+                <line
+                  key={f}
+                  x1={PADL}
+                  x2={W - PADR}
+                  y1={PADT + f * (H - PADT - PADB)}
+                  y2={PADT + f * (H - PADT - PADB)}
+                  stroke="#27272a"
+                  strokeWidth="1"
+                />
+              ))}
+              <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#71717a">
+                INT
+              </text>
+              {[0, 15, 30, 45, 60, 75, 90].map(
+                (t) =>
+                  t <= xMax && (
+                    <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="9" fill="#71717a">
+                      {t}
+                    </text>
+                  )
+              )}
+              {[0, 25, 50, 75, 100].map((q) => (
+                <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="9" fill="#71717a">
+                  {q}
                 </text>
-              )
-          )}
-          {[0, 25, 50, 75, 100].map((q) => (
-            <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="9" fill="#71717a">
-              {q}
-            </text>
-          ))}
-          {goals.map((gl, i) => (
-            <g key={i}>
-              <line
-                x1={x(gl.minute)}
-                x2={x(gl.minute)}
-                y1={PADT}
-                y2={H - PADB}
-                stroke={gl.home ? "#34d399" : "#38bdf8"}
-                strokeWidth="1.5"
-                strokeDasharray="2 2"
-              />
-              <circle cx={x(gl.minute)} cy={PADT + 4} r="3" fill={gl.home ? "#34d399" : "#38bdf8"} />
-            </g>
-          ))}
-          {visible.map((d) => (
-            <path
-              key={d.id}
-              d={pathFor(d)}
-              fill="none"
-              stroke={d.color}
-              strokeWidth={d.width ?? 1.5}
-              strokeDasharray={d.dash ?? undefined}
-              strokeLinecap="round"
-            />
-          ))}
-          {hov && (
-            <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
-          )}
-        </svg>
-        {hov && hovModel && (
-          <div
-            className="pointer-events-none absolute z-10 min-w-44 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
-            style={{ left: `${Math.min(70, (x(hov.minute) / W) * 100)}%`, top: "4%" }}
-          >
-            <p className="font-semibold text-neutral-100">
-              {hov.minute}&apos; · {hov.hg}–{hov.ag}
-            </p>
-            {visible.map((d) => {
-              const v = d.get(hov, hovModel);
-              if (v === null) return null;
-              return (
-                <p key={d.id} className="text-neutral-300">
-                  <span style={{ color: d.color }}>●</span> {d.label}:{" "}
-                  {d.axis === "pct" ? pct1(v) : v.toFixed(2).replace(".", ",")}
+              ))}
+              {goals.map((gl, i) => (
+                <line
+                  key={i}
+                  x1={x(gl.minute)}
+                  x2={x(gl.minute)}
+                  y1={PADT}
+                  y2={H - PADB}
+                  stroke={gl.home ? "#34d399" : "#38bdf8"}
+                  strokeWidth="1"
+                  strokeDasharray="2 3"
+                  opacity="0.7"
+                />
+              ))}
+              {visible.map((d) => (
+                <path
+                  key={d.id}
+                  d={pathFor(d)}
+                  fill="none"
+                  stroke={d.color}
+                  strokeWidth={d.width ?? 1.25}
+                  strokeDasharray={d.dash ?? undefined}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+              {hov && (
+                <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
+              )}
+            </svg>
+            {hov && hovModel && (
+              <div
+                className="pointer-events-none absolute z-10 min-w-44 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
+                style={{ left: `${Math.min(70, (x(hov.minute) / W) * 100)}%`, top: "4%" }}
+              >
+                <p className="font-semibold text-neutral-100">
+                  {hov.minute}&apos; · {hov.hg}–{hov.ag}
                 </p>
-              );
-            })}
-            {goals.some((gl) => gl.minute === hov.minute) && (
-              <p className="text-neutral-200">
-                ⚽ Golo — {goals.find((gl) => gl.minute === hov.minute)?.home ? homeName : awayName}, ~{hov.minute}&apos;
-              </p>
+                {visible.map((d) => {
+                  const v = d.get(hov, hovModel);
+                  if (v === null) return null;
+                  return (
+                    <p key={d.id} className="text-neutral-300">
+                      <span style={{ color: d.color }}>●</span> {d.label}:{" "}
+                      {d.axis === "pct" ? pct1(v) : v.toFixed(2).replace(".", ",")}
+                    </p>
+                  );
+                })}
+                {goals.some((gl) => gl.minute === hov.minute) && (
+                  <p className="text-neutral-200">
+                    ⚽ Golo — {goals.find((gl) => gl.minute === hov.minute)?.home ? homeName : awayName}, ~{hov.minute}&apos;
+                  </p>
+                )}
+              </div>
             )}
           </div>
-        )}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {defs
-          .filter((d) => base.includes(d.id))
-          .map((d) => {
-            const off = hidden.has(d.id);
-            return (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() =>
-                  setHidden((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(d.id)) next.delete(d.id);
-                    else next.add(d.id);
-                    return next;
-                  })
-                }
-                title={off ? "Mostrar série" : "Esconder série"}
-                className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-                  off ? "border-neutral-800 text-neutral-600" : "border-neutral-700 text-neutral-300"
-                }`}
-              >
-                <span style={{ color: off ? undefined : d.color }}>●</span> {d.label}
-              </button>
-            );
-          })}
+          {goals.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {goals.map((gl, i) => (
+                <span key={i} className="rounded-full border border-neutral-800 bg-neutral-950 px-2 py-0.5 text-[11px] text-neutral-300">
+                  ⚽ {gl.minute}&apos; ({gl.home ? homeName : awayName})
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Séries</p>
+          <div className="space-y-1">
+            {defs
+              .filter((d) => base.includes(d.id))
+              .map((d) => {
+                const off = hidden.has(d.id);
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() =>
+                      setHidden((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(d.id)) next.delete(d.id);
+                        else next.add(d.id);
+                        return next;
+                      })
+                    }
+                    title={off ? "Mostrar série" : "Esconder série (não mexe no filtro)"}
+                    className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] transition hover:bg-neutral-800/60"
+                  >
+                    <svg width="26" height="8" aria-hidden>
+                      <line x1="0" x2="26" y1="4" y2="4" stroke={off ? "#52525b" : d.color} strokeWidth={d.width ?? 1.5} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
+                    </svg>
+                    <span className={`min-w-0 flex-1 truncate ${off ? "text-neutral-600 line-through" : "text-neutral-300"}`}>
+                      {d.label}
+                    </span>
+                    <span className={off ? "text-neutral-700" : "text-neutral-500"}>{off ? "○" : "◉"}</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
       </div>
       <details className="mt-2">
         <summary className="cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200">
