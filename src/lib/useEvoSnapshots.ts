@@ -26,6 +26,7 @@ export interface FeedLive {
   rh: number;
   ra: number;
   phase: string;
+  half: 1 | 2 | null;
 }
 
 export interface FeedMeta {
@@ -51,6 +52,9 @@ export function backfillSnaps(opts: {
   shots: FeedShot[];
   rh: number;
   ra: number;
+  // The half in progress now: minutes past 45 inherit it (first-half
+  // stoppage belongs left of the break), older ones default to the 2nd.
+  half?: 1 | 2 | null;
 }): EvoSnap[] {
   const { goals, shots, rh, ra } = opts;
   const out: EvoSnap[] = [];
@@ -61,7 +65,7 @@ export function backfillSnaps(opts: {
       const list = shots.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute);
       return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
     };
-    out.push({ minute, hg, ag, rh, ra, stats: {}, xgH: xg(true), xgA: xg(false) });
+    out.push({ minute, hg, ag, rh, ra, stats: {}, xgH: xg(true), xgA: xg(false), half: minute <= 45 ? 1 : (opts.half ?? 2) });
   }
   return out;
 }
@@ -101,7 +105,7 @@ export function markPolled(eventId: number): void {
 // over the backfilled shells at the same minute.
 export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: boolean, light = false): Promise<EvoPoll | null> {
   const body = (await readJson(`/api/sofascore/event?id=${eventId}${light ? "&light=1" : ""}`)) as {
-    state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: { home?: unknown; away?: unknown } };
+    state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; half?: unknown; reds?: { home?: unknown; away?: unknown } };
     goals?: { minute?: unknown; home?: unknown }[];
     meta?: FeedMeta;
   } | null;
@@ -118,7 +122,8 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   if (minute === null || hg === null || ag === null) return { snaps: prev, live: null, meta, filled, phase };
   const rh = typeof st.reds?.home === "number" ? st.reds.home : 0;
   const ra = typeof st.reds?.away === "number" ? st.reds.away : 0;
-  const live: FeedLive = { minute, hg, ag, rh, ra, phase };
+  const half = st.half === 1 || st.half === 2 ? st.half : null;
+  const live: FeedLive = { minute, hg, ag, rh, ra, phase, half };
   const [statBody, shotBody] = await Promise.all([
     readJson(`/api/sofascore/statistics?id=${eventId}`),
     readJson(`/api/sofascore/shotmap?id=${eventId}`),
@@ -139,7 +144,7 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   };
   let snaps = prev;
   if (phase === "live" || phase === "halftime") {
-    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false) };
+    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false), half };
     snaps = [...snaps.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150);
   }
   // Backfill once: minutes before we arrived, from shots + goals. Live
@@ -151,7 +156,7 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
           typeof gl.minute === "number" && typeof gl.home === "boolean" ? [{ minute: gl.minute, home: gl.home }] : []
         )
       : [];
-    snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra }));
+    snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra, half }));
   }
   return { snaps, live, meta, filled, phase };
 }

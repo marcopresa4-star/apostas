@@ -27,7 +27,7 @@
 // uses (see sportscoreLive.ts), so the calculator, the "Ao vivo agora" board
 // and the staleness checks keep working unchanged.
 
-import { parseMinute, type LiveGameState, type LivePhase } from "./sportscoreLive";
+import { halfOfStatus, parseMinute, type LiveGameState, type LivePhase } from "./sportscoreLive";
 
 // Extracts the numeric SofaScore event id from a pasted link or a bare id.
 export function parseSofascoreId(input: string): number | null {
@@ -217,6 +217,7 @@ export function parseSofascoreEvent(
   return {
     phase,
     minute,
+    half: halfOfStatus(description),
     homeGoals,
     awayGoals,
     reds: mergedReds,
@@ -252,6 +253,7 @@ export interface SofaLiveEntry {  id: number;
   statusDescription: string;
   phase: LivePhase;
   minute: number | null;
+  half: 1 | 2 | null;
   homeGoals: number | null;
   awayGoals: number | null;
 }
@@ -292,6 +294,7 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
       statusDescription,
       phase,
       minute,
+      half: halfOfStatus(statusDescription),
       homeGoals,
       awayGoals,
     });

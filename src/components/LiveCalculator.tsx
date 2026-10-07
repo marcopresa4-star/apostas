@@ -349,6 +349,7 @@ function Calculator({
             stats: {},
             xgH: xgList(true),
             xgA: xgList(false),
+            half: minute <= 45 ? 1 : (st.half ?? 2),
           });
         }
         if (!stop && built.length > 0) {
@@ -457,6 +458,7 @@ function Calculator({
                 stats,
                 xgH: xgUpTo(true),
                 xgA: xgUpTo(false),
+                half: checked.state.half,
               };
               setSnaps((prev) => {
                 const next = prev.some((s) => s.minute === snap.minute) ? prev.map((s) => (s.minute === snap.minute ? snap : s)) : [...prev, snap];
