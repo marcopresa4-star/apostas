@@ -41,7 +41,7 @@ export default async function FeedPage() {
           Ainda sem jogos. Cola em cima o link de um jogo no SofaScore.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="grid max-w-6xl grid-cols-1 gap-4">
           {rows.map((r) => (
             <FeedCard key={r.id} rowId={r.id} eventId={r.event_id} home={r.home} away={r.away} tournament={r.tournament} />
           ))}
