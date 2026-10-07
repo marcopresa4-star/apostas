@@ -77,7 +77,8 @@ type SeriesId =
   | "mais1" | "over25" | "btts" | "expG"
   | "shT" | "shH" | "shA" | "coT" | "coH" | "coA" | "xgT" | "xgH" | "xgA"
   | "possH" | "possA" | "passH" | "passA"
-  | "crH" | "crA" | "crAcc" | "offT" | "sotH" | "sotA";
+  | "crH" | "crA" | "crAcc" | "offT" | "sotH" | "sotA"
+  | "foT" | "foH" | "foA" | "svT" | "svH" | "svA";
 
 interface Series {
   id: SeriesId;
@@ -100,29 +101,35 @@ function seriesDefs(homeName: string, awayName: string): Series[] {
   const H = homeName || "Casa";
   const A = awayName || "Fora";
   return [
-    { id: "mais1", label: "Mais 1 golo % (modelo)", cat: "Previsões", axis: "pct", color: "#fbbf24", width: 2.5, get: (s, m) => m.mais1 },
-    { id: "over25", label: "Over 2,5 % (modelo)", cat: "Previsões", axis: "pct", color: "#fb923c", width: 2.5, get: (s, m) => m.over25 },
-    { id: "btts", label: "BTTS % (modelo)", cat: "Previsões", axis: "pct", color: "#c084fc", width: 2.5, get: (s, m) => m.btts },
-    { id: "expG", label: "Total de golos (previsão)", cat: "Previsões", axis: "count", color: "#fbbf24", width: 2, get: (s, m) => m.exp },
-    { id: "shT", label: "Remates (total)", cat: "Remates", axis: "count", color: "#34d399", width: 2, get: (s) => add(s, "Remates") },
-    { id: "shH", label: `Remates — ${H}`, cat: "Remates", axis: "count", color: "#34d399", get: (s) => stat("Remates", "home")(s) },
-    { id: "shA", label: `Remates — ${A}`, cat: "Remates", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Remates", "away")(s) },
-    { id: "coT", label: "Cantos (total)", cat: "Cantos", axis: "count", color: "#38bdf8", width: 2, get: (s) => add(s, "Cantos") },
-    { id: "coH", label: `Cantos — ${H}`, cat: "Cantos", axis: "count", color: "#34d399", get: (s) => stat("Cantos", "home")(s) },
-    { id: "coA", label: `Cantos — ${A}`, cat: "Cantos", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Cantos", "away")(s) },
-    { id: "xgT", label: "xG (total)", cat: "xG", axis: "count", color: "#a3a3a3", width: 2, get: (s) => (s.xgH !== null || s.xgA !== null ? (s.xgH ?? 0) + (s.xgA ?? 0) : null) },
-    { id: "xgH", label: `xG — ${H}`, cat: "xG", axis: "count", color: "#34d399", get: (s) => s.xgH },
-    { id: "xgA", label: `xG — ${A}`, cat: "xG", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => s.xgA },
-    { id: "possH", label: `Posse % — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#34d399", get: (s) => num(s.stats["Posse de bola"]?.home) },
-    { id: "possA", label: `Posse % — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#38bdf8", dash: "5 3", get: (s) => num(s.stats["Posse de bola"]?.away) },
-    { id: "passH", label: `% precisão de passe — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#34d399", get: (s) => stat("% precisão de passe", "home")(s) },
-    { id: "passA", label: `% precisão de passe — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#38bdf8", dash: "5 3", get: (s) => stat("% precisão de passe", "away")(s) },
-    { id: "crH", label: `Cruzamentos — ${H}`, cat: "Cruzamentos", axis: "count", color: "#34d399", get: (s) => stat("Cruzamentos", "home")(s) },
-    { id: "crA", label: `Cruzamentos — ${A}`, cat: "Cruzamentos", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Cruzamentos", "away")(s) },
-    { id: "crAcc", label: "% precisão de cruzamento", cat: "Cruzamentos", axis: "pct", color: "#fb923c", get: (s) => bothAcc(s) },
-    { id: "offT", label: "Foras de jogo (total)", cat: "Outras", axis: "count", color: "#a3a3a3", get: (s) => add(s, "Foras de jogo") },
+    { id: "mais1", label: "Mais 1 golo % (modelo)", cat: "Previsões", axis: "pct", color: "#b45309", width: 2.5, get: (s, m) => m.mais1 },
+    { id: "over25", label: "Over 2,5 % (modelo)", cat: "Previsões", axis: "pct", color: "#ea580c", width: 2.5, get: (s, m) => m.over25 },
+    { id: "btts", label: "BTTS % (modelo)", cat: "Previsões", axis: "pct", color: "#7c3aed", width: 2.5, get: (s, m) => m.btts },
+    { id: "expG", label: "Total de golos (previsão)", cat: "Previsões", axis: "count", color: "#b45309", width: 2, get: (s, m) => m.exp },
+    { id: "shT", label: "Remates (total)", cat: "Remates", axis: "count", color: "#059669", width: 2, get: (s) => add(s, "Remates") },
+    { id: "shH", label: `Remates — ${H}`, cat: "Remates", axis: "count", color: "#059669", get: (s) => stat("Remates", "home")(s) },
+    { id: "shA", label: `Remates — ${A}`, cat: "Remates", axis: "count", color: "#0284c7", dash: "5 3", get: (s) => stat("Remates", "away")(s) },
+    { id: "coT", label: "Cantos (total)", cat: "Cantos", axis: "count", color: "#0284c7", width: 2, get: (s) => add(s, "Cantos") },
+    { id: "coH", label: `Cantos — ${H}`, cat: "Cantos", axis: "count", color: "#059669", get: (s) => stat("Cantos", "home")(s) },
+    { id: "coA", label: `Cantos — ${A}`, cat: "Cantos", axis: "count", color: "#0284c7", dash: "5 3", get: (s) => stat("Cantos", "away")(s) },
+    { id: "xgT", label: "xG (total)", cat: "xG", axis: "count", color: "#6b7280", width: 2, get: (s) => (s.xgH !== null || s.xgA !== null ? (s.xgH ?? 0) + (s.xgA ?? 0) : null) },
+    { id: "xgH", label: `xG — ${H}`, cat: "xG", axis: "count", color: "#059669", get: (s) => s.xgH },
+    { id: "xgA", label: `xG — ${A}`, cat: "xG", axis: "count", color: "#0284c7", dash: "5 3", get: (s) => s.xgA },
+    { id: "possH", label: `Posse % — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#059669", get: (s) => num(s.stats["Posse de bola"]?.home) },
+    { id: "possA", label: `Posse % — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#0284c7", dash: "5 3", get: (s) => num(s.stats["Posse de bola"]?.away) },
+    { id: "passH", label: `% precisão de passe — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#059669", get: (s) => stat("% precisão de passe", "home")(s) },
+    { id: "passA", label: `% precisão de passe — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#0284c7", dash: "5 3", get: (s) => stat("% precisão de passe", "away")(s) },
+    { id: "crH", label: `Cruzamentos — ${H}`, cat: "Cruzamentos", axis: "count", color: "#059669", get: (s) => stat("Cruzamentos", "home")(s) },
+    { id: "crA", label: `Cruzamentos — ${A}`, cat: "Cruzamentos", axis: "count", color: "#0284c7", dash: "5 3", get: (s) => stat("Cruzamentos", "away")(s) },
+    { id: "crAcc", label: "% precisão de cruzamento", cat: "Cruzamentos", axis: "pct", color: "#ea580c", get: (s) => bothAcc(s) },
+    { id: "offT", label: "Foras de jogo (total)", cat: "Outras", axis: "count", color: "#6b7280", get: (s) => add(s, "Foras de jogo") },
+    { id: "foT", label: "Faltas (total)", cat: "Outras", axis: "count", color: "#78716c", width: 2, get: (s) => add(s, "Faltas") },
+    { id: "foH", label: `Faltas — ${H}`, cat: "Outras", axis: "count", color: "#78716c", get: (s) => stat("Faltas", "home")(s) },
+    { id: "foA", label: `Faltas — ${A}`, cat: "Outras", axis: "count", color: "#78716c", dash: "5 3", get: (s) => stat("Faltas", "away")(s) },
+    { id: "svT", label: "Defesas (total)", cat: "Defesas", axis: "count", color: "#0d9488", width: 2, get: (s) => add(s, "Defesas") },
+    { id: "svH", label: `Defesas — ${H}`, cat: "Defesas", axis: "count", color: "#0d9488", get: (s) => stat("Defesas", "home")(s) },
+    { id: "svA", label: `Defesas — ${A}`, cat: "Defesas", axis: "count", color: "#0d9488", dash: "5 3", get: (s) => stat("Defesas", "away")(s) },
     {
-      id: "sotH", label: `% remates à baliza — ${H}`, cat: "Remates", axis: "pct", color: "#34d399",
+      id: "sotH", label: `% remates à baliza — ${H}`, cat: "Remates", axis: "pct", color: "#059669",
       get: (s) => {
         const t = stat("Remates", "home")(s);
         const o = stat("Remates à baliza", "home")(s);
@@ -130,7 +137,7 @@ function seriesDefs(homeName: string, awayName: string): Series[] {
       },
     },
     {
-      id: "sotA", label: `% remates à baliza — ${A}`, cat: "Remates", axis: "pct", color: "#38bdf8", dash: "5 3",
+      id: "sotA", label: `% remates à baliza — ${A}`, cat: "Remates", axis: "pct", color: "#0284c7", dash: "5 3",
       get: (s) => {
         const t = stat("Remates", "away")(s);
         const o = stat("Remates à baliza", "away")(s);
@@ -156,6 +163,7 @@ const ALL: SeriesId[] = [
   "mais1", "over25", "btts", "expG",
   "shT", "shH", "shA", "coT", "coH", "coA", "xgT", "xgH", "xgA",
   "possH", "possA", "passH", "passA", "crH", "crA", "crAcc", "offT",
+  "foT", "foH", "foA", "svT", "svH", "svA",
   "sotH", "sotA",
 ];
 
@@ -349,9 +357,9 @@ export default function LiveEvolutionChart({
   };
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-neutral-300">Evolução ao vivo</h3>
+        <h3 className="text-sm font-semibold text-neutral-800">Evolução ao vivo</h3>
         <select
           value={filter}
           onChange={(e) => {
@@ -359,7 +367,7 @@ export default function LiveEvolutionChart({
             setHidden(new Set());
           }}
           title="Filtro de legenda"
-          className="max-w-56 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
+          className="max-w-56 truncate rounded-lg border border-gray-300 bg-gray-50 px-2 py-1.5 text-xs text-neutral-800 outline-none"
         >
           <option value={DEFAULT_NAME}>{DEFAULT_NAME}</option>
           {filters.map((f) => (
@@ -393,31 +401,31 @@ export default function LiveEvolutionChart({
                   x2={W - PADR}
                   y1={PADT + f * (H - PADT - PADB)}
                   y2={PADT + f * (H - PADT - PADB)}
-                  stroke="#27272a"
+                  stroke="#e5e7eb"
                   strokeWidth="1"
                 />
               ))}
-              <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
-              <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#71717a">
+              <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#9ca3af" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#6b7280">
                 INT
               </text>
               {[0, 15, 30, 45, 60, 75, 90].map(
                 (t) =>
                   t <= xMax && (
-                    <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="9" fill="#71717a">
+                    <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="9" fill="#6b7280">
                       {t}
                     </text>
                   )
               )}
               {[0, 25, 50, 75, 100].map((q) => (
-                <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="9" fill="#71717a">
+                <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="9" fill="#6b7280">
                   {q}
                 </text>
               ))}
               {[0, 0.5, 1].map((f) => {
                 const v = Math.max(1, Math.round(countMax * f));
                 return (
-                  <text key={f} x={PADL - 4} y={yCount(v) + 3} textAnchor="end" fontSize="9" fill="#71717a">
+                  <text key={f} x={PADL - 4} y={yCount(v) + 3} textAnchor="end" fontSize="9" fill="#6b7280">
                     {v}
                   </text>
                 );
@@ -429,7 +437,7 @@ export default function LiveEvolutionChart({
                   x2={x(gl.minute)}
                   y1={PADT}
                   y2={H - PADB}
-                  stroke={gl.home ? "#34d399" : "#38bdf8"}
+                  stroke={gl.home ? "#059669" : "#0284c7"}
                   strokeWidth="1"
                   strokeDasharray="2 3"
                   opacity="0.3"
@@ -448,7 +456,7 @@ export default function LiveEvolutionChart({
                 />
               ))}
               {hov && (
-                <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
+                <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#9ca3af" strokeWidth="1" opacity="0.5" />
               )}
             </svg>
             {hov && hovModel && (
@@ -485,7 +493,7 @@ export default function LiveEvolutionChart({
           {goals.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {goals.map((gl, i) => (
-                <span key={i} className="rounded-full border border-neutral-800 bg-neutral-950 px-2 py-0.5 text-[11px] text-neutral-300">
+                <span key={i} className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-700">
                   ⚽ {gl.minute}&apos; ({gl.home ? homeName : awayName})
                 </span>
               ))}
@@ -493,7 +501,7 @@ export default function LiveEvolutionChart({
           )}
         </div>
         <div className="min-w-0">
-          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Séries</p>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Séries</p>
           <div className="space-y-1">
             {defs
               .filter((d) => base.includes(d.id))
@@ -513,16 +521,16 @@ export default function LiveEvolutionChart({
                       })
                     }
                     title={off ? "Mostrar série" : empty ? "Sem leituras neste jogo" : "Esconder série (não mexe no filtro)"}
-                    className="flex w-full items-start gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] leading-snug transition hover:bg-neutral-800/60"
+                    className="flex w-full items-start gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] leading-snug transition hover:bg-gray-100"
                   >
                     <svg width="26" height="8" aria-hidden className="mt-1 shrink-0">
-                      <line x1="0" x2="26" y1="4" y2="4" stroke={off || empty ? "#52525b" : d.color} strokeWidth={d.width ?? 1.25} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
+                      <line x1="0" x2="26" y1="4" y2="4" stroke={off || empty ? "#d1d5db" : d.color} strokeWidth={d.width ?? 1.25} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
                     </svg>
-                    <span className={`min-w-0 flex-1 break-words ${off || empty ? "text-neutral-600" : "text-neutral-300"}`}>
+                    <span className={`min-w-0 flex-1 break-words ${off || empty ? "text-neutral-400" : "text-gray-700"}`}>
                       {d.label}
-                      {empty && <span className="text-neutral-700"> · sem dados</span>}
+                      {empty && <span className="text-neutral-400"> · sem dados</span>}
                     </span>
-                    <span className={off ? "text-neutral-700" : "text-neutral-500"}>{off ? "○" : "◉"}</span>
+                    <span className={off ? "text-neutral-300" : "text-neutral-400"}>{off ? "○" : "◉"}</span>
                   </button>
                 );
               })}
@@ -530,13 +538,13 @@ export default function LiveEvolutionChart({
         </div>
       </div>
       <details className="mt-2">
-        <summary className="cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200">
+        <summary className="cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-800">
           Filtros de legenda
         </summary>
         <div className="mt-2 space-y-1.5">
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
-            <span className="text-neutral-200">
-              {DEFAULT_NAME} <span className="ml-1 rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">Padrão</span>
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs">
+            <span className="text-neutral-800">
+              {DEFAULT_NAME} <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-600">Padrão</span>
             </span>
             <button
               type="button"
@@ -544,14 +552,14 @@ export default function LiveEvolutionChart({
                 setFilter(DEFAULT_NAME);
                 setHidden(new Set());
               }}
-              className="text-neutral-400 hover:text-neutral-200"
+              className="text-gray-500 hover:text-gray-800"
             >
               Usar
             </button>
           </div>
           {filters.map((f) => (
-            <div key={f.name} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
-              <span className="min-w-0 flex-1 truncate text-neutral-200">
+            <div key={f.name} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs">
+              <span className="min-w-0 flex-1 truncate text-neutral-800">
                 {f.name}
                 {f.name === defName && <span className="ml-1 text-neutral-500">★</span>}
                 <span className="block truncate text-[10px] text-neutral-500">
@@ -559,7 +567,7 @@ export default function LiveEvolutionChart({
                 </span>
               </span>
               <span className="flex shrink-0 gap-2">
-                <button type="button" onClick={() => { setFilter(f.name); setHidden(new Set()); }} className="text-neutral-400 hover:text-neutral-200">
+                <button type="button" onClick={() => { setFilter(f.name); setHidden(new Set()); }} className="text-gray-500 hover:text-gray-800">
                   Usar
                 </button>
                 <button
@@ -570,7 +578,7 @@ export default function LiveEvolutionChart({
                     setFormSet(new Set(f.series));
                     setFormOpen(true);
                   }}
-                  className="text-neutral-400 hover:text-neutral-200"
+                  className="text-gray-500 hover:text-gray-800"
                 >
                   Editar
                 </button>
@@ -580,7 +588,7 @@ export default function LiveEvolutionChart({
                     const next = [...f.series] as SeriesId[];
                     persist([...filters.filter((x) => x.name !== f.name), { name: `${f.name} (cópia)`, series: next }], defName);
                   }}
-                  className="text-neutral-400 hover:text-neutral-200"
+                  className="text-gray-500 hover:text-gray-800"
                 >
                   Duplicar
                 </button>
@@ -604,7 +612,7 @@ export default function LiveEvolutionChart({
                   <button
                     type="button"
                     onClick={() => persist(filters, f.name)}
-                    className="text-neutral-400 hover:text-neutral-200"
+                    className="text-gray-500 hover:text-gray-800"
                   >
                     Padrão
                   </button>
@@ -625,13 +633,13 @@ export default function LiveEvolutionChart({
             + Novo filtro
           </button>
           {formOpen && (
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
               <input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="Nome do filtro…"
                 maxLength={30}
-                className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+                className="mb-2 w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-emerald-500"
               />
               {cats.map((cat) => (
                 <div key={cat} className="mb-1.5">
@@ -647,7 +655,7 @@ export default function LiveEvolutionChart({
                           className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
                             formSet.has(d.id)
                               ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                              : "border-neutral-800 text-neutral-500"
+                              : "border-gray-300 text-gray-500"
                           }`}
                         >
                           {d.label}
