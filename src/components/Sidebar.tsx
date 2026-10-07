@@ -38,6 +38,14 @@ const NAV_ITEMS = [
     adminOnly: true,
   },
   {
+    href: "/previsoes",
+    label: "Previsões do dia",
+    icon: "🔮",
+    chip: "bg-violet-500/15 text-violet-300",
+    active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
+    adminOnly: true,
+  },
+  {
     href: "/estatisticas/ao-vivo",
     label: "Ao vivo agora",
     icon: "🔴",
