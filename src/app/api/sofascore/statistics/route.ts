@@ -11,6 +11,9 @@ const NAMES: Record<string, string> = {
   "Goalkeeper saves": "Defesas",
   "Big chances": "Grandes chances",
   Passes: "Passes",
+  "Accurate passes": "Passes certos",
+  Crosses: "Cruzamentos",
+  Offsides: "Foras de jogo",
 };
 
 export interface StatRow {
@@ -41,14 +44,19 @@ export async function GET(request: Request) {
     : [];
   const all = periods.find((p) => p.period === "ALL") ?? periods[0];
   const groups = Array.isArray(all?.groups) ? (all.groups as Record<string, unknown>[]) : [];
-  const overview = groups.find((g) => g.groupName === "Match overview") ?? groups[0];
-  const items = Array.isArray(overview?.statisticsItems) ? (overview.statisticsItems as Record<string, unknown>[]) : [];
+  // Every group, not just the overview: crosses live under Passes, offsides
+  // under Attack. First group wins per stat name.
+  const items = groups.flatMap((g) =>
+    Array.isArray(g?.statisticsItems) ? (g.statisticsItems as Record<string, unknown>[]) : []
+  );
   const rows: StatRow[] = [];
+  const seen = new Set<string>();
   for (const item of items) {
     const name = String(item.name ?? "");
-    if (!NAMES[name]) continue;
+    if (!NAMES[name] || seen.has(NAMES[name])) continue;
+    seen.add(NAMES[name]);
     rows.push({ name: NAMES[name], home: String(item.home ?? "—"), away: String(item.away ?? "—") });
-    if (rows.length >= 8) break;
+    if (rows.length >= 12) break;
   }
   return Response.json({ stats: rows }, { headers: { "Cache-Control": "private, max-age=60" } });
 }

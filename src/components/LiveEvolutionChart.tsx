@@ -21,12 +21,63 @@ export interface EvoModel {
   mais1: number | null;
   over25: number | null;
   btts: number | null;
+  exp: number | null;
+}
+
+// Parses one statistics reading into snapshot numbers. "4/22 (18%)" style
+// values split into total (4) and accuracy (18%); "%" suffixes strip.
+// Missing readings stay null (gaps, never zeros). Exported for tests.
+export function parseStatRows(rows: { name?: unknown; home?: unknown; away?: unknown }[]): Record<string, { home: number | null; away: number | null }> {
+  const byName = new Map<string, { home: unknown; away: unknown }>();
+  for (const r of rows) {
+    if (typeof r?.name === "string" && !byName.has(r.name)) byName.set(r.name, { home: r.home, away: r.away });
+  }
+  const f = (name: string, side: "home" | "away"): number | null => {
+    const v = byName.get(name)?.[side];
+    const n = typeof v === "number" ? v : Number.parseFloat(String(v ?? "").replace("%", "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  };
+  const pctIn = (name: string, side: "home" | "away"): number | null => {
+    const m = /([\d]+(?:[.,]\d+)?)\s*%/.exec(String(byName.get(name)?.[side] ?? ""));
+    if (!m) return null;
+    const n = Number.parseFloat(m[1].replace(",", "."));
+    return Number.isFinite(n) ? n / 100 : null;
+  };
+  const frac = (name: string, side: "home" | "away"): { acc: number | null; tot: number | null } => {
+    const m = /([\d]+(?:[.,]\d+)?)\s*\/\s*([\d]+(?:[.,]\d+)?)/.exec(String(byName.get(name)?.[side] ?? ""));
+    if (!m) return { acc: null, tot: null };
+    const acc = Number.parseFloat(m[1].replace(",", "."));
+    const tot = Number.parseFloat(m[2].replace(",", "."));
+    return {
+      acc: Number.isFinite(acc) ? acc : null,
+      tot: Number.isFinite(tot) ? tot : null,
+    };
+  };
+  const out: Record<string, { home: number | null; away: number | null }> = {};
+  for (const name of ["Remates", "Remates à baliza", "Cantos", "Posse de bola", "Faltas", "Defesas", "Cruzamentos", "Foras de jogo"]) {
+    out[name] = { home: f(name, "home"), away: f(name, "away") };
+  }
+  // Accuracies: the parenthesised % when present, else accurate/total.
+  const crossH = frac("Cruzamentos", "home");
+  const crossA = frac("Cruzamentos", "away");
+  out["% precisão de cruzamento"] = {
+    home: pctIn("Cruzamentos", "home") ?? (crossH.acc !== null && crossH.tot ? crossH.acc / crossH.tot : null),
+    away: pctIn("Cruzamentos", "away") ?? (crossA.acc !== null && crossA.tot ? crossA.acc / crossA.tot : null),
+  };
+  const passH = { acc: f("Passes certos", "home"), tot: f("Passes", "home") };
+  const passA = { acc: f("Passes certos", "away"), tot: f("Passes", "away") };
+  out["% precisão de passe"] = {
+    home: passH.acc !== null && passH.tot ? passH.acc / passH.tot : null,
+    away: passA.acc !== null && passA.tot ? passA.acc / passA.tot : null,
+  };
+  return out;
 }
 
 type SeriesId =
-  | "mais1" | "over25" | "btts"
-  | "shH" | "shA" | "coH" | "coA" | "xgH" | "xgA"
-  | "possH" | "possA" | "sotH" | "sotA";
+  | "mais1" | "over25" | "btts" | "expG"
+  | "shT" | "shH" | "shA" | "coT" | "coH" | "coA" | "xgT" | "xgH" | "xgA"
+  | "possH" | "possA" | "passH" | "passA"
+  | "crH" | "crA" | "crAcc" | "offT" | "sotH" | "sotA";
 
 interface Series {
   id: SeriesId;
@@ -52,14 +103,24 @@ function seriesDefs(homeName: string, awayName: string): Series[] {
     { id: "mais1", label: "Mais 1 golo % (modelo)", cat: "Previsões", axis: "pct", color: "#fbbf24", width: 2.5, get: (s, m) => m.mais1 },
     { id: "over25", label: "Over 2,5 % (modelo)", cat: "Previsões", axis: "pct", color: "#fb923c", width: 2.5, get: (s, m) => m.over25 },
     { id: "btts", label: "BTTS % (modelo)", cat: "Previsões", axis: "pct", color: "#c084fc", width: 2.5, get: (s, m) => m.btts },
+    { id: "expG", label: "Total de golos (previsão)", cat: "Previsões", axis: "count", color: "#fbbf24", width: 2, get: (s, m) => m.exp },
+    { id: "shT", label: "Remates (total)", cat: "Remates", axis: "count", color: "#34d399", width: 2, get: (s) => add(s, "Remates") },
     { id: "shH", label: `Remates — ${H}`, cat: "Remates", axis: "count", color: "#34d399", get: (s) => stat("Remates", "home")(s) },
     { id: "shA", label: `Remates — ${A}`, cat: "Remates", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Remates", "away")(s) },
+    { id: "coT", label: "Cantos (total)", cat: "Cantos", axis: "count", color: "#38bdf8", width: 2, get: (s) => add(s, "Cantos") },
     { id: "coH", label: `Cantos — ${H}`, cat: "Cantos", axis: "count", color: "#34d399", get: (s) => stat("Cantos", "home")(s) },
     { id: "coA", label: `Cantos — ${A}`, cat: "Cantos", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Cantos", "away")(s) },
+    { id: "xgT", label: "xG (total)", cat: "xG", axis: "count", color: "#a3a3a3", width: 2, get: (s) => (s.xgH !== null || s.xgA !== null ? (s.xgH ?? 0) + (s.xgA ?? 0) : null) },
     { id: "xgH", label: `xG — ${H}`, cat: "xG", axis: "count", color: "#34d399", get: (s) => s.xgH },
     { id: "xgA", label: `xG — ${A}`, cat: "xG", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => s.xgA },
-    { id: "possH", label: `Posse % — ${H}`, cat: "Posse", axis: "pct", color: "#34d399", get: (s) => num(s.stats["Posse de bola"]?.home) },
-    { id: "possA", label: `Posse % — ${A}`, cat: "Posse", axis: "pct", color: "#38bdf8", dash: "5 3", get: (s) => num(s.stats["Posse de bola"]?.away) },
+    { id: "possH", label: `Posse % — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#34d399", get: (s) => num(s.stats["Posse de bola"]?.home) },
+    { id: "possA", label: `Posse % — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#38bdf8", dash: "5 3", get: (s) => num(s.stats["Posse de bola"]?.away) },
+    { id: "passH", label: `% precisão de passe — ${H}`, cat: "Posse/Passe", axis: "pct", color: "#34d399", get: (s) => stat("% precisão de passe", "home")(s) },
+    { id: "passA", label: `% precisão de passe — ${A}`, cat: "Posse/Passe", axis: "pct", color: "#38bdf8", dash: "5 3", get: (s) => stat("% precisão de passe", "away")(s) },
+    { id: "crH", label: `Cruzamentos — ${H}`, cat: "Cruzamentos", axis: "count", color: "#34d399", get: (s) => stat("Cruzamentos", "home")(s) },
+    { id: "crA", label: `Cruzamentos — ${A}`, cat: "Cruzamentos", axis: "count", color: "#38bdf8", dash: "5 3", get: (s) => stat("Cruzamentos", "away")(s) },
+    { id: "crAcc", label: "% precisão de cruzamento", cat: "Cruzamentos", axis: "pct", color: "#fb923c", get: (s) => bothAcc(s) },
+    { id: "offT", label: "Foras de jogo (total)", cat: "Outras", axis: "count", color: "#a3a3a3", get: (s) => add(s, "Foras de jogo") },
     {
       id: "sotH", label: `% remates à baliza — ${H}`, cat: "Remates", axis: "pct", color: "#34d399",
       get: (s) => {
@@ -77,11 +138,25 @@ function seriesDefs(homeName: string, awayName: string): Series[] {
       },
     },
   ];
+
+  function add(s: EvoSnap, name: string): number | null {
+    const h = s.stats[name]?.home ?? null;
+    const a = s.stats[name]?.away ?? null;
+    return h !== null || a !== null ? (h ?? 0) + (a ?? 0) : null;
+  }
+
+  function bothAcc(s: EvoSnap): number | null {
+    const h = s.stats["% precisão de cruzamento"]?.home ?? null;
+    const a = s.stats["% precisão de cruzamento"]?.away ?? null;
+    return h !== null || a !== null ? ((h ?? 0) + (a ?? 0)) / ((h !== null ? 1 : 0) + (a !== null ? 1 : 0)) : null;
+  }
 }
 
 const ALL: SeriesId[] = [
-  "mais1", "over25", "btts", "shH", "shA", "coH", "coA", "xgH", "xgA",
-  "possH", "possA", "sotH", "sotA",
+  "mais1", "over25", "btts", "expG",
+  "shT", "shH", "shA", "coT", "coH", "coA", "xgT", "xgH", "xgA",
+  "possH", "possA", "passH", "passA", "crH", "crA", "crAcc", "offT",
+  "sotH", "sotA",
 ];
 
 interface NamedFilter {

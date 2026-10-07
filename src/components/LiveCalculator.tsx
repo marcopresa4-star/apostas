@@ -13,7 +13,7 @@ import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
 import { fairOdd, type PlayedMatch } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
-import LiveEvolutionChart, { type EvoSnap } from "./LiveEvolutionChart";
+import LiveEvolutionChart, { parseStatRows, type EvoSnap } from "./LiveEvolutionChart";
 
 const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
@@ -437,20 +437,11 @@ function Calculator({
             const st = await fetch(`/api/sofascore/statistics?id=${encodeURIComponent(String(sofaEventId))}`, {
               cache: "no-store",
             });
-            const stats: EvoSnap["stats"] = {};
-            if (!stop && st.ok) {
-              const sb = (await st.json()) as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] };
-              if (sb && Array.isArray(sb.stats)) {
-                for (const row of sb.stats) {
-                  if (typeof row?.name !== "string") continue;
-                  const num = (v: unknown): number | null => {
-                    const n = typeof v === "number" ? v : typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : NaN;
-                    return Number.isFinite(n) ? n : null;
-                  };
-                  stats[row.name] = { home: num(row.home), away: num(row.away) };
-                }
-              }
-            }
+            const stats = parseStatRows(
+              !stop && st.ok
+                ? (((await st.json()) as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] }).stats ?? [])
+                : []
+            );
             if (!stop) {
               const sm = shotmapRef.current ?? [];
               const xgUpTo = (isHome: boolean): number | null => {
@@ -1238,7 +1229,7 @@ function Calculator({
               redsAway: s.ra,
               ...(s.xgH !== null && s.xgA !== null ? { homeXg: s.xgH, awayXg: s.xgA } : {}),
             });
-            return { mais1: 1 - q.nextGoal.none, over25: q.over["2.5"] ?? null, btts: q.bothScore ?? null };
+            return { mais1: 1 - q.nextGoal.none, over25: q.over["2.5"] ?? null, btts: q.bothScore ?? null, exp: q.remainingHome + q.remainingAway };
           }}
         />
       )}
