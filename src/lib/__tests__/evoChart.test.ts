@@ -87,3 +87,18 @@ describe("backfillSnaps", () => {
     expect(out[2].stats).toEqual({});
   });
 });
+
+describe("smoothPath", () => {
+  it("draws smooth curves through 3+ points", async () => {
+    const { smoothPath } = await import("../../components/CurveChart");
+    const d = smoothPath([
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+      { x: 20, y: 0 },
+    ]);
+    expect(d.startsWith("M0.0,0.0")).toBe(true);
+    expect(d).toContain("C");
+    expect(smoothPath([])).toBe("");
+    expect(smoothPath([{ x: 1, y: 2 }])).toBe("M1.0,2.0");
+  });
+});

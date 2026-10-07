@@ -6,6 +6,7 @@ import MultipleBuilder from "./MultipleBuilder";
 import ValueHunt, { type ValueItem } from "./ValueHunt";
 import FormChart from "./FormChart";
 import EloChart from "./EloChart";
+import CurveChart from "./CurveChart";
 import ForecastDashboard from "./ForecastDashboard";
 import ReportTabs from "./ReportTabs";
 import H2HPatternCard from "./H2HPatternCard";
@@ -410,54 +411,41 @@ function FormCurve({
   homeCurve: { date: string; attack: number }[];
   awayCurve: { date: string; attack: number }[];
 }) {
-  const W = 560;
-  const H = 170;
-  const PAD = 30;
   const n = Math.max(homeCurve.length, awayCurve.length);
   if (n < 2) return null;
-  const vals = [...homeCurve, ...awayCurve].map((p) => p.attack);
-  const lo = Math.min(0.7, ...vals);
-  const hi = Math.max(1.3, ...vals);
-  const x = (i: number) => PAD + (n === 1 ? 0 : (i / (n - 1)) * (W - PAD * 2));
-  const y = (v: number) => H - PAD - ((v - lo) / (hi - lo || 1)) * (H - PAD * 2);
-  const line = (curve: { attack: number }[]): string =>
-    curve.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.attack).toFixed(1)}`).join(" ");
-  const dates = homeCurve.length >= awayCurve.length ? homeCurve : awayCurve;
-  const dayMonth = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const dot2 = (v: number): string => v.toFixed(2).replace(".", ",");
   return (
     <div className={CARD}>
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Evolução da força (ataque, últimos {n} jogos)</h3>
-      <div className="mb-1 flex items-center gap-4 text-[11px]">
-        <span className="flex items-center gap-1 text-emerald-300">
-          <span aria-hidden className="inline-block h-0.5 w-4 bg-emerald-400" />
-          {home} {homeCurve.length > 0 && homeCurve[homeCurve.length - 1].attack.toFixed(2).replace(".", ",")}
-        </span>
-        <span className="flex items-center gap-1 text-sky-300">
-          <span aria-hidden className="inline-block h-0.5 w-4 bg-sky-400" />
-          {away} {awayCurve.length > 0 && awayCurve[awayCurve.length - 1].attack.toFixed(2).replace(".", ",")}
-        </span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Evolução do ataque de ${home} e ${away}`}>
-        <line x1={PAD} y1={y(1)} x2={W - PAD} y2={y(1)} stroke="#525252" strokeWidth="1" strokeDasharray="4 3" />
-        <text x={PAD - 4} y={y(1) + 3} textAnchor="end" fontSize="9" fill="#737373">
-          1,00
-        </text>
-        <path d={line(awayCurve)} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-        <path d={line(homeCurve)} fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" />
-        {homeCurve.map((p, i) => (
-          <circle key={`h${i}`} cx={x(i)} cy={y(p.attack)} r="2.5" fill="#34d399" />
-        ))}
-        {awayCurve.map((p, i) => (
-          <circle key={`a${i}`} cx={x(i)} cy={y(p.attack)} r="2.5" fill="#38bdf8" />
-        ))}
-        {dates.map((d, i) =>
-          i % Math.ceil(n / 5) === 0 ? (
-            <text key={d.date} x={x(i)} y={H - 8} textAnchor="middle" fontSize="9" fill="#737373">
-              {dayMonth(d.date)}
-            </text>
-          ) : null
-        )}
-      </svg>
+      <CurveChart
+        aria={`Evolução do ataque de ${home} e ${away}`}
+        yLabel={dot2}
+        refValue={1}
+        refLabel="média"
+        minSpan={0.12}
+        series={[
+          {
+            name: home,
+            color: "#34d399",
+            soft: "#064e3b",
+            points: homeCurve.map((p) => ({
+              value: p.attack,
+              date: p.date,
+              tip: <p className="text-neutral-200">Força {dot2(p.attack)}</p>,
+            })),
+          },
+          {
+            name: away,
+            color: "#38bdf8",
+            soft: "#0c4a6e",
+            points: awayCurve.map((p) => ({
+              value: p.attack,
+              date: p.date,
+              tip: <p className="text-neutral-200">Força {dot2(p.attack)}</p>,
+            })),
+          },
+        ]}
+      />
       <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
         A subir é a melhorar, a descer a piorar. Conta golos e remates com mais peso nos jogos recentes, como as
         probabilidades.
