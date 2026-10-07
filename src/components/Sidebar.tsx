@@ -46,6 +46,14 @@ const NAV_ITEMS = [
     adminOnly: true,
   },
   {
+    href: "/feed",
+    label: "Em direto",
+    icon: "📡",
+    chip: "bg-red-500/15 text-red-400",
+    active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
+    adminOnly: true,
+  },
+  {
     href: "/estatisticas/ao-vivo",
     label: "Ao vivo agora",
     icon: "🔴",

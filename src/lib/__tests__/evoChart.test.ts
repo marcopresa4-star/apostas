@@ -2,6 +2,7 @@
 // up between consecutive snapshots (at the later snapshot's minute).
 import { describe, it, expect } from "vitest";
 import { goalMarkers, parseStatRows, type EvoSnap } from "../../components/LiveEvolutionChart";
+import { backfillSnaps, mergeSnaps } from "../../lib/useEvoSnapshots";
 
 const S = (minute: number, hg: number, ag: number): EvoSnap => ({
   minute,
@@ -54,5 +55,35 @@ describe("parseStatRows", () => {
     expect(r["Foras de jogo"]).toEqual({ home: 2, away: 1 });
     expect(r["Faltas"]).toEqual({ home: null, away: 15 });
     expect(r["Defesas"]).toEqual({ home: null, away: null });
+  });
+});
+
+describe("mergeSnaps", () => {
+  it("keeps existing minutes (live snapshots win over backfill)", () => {
+    const live = [{ ...S(10, 0, 0), stats: { Remates: { home: 5, away: 3 } } }];
+    const back = [S(10, 0, 0), S(20, 1, 0)];
+    const merged = mergeSnaps(live, back);
+    expect(merged.map((s) => s.minute)).toEqual([10, 20]);
+    expect(merged[0].stats).toEqual({ Remates: { home: 5, away: 3 } });
+  });
+});
+
+describe("backfillSnaps", () => {
+  it("rebuilds score and xG from minute-stamped data", () => {
+    const out = backfillSnaps({
+      upToMinute: 3,
+      goals: [{ minute: 2, home: true }],
+      shots: [
+        { minute: 1, home: true, xg: 0.1 },
+        { minute: 2, home: false, xg: null },
+      ],
+      rh: 0,
+      ra: 0,
+    });
+    expect(out.map((s) => s.minute)).toEqual([1, 2, 3]);
+    expect(out[1].hg).toBe(1);
+    expect(out[0].xgH).toBeCloseTo(0.1, 9);
+    expect(out[0].xgA).toBeNull();
+    expect(out[2].stats).toEqual({});
   });
 });
