@@ -13,7 +13,6 @@ const S = (minute: number, hg: number, ag: number): EvoSnap => ({
   stats: {},
   xgH: null,
   xgA: null,
-  half: null,
 });
 
 describe("goalMarkers", () => {
@@ -101,37 +100,5 @@ describe("smoothPath", () => {
     expect(d).toContain("C");
     expect(smoothPath([])).toBe("");
     expect(smoothPath([{ x: 1, y: 2 }])).toBe("M1.0,2.0");
-  });
-});
-
-describe("plotMinute", () => {
-  it("clamps first-half stoppage to the break line", async () => {
-    const { plotMinute } = await import("../../components/LiveEvolutionChart");
-    expect(plotMinute({ minute: 47, half: 1 })).toBe(45);
-    expect(plotMinute({ minute: 45, half: 1 })).toBe(45);
-    expect(plotMinute({ minute: 47, half: 2 })).toBe(47);
-    expect(plotMinute({ minute: 47, half: null })).toBe(47);
-    expect(plotMinute({ minute: 30, half: 1 })).toBe(30);
-  });
-});
-
-describe("halfOfStatus", () => {
-  it("reads the half from the status wording", async () => {
-    const { halfOfStatus } = await import("../sportscoreLive");
-    expect(halfOfStatus("1st half")).toBe(1);
-    expect(halfOfStatus("2nd half")).toBe(2);
-    expect(halfOfStatus("Halftime")).toBeNull();
-    expect(halfOfStatus("90'+3'")).toBeNull();
-  });
-});
-
-describe("backfillSnaps half", () => {
-  it("marks minutes past 45 with the current half", () => {
-    const first = backfillSnaps({ upToMinute: 47, goals: [], shots: [], rh: 0, ra: 0, half: 1 });
-    expect(first[45].half).toBe(1);
-    expect(first[46].half).toBe(1);
-    const second = backfillSnaps({ upToMinute: 47, goals: [], shots: [], rh: 0, ra: 0, half: 2 });
-    expect(second[46].half).toBe(2);
-    expect(second[44].half).toBe(1);
   });
 });

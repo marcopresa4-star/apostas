@@ -9,9 +9,6 @@ export type LivePhase = "upcoming" | "live" | "halftime" | "finished" | "unknown
 export interface LiveGameState {
   phase: LivePhase;
   minute: number | null;
-  // Which half is in progress, from the status wording ("1st half"...):
-  // null at the break, before kickoff and whenever it cannot be told.
-  half: 1 | 2 | null;
   homeGoals: number | null;
   awayGoals: number | null;
   reds: { home: number; away: number };
@@ -45,15 +42,6 @@ export function parseMinute(value: unknown): number | null {
 }
 
 const obj = (x: unknown): Record<string, unknown> | null => (typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
-
-// Which half the status wording points at ("1st half"...): null at the
-// break, before kickoff and whenever it cannot be told.
-export function halfOfStatus(text: string): 1 | 2 | null {
-  const t = text.toLowerCase();
-  if (/2nd|second/.test(t)) return 2;
-  if (/1st|first/.test(t)) return 1;
-  return null;
-}
 
 export function parseLiveMatch(json: unknown): LiveGameState | null {
   const m = obj(obj(json)?.match);
@@ -103,7 +91,6 @@ export function parseLiveMatch(json: unknown): LiveGameState | null {
   return {
     phase,
     minute: phase === "halftime" ? 45 : minute,
-    half: halfOfStatus(text),
     updatedAt,
     lastIncident,
     stats,

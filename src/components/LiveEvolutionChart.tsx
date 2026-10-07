@@ -15,9 +15,6 @@ export interface EvoSnap {
   stats: Record<string, { home: number | null; away: number | null }>;
   xgH: number | null;
   xgA: number | null;
-  // Which half the reading belongs to (null when unknown, e.g. old stored
-  // snapshots): first-half stoppage plots left of the break, never past it.
-  half: 1 | 2 | null;
 }
 
 export interface EvoModel {
@@ -176,19 +173,7 @@ interface NamedFilter {
 }
 
 const LS_KEY = "apostas:evoFilters";
-const DEFAULT_NAME = "Padrão (essencial)";
-const ALL_NAME = "Mostrar tudo";
-// The default view: model chances plus the three totals that tell the
-// game's story. Everything else stays one click away ("Mostrar tudo" or a
-// custom filter) instead of tangling the chart on open.
-const ESSENTIAL: SeriesId[] = ["mais1", "over25", "btts", "xgT", "shT", "coT"];
-
-// Where a snapshot plots on the time axis: first-half stoppage (45+2'
-// reads as 47) belongs to the first half, so it clamps to the break line.
-// The tooltip still shows the real minute. Exported for tests.
-export function plotMinute(s: Pick<EvoSnap, "minute" | "half">): number {
-  return s.half === 1 && s.minute > 45 ? 45 : s.minute;
-}
+const DEFAULT_NAME = "Padrão (mostrar tudo)";
 
 // Goal markers from score changes between consecutive snapshots (side =
 // whose total went up). Exported for tests.
@@ -248,11 +233,8 @@ export default function LiveEvolutionChart({
   useEffect(() => {
     const { filters: f, def } = loadFilters();
     setFilters(f);
-    // Unknown stored default (e.g. the old "mostrar tudo" name): fall back
-    // to the essential view instead of a blank select.
-    const known = def === DEFAULT_NAME || def === ALL_NAME || f.some((x) => x.name === def);
-    setDefName(known ? def : DEFAULT_NAME);
-    setFilter(known ? def : DEFAULT_NAME);
+    setDefName(def);
+    setFilter(def);
   }, []);
 
   const persist = (f: NamedFilter[], d: string): void => {
@@ -267,7 +249,7 @@ export default function LiveEvolutionChart({
 
   const models = useMemo(() => snaps.map((s) => modelAt(s)), [snaps, modelAt]);
   const base: SeriesId[] =
-    filter === DEFAULT_NAME ? ESSENTIAL : filter === ALL_NAME ? ALL : (filters.find((f) => f.name === filter)?.series ?? ESSENTIAL);
+    filter === DEFAULT_NAME ? ALL : (filters.find((f) => f.name === filter)?.series ?? ALL);
   const visible = defs.filter((d) => base.includes(d.id) && !hidden.has(d.id));
   // Series with no readings at all in this game (feed gaps): dimmed in the
   // legend so the eye skips them, chart untouched.
@@ -296,19 +278,13 @@ export default function LiveEvolutionChart({
 
   // Goal markers: snapshots where a side's total went up.
   const goals = goalMarkers(snaps);
-  // Half a goal marker belongs to (for the stoppage clamp): the snapshot
-  // at its minute, if any.
-  const halfAt = (m: number): 1 | 2 | null => snaps.find((s) => s.minute === m)?.half ?? null;
 
-  const geomFor = (d: Series): { d: string; dots: { x: number; y: number }[] } => {
+  const pathFor = (d: Series): string => {
     // Contiguous segments (gaps stay gaps), each drawn smooth (Catmull-Rom).
-    // Lone readings carry no line — they come back as dots so isolated
-    // points still show instead of vanishing.
     const pts: { x: number; y: number }[] = [];
     const segs: string[] = [];
-    const dots: { x: number; y: number }[] = [];
     const flush = (): void => {
-      if (pts.length === 1) dots.push({ x: pts[0].x, y: pts[0].y });
+      if (pts.length === 1) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`);
       else if (pts.length === 2) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`);
       else if (pts.length > 2) {
         let s = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
@@ -333,10 +309,10 @@ export default function LiveEvolutionChart({
         flush();
         return;
       }
-      pts.push({ x: x(plotMinute(s)), y: d.axis === "count" ? yCount(v) : yPct(v) });
+      pts.push({ x: x(s.minute), y: d.axis === "count" ? yCount(v) : yPct(v) });
     });
     flush();
-    return { d: segs.join(" "), dots };
+    return segs.join(" ");
   };
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>): void => {
@@ -345,7 +321,7 @@ export default function LiveEvolutionChart({
     let best = 0;
     let bestDist = Infinity;
     snaps.forEach((s, i) => {
-      const dist = Math.abs(x(plotMinute(s)) - px);
+      const dist = Math.abs(x(s.minute) - px);
       if (dist < bestDist) {
         bestDist = dist;
         best = i;
@@ -394,7 +370,6 @@ export default function LiveEvolutionChart({
           className="max-w-56 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
         >
           <option value={DEFAULT_NAME}>{DEFAULT_NAME}</option>
-          <option value={ALL_NAME}>{ALL_NAME}</option>
           {filters.map((f) => (
             <option key={f.name} value={f.name}>
               {f.name}
@@ -457,8 +432,8 @@ export default function LiveEvolutionChart({
               {goals.map((gl, i) => (
                 <line
                   key={i}
-                  x1={x(plotMinute({ minute: gl.minute, half: halfAt(gl.minute) }))}
-                  x2={x(plotMinute({ minute: gl.minute, half: halfAt(gl.minute) }))}
+                  x1={x(gl.minute)}
+                  x2={x(gl.minute)}
                   y1={PADT}
                   y2={H - PADB}
                   stroke={gl.home ? "#34d399" : "#38bdf8"}
@@ -467,33 +442,26 @@ export default function LiveEvolutionChart({
                   opacity="0.3"
                 />
               ))}
-              {visible.map((d) => {
-                const g = geomFor(d);
-                return (
-                  <g key={d.id}>
-                    <path
-                      d={g.d}
-                      fill="none"
-                      stroke={d.color}
-                      strokeWidth={d.width ?? 1.25}
-                      strokeDasharray={d.dash ?? undefined}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {g.dots.map((p, i) => (
-                      <circle key={i} cx={p.x} cy={p.y} r="2.5" fill={d.color} />
-                    ))}
-                  </g>
-                );
-              })}
+              {visible.map((d) => (
+                <path
+                  key={d.id}
+                  d={pathFor(d)}
+                  fill="none"
+                  stroke={d.color}
+                  strokeWidth={d.width ?? 1.25}
+                  strokeDasharray={d.dash ?? undefined}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
               {hov && (
-                <line x1={x(plotMinute(hov))} x2={x(plotMinute(hov))} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
+                <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
               )}
             </svg>
             {hov && hovModel && (
               <div
                 className="pointer-events-none absolute z-10 min-w-40 max-w-60 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
-                style={{ left: `${Math.min(70, (x(plotMinute(hov)) / W) * 100)}%`, top: "4%" }}
+                style={{ left: `${Math.min(70, (x(hov.minute) / W) * 100)}%`, top: "4%" }}
               >
                 <p className="font-semibold text-neutral-100">
                   {hov.minute}&apos; · {hov.hg}–{hov.ag}

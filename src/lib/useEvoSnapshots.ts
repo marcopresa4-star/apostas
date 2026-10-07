@@ -26,7 +26,6 @@ export interface FeedLive {
   rh: number;
   ra: number;
   phase: string;
-  half: 1 | 2 | null;
 }
 
 export interface FeedMeta {
@@ -52,9 +51,6 @@ export function backfillSnaps(opts: {
   shots: FeedShot[];
   rh: number;
   ra: number;
-  // The half in progress now: minutes past 45 inherit it (first-half
-  // stoppage belongs left of the break), older ones default to the 2nd.
-  half?: 1 | 2 | null;
 }): EvoSnap[] {
   const { goals, shots, rh, ra } = opts;
   const out: EvoSnap[] = [];
@@ -65,7 +61,7 @@ export function backfillSnaps(opts: {
       const list = shots.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute);
       return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
     };
-    out.push({ minute, hg, ag, rh, ra, stats: {}, xgH: xg(true), xgA: xg(false), half: minute <= 45 ? 1 : (opts.half ?? 2) });
+    out.push({ minute, hg, ag, rh, ra, stats: {}, xgH: xg(true), xgA: xg(false) });
   }
   return out;
 }
@@ -105,7 +101,7 @@ export function markPolled(eventId: number): void {
 // over the backfilled shells at the same minute.
 export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: boolean, light = false): Promise<EvoPoll | null> {
   const body = (await readJson(`/api/sofascore/event?id=${eventId}${light ? "&light=1" : ""}`)) as {
-    state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; half?: unknown; reds?: { home?: unknown; away?: unknown } };
+    state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: { home?: unknown; away?: unknown } };
     goals?: { minute?: unknown; home?: unknown }[];
     meta?: FeedMeta;
   } | null;
@@ -122,8 +118,7 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   if (minute === null || hg === null || ag === null) return { snaps: prev, live: null, meta, filled, phase };
   const rh = typeof st.reds?.home === "number" ? st.reds.home : 0;
   const ra = typeof st.reds?.away === "number" ? st.reds.away : 0;
-  const half = st.half === 1 || st.half === 2 ? st.half : null;
-  const live: FeedLive = { minute, hg, ag, rh, ra, phase, half };
+  const live: FeedLive = { minute, hg, ag, rh, ra, phase };
   const [statBody, shotBody] = await Promise.all([
     readJson(`/api/sofascore/statistics?id=${eventId}`),
     readJson(`/api/sofascore/shotmap?id=${eventId}`),
@@ -144,23 +139,19 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   };
   let snaps = prev;
   if (phase === "live" || phase === "halftime") {
-    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false), half };
+    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false) };
     snaps = [...snaps.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150);
   }
   // Backfill once: minutes before we arrived, from shots + goals. Live
-  // snapshots stay first so the joining minute keeps its real stats. Also
-  // re-runs when the early minutes are missing (a wiped store claims to be
-  // filled but starts far from minute 1: nothing real to lose, the
-  // score/xG/model history to rebuild). Self-limiting: after a heal the
-  // history starts at minute 1 again.
-  if (!filled || (snaps.length > 0 && snaps[0].minute > 3)) {
+  // snapshots stay first so the joining minute keeps its real stats.
+  if (!filled) {
     filled = true;
     const goals: FeedGoal[] = Array.isArray(body.goals)
       ? body.goals.flatMap((gl) =>
           typeof gl.minute === "number" && typeof gl.home === "boolean" ? [{ minute: gl.minute, home: gl.home }] : []
         )
       : [];
-    snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra, half }));
+    snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra }));
   }
   return { snaps, live, meta, filled, phase };
 }
@@ -170,11 +161,9 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
   live: FeedLive | null;
   meta: FeedMeta | null;
 } {
-  // Empty initial state matches the server render (hydration-safe): the
-  // shared store loads in the effect below, right after mount.
-  const [snaps, setSnaps] = useState<EvoSnap[]>([]);
-  const [live, setLive] = useState<FeedLive | null>(null);
-  const [meta, setMeta] = useState<FeedMeta | null>(null);
+  const [snaps, setSnaps] = useState<EvoSnap[]>(() => (eventId ? loadFeedStore(eventId)?.snaps ?? [] : []));
+  const [live, setLive] = useState<FeedLive | null>(() => (eventId ? loadFeedStore(eventId)?.live ?? null : null));
+  const [meta, setMeta] = useState<FeedMeta | null>(() => (eventId ? loadFeedStore(eventId)?.meta ?? null : null));
   const filledRef = useRef(false);
   const snapsRef = useRef<EvoSnap[]>([]);
   snapsRef.current = snaps;
@@ -213,15 +202,9 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
     const poll = async (): Promise<void> => {
       // Settled games barely move: calm down to one reading per 10 min.
       if (liveRef.current?.phase === "finished" && Date.now() - lastPollRef.current < 10 * 60_000) return;
-      // The store (not the render ref) is the source of truth: on mount the
-      // ref is still empty while the store already holds history — polling
-      // from the ref would save a near-empty array over it.
-      const stored = loadFeedStore(eventId);
-      if (stored?.filled) filledRef.current = true;
-      const prev = stored && stored.snaps.length > 0 ? stored.snaps : snapsRef.current;
       let next: EvoPoll | null = null;
       try {
-        next = await pollEvoGame(eventId, prev, filledRef.current, pollLight(eventId));
+        next = await pollEvoGame(eventId, snapsRef.current, filledRef.current, pollLight(eventId));
       } catch {
         return;
       } finally {
