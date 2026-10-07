@@ -173,7 +173,12 @@ interface NamedFilter {
 }
 
 const LS_KEY = "apostas:evoFilters";
-const DEFAULT_NAME = "Padrão (mostrar tudo)";
+const DEFAULT_NAME = "Padrão (essencial)";
+const ALL_NAME = "Mostrar tudo";
+// The default view: model chances plus the three totals that tell the
+// game's story. Everything else stays one click away ("Mostrar tudo" or a
+// custom filter) instead of tangling the chart on open.
+const ESSENTIAL: SeriesId[] = ["mais1", "over25", "btts", "xgT", "shT", "coT"];
 
 // Goal markers from score changes between consecutive snapshots (side =
 // whose total went up). Exported for tests.
@@ -233,8 +238,11 @@ export default function LiveEvolutionChart({
   useEffect(() => {
     const { filters: f, def } = loadFilters();
     setFilters(f);
-    setDefName(def);
-    setFilter(def);
+    // Unknown stored default (e.g. the old "mostrar tudo" name): fall back
+    // to the essential view instead of a blank select.
+    const known = def === DEFAULT_NAME || def === ALL_NAME || f.some((x) => x.name === def);
+    setDefName(known ? def : DEFAULT_NAME);
+    setFilter(known ? def : DEFAULT_NAME);
   }, []);
 
   const persist = (f: NamedFilter[], d: string): void => {
@@ -249,7 +257,7 @@ export default function LiveEvolutionChart({
 
   const models = useMemo(() => snaps.map((s) => modelAt(s)), [snaps, modelAt]);
   const base: SeriesId[] =
-    filter === DEFAULT_NAME ? ALL : (filters.find((f) => f.name === filter)?.series ?? ALL);
+    filter === DEFAULT_NAME ? ESSENTIAL : filter === ALL_NAME ? ALL : (filters.find((f) => f.name === filter)?.series ?? ESSENTIAL);
   const visible = defs.filter((d) => base.includes(d.id) && !hidden.has(d.id));
   // Series with no readings at all in this game (feed gaps): dimmed in the
   // legend so the eye skips them, chart untouched.
@@ -370,6 +378,7 @@ export default function LiveEvolutionChart({
           className="max-w-56 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
         >
           <option value={DEFAULT_NAME}>{DEFAULT_NAME}</option>
+          <option value={ALL_NAME}>{ALL_NAME}</option>
           {filters.map((f) => (
             <option key={f.name} value={f.name}>
               {f.name}
