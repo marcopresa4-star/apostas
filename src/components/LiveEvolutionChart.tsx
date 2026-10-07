@@ -300,12 +300,15 @@ export default function LiveEvolutionChart({
   // at its minute, if any.
   const halfAt = (m: number): 1 | 2 | null => snaps.find((s) => s.minute === m)?.half ?? null;
 
-  const pathFor = (d: Series): string => {
+  const geomFor = (d: Series): { d: string; dots: { x: number; y: number }[] } => {
     // Contiguous segments (gaps stay gaps), each drawn smooth (Catmull-Rom).
+    // Lone readings carry no line — they come back as dots so isolated
+    // points still show instead of vanishing.
     const pts: { x: number; y: number }[] = [];
     const segs: string[] = [];
+    const dots: { x: number; y: number }[] = [];
     const flush = (): void => {
-      if (pts.length === 1) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`);
+      if (pts.length === 1) dots.push({ x: pts[0].x, y: pts[0].y });
       else if (pts.length === 2) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`);
       else if (pts.length > 2) {
         let s = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
@@ -333,7 +336,7 @@ export default function LiveEvolutionChart({
       pts.push({ x: x(plotMinute(s)), y: d.axis === "count" ? yCount(v) : yPct(v) });
     });
     flush();
-    return segs.join(" ");
+    return { d: segs.join(" "), dots };
   };
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>): void => {
@@ -464,18 +467,25 @@ export default function LiveEvolutionChart({
                   opacity="0.3"
                 />
               ))}
-              {visible.map((d) => (
-                <path
-                  key={d.id}
-                  d={pathFor(d)}
-                  fill="none"
-                  stroke={d.color}
-                  strokeWidth={d.width ?? 1.25}
-                  strokeDasharray={d.dash ?? undefined}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ))}
+              {visible.map((d) => {
+                const g = geomFor(d);
+                return (
+                  <g key={d.id}>
+                    <path
+                      d={g.d}
+                      fill="none"
+                      stroke={d.color}
+                      strokeWidth={d.width ?? 1.25}
+                      strokeDasharray={d.dash ?? undefined}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {g.dots.map((p, i) => (
+                      <circle key={i} cx={p.x} cy={p.y} r="2.5" fill={d.color} />
+                    ))}
+                  </g>
+                );
+              })}
               {hov && (
                 <line x1={x(plotMinute(hov))} x2={x(plotMinute(hov))} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
               )}
