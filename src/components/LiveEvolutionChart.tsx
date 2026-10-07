@@ -286,6 +286,9 @@ export default function LiveEvolutionChart({
 
   // Goal markers: snapshots where a side's total went up.
   const goals = goalMarkers(snaps);
+  // The break line only draws once the game gets there (minute 45 reached):
+  // no floating INT over a first half still in progress.
+  const showInt = snaps.some((s) => s.minute >= 45);
 
   const pathFor = (d: Series): string => {
     // Contiguous segments (gaps stay gaps), each drawn smooth (Catmull-Rom).
@@ -413,10 +416,14 @@ export default function LiveEvolutionChart({
                   strokeWidth="1"
                 />
               ))}
-              <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
-              <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#71717a">
-                INT
-              </text>
+              {showInt && (
+                <>
+                  <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
+                  <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#71717a">
+                    INT
+                  </text>
+                </>
+              )}
               {[0, 15, 30, 45, 60, 75, 90].map(
                 (t) =>
                   t <= xMax && (
