@@ -166,9 +166,11 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
   live: FeedLive | null;
   meta: FeedMeta | null;
 } {
-  const [snaps, setSnaps] = useState<EvoSnap[]>(() => (eventId ? loadFeedStore(eventId)?.snaps ?? [] : []));
-  const [live, setLive] = useState<FeedLive | null>(() => (eventId ? loadFeedStore(eventId)?.live ?? null : null));
-  const [meta, setMeta] = useState<FeedMeta | null>(() => (eventId ? loadFeedStore(eventId)?.meta ?? null : null));
+  // Empty initial state matches the server render (hydration-safe): the
+  // shared store loads in the effect below, right after mount.
+  const [snaps, setSnaps] = useState<EvoSnap[]>([]);
+  const [live, setLive] = useState<FeedLive | null>(null);
+  const [meta, setMeta] = useState<FeedMeta | null>(null);
   const filledRef = useRef(false);
   const snapsRef = useRef<EvoSnap[]>([]);
   snapsRef.current = snaps;
