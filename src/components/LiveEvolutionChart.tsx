@@ -264,7 +264,8 @@ export default function LiveEvolutionChart({
         </select>
       </div>
       <p className="mb-2 text-[11px] text-neutral-500">
-        Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. Clica na legenda para esconder
+        Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
+        (remates, golos e modelo); posse e cantos só contam da tua entrada. Clica na legenda para esconder
         séries sem mexer no filtro.
       </p>
       <div className="relative">

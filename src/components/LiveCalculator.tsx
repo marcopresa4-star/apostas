@@ -289,10 +289,85 @@ function Calculator({
   // Evolution snapshots: one per successful minute poll (score, cards,
   // cumulative stats, accumulated xG). The chart draws history from these.
   const [snaps, setSnaps] = useState<EvoSnap[]>([]);
+  const [filled, setFilled] = useState(false);
   const shotmapRef = useRef<typeof shotmap>(null);
   useEffect(() => {
     shotmapRef.current = shotmap;
   }, [shotmap]);
+  // Backfill when joining late: rebuild minutes 1..M from the shotmap
+  // (every shot carries its minute) and the goal incidents, so the chart is
+  // born full. Cumulative stats have no history: they start at our arrival
+  // (gaps before, never zeros). Runs once per game; live polls keep appending.
+  useEffect(() => {
+    if (!sofaEventId || !syncOn || filled) return;
+    if (syncInfo?.kind !== "ok") return;
+    const st = syncInfo.state;
+    if (st.phase !== "live" && st.phase !== "halftime" && st.phase !== "finished") return;
+    if ((st.minute ?? 0) < 1) return;
+    let stop = false;
+    const fill = async (): Promise<void> => {
+      try {
+        let sm = shotmapRef.current;
+        if (!sm) {
+          const res = await fetch(`/api/sofascore/shotmap?id=${encodeURIComponent(String(sofaEventId))}`, { cache: "no-store" });
+          if (!stop && res.ok) {
+            const body = (await res.json()) as { shots?: { minute?: unknown; home?: unknown; xg?: unknown }[] };
+            if (body && Array.isArray(body.shots)) {
+              sm = body.shots.flatMap((s) =>
+                typeof s.minute === "number" && typeof s.home === "boolean"
+                  ? [{ minute: s.minute, home: s.home, xg: typeof s.xg === "number" ? s.xg : null }]
+                  : []
+              );
+              setShotmap(sm);
+            }
+          }
+        }
+        const res = await fetch(SOFASCORE_EVENT + encodeURIComponent(String(sofaEventId)), { cache: "no-store" });
+        if (stop || !res.ok) return;
+        const body = (await res.json()) as { goals?: { minute?: unknown; home?: unknown }[] };
+        const goals = Array.isArray(body?.goals)
+          ? body.goals.flatMap((gl) =>
+              typeof gl.minute === "number" && typeof gl.home === "boolean" ? [{ minute: gl.minute, home: gl.home }] : []
+            )
+          : [];
+        const M = Math.min(130, st.minute ?? 0);
+        const shots = sm ?? [];
+        const built: EvoSnap[] = [];
+        for (let minute = 1; minute <= M; minute++) {
+          const hg = goals.filter((gl) => gl.home && gl.minute <= minute).length;
+          const ag = goals.filter((gl) => !gl.home && gl.minute <= minute).length;
+          const xgList = (isHome: boolean): number | null => {
+            const list = shots.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute);
+            return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
+          };
+          built.push({
+            minute,
+            hg,
+            ag,
+            rh: st.reds.home,
+            ra: st.reds.away,
+            stats: {},
+            xgH: xgList(true),
+            xgA: xgList(false),
+          });
+        }
+        if (!stop && built.length > 0) {
+          setSnaps((prev) => {
+            const byMin = new Map(prev.map((s) => [s.minute, s]));
+            for (const s of built) if (!byMin.has(s.minute)) byMin.set(s.minute, s);
+            return [...byMin.values()].sort((a, b) => a.minute - b.minute).slice(-150);
+          });
+          setFilled(true);
+        }
+      } catch {
+        // Next poll retries via the normal snapshot flow.
+      }
+    };
+    void fill();
+    return () => {
+      stop = true;
+    };
+  }, [sofaEventId, syncOn, syncInfo, filled]);
   // Anytime-scorer prices for the probable starters (needs lineups): fetched
   // rarely, the XI barely moves. Hidden without coverage.
   const [scorers, setScorers] = useState<{ home: ScorerRow[]; away: ScorerRow[] } | null>(null);

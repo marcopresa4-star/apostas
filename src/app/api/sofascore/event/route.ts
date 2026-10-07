@@ -124,6 +124,16 @@ export async function GET(request: Request) {
       `Sem novidades no SofaScore há ${Math.round((fetchedAt - lastChange) / 60_000)} min: o jogo pode estar parado ou já ter acabado. Confirma o resultado à mão.`
     );
   }
+  const allIncidents = Array.isArray(body.incidents) ? (body.incidents as unknown[]) : [];
+  const goals = allIncidents.flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const inc = item as Record<string, unknown>;
+    const type = String(inc.incidentType ?? "").toLowerCase();
+    if (!type.includes("goal") && !type.includes("penalt")) return [];
+    const time = typeof inc.time === "number" ? inc.time : null;
+    if (time === null || time < 0 || time > 130) return [];
+    return [{ minute: time, home: inc.isHome === true }];
+  });
   return Response.json(
     {
       state: checked.state,
@@ -132,6 +142,8 @@ export async function GET(request: Request) {
       notes,
       hasTracker: typeof body.hasTracker === "boolean" ? body.hasTracker : null,
       recent,
+      // Every goal with its minute (for backfilling charts when joining late).
+      goals: goals.sort((a, b) => a.minute - b.minute),
       meta: eventMeta(body.event ?? body),
     },
     { headers: { "Cache-Control": "private, max-age=30" } }
