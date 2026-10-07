@@ -184,20 +184,39 @@ export default function LiveEvolutionChart({
   const goals = goalMarkers(snaps);
 
   const pathFor = (d: Series): string => {
-    let path = "";
-    let open = false;
+    // Contiguous segments (gaps stay gaps), each drawn smooth (Catmull-Rom).
+    const pts: { x: number; y: number }[] = [];
+    const segs: string[] = [];
+    const flush = (): void => {
+      if (pts.length === 1) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`);
+      else if (pts.length === 2) segs.push(`M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L${pts[1].x.toFixed(1)},${pts[1].y.toFixed(1)}`);
+      else if (pts.length > 2) {
+        let s = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[Math.max(0, i - 1)];
+          const p1 = pts[i];
+          const p2 = pts[i + 1];
+          const p3 = pts[Math.min(pts.length - 1, i + 2)];
+          const c1x = p1.x + (p2.x - p0.x) / 6;
+          const c1y = p1.y + (p2.y - p0.y) / 6;
+          const c2x = p2.x - (p3.x - p1.x) / 6;
+          const c2y = p2.y - (p3.y - p1.y) / 6;
+          s += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+        }
+        segs.push(s);
+      }
+      pts.length = 0;
+    };
     snaps.forEach((s, i) => {
       const v = d.get(s, models[i]);
       if (v === null || !Number.isFinite(v)) {
-        open = false;
+        flush();
         return;
       }
-      const px = x(s.minute).toFixed(1);
-      const py = (d.axis === "count" ? yCount(v) : yPct(v)).toFixed(1);
-      path += `${open ? "L" : "M"}${px},${py} `;
-      open = true;
+      pts.push({ x: x(s.minute), y: d.axis === "count" ? yCount(v) : yPct(v) });
     });
-    return path;
+    flush();
+    return segs.join(" ");
   };
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>): void => {
@@ -267,7 +286,7 @@ export default function LiveEvolutionChart({
         Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
         (remates, golos e modelo); posse e cantos só contam da tua entrada.
       </p>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_11rem]">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_13rem]">
         <div>
           <div className="relative">
             <svg
@@ -307,6 +326,14 @@ export default function LiveEvolutionChart({
                   {q}
                 </text>
               ))}
+              {[0, 0.5, 1].map((f) => {
+                const v = Math.max(1, Math.round(countMax * f));
+                return (
+                  <text key={f} x={PADL - 4} y={yCount(v) + 3} textAnchor="end" fontSize="9" fill="#71717a">
+                    {v}
+                  </text>
+                );
+              })}
               {goals.map((gl, i) => (
                 <line
                   key={i}
@@ -317,7 +344,7 @@ export default function LiveEvolutionChart({
                   stroke={gl.home ? "#34d399" : "#38bdf8"}
                   strokeWidth="1"
                   strokeDasharray="2 3"
-                  opacity="0.7"
+                  opacity="0.3"
                 />
               ))}
               {visible.map((d) => (
@@ -338,24 +365,29 @@ export default function LiveEvolutionChart({
             </svg>
             {hov && hovModel && (
               <div
-                className="pointer-events-none absolute z-10 min-w-44 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
+                className="pointer-events-none absolute z-10 min-w-40 max-w-60 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
                 style={{ left: `${Math.min(70, (x(hov.minute) / W) * 100)}%`, top: "4%" }}
               >
                 <p className="font-semibold text-neutral-100">
                   {hov.minute}&apos; · {hov.hg}–{hov.ag}
                 </p>
-                {visible.map((d) => {
-                  const v = d.get(hov, hovModel);
-                  if (v === null) return null;
-                  return (
-                    <p key={d.id} className="text-neutral-300">
+                {visible
+                  .map((d) => ({ d, v: d.get(hov, hovModel) }))
+                  .filter((r): r is { d: Series; v: number } => r.v !== null)
+                  .slice(0, 7)
+                  .map(({ d, v }) => (
+                    <p key={d.id} className="truncate text-[11px] text-neutral-300">
                       <span style={{ color: d.color }}>●</span> {d.label}:{" "}
                       {d.axis === "pct" ? pct1(v) : v.toFixed(2).replace(".", ",")}
                     </p>
-                  );
-                })}
+                  ))}
+                {visible.filter((d) => d.get(hov, hovModel) !== null).length > 7 && (
+                  <p className="text-[10px] text-neutral-500">
+                    +{visible.filter((d) => d.get(hov, hovModel) !== null).length - 7} mais…
+                  </p>
+                )}
                 {goals.some((gl) => gl.minute === hov.minute) && (
-                  <p className="text-neutral-200">
+                  <p className="text-[11px] text-neutral-200">
                     ⚽ Golo — {goals.find((gl) => gl.minute === hov.minute)?.home ? homeName : awayName}, ~{hov.minute}&apos;
                   </p>
                 )}
