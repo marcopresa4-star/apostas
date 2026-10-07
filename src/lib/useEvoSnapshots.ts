@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { parseStatRows, type EvoSnap } from "../components/LiveEvolutionChart";
+import { loadFeedStore, notifyFeedStore, saveFeedStore } from "./feedStore";
 
 // Snapshots for one followed game: the same minute-by-minute history the
 // live calculator chart draws from, but standalone (the feed page has no
@@ -75,81 +76,129 @@ async function readJson(url: string): Promise<unknown | null> {
   }
 }
 
+export interface EvoPoll {
+  snaps: EvoSnap[];
+  live: FeedLive | null;
+  meta: FeedMeta | null;
+  filled: boolean;
+}
+
+// One polling round for a game: event state + statistics + shotmap merged
+// onto prev. Unreadable -> null (keep prev). Pre-match -> live null with prev
+// snaps untouched. Live snapshots are merged first so their real stats win
+// over the backfilled shells at the same minute.
+export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: boolean): Promise<EvoPoll | null> {
+  const body = (await readJson(`/api/sofascore/event?id=${eventId}`)) as {
+    state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: { home?: unknown; away?: unknown } };
+    goals?: { minute?: unknown; home?: unknown }[];
+    meta?: FeedMeta;
+  } | null;
+  if (!body?.state) return null;
+  const st = body.state;
+  const phase = String(st.phase ?? "");
+  const meta = body.meta && (body.meta.home || body.meta.away) ? body.meta : null;
+  if (phase !== "live" && phase !== "halftime" && phase !== "finished") {
+    return { snaps: prev, live: null, meta, filled };
+  }
+  const minute = typeof st.minute === "number" ? st.minute : null;
+  const hg = typeof st.homeGoals === "number" ? st.homeGoals : null;
+  const ag = typeof st.awayGoals === "number" ? st.awayGoals : null;
+  if (minute === null || hg === null || ag === null) return { snaps: prev, live: null, meta, filled };
+  const rh = typeof st.reds?.home === "number" ? st.reds.home : 0;
+  const ra = typeof st.reds?.away === "number" ? st.reds.away : 0;
+  const live: FeedLive = { minute, hg, ag, rh, ra, phase };
+  const [statBody, shotBody] = await Promise.all([
+    readJson(`/api/sofascore/statistics?id=${eventId}`),
+    readJson(`/api/sofascore/shotmap?id=${eventId}`),
+  ]);
+  const rows = (statBody as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] } | null)?.stats;
+  const stats = parseStatRows(Array.isArray(rows) ? rows : []);
+  const rawShots = (shotBody as { shots?: { minute?: unknown; home?: unknown; xg?: unknown }[] } | null)?.shots;
+  const shots: FeedShot[] = Array.isArray(rawShots)
+    ? rawShots.flatMap((s) =>
+        typeof s.minute === "number" && typeof s.home === "boolean"
+          ? [{ minute: s.minute, home: s.home, xg: typeof s.xg === "number" ? s.xg : null }]
+          : []
+      )
+    : [];
+  const xgUpTo = (isHome: boolean): number | null => {
+    const list = shots.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute);
+    return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
+  };
+  let snaps = prev;
+  if (phase === "live" || phase === "halftime") {
+    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false) };
+    snaps = [...snaps.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150);
+  }
+  // Backfill once: minutes before we arrived, from shots + goals. Live
+  // snapshots stay first so the joining minute keeps its real stats.
+  if (!filled) {
+    filled = true;
+    const goals: FeedGoal[] = Array.isArray(body.goals)
+      ? body.goals.flatMap((gl) =>
+          typeof gl.minute === "number" && typeof gl.home === "boolean" ? [{ minute: gl.minute, home: gl.home }] : []
+        )
+      : [];
+    snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra }));
+  }
+  return { snaps, live, meta, filled };
+}
+
 export function useEvoSnapshots(eventId: number | null, active: boolean): {
   snaps: EvoSnap[];
   live: FeedLive | null;
   meta: FeedMeta | null;
 } {
-  const [snaps, setSnaps] = useState<EvoSnap[]>([]);
-  const [live, setLive] = useState<FeedLive | null>(null);
-  const [meta, setMeta] = useState<FeedMeta | null>(null);
+  const [snaps, setSnaps] = useState<EvoSnap[]>(() => (eventId ? loadFeedStore(eventId)?.snaps ?? [] : []));
+  const [live, setLive] = useState<FeedLive | null>(() => (eventId ? loadFeedStore(eventId)?.live ?? null : null));
+  const [meta, setMeta] = useState<FeedMeta | null>(() => (eventId ? loadFeedStore(eventId)?.meta ?? null : null));
   const filledRef = useRef(false);
+  const snapsRef = useRef<EvoSnap[]>([]);
+  snapsRef.current = snaps;
 
   useEffect(() => {
-    setSnaps([]);
-    setLive(null);
-    setMeta(null);
-    filledRef.current = false;
+    const s = eventId ? loadFeedStore(eventId) : null;
+    setSnaps(s?.snaps ?? []);
+    setLive(s?.live ?? null);
+    setMeta(s?.meta ?? null);
+    filledRef.current = s?.filled ?? false;
+  }, [eventId]);
+
+  // Store broadcasts (the global watcher capturing on other pages): adopt
+  // whatever was captured while we were away.
+  useEffect(() => {
+    if (!eventId) return;
+    const onStore = (e: Event): void => {
+      if ((e as CustomEvent<{ eventId?: unknown }>).detail?.eventId !== eventId) return;
+      const s = loadFeedStore(eventId);
+      if (!s) return;
+      setSnaps(s.snaps);
+      setLive(s.live);
+      if (s.meta && (s.meta.home || s.meta.away)) setMeta(s.meta);
+      if (s.filled) filledRef.current = true;
+    };
+    window.addEventListener("apostas:feed", onStore);
+    return () => window.removeEventListener("apostas:feed", onStore);
   }, [eventId]);
 
   useEffect(() => {
     if (!eventId || !active) return;
     let stop = false;
     const poll = async (): Promise<void> => {
-      const body = (await readJson(`/api/sofascore/event?id=${eventId}`)) as {
-        state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: { home?: unknown; away?: unknown } };
-        goals?: { minute?: unknown; home?: unknown }[];
-        meta?: FeedMeta;
-      } | null;
-      if (stop || !body?.state) return;
-      const st = body.state;
-      const phase = String(st.phase ?? "");
-      if (body.meta && (body.meta.home || body.meta.away)) setMeta(body.meta);
-      const minute = typeof st.minute === "number" ? st.minute : null;
-      const hg = typeof st.homeGoals === "number" ? st.homeGoals : null;
-      const ag = typeof st.awayGoals === "number" ? st.awayGoals : null;
-      if (phase !== "live" && phase !== "halftime" && phase !== "finished") {
-        setLive(null);
+      let next: EvoPoll | null = null;
+      try {
+        next = await pollEvoGame(eventId, snapsRef.current, filledRef.current);
+      } catch {
         return;
       }
-      if (minute === null || hg === null || ag === null) return;
-      const rh = typeof st.reds?.home === "number" ? st.reds.home : 0;
-      const ra = typeof st.reds?.away === "number" ? st.reds.away : 0;
-      setLive({ minute, hg, ag, rh, ra, phase });
-      const [statBody, shotBody] = await Promise.all([
-        readJson(`/api/sofascore/statistics?id=${eventId}`),
-        readJson(`/api/sofascore/shotmap?id=${eventId}`),
-      ]);
-      if (stop) return;
-      const rows = (statBody as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] } | null)?.stats;
-      const stats = parseStatRows(Array.isArray(rows) ? rows : []);
-      const rawShots = (shotBody as { shots?: { minute?: unknown; home?: unknown; xg?: unknown }[] } | null)?.shots;
-      const shots: FeedShot[] = Array.isArray(rawShots)
-        ? rawShots.flatMap((s) =>
-            typeof s.minute === "number" && typeof s.home === "boolean"
-              ? [{ minute: s.minute, home: s.home, xg: typeof s.xg === "number" ? s.xg : null }]
-              : []
-          )
-        : [];
-      const xgUpTo = (isHome: boolean): number | null => {
-        const list = shots.filter((s) => s.home === isHome && s.xg !== null && s.minute <= minute);
-        return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
-      };
-      if (phase === "live" || phase === "halftime") {
-        const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false) };
-        setSnaps((prev) =>
-          [...prev.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150)
-        );
-      }
-      // Backfill once: minutes before we arrived, from shots + goals.
-      if (!filledRef.current) {
-        filledRef.current = true;
-        const goals: FeedGoal[] = Array.isArray(body.goals)
-          ? body.goals.flatMap((gl) =>
-              typeof gl.minute === "number" && typeof gl.home === "boolean" ? [{ minute: gl.minute, home: gl.home }] : []
-            )
-          : [];
-        setSnaps((prev) => mergeSnaps(backfillSnaps({ upToMinute: minute, goals, shots, rh, ra }), prev));
+      if (stop || !next) return;
+      filledRef.current = next.filled;
+      if (next.meta) setMeta(next.meta);
+      setLive(next.live);
+      setSnaps(next.snaps);
+      if (next.snaps.length > 0 || next.live) {
+        saveFeedStore(eventId, { snaps: next.snaps, live: next.live, meta: next.meta, filled: next.filled });
+        notifyFeedStore(eventId);
       }
     };
     void poll();

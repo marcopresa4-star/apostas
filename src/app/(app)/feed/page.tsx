@@ -33,7 +33,7 @@ export default async function FeedPage() {
       <h1 className="mb-1 text-xl font-semibold">📡 Em direto</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os teus jogos com gráfico de evolução, resultado e minuto. Adiciona antes do apito inicial — a captura começa
-        sozinha. Só desta página e da calculadora: de browser fechado nada corre.
+        sozinha e corre em qualquer página do site (de browser fechado nada corre).
       </p>
       <FeedAdd count={rows.length} />
       {rows.length === 0 ? (
