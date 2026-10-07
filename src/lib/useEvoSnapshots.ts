@@ -143,8 +143,12 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
     snaps = [...snaps.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150);
   }
   // Backfill once: minutes before we arrived, from shots + goals. Live
-  // snapshots stay first so the joining minute keeps its real stats.
-  if (!filled) {
+  // snapshots stay first so the joining minute keeps its real stats. Also
+  // re-runs when the early minutes are missing (a store that claims to be
+  // filled but starts far from minute 1: nothing real to lose, the
+  // score/xG/model history to rebuild). Self-limiting: after a heal the
+  // history starts at minute 1 again.
+  if (!filled || (snaps.length > 0 && snaps[0].minute > 3)) {
     filled = true;
     const goals: FeedGoal[] = Array.isArray(body.goals)
       ? body.goals.flatMap((gl) =>
@@ -161,9 +165,11 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
   live: FeedLive | null;
   meta: FeedMeta | null;
 } {
-  const [snaps, setSnaps] = useState<EvoSnap[]>(() => (eventId ? loadFeedStore(eventId)?.snaps ?? [] : []));
-  const [live, setLive] = useState<FeedLive | null>(() => (eventId ? loadFeedStore(eventId)?.live ?? null : null));
-  const [meta, setMeta] = useState<FeedMeta | null>(() => (eventId ? loadFeedStore(eventId)?.meta ?? null : null));
+  // Empty initial state matches the server render (hydration-safe): the
+  // shared store loads in the effect below, right after mount.
+  const [snaps, setSnaps] = useState<EvoSnap[]>([]);
+  const [live, setLive] = useState<FeedLive | null>(null);
+  const [meta, setMeta] = useState<FeedMeta | null>(null);
   const filledRef = useRef(false);
   const snapsRef = useRef<EvoSnap[]>([]);
   snapsRef.current = snaps;
@@ -202,9 +208,15 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
     const poll = async (): Promise<void> => {
       // Settled games barely move: calm down to one reading per 10 min.
       if (liveRef.current?.phase === "finished" && Date.now() - lastPollRef.current < 10 * 60_000) return;
+      // The store (not the render ref) is the source of truth: on mount the
+      // ref is still empty while the store already holds history — polling
+      // from the ref would save a near-empty array over it.
+      const stored = loadFeedStore(eventId);
+      if (stored?.filled) filledRef.current = true;
+      const prev = stored && stored.snaps.length > 0 ? stored.snaps : snapsRef.current;
       let next: EvoPoll | null = null;
       try {
-        next = await pollEvoGame(eventId, snapsRef.current, filledRef.current, pollLight(eventId));
+        next = await pollEvoGame(eventId, prev, filledRef.current, pollLight(eventId));
       } catch {
         return;
       } finally {
