@@ -1013,7 +1013,8 @@ function buildMarkets(
   withHalfTime: boolean,
   home: string,
   away: string,
-  secondHalfShare: number | null
+  secondHalfShare: number | null,
+  firstHalfShare: number | null
 ): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
@@ -1130,6 +1131,39 @@ function buildMarkets(
         { label: "Sim ou mais de 2,5", p: combo.either, key: "combo:btts-or-over25" },
       ],
     },
+    // Goal in both halves, game and per side: the two halves as independent
+    // Poisson halves (the same assumption the halves suggestions use).
+    // Only with half-time scores behind the league rate.
+    ...(firstHalfShare !== null
+      ? (() => {
+          const h1 = prediction.lambdaHome * firstHalfShare;
+          const a1 = prediction.lambdaAway * firstHalfShare;
+          const h2 = prediction.lambdaHome * (1 - firstHalfShare);
+          const a2 = prediction.lambdaAway * (1 - firstHalfShare);
+          return [
+            {
+              title: "Golo nas 2 partes",
+              rows: [
+                {
+                  label: "Golos nas 2 partes",
+                  p: (1 - Math.exp(-(h1 + a1))) * (1 - Math.exp(-(h2 + a2))),
+                  key: "halves:both",
+                },
+                {
+                  label: `${home} marca nas 2 partes`,
+                  p: (1 - Math.exp(-h1)) * (1 - Math.exp(-h2)),
+                  key: "halves:home",
+                },
+                {
+                  label: `${away} marca nas 2 partes`,
+                  p: (1 - Math.exp(-a1)) * (1 - Math.exp(-a2)),
+                  key: "halves:away",
+                },
+              ],
+            },
+          ];
+        })()
+      : []),
     ...(withHalfTime
       ? (() => {
           const htName = (line: number): string =>
@@ -1378,7 +1412,7 @@ export default function MatchupReport({
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null && m.ht !== undefined);
   const secondHalfShare = hasHalfTime ? 1 - leagueRates(matches, now).firstHalfShare : null;
-  const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away, secondHalfShare);
+  const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away, secondHalfShare, secondHalfShare === null ? null : 1 - secondHalfShare);
 
   // The teams' own records count only this season (from 1 July); the estimate
   // above still leans on the earlier seasons, which it needs.
