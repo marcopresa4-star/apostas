@@ -382,9 +382,8 @@ export default function LiveEvolutionChart({
         Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
         (remates, golos e modelo); posse e cantos só contam da tua entrada.
       </p>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
-        <div>
-          <div className="relative">
+      <div>
+        <div className="relative">
             <svg
               viewBox={`0 0 ${W} ${H}`}
               className="w-full"
@@ -500,9 +499,9 @@ export default function LiveEvolutionChart({
             </div>
           )}
         </div>
-        <div className="min-w-0">
+        <div>
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Séries</p>
-          <div className="space-y-1">
+          <div className="flex flex-wrap gap-1.5">
             {defs
               .filter((d) => base.includes(d.id))
               .map((d) => {
@@ -521,22 +520,20 @@ export default function LiveEvolutionChart({
                       })
                     }
                     title={off ? "Mostrar série" : empty ? "Sem leituras neste jogo" : "Esconder série (não mexe no filtro)"}
-                    className="flex w-full items-start gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] leading-snug transition hover:bg-neutral-800/60"
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] transition ${
+                      off ? "border-neutral-800 text-neutral-600" : "border-neutral-700 text-neutral-300"
+                    }`}
                   >
-                    <svg width="26" height="8" aria-hidden className="mt-1 shrink-0">
-                      <line x1="0" x2="26" y1="4" y2="4" stroke={off || empty ? "#52525b" : d.color} strokeWidth={d.width ?? 1.25} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
+                    <svg width="18" height="8" aria-hidden className="shrink-0">
+                      <line x1="0" x2="18" y1="4" y2="4" stroke={off || empty ? "#52525b" : d.color} strokeWidth={d.width ?? 1.25} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
                     </svg>
-                    <span className={`min-w-0 flex-1 break-words ${off || empty ? "text-neutral-600" : "text-neutral-300"}`}>
-                      {d.label}
-                      {empty && <span className="text-neutral-700"> · sem dados</span>}
-                    </span>
-                    <span className={off ? "text-neutral-700" : "text-neutral-500"}>{off ? "○" : "◉"}</span>
+                    {d.label}
+                    {empty && <span className="text-neutral-700">· sem dados</span>}
                   </button>
                 );
               })}
           </div>
         </div>
-      </div>
       <details className="mt-2">
         <summary className="cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200">
           Filtros de legenda
