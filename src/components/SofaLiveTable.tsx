@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
@@ -137,6 +138,8 @@ export default function SofaLiveTable({
   rings: Record<number, SofaBoardRings>;
   detail: Record<number, SofaBoardDetail>;
 }) {
+  const router = useRouter();
+  const [auto, setAuto] = useState(true);
   const [query, setQuery] = useState("");
   const [favOnly, setFavOnly] = useState(false);
   const [compact, setCompact] = useState(false);
@@ -151,6 +154,17 @@ export default function SofaLiveTable({
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
   }, []);
+  // Refresh from the server every minute while this tab is visible (paused
+  // in background tabs): the board re-reads the live list, filters and pins
+  // survive because they live in client state.
+  useEffect(() => {
+    if (!auto) return;
+    const tick = (): void => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    const t = setInterval(tick, 60_000);
+    return () => clearInterval(t);
+  }, [auto, router]);
 
   const leagueOf = (g: SofaLiveEntry): string => stats[g.id]?.leagueLabel ?? g.competition;
 
@@ -353,6 +367,18 @@ export default function SofaLiveTable({
           className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-400 transition hover:text-neutral-200"
         >
           {compact ? "▦ Compacta" : "☰ Detalhada"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAuto((v) => !v)}
+          title={auto ? "Pausar atualização automática" : "Atualizar sozinho de minuto a minuto"}
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+            auto
+              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
+              : "border border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200"
+          }`}
+        >
+          {auto ? "● Auto" : "○ Auto"}
         </button>
         {(query || favOnly || pinned.size > 0) && (
           <span className="text-xs text-neutral-500">

@@ -724,6 +724,76 @@ export function candidatesFor(
         );
       }
     }
+    // Second-half totals (0.5, 1.5, game and per side): the same
+    // independent-Poisson approximation as the halves markets above, so they
+    // share the halves caution. Base rates come from the games with half-time
+    // scores (full-time minus half-time).
+    const sh2 = (mu: number, line: number): number => {
+      let p = 1;
+      let acc = 0;
+      for (let k = 0; k <= Math.floor(line) + 12; k++) {
+        if (k > 0) p *= mu / k;
+        else p = Math.exp(-mu);
+        if (k > line) acc += p;
+      }
+      return acc;
+    };
+    const secondHalf = (m: PlayedMatch): number => m.ft[0] + m.ft[1] - (m.ht![0] + m.ht![1]);
+    const shOver = (line: number): number => withHt.filter((m) => secondHalf(m) > line).length / n;
+    const lh2 = prediction.lambdaHome * (1 - firstHalfShare);
+    const la2 = prediction.lambdaAway * (1 - firstHalfShare);
+    for (const line of [0.5, 1.5]) {
+      candidates.push(
+        {
+          group: "halves",
+          key: `ht2over:${line}`,
+          label: `Mais de ${num(line)} golos (2.ª parte)`,
+          p: sh2(lh2 + la2, line),
+          base: shOver(line),
+          won: ([h, a], htScore) => !!htScore && h + a - (htScore[0] + htScore[1]) > line,
+        },
+        {
+          group: "halves",
+          key: `ht2under:${line}`,
+          label: `Menos de ${num(line)} golos (2.ª parte)`,
+          p: 1 - sh2(lh2 + la2, line),
+          base: 1 - shOver(line),
+          won: ([h, a], htScore) => !!htScore && h + a - (htScore[0] + htScore[1]) < line,
+        }
+      );
+      for (const side of ["home", "away"] as const) {
+        const team = side === "home" ? home : away;
+        const mu = side === "home" ? lh2 : la2;
+        const p = sh2(mu, line);
+        const got = withHt.filter((m) => (side === "home" ? m.ft[0] - m.ht![0] : m.ft[1] - m.ht![1]) > line).length / n;
+        candidates.push(
+          {
+            group: "halves",
+            key: `ht2to:${side}:${line}`,
+            label: `${team} mais de ${num(line)} (2.ª parte)`,
+            p,
+            base: got,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              const g = side === "home" ? h - htScore[0] : a - htScore[1];
+              return g > line;
+            },
+          },
+          {
+            group: "halves",
+            key: `ht2tu:${side}:${line}`,
+            label: `${team} menos de ${num(line)} (2.ª parte)`,
+            p: 1 - p,
+            base: 1 - got,
+            won: ([h, a], htScore) => {
+              if (!htScore) return false;
+              const g = side === "home" ? h - htScore[0] : a - htScore[1];
+              return g < line;
+            },
+          }
+        );
+      }
+    }
   }
 
   // The pull-back towards the league rate, with the self-tuning multiplier
@@ -853,6 +923,19 @@ export function pickWhy(
             : " Com exatamente 1, metade perde."
           : "";
     return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")} na 1.ª parte.${dev}`;
+  }
+  if (key.startsWith("ht2over:") || key.startsWith("ht2under:")) {
+    const fhs = rates.firstHalfShare;
+    const shExp = (prediction.lambdaHome + prediction.lambdaAway) * (1 - fhs);
+    const avgSh = rates.perTeam * 2 * (1 - fhs);
+    return `Esperados ${comma(shExp)} golos na 2.ª parte (média da liga ${comma(avgSh)}, aproximação).`;
+  }
+  if (key.startsWith("ht2to:") || key.startsWith("ht2tu:")) {
+    const parts = key.split(":");
+    const team = parts[1] === "away" ? away : home;
+    const line = parts[2] ?? "";
+    const dir = key.startsWith("ht2to:") ? "mais" : "menos";
+    return `${team}: ${scoring(team)}; precisa de ${dir} de ${line.replace(".", ",")} na 2.ª parte (aproximação).`;
   }
   if (key === "btts:yes" || key === "btts:no") {
     return `${home}: ${scoring(home)}. ${away}: ${scoring(away)}.`;

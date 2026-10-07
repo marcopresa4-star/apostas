@@ -401,6 +401,26 @@ describe("quartos da 1.ª parte: preço justo", () => {
     expect(under.p).toBeCloseTo(under.base + 0.5 * (rawUnder - under.base), 6);
     expect(under.push).toBeCloseTo(pred.halfTime.push10 / 2, 6);
   });
+
+  it("candidatesFor inclui totais de 2.ª parte pré-match (ht2*)", () => {
+    const withHt: PlayedMatch[] = fakeMatches(200, 7).map((m, i) => ({
+      ...m,
+      ht: [Math.min(m.ft[0], i % 3 === 0 ? 1 : 0), 0] as [number, number],
+    }));
+    const pred = predictionFromLambdas(LH, LA, 0.44, 30, 30);
+    const base = baseRates(withHt);
+    const cands = candidatesFor(pred, base, "AFC", "BFC", 0.44, withHt);
+    const over = cands.find((c) => c.key === "ht2over:0.5");
+    const under = cands.find((c) => c.key === "ht2under:0.5");
+    const team = cands.find((c) => c.key === "ht2to:home:1.5");
+    if (!over || !under || !team) throw new Error("candidatos 2.ª parte em falta");
+    // Sem pushes: over + under fecham a 1 antes do pull-back para a base.
+    expect(over.p + under.p).toBeCloseTo(over.base + under.base, 9);
+    expect(over.p).toBeGreaterThan(0);
+    expect(over.p).toBeLessThan(1);
+    expect(team.p).toBeGreaterThan(0);
+    expect(team.push).toBeUndefined();
+  });
 });
 
 describe("auto-afinação pela calibração", () => {

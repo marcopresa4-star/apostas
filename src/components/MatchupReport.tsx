@@ -36,6 +36,7 @@ import {
 } from "@/lib/recommendation";
 import type { SeasonInfo } from "@/lib/footballData";
 import { eloCurves } from "@/lib/elo";
+import type { GameLineups } from "@/lib/sofaLineups";
 import type { AutoTune } from "@/lib/autoTune";
 import type { PickGroup } from "@/lib/recommendation";
 import { isAdjusted, parts, strengthRatio, teamFactor, type TeamAdjust } from "@/lib/adjustments";
@@ -1012,7 +1013,8 @@ function buildMarkets(
   prediction: Prediction,
   withHalfTime: boolean,
   home: string,
-  away: string
+  away: string,
+  secondHalfShare: number | null
 ): { groups: { title: string; rows: Row[] }[]; odd: OddMarket[] } {
   const ft = prediction.fullTime;
   const ht = prediction.halfTime;
@@ -1201,6 +1203,41 @@ function buildMarkets(
           return [{ title: "Ao intervalo", rows }];
         })()
       : []),
+    ...(secondHalfShare !== null
+      ? (() => {
+          // Second-half totals pre-match: independent-Poisson approximation
+          // (same family as "Golos nas 2 partes"), no pushes on .5 lines.
+          const over2 = (mu: number, line: number): number => {
+            let p = 1;
+            let acc = 0;
+            for (let k = 0; k <= Math.floor(line) + 12; k++) {
+              if (k > 0) p *= mu / k;
+              else p = Math.exp(-mu);
+              if (k > line) acc += p;
+            }
+            return acc;
+          };
+          const rows: Row[] = [];
+          const t2 = (prediction.lambdaHome + prediction.lambdaAway) * secondHalfShare;
+          for (const line of [0.5, 1.5]) {
+            const o = over2(t2, line);
+            rows.push(
+              { label: `Mais de ${dot(line)} golos (2.ª parte)`, p: o, key: `ht2over:${line}` },
+              { label: `Menos de ${dot(line)} golos (2.ª parte)`, p: 1 - o, key: `ht2under:${line}` }
+            );
+            for (const side of ["home", "away"] as const) {
+              const team = side === "home" ? home : away;
+              const mu = (side === "home" ? prediction.lambdaHome : prediction.lambdaAway) * secondHalfShare;
+              const so = over2(mu, line);
+              rows.push(
+                { label: `${team} mais de ${dot(line)} (2.ª parte)`, p: so, key: `ht2to:${side}:${line}` },
+                { label: `${team} menos de ${dot(line)} (2.ª parte)`, p: 1 - so, key: `ht2tu:${side}:${line}` }
+              );
+            }
+          }
+          return [{ title: "Segunda parte (aprox.)", rows }];
+        })()
+      : []),
     {
       title: "Resultados exatos mais prováveis",
       rows: prediction.topScores.map((s) => ({ label: `${s.home}-${s.away}`, p: s.p })),
@@ -1233,6 +1270,7 @@ export default function MatchupReport({
   notes,
   venueWeight,
   timing,
+  lineups,
   realByKey,
   realOpenByKey,
   tables,
@@ -1269,11 +1307,13 @@ export default function MatchupReport({
   venueWeight: number;
   // Goal timing per 15' of each side (last games with incident data), or null.
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
+  // Probable/confirmed XIs when the feed publishes them (~1h before kickoff).
+  lineups?: GameLineups | null;
+  // The bookmaker's real odds by model key, when this exact game is priced.
+  realByKey?: Record<string, number>;
   // Self-tuning from the calibration log (null until 50 decided picks per
   // family): shrinks hot families and demands more edge from them.
   tune?: AutoTune | null;
-  // The bookmaker's real odds by model key, when this exact game is priced.
-  realByKey?: Record<string, number>;
   // Opening odds by model key, for the line movement readout.
   realOpenByKey?: Record<string, number>;
   // Official standings tables (overall first) for the mini-table: official
@@ -1341,7 +1381,8 @@ export default function MatchupReport({
 
   // Some leagues come without the half-time score.
   const hasHalfTime = matches.some((m) => m.ht !== null && m.ht !== undefined);
-  const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away);
+  const secondHalfShare = hasHalfTime ? 1 - leagueRates(matches, now).firstHalfShare : null;
+  const { groups, odd } = buildMarkets(prediction, hasHalfTime, home, away, secondHalfShare);
 
   // The teams' own records count only this season (from 1 July); the estimate
   // above still leans on the earlier seasons, which it needs.
@@ -1554,6 +1595,41 @@ export default function MatchupReport({
         <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
         <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
       </div>
+
+      {lineups && (lineups.home.length > 0 || lineups.away.length > 0) && (
+        <div className={CARD}>
+          <h3 className="mb-1 text-sm font-semibold text-neutral-300">
+            Onzes {lineups.confirmed ? "confirmados" : "prováveis"}
+          </h3>
+          <p className="mb-2 text-[11px] text-neutral-500">
+            {lineups.confirmed ? "Publicados pela casa." : "Ainda provisórios: saem os confirmados cerca de 1h antes do jogo."}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {(
+              [
+                [home, lineups.home],
+                [away, lineups.away],
+              ] as const
+            ).map(([team, xi]) => (
+              <div key={team}>
+                <p className="mb-1 text-xs font-medium text-neutral-200">{team}</p>
+                {xi.length === 0 ? (
+                  <p className="text-xs text-neutral-500">Ainda sem onze publicado.</p>
+                ) : (
+                  <ol className="space-y-0.5 text-xs text-neutral-300">
+                    {xi.map((p) => (
+                      <li key={p.name} className="flex justify-between gap-2">
+                        <span className="truncate">{p.name}</span>
+                        {p.pos && <span className="shrink-0 text-neutral-500">{p.pos}</span>}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <FormCurve home={home} away={away} homeCurve={homeCurve} awayCurve={awayCurve} />
       <EloChart home={home} away={away} homeCurve={elo.home} awayCurve={elo.away} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { VALUE_MARKETS } from "@/lib/valueMarkets";
 
 // Fully interactive filters: every choice reflects instantly (the old
@@ -27,6 +27,57 @@ export default function ValueFilters({
   const [conf, setConf] = useState<string>(initial.conf);
   const [datas, setDatas] = useState<string>(initial.datas);
   const [openComp, setOpenComp] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<{ name: string; v: { ligas: string[]; mercados: string[]; edge: number; oddmax: string; conf: string; datas: string } }[]>([]);
+  // Browser-only presets hydrate after mount (same pattern as the favorites).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("apostas:valuePresets");
+      const list: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) {
+        setPresets(
+          list.filter((p): p is { name: string; v: { ligas: string[]; mercados: string[]; edge: number; oddmax: string; conf: string; datas: string } } => typeof p === "object" && p !== null)
+        );
+      }
+    } catch {
+      // Private mode: no presets.
+    }
+  }, []);
+  const savePreset = (): void => {
+    const name = presetName.trim().slice(0, 30);
+    if (!name) return;
+    setPresets((prev) => {
+      const next = [...prev.filter((p) => p.name !== name), { name, v: { ligas, mercados, edge, oddmax, conf, datas } }].slice(-8);
+      try {
+        localStorage.setItem("apostas:valuePresets", JSON.stringify(next));
+      } catch {
+        // Private mode: presets just don't persist.
+      }
+      return next;
+    });
+    setPresetName("");
+  };
+  const applyPreset = (i: number): void => {
+    const p = presets[i];
+    if (!p) return;
+    setLigas(p.v.ligas);
+    setMercados(p.v.mercados);
+    setEdge(p.v.edge);
+    setOddmax(p.v.oddmax);
+    setConf(p.v.conf);
+    setDatas(p.v.datas);
+  };
+  const dropPreset = (i: number): void => {
+    setPresets((prev) => {
+      const next = prev.filter((_, j) => j !== i);
+      try {
+        localStorage.setItem("apostas:valuePresets", JSON.stringify(next));
+      } catch {
+        // Private mode.
+      }
+      return next;
+    });
+  };
 
   const pill = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
@@ -161,6 +212,40 @@ export default function ValueFilters({
               ))}
             </div>
           </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+            Filtros guardados {presets.length > 0 && `(${presets.length})`}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {presets.map((p, i) => (
+              <span key={p.name} className="inline-flex items-center gap-1 rounded-lg border border-neutral-800 px-2 py-1 text-xs">
+                <button type="button" onClick={() => applyPreset(i)} className="text-neutral-200 hover:text-white" title="Aplicar estes filtros">
+                  {p.name}
+                </button>
+                <button type="button" onClick={() => dropPreset(i)} className="text-neutral-600 hover:text-red-300" title="Apagar" aria-label={`Apagar ${p.name}`}>
+                  ✕
+                </button>
+              </span>
+            ))}
+            <input
+              type="text"
+              value={presetName}
+              onChange={(e) => setPresetName(e.target.value)}
+              placeholder="Nome para guardar os atuais…"
+              maxLength={30}
+              className="w-52 max-w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={savePreset}
+              disabled={presetName.trim() === ""}
+              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:border-neutral-500 disabled:opacity-50"
+            >
+              Guardar
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-neutral-500">Ficam neste browser. Aplicar só preenche — carrega em Analisar.</p>
         </div>
         <div>
           <button

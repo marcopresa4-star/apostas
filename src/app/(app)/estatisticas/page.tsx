@@ -3,9 +3,25 @@ import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
-import { loadMaps, sofaTeamIdFor, teamLastGame } from "@/lib/sofaHistory";
+import { loadMaps, sofaTeamIdFor, teamLastGame, tournamentSeasons, seasonTeamNames } from "@/lib/sofaHistory";
+import TeamSearch from "@/components/TeamSearch";
+
+// Bounded parallelism for the team-index sweep below.
+async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let i = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (i < items.length) {
+      const k = i++;
+      out[k] = await fn(items[k]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
 import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
+import { fetchLineups, type GameLineups } from "@/lib/sofaLineups";
 import { findRealOdd, oddsKeyFor } from "@/lib/oddsParse";
 import { AH_ALL_LINES } from "@/lib/recommendation";
 import { HOUR_MS } from "@/lib/sofaCache";
@@ -201,6 +217,26 @@ async function RecentAnalyses({ userId }: { userId: string }) {
   );
 }
 
+// Team index for the idle search box: current teams of every mapped club
+// league (standings reads, cached). Slow on cold cache, streamed in alone.
+async function TeamSearchLoader({ userId }: { userId: string }) {
+  const supabase = await createClient();
+  const maps = await loadMaps(supabase, userId, "tournament").catch(() => []);
+  const codes = new Set(maps.map((m) => m.name_key));
+  const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
+  const byLeague = await pool(leagues, 8, async (l) => {
+    const seasons = await tournamentSeasons(supabase, userId, maps.find((m) => m.name_key === l.code)!.sofascore_id).catch(() => []);
+    if (seasons.length === 0) return [];
+    const teams = await seasonTeamNames(supabase, userId, maps.find((m) => m.name_key === l.code)!.sofascore_id, seasons[0].id, true).catch(
+      () => [] as string[]
+    );
+    return teams.map((team) => ({ team, league: l.code, leagueLabel: l.label as string }));
+  });
+  const index = byLeague.flat();
+  if (index.length === 0) return null;
+  return <TeamSearch index={index} />;
+}
+
 // Everything below the tabs streams in: slow SofaScore loads no longer hold
 // the whole page. Props are plain params (serializable for the boundary).
 async function CompararBody({
@@ -376,6 +412,7 @@ async function CompararBody({
   // upcoming lists (same orientation only — flipped sides would invert 1X2).
   let realByKey: Record<string, number> = {};
   let realOpenByKey: Record<string, number> = {};
+  let lineups: GameLineups | null = null;
   const fillRealOdds = async (uid: string, eventId: number): Promise<void> => {
     const parsed = await eventOdds(supabase, uid, eventId, HOUR_MS).catch(() => null);
     if (!parsed) return;
@@ -420,7 +457,13 @@ async function CompararBody({
   if (useSofa && data && userId && matchDate && casa && fora) {
     const fx = data.fixtures.find((f) => f.team1 === casa && f.team2 === fora && f.date === matchDate);
     const eventId = fx ? fixtureEventId(fx) : null;
-    if (eventId) await fillRealOdds(userId, eventId);
+    if (eventId) {
+      const [, lu] = await Promise.all([
+        fillRealOdds(userId, eventId),
+        fetchLineups(supabase, userId, eventId).catch(() => null),
+      ]);
+      lineups = lu;
+    }
   } else if (useSofaIntl && data && userId && casa && fora) {
     const { loadUpcomingIntl } = await import("@/lib/sofaIntl");
     // Only the two sides' own lists can hold this pairing: sweeping every
@@ -602,6 +645,7 @@ async function CompararBody({
           timing={timing}
           realByKey={realByKey}
           realOpenByKey={realOpenByKey}
+          lineups={lineups}
           tables={sofaTables.length > 0 ? sofaTables : undefined}
           tune={tune}
         />
@@ -609,6 +653,12 @@ async function CompararBody({
 
       {!league && userId && (
         <RecentAnalyses userId={userId} />
+      )}
+
+      {!league && userId && (
+        <Suspense>
+          <TeamSearchLoader userId={userId} />
+        </Suspense>
       )}
 
       {!league && (
