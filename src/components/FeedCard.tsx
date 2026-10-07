@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { predictLive } from "@/lib/liveModel";
 import LiveEvolutionChart from "./LiveEvolutionChart";
 import { useEvoSnapshots } from "@/lib/useEvoSnapshots";
@@ -24,6 +25,7 @@ export default function FeedCard({
   tournament: string;
 }) {
   const { snaps, live, meta } = useEvoSnapshots(eventId, true);
+  const router = useRouter();
   const [pre, setPre] = useState<{ home: number; away: number; firstHalfShare: number } | null>(null);
   useEffect(() => {
     let stop = false;
@@ -70,7 +72,9 @@ export default function FeedCard({
         <button
           type="button"
           onClick={() => {
-            if (confirm(`Deixar de seguir ${homeName} vs ${awayName}?`)) removeFeedGameAction(rowId);
+            if (confirm(`Deixar de seguir ${homeName} vs ${awayName}?`)) {
+              removeFeedGameAction(rowId).then(() => router.refresh());
+            }
           }}
           className="shrink-0 text-[11px] text-neutral-500 hover:text-red-300"
         >
