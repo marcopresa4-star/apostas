@@ -81,14 +81,26 @@ export interface EvoPoll {
   live: FeedLive | null;
   meta: FeedMeta | null;
   filled: boolean;
+  // The phase seen this round, even pre-match (null only when unreadable).
+  phase: string | null;
+}
+
+// First poll per session per game is full (navigates the scraper page once);
+// steady-state polls go light (API only: fast and parallel, no navigation).
+const fullPolled = new Set<number>();
+export function pollLight(eventId: number): boolean {
+  return fullPolled.has(eventId);
+}
+export function markPolled(eventId: number): void {
+  fullPolled.add(eventId);
 }
 
 // One polling round for a game: event state + statistics + shotmap merged
 // onto prev. Unreadable -> null (keep prev). Pre-match -> live null with prev
 // snaps untouched. Live snapshots are merged first so their real stats win
 // over the backfilled shells at the same minute.
-export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: boolean): Promise<EvoPoll | null> {
-  const body = (await readJson(`/api/sofascore/event?id=${eventId}`)) as {
+export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: boolean, light = false): Promise<EvoPoll | null> {
+  const body = (await readJson(`/api/sofascore/event?id=${eventId}${light ? "&light=1" : ""}`)) as {
     state?: { phase?: unknown; minute?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: { home?: unknown; away?: unknown } };
     goals?: { minute?: unknown; home?: unknown }[];
     meta?: FeedMeta;
@@ -98,12 +110,12 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   const phase = String(st.phase ?? "");
   const meta = body.meta && (body.meta.home || body.meta.away) ? body.meta : null;
   if (phase !== "live" && phase !== "halftime" && phase !== "finished") {
-    return { snaps: prev, live: null, meta, filled };
+    return { snaps: prev, live: null, meta, filled, phase };
   }
   const minute = typeof st.minute === "number" ? st.minute : null;
   const hg = typeof st.homeGoals === "number" ? st.homeGoals : null;
   const ag = typeof st.awayGoals === "number" ? st.awayGoals : null;
-  if (minute === null || hg === null || ag === null) return { snaps: prev, live: null, meta, filled };
+  if (minute === null || hg === null || ag === null) return { snaps: prev, live: null, meta, filled, phase };
   const rh = typeof st.reds?.home === "number" ? st.reds.home : 0;
   const ra = typeof st.reds?.away === "number" ? st.reds.away : 0;
   const live: FeedLive = { minute, hg, ag, rh, ra, phase };
@@ -141,7 +153,7 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
       : [];
     snaps = mergeSnaps(snaps, backfillSnaps({ upToMinute: minute, goals, shots, rh, ra }));
   }
-  return { snaps, live, meta, filled };
+  return { snaps, live, meta, filled, phase };
 }
 
 export function useEvoSnapshots(eventId: number | null, active: boolean): {
@@ -155,6 +167,9 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
   const filledRef = useRef(false);
   const snapsRef = useRef<EvoSnap[]>([]);
   snapsRef.current = snaps;
+  const liveRef = useRef<FeedLive | null>(null);
+  liveRef.current = live;
+  const lastPollRef = useRef(0);
 
   useEffect(() => {
     const s = eventId ? loadFeedStore(eventId) : null;
@@ -185,13 +200,18 @@ export function useEvoSnapshots(eventId: number | null, active: boolean): {
     if (!eventId || !active) return;
     let stop = false;
     const poll = async (): Promise<void> => {
+      // Settled games barely move: calm down to one reading per 10 min.
+      if (liveRef.current?.phase === "finished" && Date.now() - lastPollRef.current < 10 * 60_000) return;
       let next: EvoPoll | null = null;
       try {
-        next = await pollEvoGame(eventId, snapsRef.current, filledRef.current);
+        next = await pollEvoGame(eventId, snapsRef.current, filledRef.current, pollLight(eventId));
       } catch {
         return;
+      } finally {
+        markPolled(eventId);
       }
       if (stop || !next) return;
+      lastPollRef.current = Date.now();
       filledRef.current = next.filled;
       if (next.meta) setMeta(next.meta);
       setLive(next.live);
