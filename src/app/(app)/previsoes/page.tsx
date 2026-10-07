@@ -147,7 +147,9 @@ async function PrevisoesBoard({
   if (!user) return <p className="text-sm text-neutral-400">Sem sessão.</p>;
 
   const cacheKey = `previsoes:${today}|${marketKey}`;
-  const cached = await cacheGet(supabase, user.id, cacheKey, 60 * 60_000).catch(() => null);
+  // Intraday data barely moves (only new results trickle in): 3h cache, so
+  // the sweep costs once a day in practice.
+  const cached = await cacheGet(supabase, user.id, cacheKey, 3 * 60 * 60_000).catch(() => null);
   let ranked: Ranked[] = Array.isArray(cached) ? (cached as Ranked[]) : [];
   let gamesTotal = 0;
   if (!Array.isArray(cached)) {
@@ -156,7 +158,7 @@ async function PrevisoesBoard({
     const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
     const tune = await loadAutoTune(supabase, user.id).catch(() => null);
     const all: Ranked[] = [];
-    await pool(leagues, 4, async (l) => {
+    await pool(leagues, 8, async (l) => {
       const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false }).catch(() => null);
       if (!loaded) return;
       const base = baseRates(loaded.data.matches);
