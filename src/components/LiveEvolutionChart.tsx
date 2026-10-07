@@ -239,11 +239,24 @@ export default function LiveEvolutionChart({
     }
   };
 
+  const models = useMemo(() => snaps.map((s) => modelAt(s)), [snaps, modelAt]);
   const base: SeriesId[] =
     filter === DEFAULT_NAME ? ALL : (filters.find((f) => f.name === filter)?.series ?? ALL);
   const visible = defs.filter((d) => base.includes(d.id) && !hidden.has(d.id));
-
-  const models = useMemo(() => snaps.map((s) => modelAt(s)), [snaps, modelAt]);
+  // Series with no readings at all in this game (feed gaps): dimmed in the
+  // legend so the eye skips them, chart untouched.
+  const hasData = useMemo(() => {
+    const set = new Set<SeriesId>();
+    defs.forEach((d) => {
+      for (let i = 0; i < snaps.length; i++) {
+        if (d.get(snaps[i], models[i]) !== null) {
+          set.add(d.id);
+          break;
+        }
+      }
+    });
+    return set;
+  }, [defs, snaps, models]);
   const xMax = Math.max(90, ...snaps.map((s) => s.minute));
   const x = (minute: number): number => PADL + (minute / xMax) * (W - PADL - PADR);
   const countMax = Math.max(
@@ -361,7 +374,7 @@ export default function LiveEvolutionChart({
         Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
         (remates, golos e modelo); posse e cantos só contam da tua entrada.
       </p>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_13rem]">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_14rem]">
         <div>
           <div className="relative">
             <svg
@@ -486,6 +499,7 @@ export default function LiveEvolutionChart({
               .filter((d) => base.includes(d.id))
               .map((d) => {
                 const off = hidden.has(d.id);
+                const empty = !hasData.has(d.id);
                 return (
                   <button
                     key={d.id}
@@ -498,14 +512,15 @@ export default function LiveEvolutionChart({
                         return next;
                       })
                     }
-                    title={off ? "Mostrar série" : "Esconder série (não mexe no filtro)"}
-                    className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] transition hover:bg-neutral-800/60"
+                    title={off ? "Mostrar série" : empty ? "Sem leituras neste jogo" : "Esconder série (não mexe no filtro)"}
+                    className="flex w-full items-start gap-1.5 rounded-lg px-1.5 py-1 text-left text-[11px] leading-snug transition hover:bg-neutral-800/60"
                   >
-                    <svg width="26" height="8" aria-hidden>
-                      <line x1="0" x2="26" y1="4" y2="4" stroke={off ? "#52525b" : d.color} strokeWidth={d.width ?? 1.5} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
+                    <svg width="26" height="8" aria-hidden className="mt-1 shrink-0">
+                      <line x1="0" x2="26" y1="4" y2="4" stroke={off || empty ? "#52525b" : d.color} strokeWidth={d.width ?? 1.25} strokeDasharray={d.dash ?? undefined} strokeLinecap="round" />
                     </svg>
-                    <span className={`min-w-0 flex-1 truncate ${off ? "text-neutral-600 line-through" : "text-neutral-300"}`}>
+                    <span className={`min-w-0 flex-1 break-words ${off || empty ? "text-neutral-600" : "text-neutral-300"}`}>
                       {d.label}
+                      {empty && <span className="text-neutral-700"> · sem dados</span>}
                     </span>
                     <span className={off ? "text-neutral-700" : "text-neutral-500"}>{off ? "○" : "◉"}</span>
                   </button>
