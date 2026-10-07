@@ -13,6 +13,7 @@ import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
 import { fairOdd, type PlayedMatch } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
+import LiveEvolutionChart, { type EvoSnap } from "./LiveEvolutionChart";
 
 const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
@@ -285,6 +286,13 @@ function Calculator({
   // stays responsive.
   const [shotmap, setShotmap] = useState<{ minute: number; home: boolean; xg: number | null }[] | null>(null);
   const lastShotmapAt = useRef(0);
+  // Evolution snapshots: one per successful minute poll (score, cards,
+  // cumulative stats, accumulated xG). The chart draws history from these.
+  const [snaps, setSnaps] = useState<EvoSnap[]>([]);
+  const shotmapRef = useRef<typeof shotmap>(null);
+  useEffect(() => {
+    shotmapRef.current = shotmap;
+  }, [shotmap]);
   // Anytime-scorer prices for the probable starters (needs lineups): fetched
   // rarely, the XI barely moves. Hidden without coverage.
   const [scorers, setScorers] = useState<{ home: ScorerRow[]; away: ScorerRow[] } | null>(null);
@@ -346,6 +354,53 @@ function Calculator({
         }
         apply(checked.state);
         setSyncInfo({ kind: "ok", state: checked.state, at: Date.now(), notes: checked.notes, ageMs: checked.ageMs });
+        // Evolution snapshot for the chart: cumulative stats ride along (one
+        // more read per minute, like the widget does), xG comes from the
+        // shotmap already held. Missing readings stay missing (gaps, not zeros).
+        if (!stop && (checked.state.phase === "live" || checked.state.phase === "halftime")) {
+          try {
+            const st = await fetch(`/api/sofascore/statistics?id=${encodeURIComponent(String(sofaEventId))}`, {
+              cache: "no-store",
+            });
+            const stats: EvoSnap["stats"] = {};
+            if (!stop && st.ok) {
+              const sb = (await st.json()) as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] };
+              if (sb && Array.isArray(sb.stats)) {
+                for (const row of sb.stats) {
+                  if (typeof row?.name !== "string") continue;
+                  const num = (v: unknown): number | null => {
+                    const n = typeof v === "number" ? v : typeof v === "string" ? Number.parseFloat(v.replace("%", "")) : NaN;
+                    return Number.isFinite(n) ? n : null;
+                  };
+                  stats[row.name] = { home: num(row.home), away: num(row.away) };
+                }
+              }
+            }
+            if (!stop) {
+              const sm = shotmapRef.current ?? [];
+              const xgUpTo = (isHome: boolean): number | null => {
+                const list = sm.filter((s) => s.home === isHome && s.xg !== null && s.minute <= (checked.state.minute ?? 0));
+                return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
+              };
+              const snap: EvoSnap = {
+                minute: checked.state.minute ?? 0,
+                hg: checked.state.homeGoals ?? 0,
+                ag: checked.state.awayGoals ?? 0,
+                rh: checked.state.reds.home,
+                ra: checked.state.reds.away,
+                stats,
+                xgH: xgUpTo(true),
+                xgA: xgUpTo(false),
+              };
+              setSnaps((prev) => {
+                const next = prev.some((s) => s.minute === snap.minute) ? prev.map((s) => (s.minute === snap.minute ? snap : s)) : [...prev, snap];
+                return next.slice(-150);
+              });
+            }
+          } catch {
+            // No snapshot this minute: the chart keeps what it has.
+          }
+        }
       } catch {
         if (!stop) setSyncInfo({ kind: "error" });
       }
@@ -1090,6 +1145,28 @@ function Calculator({
       </div>
 
       <FinalScoresChart scores={p.finalScores} />
+
+      {sofaEventId && syncOn && snaps.length > 0 && (
+        <LiveEvolutionChart
+          snaps={snaps}
+          homeName={homeName}
+          awayName={awayName}
+          modelAt={(s) => {
+            const q = predictLive({
+              lambdaHome: expectedHome,
+              lambdaAway: expectedAway,
+              firstHalfShare,
+              minute: s.minute,
+              homeGoals: s.hg,
+              awayGoals: s.ag,
+              redsHome: s.rh,
+              redsAway: s.ra,
+              ...(s.xgH !== null && s.xgA !== null ? { homeXg: s.xgH, awayXg: s.xgA } : {}),
+            });
+            return { mais1: 1 - q.nextGoal.none, over25: q.over["2.5"] ?? null, btts: q.bothScore ?? null };
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {groups.map((g) => (
