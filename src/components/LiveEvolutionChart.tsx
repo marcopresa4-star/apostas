@@ -15,6 +15,16 @@ export interface EvoSnap {
   stats: Record<string, { home: number | null; away: number | null }>;
   xgH: number | null;
   xgA: number | null;
+  // Which half the reading belongs to (null when unknown, e.g. old stored
+  // snapshots): first-half stoppage plots left of the break, never past it.
+  half: 1 | 2 | null;
+}
+
+// Where a snapshot plots on the time axis: first-half stoppage (45+2'
+// reads as 47) belongs to the first half, so it clamps to the break line.
+// The tooltip still shows the real minute. Exported for tests.
+export function plotMinute(s: Pick<EvoSnap, "minute" | "half">): number {
+  return s.half === 1 && s.minute > 45 ? 45 : s.minute;
 }
 
 export interface EvoModel {
@@ -283,6 +293,9 @@ export default function LiveEvolutionChart({
 
   // Goal markers: snapshots where a side's total went up.
   const goals = goalMarkers(snaps);
+  // Half a goal marker belongs to (for the stoppage clamp): the snapshot
+  // at its minute, if any.
+  const halfAt = (m: number): 1 | 2 | null => snaps.find((s) => s.minute === m)?.half ?? null;
   // The break line only draws once the interval really starts out there
   // (or the game already went past it): no floating INT over first-half
   // play, stoppage included.
@@ -318,7 +331,7 @@ export default function LiveEvolutionChart({
         flush();
         return;
       }
-      pts.push({ x: x(s.minute), y: d.axis === "count" ? yCount(v) : yPct(v) });
+      pts.push({ x: x(plotMinute(s)), y: d.axis === "count" ? yCount(v) : yPct(v) });
     });
     flush();
     return segs.join(" ");
@@ -330,7 +343,7 @@ export default function LiveEvolutionChart({
     let best = 0;
     let bestDist = Infinity;
     snaps.forEach((s, i) => {
-      const dist = Math.abs(x(s.minute) - px);
+      const dist = Math.abs(x(plotMinute(s)) - px);
       if (dist < bestDist) {
         bestDist = dist;
         best = i;
@@ -445,8 +458,8 @@ export default function LiveEvolutionChart({
               {goals.map((gl, i) => (
                 <line
                   key={i}
-                  x1={x(gl.minute)}
-                  x2={x(gl.minute)}
+                  x1={x(plotMinute({ minute: gl.minute, half: halfAt(gl.minute) }))}
+                  x2={x(plotMinute({ minute: gl.minute, half: halfAt(gl.minute) }))}
                   y1={PADT}
                   y2={H - PADB}
                   stroke={gl.home ? "#34d399" : "#38bdf8"}
@@ -468,13 +481,13 @@ export default function LiveEvolutionChart({
                 />
               ))}
               {hov && (
-                <line x1={x(hov.minute)} x2={x(hov.minute)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
+                <line x1={x(plotMinute(hov))} x2={x(plotMinute(hov))} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
               )}
             </svg>
             {hov && hovModel && (
               <div
                 className="pointer-events-none absolute z-10 min-w-40 max-w-60 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
-                style={{ left: `${Math.min(70, (x(hov.minute) / W) * 100)}%`, top: "4%" }}
+                style={{ left: `${Math.min(70, (x(plotMinute(hov)) / W) * 100)}%`, top: "4%" }}
               >
                 <p className="font-semibold text-neutral-100">
                   {hov.minute}&apos; · {hov.hg}–{hov.ag}
