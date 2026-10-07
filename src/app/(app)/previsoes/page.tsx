@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { cacheGet, cacheSet } from "@/lib/sofaCache";
-import { predict } from "@/lib/footballModel";
-import { baseRates, candidatesFor, leagueRates, MIN_GAMES } from "@/lib/recommendation";
+import { predict, leagueRates } from "@/lib/footballModel";
+import { baseRates, candidatesFor, MIN_GAMES } from "@/lib/recommendation";
 import { loadAutoTune } from "@/lib/autoTune";
 import { first } from "@/lib/searchParams";
 
