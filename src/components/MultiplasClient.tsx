@@ -2,6 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { MULTI_FAMILIES, buildMultiples, type FamilyFilter, type PricedLeg } from "@/lib/multiplasGen";
+import {
+  loadFilterPresets,
+  loadSavedTickets,
+  persistSavedTickets,
+  saveFilterPresets,
+  type MultiFilterPreset,
+  type SavedTicket,
+} from "@/lib/multiplasStore";
 
 const pct1 = (p: number): string => `${(p * 100).toFixed(1).replace(".", ",")}%`;
 const pct0 = (p: number): string => `${Math.round(p * 100)}%`;
@@ -48,6 +56,20 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   const [meta, setMeta] = useState<GenMeta>({ fixturesTotal: 0, oddsTotal: 0, truncated: false });
   const [elapsed, setElapsed] = useState(0);
   const [copied, setCopied] = useState<number | null>(null);
+  const [presets, setPresets] = useState<MultiFilterPreset[]>([]);
+  const [defPreset, setDefPreset] = useState<string | null>(null);
+  const [presetName, setPresetName] = useState("");
+  const [saved, setSaved] = useState<SavedTicket[]>([]);
+
+  useEffect(() => {
+    const { presets: p, def } = loadFilterPresets();
+    setPresets(p);
+    setDefPreset(def);
+    const active = (def && p.find((x) => x.name === def)) || null;
+    if (active) applyPreset(active);
+    setSaved(loadSavedTickets());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (status !== "loading") return;
@@ -58,6 +80,53 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
 
   const toggleLiga = (code: string): void =>
     setLigas((prev) => (prev.includes(code) ? prev.filter((l) => l !== code) : [...prev, code]));
+
+  const applyPreset = (p: MultiFilterPreset): void => {
+    setLigas(p.ligas);
+    setFam((prev) => {
+      const next = { ...prev };
+      for (const [id, v] of Object.entries(p.fam)) {
+        if (next[id]) next[id] = { on: v.on, min: v.min, max: v.max };
+      }
+      return next;
+    });
+    setLegsN(p.legsN);
+    setTicketsN(p.ticketsN);
+    setMinEdge(p.minEdge);
+  };
+
+  const persistPresets = (next: MultiFilterPreset[], def: string | null): void => {
+    setPresets(next);
+    setDefPreset(def);
+    saveFilterPresets(next, def);
+  };
+
+  const savePreset = (): void => {
+    const name = presetName.trim().slice(0, 30);
+    if (!name) return;
+    const entry: MultiFilterPreset = { name, ligas, fam, legsN, ticketsN, minEdge };
+    persistPresets([...presets.filter((p) => p.name !== name), entry], defPreset);
+    setPresetName("");
+  };
+
+  const saveTicket = (idx: number): void => {
+    const t = tickets[idx];
+    if (!t || t.legs.length === 0) return;
+    const entry: SavedTicket = {
+      id: `${Date.now()}-${idx}`,
+      savedAt: Date.now(),
+      days: [...days].sort(),
+      index: idx,
+      legs: t.legs,
+      odd: t.odd,
+      p: t.p,
+      fair: t.fair,
+      avgEdge: t.avgEdge,
+    };
+    const next = [entry, ...loadSavedTickets()].slice(0, 30);
+    setSaved(next);
+    persistSavedTickets(next);
+  };
 
   const setFamField = (id: string, field: "on" | "min" | "max", value: boolean | string): void =>
     setFam((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
@@ -326,6 +395,65 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
         {status === "error" && <p className="mt-2 text-xs text-red-300">{error}</p>}
       </div>
 
+      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Filtros guardados</p>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <input
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+            placeholder="Nome do filtro…"
+            maxLength={30}
+            className="w-48 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+          />
+          <button
+            type="button"
+            onClick={savePreset}
+            disabled={presetName.trim() === ""}
+            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+          >
+            Guardar atuais
+          </button>
+          <span className="text-[11px] text-neutral-500">Guarda ligas, tipos, odds, jogos e boletins (não os dias).</span>
+        </div>
+        {presets.length === 0 ? (
+          <p className="text-[11px] text-neutral-500">Ainda sem filtros guardados.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {presets.map((p) => (
+              <div key={p.name} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                <span className="min-w-0 flex-1 truncate text-neutral-200">
+                  {p.name}
+                  {p.name === defPreset && <span className="ml-1 text-neutral-500">★</span>}
+                </span>
+                <span className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => applyPreset(p)} className="text-neutral-400 hover:text-neutral-200">
+                    Usar
+                  </button>
+                  {p.name !== defPreset && (
+                    <button type="button" onClick={() => persistPresets(presets, p.name)} className="text-neutral-400 hover:text-neutral-200">
+                      Padrão
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!confirm(`Apagar o filtro "${p.name}"?`)) return;
+                      persistPresets(
+                        presets.filter((x) => x.name !== p.name),
+                        defPreset === p.name ? null : defPreset
+                      );
+                    }}
+                    className="text-neutral-400 hover:text-red-300"
+                  >
+                    Apagar
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {status === "done" && (
         <div className="space-y-4">
           <p className="-mb-2 text-[11px] text-neutral-500">
@@ -350,9 +478,14 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                       Múltipla {idx + 1} · {t.legs.length} perna{t.legs.length === 1 ? "" : "s"}
                       {idx === 0 && <span className="ml-1 text-[10px] font-normal text-emerald-400">a de maior valor</span>}
                     </h3>
-                    <button type="button" onClick={() => copy(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
-                      {copied === idx ? "Copiado ✓" : "Copiar boletim"}
-                    </button>
+                    <span className="flex gap-2">
+                      <button type="button" onClick={() => saveTicket(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
+                        Guardar
+                      </button>
+                      <button type="button" onClick={() => copy(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
+                        {copied === idx ? "Copiado ✓" : "Copiar boletim"}
+                      </button>
+                    </span>
                   </div>
                   <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
                     <p className="text-lg font-bold text-emerald-300">Odd {odd2(t.odd)}</p>
@@ -388,6 +521,82 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
               </p>
             </>
           )}
+        </div>
+      )}
+
+      {saved.length > 0 && (
+        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Boletins guardados</p>
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirm("Apagar todos os boletins guardados?")) return;
+                setSaved([]);
+                persistSavedTickets([]);
+              }}
+              className="text-xs text-neutral-400 hover:text-red-300"
+            >
+              Limpar tudo
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {saved.map((s) => (
+              <details key={s.id} className="rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-neutral-500">
+                    {new Date(s.savedAt).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" })}
+                  </span>
+                  <span className="font-medium text-neutral-200">
+                    {s.legs.length} pernas · odd {odd2(s.odd)}
+                  </span>
+                  <span className="text-neutral-500">
+                    {s.days.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`).join(", ")}
+                  </span>
+                  <span className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigator.clipboard
+                        .writeText(
+                          `Múltipla (${s.legs.length} pernas) — odd ${odd2(s.odd)}\n${s.legs
+                            .map((l) => `${l.date}${l.time ? ` ${l.time}` : ""} · ${l.home} vs ${l.away} — ${l.label} @ ${odd2(l.real)}`)
+                            .join("\n")}`
+                        )
+                        .catch(() => {});
+                    }}
+                    className="text-neutral-400 hover:text-neutral-200"
+                  >
+                    Copiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const next = saved.filter((x) => x.id !== s.id);
+                      setSaved(next);
+                      persistSavedTickets(next);
+                    }}
+                    className="text-neutral-400 hover:text-red-300"
+                  >
+                    Apagar
+                  </button>
+                </summary>
+                <div className="mt-2 space-y-1 border-t border-neutral-800 pt-2">
+                  {s.legs.map((l) => (
+                    <p key={`${l.eventId}:${l.key}`} className="text-neutral-300">
+                      {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""} · {l.home} vs {l.away} —{" "}
+                      {l.label} @ {odd2(l.real)}
+                    </p>
+                  ))}
+                  <p className="text-neutral-500">
+                    Modelo {pct1(s.p)} · justa {odd2(s.fair)} · valor médio +{pct1(s.avgEdge)}
+                  </p>
+                </div>
+              </details>
+            ))}
+          </div>
         </div>
       )}
     </div>
