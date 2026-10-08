@@ -151,17 +151,20 @@ export default function CurveChart({
             />
           ))
         )}
-        {/* Wide invisible hit targets, one per index across both series. */}
+        {/* Wide invisible hit lanes, one per index across both series:
+            full plot height, so hovering any dot in the column fires. */}
         {dates.map((_, i) => (
-          <circle
+          <rect
             key={`hit${i}`}
-            cx={x(i)}
-            cy={(H - PADB + PADT) / 2}
-            r="14"
+            x={x(i) - 12}
+            y={PADT}
+            width={24}
+            height={H - PADT - PADB}
             fill="transparent"
             style={{ cursor: "pointer" }}
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
+            onClick={() => setHover(i)}
           />
         ))}
         {dates.map((d, i) =>
