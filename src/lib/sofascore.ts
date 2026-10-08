@@ -253,7 +253,9 @@ export interface SofaLiveEntry {  id: number;
   statusDescription: string;
   phase: LivePhase;
   minute: number | null;
-  half: 1 | 2 | null;
+  // SofaScore unique-tournament id (null when the feed hides it): lets the
+  // bots check pre-filter to mapped tournaments without an event read each.
+  uniqueId: number | null;
   homeGoals: number | null;
   awayGoals: number | null;
 }
@@ -280,6 +282,7 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
     const tournament = obj(e.tournament);
     const category = obj(tournament?.category);
     const competition = str(tournament?.name) || str(category?.name);
+    const uniqueId = num(obj(tournament?.uniqueTournament)?.id);
     const homeGoals = num(obj(e.homeScore)?.current) ?? num(obj(e.homeScore)?.display);
     const awayGoals = num(obj(e.awayScore)?.current) ?? num(obj(e.awayScore)?.display);
     const minute =
@@ -295,6 +298,7 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
       phase,
       minute,
       half: halfOfStatus(statusDescription),
+      uniqueId,
       homeGoals,
       awayGoals,
     });

@@ -9,6 +9,7 @@ import { sofaRaw, ScraperOffline } from "@/lib/sofaRaw";
 const obj = (x: unknown): Record<string, unknown> | null =>
   typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
 import { loadSofaLeague } from "@/lib/sofaLeague";
+import { loadMaps } from "@/lib/sofaHistory";
 import { resolveSofaLink } from "@/lib/sofaLeague";
 import { prematchFor } from "@/lib/sofaPrematch";
 import { eventOdds } from "@/lib/sofaOdds";
@@ -189,7 +190,14 @@ export async function POST() {
     return Response.json({ error: "scraper-offline" }, { status: 503 });
   }
   if (live.offline) return Response.json({ error: "scraper-offline" }, { status: 503 });
-  const games = live.games.slice(0, MAX_GAMES);
+  // Mapped tournaments first: with dozens of live games worldwide, the 12
+  // oldest kickoffs would otherwise all be obscure unmapped games and no
+  // watched league would ever be checked. No event reads needed for this —
+  // the live list already carries the unique tournament id.
+  const tourMaps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
+  const mappedIds = new Set(tourMaps.map((m) => m.sofascore_id).filter((id) => id > 0));
+  const mapped = live.games.filter((g) => g.uniqueId !== null && mappedIds.has(g.uniqueId));
+  const games = mapped.slice(0, MAX_GAMES);
 
   const leagueData = new Map<string, Awaited<ReturnType<typeof loadSofaLeague>>>();
   const leagueOf = async (code: string) => {
