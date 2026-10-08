@@ -97,7 +97,6 @@ export interface FamilyFilter {
 export interface BuildOpts {
   families: Record<string, FamilyFilter>;
   legs: number;
-  minEdge: number;
   tickets: number;
 }
 
@@ -109,8 +108,9 @@ export interface BuiltMultiple {
   avgEdge: number;
 }
 
-// Ranked qualifying legs, sliced into tickets of N (ticket 1 = the best N,
-// ticket 2 = the next N...). Empty tickets are dropped.
+// Ranked qualifying legs, sliced into tickets of N (ticket 1 = the most
+// likely N, ticket 2 = the next N...). Ranked by model probability: without
+// an edge filter, confidence is the criterion. Empty tickets are dropped.
 export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple[] {
   const n = Math.max(1, Math.floor(opts.legs) || 4);
   const t = Math.max(1, Math.min(10, Math.floor(opts.tickets) || 1));
@@ -120,14 +120,13 @@ export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple
     if (!f?.on) continue;
     if (f.min !== null && leg.real < f.min) continue;
     if (f.max !== null && leg.real > f.max) continue;
-    if (leg.edge < opts.minEdge) continue;
     if (leg.p <= 0 || leg.real <= 1) continue;
     const cur = byGame.get(leg.eventId);
-    if (!cur || leg.edge > cur.edge || (leg.edge === cur.edge && leg.p > cur.p)) {
+    if (!cur || leg.p > cur.p || (leg.p === cur.p && leg.real > cur.real)) {
       byGame.set(leg.eventId, leg);
     }
   }
-  const ranked = [...byGame.values()].sort((a, b) => b.edge - a.edge || b.p - a.p);
+  const ranked = [...byGame.values()].sort((a, b) => b.p - a.p || b.real - a.real);
   const out: BuiltMultiple[] = [];
   for (let i = 0; i < t; i++) {
     const legs = ranked
@@ -145,9 +144,9 @@ export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple
   return out;
 }
 
-// One leg per game (the best edge passing the filters), top N by edge.
-// Combined numbers assume independent legs — the standard accumulator math,
-// optimistic when legs correlate (same league, same day).
+// One leg per game (the most likely passing the filters), top N by model
+// probability. Combined numbers assume independent legs — the standard
+// accumulator math, optimistic when legs correlate (same league, same day).
 export function buildMultiple(all: PricedLeg[], opts: Omit<BuildOpts, "tickets">): BuiltMultiple {
   const [first] = buildMultiples(all, { ...opts, tickets: 1 });
   return first ?? { legs: [], odd: 1, p: 1, fair: 1, avgEdge: 0 };

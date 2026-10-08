@@ -49,7 +49,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   );
   const [legsN, setLegsN] = useState("4");
   const [ticketsN, setTicketsN] = useState("1");
-  const [minEdge, setMinEdge] = useState("3");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [priced, setPriced] = useState<PricedLeg[]>([]);
@@ -92,7 +91,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     });
     setLegsN(p.legsN);
     setTicketsN(p.ticketsN);
-    setMinEdge(p.minEdge);
   };
 
   const persistPresets = (next: MultiFilterPreset[], def: string | null): void => {
@@ -104,7 +102,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   const savePreset = (): void => {
     const name = presetName.trim().slice(0, 30);
     if (!name) return;
-    const entry: MultiFilterPreset = { name, ligas, fam, legsN, ticketsN, minEdge };
+    const entry: MultiFilterPreset = { name, ligas, fam, legsN, ticketsN };
     persistPresets([...presets.filter((p) => p.name !== name), entry], defPreset);
     setPresetName("");
   };
@@ -144,11 +142,10 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
 
   const nLegs = Math.max(1, Math.floor(Number(legsN)) || 4);
   const nTickets = Math.max(1, Math.min(10, Math.floor(Number(ticketsN)) || 1));
-  const edgeMin = Math.max(0, (Number(minEdge.replace(",", ".")) || 0) / 100);
 
   const tickets = useMemo(
-    () => buildMultiples(priced, { families: parsedFam, legs: nLegs, minEdge: edgeMin, tickets: nTickets }),
-    [priced, parsedFam, nLegs, edgeMin, nTickets]
+    () => buildMultiples(priced, { families: parsedFam, legs: nLegs, tickets: nTickets }),
+    [priced, parsedFam, nLegs, nTickets]
   );
   const placedLegs = tickets.reduce((s, t) => s + t.legs.length, 0);
 
@@ -159,11 +156,10 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
       if (!f?.on) continue;
       if (f.min !== null && leg.real < f.min) continue;
       if (f.max !== null && leg.real > f.max) continue;
-      if (leg.edge < edgeMin) continue;
       counts[leg.family] = (counts[leg.family] ?? 0) + 1;
     }
     return counts;
-  }, [priced, parsedFam, edgeMin]);
+  }, [priced, parsedFam]);
 
   const canGenerate = days.length > 0 && ligas.length > 0 && status !== "loading";
 
@@ -371,15 +367,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             />
             <span className="text-neutral-500">(1–10)</span>
           </label>
-          <label className="flex items-center gap-1.5" title="Lucro médio mínimo esperado por perna: modelo × odd real − 1. Ex.: 3% = a perna tem de render +3% em média.">
-            Edge mín. %
-            <input
-              value={minEdge}
-              onChange={(e) => setMinEdge(e.target.value)}
-              inputMode="decimal"
-              className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
-            />
-          </label>
           <button
             type="button"
             onClick={generate}
@@ -462,14 +449,14 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
           </p>
           {tickets.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
-              Nenhuma perna cumpre os filtros (intervalos de odd e edge mínimo). Alarga os intervalos ou baixa o edge mín.
+              Nenhuma perna cumpre os intervalos de odd. Alarga os intervalos.
             </p>
           ) : (
             <>
               {placedLegs < nLegs * nTickets && (
                 <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
                   Só {placedLegs} perna{placedLegs === 1 ? "" : "s"} cumpre(m) os filtros (pediste {nLegs} por boletim ×{" "}
-                  {nTickets} boletim{nTickets === 1 ? "" : "s"} = {nLegs * nTickets}). Alarga intervalos ou baixa o edge.
+                  {nTickets} boletim{nTickets === 1 ? "" : "s"} = {nLegs * nTickets}). Alarga os intervalos.
                 </p>
               )}
               {tickets.map((t, idx) => (
@@ -492,8 +479,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     <p className="text-lg font-bold text-emerald-300">Odd {odd2(t.odd)}</p>
                     <p className="text-xs text-neutral-400">
                       Modelo: <span className="font-medium text-neutral-200">{pct1(t.p)}</span> · justa{" "}
-                      <span className="font-medium text-neutral-200">{odd2(t.fair)}</span> · valor médio{" "}
-                      <span className="font-medium text-emerald-400">+{pct1(t.avgEdge)}</span>
+                      <span className="font-medium text-neutral-200">{odd2(t.fair)}</span>
                     </p>
                   </div>
                   <div className="space-y-1.5">
@@ -508,8 +494,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                           {l.voidNote && <span className="ml-1 text-[10px] text-amber-300">· {l.voidNote}</span>}
                         </span>
                         <span className="shrink-0 tabular-nums text-neutral-400">
-                          {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>{" "}
-                          <span className="text-emerald-400">+{pct1(l.edge)}</span>
+                          {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>
                         </span>
                       </div>
                     ))}
@@ -592,7 +577,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     </p>
                   ))}
                   <p className="text-neutral-500">
-                    Modelo {pct1(s.p)} · justa {odd2(s.fair)} · valor médio +{pct1(s.avgEdge)}
+                    Modelo {pct1(s.p)} · justa {odd2(s.fair)}
                   </p>
                 </div>
               </details>

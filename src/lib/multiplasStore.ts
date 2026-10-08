@@ -14,7 +14,6 @@ export interface MultiFilterPreset {
   fam: Record<string, MultiFilterState>;
   legsN: string;
   ticketsN: string;
-  minEdge: string;
 }
 
 export interface SavedTicket {

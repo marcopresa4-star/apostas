@@ -34,55 +34,54 @@ describe("familyOf", () => {
 });
 
 describe("buildMultiple", () => {
-  it("takes the best leg per game and top N by edge", () => {
+  it("takes the most likely leg per game and top N by probability", () => {
     const legs = [
-      L({ eventId: 1, key: "home", family: "result", edge: 0.05, real: 2.0, p: 0.5 }),
-      L({ eventId: 1, key: "over:2.5", family: "ou", edge: 0.12, real: 1.9, p: 0.6 }),
-      L({ eventId: 2, key: "away", family: "result", edge: 0.08, real: 2.1, p: 0.55 }),
-      L({ eventId: 3, key: "home", family: "result", edge: 0.02, real: 1.7, p: 0.6 }),
+      L({ eventId: 1, key: "home", family: "result", p: 0.5, real: 2.0 }),
+      L({ eventId: 1, key: "over:2.5", family: "ou", p: 0.62, real: 1.9 }),
+      L({ eventId: 2, key: "away", family: "result", p: 0.55, real: 2.1 }),
+      L({ eventId: 3, key: "home", family: "result", p: 0.6, real: 1.7 }),
     ];
-    const built = buildMultiple(legs, { families: FAM, legs: 2, minEdge: 0 });
-    expect(built.legs.map((l) => l.eventId)).toEqual([1, 2]);
+    const built = buildMultiple(legs, { families: FAM, legs: 2 });
+    expect(built.legs.map((l) => l.eventId)).toEqual([1, 3]);
     expect(built.legs[0].key).toBe("over:2.5");
-    expect(built.odd).toBeCloseTo(1.9 * 2.1, 9);
-    expect(built.p).toBeCloseTo(0.6 * 0.55, 9);
+    expect(built.odd).toBeCloseTo(1.9 * 1.7, 9);
+    expect(built.p).toBeCloseTo(0.62 * 0.6, 9);
   });
 
-  it("respects per-family odd ranges and min edge", () => {
+  it("respects per-family odd ranges", () => {
     const legs = [
-      L({ eventId: 1, key: "home", family: "result", edge: 0.2, real: 5.0, p: 0.3 }),
-      L({ eventId: 2, key: "over:2.5", family: "ou", edge: 0.01, real: 1.9, p: 0.55 }),
+      L({ eventId: 1, key: "home", family: "result", p: 0.3, real: 5.0 }),
+      L({ eventId: 2, key: "over:2.5", family: "ou", p: 0.55, real: 1.9 }),
     ];
     const built = buildMultiple(legs, {
-      families: { result: { on: true, min: 1.3, max: 3.0 }, ou: { on: true, min: null, max: null } },
+      families: { result: { on: true, min: 1.3, max: 3.0 }, ou: { on: false, min: null, max: null } },
       legs: 4,
-      minEdge: 0.03,
     });
     expect(built.legs).toEqual([]);
   });
 
   it("ignores switched-off families", () => {
-    const legs = [L({ eventId: 1, key: "home", family: "result", edge: 0.1 })];
-    const built = buildMultiple(legs, { families: { result: { on: false, min: null, max: null } }, legs: 4, minEdge: 0 });
+    const legs = [L({ eventId: 1, key: "home", family: "result", p: 0.6 })];
+    const built = buildMultiple(legs, { families: { result: { on: false, min: null, max: null } }, legs: 4 });
     expect(built.legs).toEqual([]);
   });
-});
 
   it("has no leg cap", () => {
     const legs = Array.from({ length: 15 }, (_, i) =>
-      L({ eventId: 100 + i, key: "home", family: "result", edge: 0.05, real: 2.0, p: 0.55 })
+      L({ eventId: 100 + i, key: "home", family: "result", p: 0.55, real: 2.0 })
     );
-    const built = buildMultiple(legs, { families: FAM, legs: 15, minEdge: 0 });
+    const built = buildMultiple(legs, { families: FAM, legs: 15 });
     expect(built.legs.length).toBe(15);
   });
+});
 
 describe("buildMultiples", () => {
   it("slices ranked legs into tickets", async () => {
     const { buildMultiples } = await import("../multiplasGen");
     const legs = Array.from({ length: 5 }, (_, i) =>
-      L({ eventId: 200 + i, key: "home", family: "result", edge: 0.1 - i * 0.01, real: 2.0, p: 0.55 })
+      L({ eventId: 200 + i, key: "home", family: "result", p: 0.7 - i * 0.05, real: 2.0 })
     );
-    const out = buildMultiples(legs, { families: FAM, legs: 2, minEdge: 0, tickets: 3 });
+    const out = buildMultiples(legs, { families: FAM, legs: 2, tickets: 3 });
     expect(out.length).toBe(3);
     expect(out[0].legs.map((l) => l.eventId)).toEqual([200, 201]);
     expect(out[2].legs.map((l) => l.eventId)).toEqual([204]);
