@@ -97,7 +97,6 @@ export interface FamilyFilter {
 export interface BuildOpts {
   families: Record<string, FamilyFilter>;
   legs: number;
-  tickets: number;
 }
 
 export interface BuiltMultiple {
@@ -108,12 +107,11 @@ export interface BuiltMultiple {
   avgEdge: number;
 }
 
-// Ranked qualifying legs, sliced into tickets of N (ticket 1 = the most
-// likely N, ticket 2 = the next N...). Ranked by model probability: without
-// an edge filter, confidence is the criterion. Empty tickets are dropped.
+// Ranked qualifying legs, sliced into tickets of N until they run out
+// (ticket 1 = the most likely N, ticket 2 = the next N...). Ranked by model
+// probability: without an edge filter, confidence is the criterion.
 export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple[] {
   const n = Math.max(1, Math.floor(opts.legs) || 4);
-  const t = Math.max(1, Math.min(10, Math.floor(opts.tickets) || 1));
   const byGame = new Map<number, PricedLeg>();
   for (const leg of all) {
     const f = opts.families[leg.family];
@@ -128,7 +126,7 @@ export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple
   }
   const ranked = [...byGame.values()].sort((a, b) => b.p - a.p || b.real - a.real);
   const out: BuiltMultiple[] = [];
-  for (let i = 0; i < t; i++) {
+  for (let i = 0; i * n < ranked.length; i++) {
     const legs = ranked
       .slice(i * n, i * n + n)
       .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
@@ -147,8 +145,8 @@ export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple
 // One leg per game (the most likely passing the filters), top N by model
 // probability. Combined numbers assume independent legs — the standard
 // accumulator math, optimistic when legs correlate (same league, same day).
-export function buildMultiple(all: PricedLeg[], opts: Omit<BuildOpts, "tickets">): BuiltMultiple {
-  const [first] = buildMultiples(all, { ...opts, tickets: 1 });
+export function buildMultiple(all: PricedLeg[], opts: BuildOpts): BuiltMultiple {
+  const [first] = buildMultiples(all, opts);
   return first ?? { legs: [], odd: 1, p: 1, fair: 1, avgEdge: 0 };
 }
 

@@ -81,7 +81,7 @@ describe("buildMultiples", () => {
     const legs = Array.from({ length: 5 }, (_, i) =>
       L({ eventId: 200 + i, key: "home", family: "result", p: 0.7 - i * 0.05, real: 2.0 })
     );
-    const out = buildMultiples(legs, { families: FAM, legs: 2, tickets: 3 });
+    const out = buildMultiples(legs, { families: FAM, legs: 2 });
     expect(out.length).toBe(3);
     expect(out[0].legs.map((l) => l.eventId)).toEqual([200, 201]);
     expect(out[2].legs.map((l) => l.eventId)).toEqual([204]);

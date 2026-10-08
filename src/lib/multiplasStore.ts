@@ -13,7 +13,6 @@ export interface MultiFilterPreset {
   ligas: string[];
   fam: Record<string, MultiFilterState>;
   legsN: string;
-  ticketsN: string;
 }
 
 export interface SavedTicket {

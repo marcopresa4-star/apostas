@@ -48,7 +48,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     Object.fromEntries(MULTI_FAMILIES.filter((f) => f.covered).map((f) => [f.id, { on: true, min: "1,30", max: "4,00" }]))
   );
   const [legsN, setLegsN] = useState("4");
-  const [ticketsN, setTicketsN] = useState("1");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [priced, setPriced] = useState<PricedLeg[]>([]);
@@ -101,7 +100,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
       return next;
     });
     setLegsN(p.legsN);
-    setTicketsN(p.ticketsN);
   };
 
   const persistPresets = (next: MultiFilterPreset[], def: string | null): void => {
@@ -113,7 +111,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   const savePreset = (): void => {
     const name = presetName.trim().slice(0, 30);
     if (!name) return;
-    const entry: MultiFilterPreset = { name, ligas, fam, legsN, ticketsN };
+    const entry: MultiFilterPreset = { name, ligas, fam, legsN };
     persistPresets([...presets.filter((p) => p.name !== name), entry], defPreset);
     setPresetName("");
   };
@@ -152,11 +150,10 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   );
 
   const nLegs = Math.max(1, Math.floor(Number(legsN)) || 4);
-  const nTickets = Math.max(1, Math.min(10, Math.floor(Number(ticketsN)) || 1));
 
   const tickets = useMemo(
-    () => buildMultiples(priced, { families: parsedFam, legs: nLegs, tickets: nTickets }),
-    [priced, parsedFam, nLegs, nTickets]
+    () => buildMultiples(priced, { families: parsedFam, legs: nLegs }),
+    [priced, parsedFam, nLegs]
   );
   const placedLegs = tickets.reduce((s, t) => s + t.legs.length, 0);
   // Ticket view with ghosts applied: active legs count, ghosts linger dimmed.
@@ -380,16 +377,6 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             />
             <span className="text-neutral-500">por boletim</span>
           </label>
-          <label className="flex items-center gap-1.5">
-            Boletins
-            <input
-              value={ticketsN}
-              onChange={(e) => setTicketsN(e.target.value)}
-              inputMode="numeric"
-              className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
-            />
-            <span className="text-neutral-500">(1–10)</span>
-          </label>
           <button
             type="button"
             onClick={generate}
@@ -423,7 +410,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
           >
             Guardar atuais
           </button>
-          <span className="text-[11px] text-neutral-500">Guarda ligas, tipos, odds, jogos e boletins (não os dias).</span>
+          <span className="text-[11px] text-neutral-500">Guarda ligas, tipos, odds e jogos por boletim (não os dias).</span>
         </div>
         {presets.length === 0 ? (
           <p className="text-[11px] text-neutral-500">Ainda sem filtros guardados.</p>
@@ -476,12 +463,9 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             </p>
           ) : (
             <>
-              {placedLegs < nLegs * nTickets && (
-                <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                  Só {placedLegs} perna{placedLegs === 1 ? "" : "s"} cumpre(m) os filtros (pediste {nLegs} por boletim ×{" "}
-                  {nTickets} boletim{nTickets === 1 ? "" : "s"} = {nLegs * nTickets}). Alarga os intervalos.
-                </p>
-              )}
+              <p className="rounded-lg bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
+                {placedLegs} perna{placedLegs === 1 ? "" : "s"} em {tickets.length} boletim{tickets.length === 1 ? "" : "s"} de {nLegs}.
+              </p>
               {view.map((v, idx) => (
                 <div key={idx} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
