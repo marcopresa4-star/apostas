@@ -84,6 +84,14 @@ export default function BotsClient({
               // Permission revoked mid-session: the list keeps the alert.
             }
           }
+          // Same in-site toast as the global watcher (bottom-right, every page).
+          if (!f.silent) {
+            try {
+              window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: f }));
+            } catch {
+              // No listeners: the list keeps the alert.
+            }
+          }
         }
         router.refresh();
       }
