@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
-import { loadMaps, sofaTeamIdFor, teamLastGame, tournamentSeasons, seasonTeamNames } from "@/lib/sofaHistory";
+import { linkLocalName, loadMaps, sofaTeamIdFor, teamLastGame, tournamentSeasons, seasonTeamNames } from "@/lib/sofaHistory";
 import TeamSearch from "@/components/TeamSearch";
 
 // Bounded parallelism for the team-index sweep below.
@@ -328,6 +328,14 @@ async function CompararBody({
   }
 
   const teams = data?.teams ?? [];
+  // Incoming links (Previsões, Ao vivo, bots...) carry SofaScore spellings:
+  // translate to the local ones when they don't match, so the game opens
+  // instead of an empty form. Unknown spellings keep the map hint as today.
+  if (data && userId && (!teams.includes(casa) || !teams.includes(fora))) {
+    const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
+    if (!teams.includes(casa)) casa = linkLocalName(teamMaps, casa) ?? casa;
+    if (!teams.includes(fora)) fora = linkLocalName(teamMaps, fora) ?? fora;
+  }
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
   const sameTeam = casa !== "" && casa === fora;
 
