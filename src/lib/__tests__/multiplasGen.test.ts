@@ -67,3 +67,11 @@ describe("buildMultiple", () => {
     expect(built.legs).toEqual([]);
   });
 });
+
+  it("has no leg cap", () => {
+    const legs = Array.from({ length: 15 }, (_, i) =>
+      L({ eventId: 100 + i, key: "home", family: "result", edge: 0.05, real: 2.0, p: 0.55 })
+    );
+    const built = buildMultiple(legs, { families: FAM, legs: 15, minEdge: 0 });
+    expect(built.legs.length).toBe(15);
+  });

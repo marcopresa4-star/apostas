@@ -112,7 +112,7 @@ export interface BuiltMultiple {
 // Combined numbers assume independent legs — the standard accumulator math,
 // optimistic when legs correlate (same league, same day).
 export function buildMultiple(all: PricedLeg[], opts: BuildOpts): BuiltMultiple {
-  const n = Math.max(1, Math.min(12, Math.floor(opts.legs) || 4));
+  const n = Math.max(1, Math.floor(opts.legs) || 4);
   const byGame = new Map<number, PricedLeg>();
   for (const leg of all) {
     const f = opts.families[leg.family];

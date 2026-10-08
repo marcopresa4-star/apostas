@@ -72,7 +72,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     [fam]
   );
 
-  const nLegs = Math.max(2, Math.min(12, Math.floor(Number(legsN)) || 4));
+  const nLegs = Math.max(1, Math.floor(Number(legsN)) || 4);
   const edgeMin = Math.max(0, (Number(minEdge.replace(",", ".")) || 0) / 100);
 
   const built = useMemo(
@@ -287,10 +287,10 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
               inputMode="numeric"
               className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
             />
-            <span className="text-neutral-500">(2–12)</span>
+            <span className="text-neutral-500">(sem limite)</span>
           </label>
-          <label className="flex items-center gap-1.5">
-            Valor mín. %
+          <label className="flex items-center gap-1.5" title="Lucro médio mínimo esperado por perna: modelo × odd real − 1. Ex.: 3% = a perna tem de render +3% em média.">
+            Edge mín. %
             <input
               value={minEdge}
               onChange={(e) => setMinEdge(e.target.value)}
