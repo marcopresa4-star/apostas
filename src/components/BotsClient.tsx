@@ -50,7 +50,13 @@ export default function BotsClient({
   const [lastCheck, setLastCheck] = useState<string | null>(null);
   const [passing, setPassing] = useState<Record<string, { checked: number; passing: number }>>({});
   const [sort, setSort] = useState("padrao");
-  const [perm, setPerm] = useState<string>(typeof Notification !== "undefined" ? Notification.permission : "denied");
+  // "denied" until mounted: Notification only exists in the browser, and
+  // reading it during hydration would mismatch the server render for users
+  // who already granted permission.
+  const [perm, setPerm] = useState<string>("denied");
+  useEffect(() => {
+    if (typeof Notification !== "undefined") setPerm(Notification.permission);
+  }, []);
   const seen = useRef<Set<string>>(new Set());
   // The global watcher (layout) polls on every page; this button is only the
   // manual trigger. No auto-poll here, or every check would run twice.
