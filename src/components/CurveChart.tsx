@@ -42,7 +42,7 @@ export function smoothPath(pts: { x: number; y: number }[]): string {
 const W = 560;
 const H = 190;
 const PADL = 44;
-const PADR = 92;
+const PADR = 140;
 const PADT = 12;
 const PADB = 24;
 
