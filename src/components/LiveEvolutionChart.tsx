@@ -265,7 +265,7 @@ const W = 640;
 const H = 220;
 const PADL = 34;
 const PADR = 40;
-const PADT = 10;
+const PADT = 24;
 const PADB = 22;
 
 export default function LiveEvolutionChart({
@@ -456,7 +456,8 @@ export default function LiveEvolutionChart({
         </select>
       </div>
       <p className="mb-2 text-[11px] text-neutral-500">
-        Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. O início é reconstruído
+        Um ponto por leitura (1/min): o que o jogo mostrava e o que o modelo dizia. Eixo esquerdo: quantidades
+        (remates, cantos, xG); direito: % do modelo; baixo: minutos. O início é reconstruído
         (remates, golos e modelo); posse e cantos só contam da tua entrada.
       </p>
       <div>
@@ -481,6 +482,15 @@ export default function LiveEvolutionChart({
                   strokeWidth="1"
                 />
               ))}
+              <text x={PADL} y={13} fontSize="9" fill="#737373">
+                Quantidade
+              </text>
+              <text x={W - PADR} y={13} textAnchor="end" fontSize="9" fill="#737373">
+                % modelo
+              </text>
+              <text x={PADL - 6} y={H - 8} textAnchor="end" fontSize="9" fill="#737373">
+                min
+              </text>
               {showInt && (
                 <>
                   <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
