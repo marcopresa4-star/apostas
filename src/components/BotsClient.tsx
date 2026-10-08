@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Bot } from "@/lib/bots";
-import { clearAlertsAction, deleteBotAction, toggleBotAction } from "@/app/(app)/bots/actions";
+import { clearAlertsAction, createTestBotAction, deleteBotAction, toggleBotAction } from "@/app/(app)/bots/actions";
 import BotForm from "@/components/BotForm";
 
 export interface BotRow extends Bot {
@@ -140,6 +140,22 @@ export default function BotsClient({
           className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 disabled:opacity-50"
         >
           {checking ? "A verificar…" : "Verificar agora"}
+        </button>
+        <button
+          type="button"
+          title="Cria um bot que dispara em qualquer jogo ao vivo (sem condições): para confirmar que os alertas chegam. Apaga-o depois do teste."
+          onClick={async () => {
+            const existing = bots.find((b) => b.name === "🔔 Teste de alertas");
+            if (existing) {
+              if (!existing.enabled) await toggleBotAction(existing.id, true);
+            } else {
+              await createTestBotAction();
+            }
+            router.refresh();
+          }}
+          className="rounded-lg border border-dashed border-neutral-600 px-4 py-2 text-sm text-neutral-400 transition hover:border-emerald-500 hover:text-neutral-200"
+        >
+          🔔 Bot de teste
         </button>
         {perm !== "granted" && (
           <button

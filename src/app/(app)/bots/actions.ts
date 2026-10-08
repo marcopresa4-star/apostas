@@ -127,6 +127,28 @@ export async function deleteBotAction(id: string): Promise<void> {
   revalidatePath("/bots");
 }
 
+// Test template: fires on ANY live game (minute 1–90, no thresholds), so the
+// user can check the alert pipeline end to end. One alert per game.
+export async function createTestBotAction(): Promise<{ ok: true } | { ok: false; error: string }> {
+  return saveBotAction(null, {
+    name: "🔔 Teste de alertas",
+    mode: "and",
+    leagues: [],
+    minute_from: 1,
+    minute_to: 90,
+    period: "any",
+    score: "any",
+    market: "mais1",
+    min_prob: null,
+    min_odd: null,
+    stats: [],
+    pregame: [],
+    silent: false,
+    refire: false,
+    enabled: true,
+  });
+}
+
 export async function clearAlertsAction(): Promise<void> {
   const { supabase, user } = await authed();
   await supabase.from("bot_alerts").delete().eq("user_id", user.id);
