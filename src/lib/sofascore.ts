@@ -253,6 +253,7 @@ export interface SofaLiveEntry {  id: number;
   statusDescription: string;
   phase: LivePhase;
   minute: number | null;
+  half: 1 | 2 | null;
   // SofaScore unique-tournament id (null when the feed hides it): lets the
   // bots check pre-filter to mapped tournaments without an event read each.
   uniqueId: number | null;
