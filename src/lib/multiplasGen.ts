@@ -98,6 +98,7 @@ export interface BuildOpts {
   families: Record<string, FamilyFilter>;
   legs: number;
   minEdge: number;
+  tickets: number;
 }
 
 export interface BuiltMultiple {
@@ -108,11 +109,11 @@ export interface BuiltMultiple {
   avgEdge: number;
 }
 
-// One leg per game (the best edge passing the filters), top N by edge.
-// Combined numbers assume independent legs — the standard accumulator math,
-// optimistic when legs correlate (same league, same day).
-export function buildMultiple(all: PricedLeg[], opts: BuildOpts): BuiltMultiple {
+// Ranked qualifying legs, sliced into tickets of N (ticket 1 = the best N,
+// ticket 2 = the next N...). Empty tickets are dropped.
+export function buildMultiples(all: PricedLeg[], opts: BuildOpts): BuiltMultiple[] {
   const n = Math.max(1, Math.floor(opts.legs) || 4);
+  const t = Math.max(1, Math.min(10, Math.floor(opts.tickets) || 1));
   const byGame = new Map<number, PricedLeg>();
   for (const leg of all) {
     const f = opts.families[leg.family];
@@ -126,18 +127,28 @@ export function buildMultiple(all: PricedLeg[], opts: BuildOpts): BuiltMultiple 
       byGame.set(leg.eventId, leg);
     }
   }
-  const legs = [...byGame.values()]
-    .sort((a, b) => b.edge - a.edge || b.p - a.p)
-    .slice(0, n)
-    .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
-  const odd = legs.reduce((acc, l) => acc * l.real, 1);
-  const p = legs.reduce((acc, l) => acc * l.p, 1);
-  const fair = legs.reduce((acc, l) => acc * l.fair, 1);
-  return {
-    legs,
-    odd,
-    p,
-    fair,
-    avgEdge: legs.length > 0 ? legs.reduce((s, l) => s + l.edge, 0) / legs.length : 0,
-  };
+  const ranked = [...byGame.values()].sort((a, b) => b.edge - a.edge || b.p - a.p);
+  const out: BuiltMultiple[] = [];
+  for (let i = 0; i < t; i++) {
+    const legs = ranked
+      .slice(i * n, i * n + n)
+      .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+    if (legs.length === 0) break;
+    out.push({
+      legs,
+      odd: legs.reduce((acc, l) => acc * l.real, 1),
+      p: legs.reduce((acc, l) => acc * l.p, 1),
+      fair: legs.reduce((acc, l) => acc * l.fair, 1),
+      avgEdge: legs.reduce((s, l) => s + l.edge, 0) / legs.length,
+    });
+  }
+  return out;
+}
+
+// One leg per game (the best edge passing the filters), top N by edge.
+// Combined numbers assume independent legs — the standard accumulator math,
+// optimistic when legs correlate (same league, same day).
+export function buildMultiple(all: PricedLeg[], opts: Omit<BuildOpts, "tickets">): BuiltMultiple {
+  const [first] = buildMultiples(all, { ...opts, tickets: 1 });
+  return first ?? { legs: [], odd: 1, p: 1, fair: 1, avgEdge: 0 };
 }

@@ -75,3 +75,16 @@ describe("buildMultiple", () => {
     const built = buildMultiple(legs, { families: FAM, legs: 15, minEdge: 0 });
     expect(built.legs.length).toBe(15);
   });
+
+describe("buildMultiples", () => {
+  it("slices ranked legs into tickets", async () => {
+    const { buildMultiples } = await import("../multiplasGen");
+    const legs = Array.from({ length: 5 }, (_, i) =>
+      L({ eventId: 200 + i, key: "home", family: "result", edge: 0.1 - i * 0.01, real: 2.0, p: 0.55 })
+    );
+    const out = buildMultiples(legs, { families: FAM, legs: 2, minEdge: 0, tickets: 3 });
+    expect(out.length).toBe(3);
+    expect(out[0].legs.map((l) => l.eventId)).toEqual([200, 201]);
+    expect(out[2].legs.map((l) => l.eventId)).toEqual([204]);
+  });
+});

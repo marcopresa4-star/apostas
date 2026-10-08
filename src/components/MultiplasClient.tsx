@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MULTI_FAMILIES, buildMultiple, type FamilyFilter, type PricedLeg } from "@/lib/multiplasGen";
+import { MULTI_FAMILIES, buildMultiples, type FamilyFilter, type PricedLeg } from "@/lib/multiplasGen";
 
 const pct1 = (p: number): string => `${(p * 100).toFixed(1).replace(".", ",")}%`;
 const pct0 = (p: number): string => `${Math.round(p * 100)}%`;
@@ -40,13 +40,14 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     Object.fromEntries(MULTI_FAMILIES.filter((f) => f.covered).map((f) => [f.id, { on: true, min: "1,30", max: "4,00" }]))
   );
   const [legsN, setLegsN] = useState("4");
+  const [ticketsN, setTicketsN] = useState("1");
   const [minEdge, setMinEdge] = useState("3");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [priced, setPriced] = useState<PricedLeg[]>([]);
   const [meta, setMeta] = useState<GenMeta>({ fixturesTotal: 0, oddsTotal: 0, truncated: false });
   const [elapsed, setElapsed] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<number | null>(null);
 
   useEffect(() => {
     if (status !== "loading") return;
@@ -73,12 +74,14 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   );
 
   const nLegs = Math.max(1, Math.floor(Number(legsN)) || 4);
+  const nTickets = Math.max(1, Math.min(10, Math.floor(Number(ticketsN)) || 1));
   const edgeMin = Math.max(0, (Number(minEdge.replace(",", ".")) || 0) / 100);
 
-  const built = useMemo(
-    () => buildMultiple(priced, { families: parsedFam, legs: nLegs, minEdge: edgeMin }),
-    [priced, parsedFam, nLegs, edgeMin]
+  const tickets = useMemo(
+    () => buildMultiples(priced, { families: parsedFam, legs: nLegs, minEdge: edgeMin, tickets: nTickets }),
+    [priced, parsedFam, nLegs, edgeMin, nTickets]
   );
+  const placedLegs = tickets.reduce((s, t) => s + t.legs.length, 0);
 
   const famCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -99,7 +102,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     if (!canGenerate) return;
     setStatus("loading");
     setError(null);
-    setCopied(false);
+    setCopied(null);
     try {
       const res = await fetch("/api/multiplas/generate", {
         method: "POST",
@@ -121,20 +124,20 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     }
   };
 
-  const slipText = (): string => {
-    const lines = built.legs.map(
+  const slipText = (t: (typeof tickets)[number], idx: number): string => {
+    const lines = t.legs.map(
       (l) => `${l.date}${l.time ? ` ${l.time}` : ""} · ${l.home} vs ${l.away} — ${l.label} @ ${odd2(l.real)} (modelo ${pct0(l.p)})`
     );
-    return `Múltipla (${built.legs.length} pernas) — odd ${odd2(built.odd)}\n${lines.join("\n")}`;
+    return `Múltipla ${idx + 1} (${t.legs.length} pernas) — odd ${odd2(t.odd)}\n${lines.join("\n")}`;
   };
 
-  const copy = async (): Promise<void> => {
+  const copy = async (idx: number): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(slipText());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(slipText(tickets[idx], idx));
+      setCopied(idx);
+      setTimeout(() => setCopied((c) => (c === idx ? null : c)), 2000);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   };
 
@@ -287,7 +290,17 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
               inputMode="numeric"
               className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
             />
-            <span className="text-neutral-500">(sem limite)</span>
+            <span className="text-neutral-500">por boletim</span>
+          </label>
+          <label className="flex items-center gap-1.5">
+            Boletins
+            <input
+              value={ticketsN}
+              onChange={(e) => setTicketsN(e.target.value)}
+              inputMode="numeric"
+              className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
+            />
+            <span className="text-neutral-500">(1–10)</span>
           </label>
           <label className="flex items-center gap-1.5" title="Lucro médio mínimo esperado por perna: modelo × odd real − 1. Ex.: 3% = a perna tem de render +3% em média.">
             Edge mín. %
@@ -314,60 +327,63 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
       </div>
 
       {status === "done" && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-neutral-300">
-              Múltipla sugerida · {built.legs.length} perna{built.legs.length === 1 ? "" : "s"}
-            </h3>
-            {built.legs.length > 0 && (
-              <button type="button" onClick={copy} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
-                {copied ? "Copiado ✓" : "Copiar boletim"}
-              </button>
-            )}
-          </div>
-          <p className="mb-3 text-[11px] text-neutral-500">
+        <div className="space-y-4">
+          <p className="-mb-2 text-[11px] text-neutral-500">
             {meta.fixturesTotal} jogos vistos · {meta.oddsTotal} com leitura de odds
             {meta.truncated ? " · limite de 60 leituras: alarga em fatias menores" : ""} · {priced.length} pernas com odd real
           </p>
-          {built.legs.length === 0 ? (
+          {tickets.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
-              Nenhuma perna cumpre os filtros (intervalos de odd e valor mínimo). Alarga os intervalos ou baixa o valor mín.
+              Nenhuma perna cumpre os filtros (intervalos de odd e edge mínimo). Alarga os intervalos ou baixa o edge mín.
             </p>
           ) : (
             <>
-              {built.legs.length < nLegs && (
-                <p className="mb-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                  Só {built.legs.length} perna{built.legs.length === 1 ? "" : "s"} cumpre(m) os filtros (pediste {nLegs}).
+              {placedLegs < nLegs * nTickets && (
+                <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+                  Só {placedLegs} perna{placedLegs === 1 ? "" : "s"} cumpre(m) os filtros (cabiam {nLegs * nTickets}).
                 </p>
               )}
-              <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
-                <p className="text-lg font-bold text-emerald-300">Odd {odd2(built.odd)}</p>
-                <p className="text-xs text-neutral-400">
-                  Modelo: <span className="font-medium text-neutral-200">{pct1(built.p)}</span> · justa{" "}
-                  <span className="font-medium text-neutral-200">{odd2(built.fair)}</span> · valor médio{" "}
-                  <span className="font-medium text-emerald-400">+{pct1(built.avgEdge)}</span>
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                {built.legs.map((l) => (
-                  <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
-                    <span className="shrink-0 text-neutral-500">
-                      {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
-                    </span>
-                    <span className="min-w-0 flex-1 text-neutral-200">
-                      {l.home} vs {l.away} — <span className="font-medium text-neutral-100">{l.label}</span>
-                      <span className="ml-1 text-[10px] text-neutral-500">{l.leagueLabel}</span>
-                      {l.voidNote && <span className="ml-1 text-[10px] text-amber-300">· {l.voidNote}</span>}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-neutral-400">
-                      {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>{" "}
-                      <span className="text-emerald-400">+{pct1(l.edge)}</span>
-                    </span>
+              {tickets.map((t, idx) => (
+                <div key={idx} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-neutral-300">
+                      Múltipla {idx + 1} · {t.legs.length} perna{t.legs.length === 1 ? "" : "s"}
+                      {idx === 0 && <span className="ml-1 text-[10px] font-normal text-emerald-400">a de maior valor</span>}
+                    </h3>
+                    <button type="button" onClick={() => copy(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
+                      {copied === idx ? "Copiado ✓" : "Copiar boletim"}
+                    </button>
                   </div>
-                ))}
-              </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
-                Combinada assume pernas independentes (otimista se correlacionadas). As odds mexem — confirma na casa
+                  <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
+                    <p className="text-lg font-bold text-emerald-300">Odd {odd2(t.odd)}</p>
+                    <p className="text-xs text-neutral-400">
+                      Modelo: <span className="font-medium text-neutral-200">{pct1(t.p)}</span> · justa{" "}
+                      <span className="font-medium text-neutral-200">{odd2(t.fair)}</span> · valor médio{" "}
+                      <span className="font-medium text-emerald-400">+{pct1(t.avgEdge)}</span>
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {t.legs.map((l) => (
+                      <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                        <span className="shrink-0 text-neutral-500">
+                          {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
+                        </span>
+                        <span className="min-w-0 flex-1 text-neutral-200">
+                          {l.home} vs {l.away} — <span className="font-medium text-neutral-100">{l.label}</span>
+                          <span className="ml-1 text-[10px] text-neutral-500">{l.leagueLabel}</span>
+                          {l.voidNote && <span className="ml-1 text-[10px] text-amber-300">· {l.voidNote}</span>}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-neutral-400">
+                          {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>{" "}
+                          <span className="text-emerald-400">+{pct1(l.edge)}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <p className="text-[11px] leading-relaxed text-neutral-500">
+                Combinadas assumem pernas independentes (otimista se correlacionadas). As odds mexem — confirma na casa
                 antes de apostar. Pernas com devolução seguem as regras da casa para múltiplas.
               </p>
             </>
