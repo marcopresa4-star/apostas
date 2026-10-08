@@ -135,3 +135,38 @@ describe("backfillSnaps half", () => {
     expect(second[44].half).toBe(1);
   });
 });
+
+describe("saneEvo", () => {
+  it("rejects cumulative readings that go down, keeps the rest", async () => {
+    const { saneEvo } = await import("../../components/LiveEvolutionChart");
+    const prev = {
+      stats: {
+        Remates: { home: 5, away: 3 },
+        "Posse de bola": { home: 60, away: 40 },
+      },
+      xgH: 0.5,
+      xgA: 0.2,
+    };
+    const next = {
+      stats: {
+        Remates: { home: 2, away: 1 },
+        "Posse de bola": { home: 55, away: 45 },
+      },
+      xgH: 0.4,
+      xgA: 0.1,
+    };
+    const clean = saneEvo(prev, next.stats, next.xgH, next.xgA);
+    expect(clean.stats["Remates"]).toEqual({ home: 5, away: 3 });
+    expect(clean.stats["Posse de bola"]).toEqual({ home: 55, away: 45 });
+    expect(clean.xgH).toBe(0.5);
+    expect(clean.xgA).toBe(0.2);
+  });
+  it("accepts increases and first readings", async () => {
+    const { saneEvo } = await import("../../components/LiveEvolutionChart");
+    expect(saneEvo(null, { Remates: { home: 1, away: 0 } }, 0.1, null).stats["Remates"]).toEqual({ home: 1, away: 0 });
+    const prev = { stats: { Remates: { home: 5, away: 3 } }, xgH: 0.5, xgA: 0.2 };
+    const clean = saneEvo(prev, { Remates: { home: 6, away: 3 } }, 0.6, 0.2);
+    expect(clean.stats["Remates"]).toEqual({ home: 6, away: 3 });
+    expect(clean.xgH).toBe(0.6);
+  });
+});

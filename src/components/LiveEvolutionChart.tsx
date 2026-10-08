@@ -83,6 +83,52 @@ export function parseStatRows(rows: { name?: unknown; home?: unknown; away?: unk
   return out;
 }
 
+// Cumulative readings never go down (shots, corners, fouls...): when a new
+// reading totals less than the previous one, the feed served a partial
+// table (a single period instead of the game total) and the honest move is
+// keeping the previous pair, not drawing a zigzag. Posse/precisão
+// fluctuate, so they are left alone. Same for the xG pair. Exported for the
+// pollers and tests.
+const CUMULATIVE = [
+  "Remates",
+  "Remates à baliza",
+  "Cantos",
+  "Faltas",
+  "Defesas",
+  "Cruzamentos",
+  "Foras de jogo",
+  "Passes certos",
+  "Passes",
+];
+
+type StatPair = { home: number | null; away: number | null };
+
+export function saneEvo(
+  prev: { stats: Record<string, StatPair>; xgH: number | null; xgA: number | null } | null,
+  stats: Record<string, StatPair>,
+  xgH: number | null,
+  xgA: number | null
+): { stats: Record<string, StatPair>; xgH: number | null; xgA: number | null } {
+  if (!prev) return { stats, xgH, xgA };
+  const out: Record<string, StatPair> = { ...stats };
+  for (const k of CUMULATIVE) {
+    const p = prev.stats[k];
+    const n = stats[k];
+    if (!p || !n) continue;
+    const pok = p.home !== null || p.away !== null;
+    const nok = n.home !== null || n.away !== null;
+    if (pok && nok && (n.home ?? 0) + (n.away ?? 0) < (p.home ?? 0) + (p.away ?? 0)) {
+      out[k] = { ...p };
+    }
+  }
+  const pxok = prev.xgH !== null || prev.xgA !== null;
+  const nxok = xgH !== null || xgA !== null;
+  if (pxok && nxok && (xgH ?? 0) + (xgA ?? 0) < (prev.xgH ?? 0) + (prev.xgA ?? 0)) {
+    return { stats: out, xgH: prev.xgH, xgA: prev.xgA };
+  }
+  return { stats: out, xgH, xgA };
+}
+
 type SeriesId =
   | "mais1" | "over25" | "btts" | "expG"
   | "shT" | "shH" | "shA" | "coT" | "coH" | "coA" | "xgT" | "xgH" | "xgA"

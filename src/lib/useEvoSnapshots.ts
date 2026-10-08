@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { parseStatRows, type EvoSnap } from "../components/LiveEvolutionChart";
+import { parseStatRows, saneEvo, type EvoSnap } from "../components/LiveEvolutionChart";
 import { loadFeedStore, notifyFeedStore, saveFeedStore } from "./feedStore";
 
 // Snapshots for one followed game: the same minute-by-minute history the
@@ -144,7 +144,9 @@ export async function pollEvoGame(eventId: number, prev: EvoSnap[], filled: bool
   };
   let snaps = prev;
   if (phase === "live" || phase === "halftime") {
-    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats, xgH: xgUpTo(true), xgA: xgUpTo(false), half };
+    const last = snaps.length > 0 ? snaps[snaps.length - 1] : null;
+    const clean = saneEvo(last, stats, xgUpTo(true), xgUpTo(false));
+    const snap: EvoSnap = { minute, hg, ag, rh, ra, stats: clean.stats, xgH: clean.xgH, xgA: clean.xgA, half };
     snaps = [...snaps.filter((s) => s.minute !== minute), snap].sort((a, b) => a.minute - b.minute).slice(-150);
   }
   // Backfill once: minutes before we arrived, from shots + goals. Live

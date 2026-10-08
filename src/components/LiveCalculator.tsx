@@ -13,7 +13,7 @@ import { checkLive, type LiveGameState } from "@/lib/sportscoreLive";
 import { useNow } from "@/lib/useNow";
 import { fairOdd, type PlayedMatch } from "@/lib/footballModel";
 import { formatOdd } from "@/lib/multiples";
-import LiveEvolutionChart, { parseStatRows, type EvoSnap } from "./LiveEvolutionChart";
+import LiveEvolutionChart, { parseStatRows, saneEvo, type EvoSnap } from "./LiveEvolutionChart";
 
 const INPUT =
   "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
@@ -449,18 +449,30 @@ function Calculator({
                 const list = sm.filter((s) => s.home === isHome && s.xg !== null && s.minute <= (checked.state.minute ?? 0));
                 return list.length > 0 ? list.reduce((n, s) => n + (s.xg ?? 0), 0) : null;
               };
-              const snap: EvoSnap = {
-                minute: checked.state.minute ?? 0,
-                hg: checked.state.homeGoals ?? 0,
-                ag: checked.state.awayGoals ?? 0,
-                rh: checked.state.reds.home,
-                ra: checked.state.reds.away,
-                stats,
-                xgH: xgUpTo(true),
-                xgA: xgUpTo(false),
-                half: checked.state.half,
-              };
+              const snapMinute = checked.state.minute ?? 0;
+              const snapHg = checked.state.homeGoals ?? 0;
+              const snapAg = checked.state.awayGoals ?? 0;
+              const snapRh = checked.state.reds.home;
+              const snapRa = checked.state.reds.away;
+              const snapXgH = xgUpTo(true);
+              const snapXgA = xgUpTo(false);
+              const snapHalf = checked.state.half;
               setSnaps((prev) => {
+                // Cumulative readings never go down: a partial table from
+                // the feed must not draw a zigzag (see saneEvo).
+                const last = prev.length > 0 ? prev[prev.length - 1] : null;
+                const clean = saneEvo(last, stats, snapXgH, snapXgA);
+                const snap: EvoSnap = {
+                  minute: snapMinute,
+                  hg: snapHg,
+                  ag: snapAg,
+                  rh: snapRh,
+                  ra: snapRa,
+                  stats: clean.stats,
+                  xgH: clean.xgH,
+                  xgA: clean.xgA,
+                  half: snapHalf,
+                };
                 const next = prev.some((s) => s.minute === snap.minute) ? prev.map((s) => (s.minute === snap.minute ? snap : s)) : [...prev, snap];
                 return next.slice(-150);
               });
