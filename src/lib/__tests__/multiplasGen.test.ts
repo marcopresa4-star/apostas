@@ -87,3 +87,19 @@ describe("buildMultiples", () => {
     expect(out[2].legs.map((l) => l.eventId)).toEqual([204]);
   });
 });
+
+describe("retotal", () => {
+  it("recombines the legs that count", async () => {
+    const { retotal } = await import("../multiplasGen");
+    const legs = [
+      L({ eventId: 1, key: "home", family: "result", p: 0.5, real: 2.0, fair: 2.0 }),
+      L({ eventId: 2, key: "away", family: "result", p: 0.5, real: 3.0, fair: 2.0 }),
+    ];
+    const t = retotal([legs[0]]);
+    expect(t.odd).toBeCloseTo(2.0, 9);
+    expect(t.p).toBeCloseTo(0.5, 9);
+    const empty = retotal([]);
+    expect(empty.odd).toBe(1);
+    expect(empty.p).toBe(1);
+  });
+});

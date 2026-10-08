@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MULTI_FAMILIES, buildMultiples, type FamilyFilter, type PricedLeg } from "@/lib/multiplasGen";
+import { MULTI_FAMILIES, buildMultiples, retotal, type FamilyFilter, type PricedLeg } from "@/lib/multiplasGen";
 import {
   loadFilterPresets,
   loadSavedTickets,
@@ -59,6 +59,17 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   const [defPreset, setDefPreset] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [saved, setSaved] = useState<SavedTicket[]>([]);
+  // Ghosts: legs taken out of a ticket. They stay visible (dimmed) and out
+  // of every total until restored — the ticket does NOT refill behind them.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const legId = (l: { eventId: number; key: string }): string => `${l.eventId}:${l.key}`;
+  const toggleExcluded = (id: string): void =>
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   useEffect(() => {
     const { presets: p, def } = loadFilterPresets();
@@ -108,18 +119,18 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
   };
 
   const saveTicket = (idx: number): void => {
-    const t = tickets[idx];
-    if (!t || t.legs.length === 0) return;
+    const v = view[idx];
+    if (!v || v.active.length === 0) return;
     const entry: SavedTicket = {
       id: `${Date.now()}-${idx}`,
       savedAt: Date.now(),
       days: [...days].sort(),
       index: idx,
-      legs: t.legs,
-      odd: t.odd,
-      p: t.p,
-      fair: t.fair,
-      avgEdge: t.avgEdge,
+      legs: v.active,
+      odd: v.totals.odd,
+      p: v.totals.p,
+      fair: v.totals.fair,
+      avgEdge: v.totals.avgEdge,
     };
     const next = [entry, ...loadSavedTickets()].slice(0, 30);
     setSaved(next);
@@ -148,6 +159,17 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     [priced, parsedFam, nLegs, nTickets]
   );
   const placedLegs = tickets.reduce((s, t) => s + t.legs.length, 0);
+  // Ticket view with ghosts applied: active legs count, ghosts linger dimmed.
+  const view = useMemo(
+    () =>
+      tickets.map((t) => {
+        const active = t.legs.filter((l) => !excluded.has(legId(l)));
+        const ghosts = t.legs.filter((l) => excluded.has(legId(l)));
+        return { active, ghosts, totals: retotal(active) };
+      }),
+    [tickets, excluded]
+  );
+  const placedActive = view.reduce((s, v) => s + v.active.length, 0);
 
   const famCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -168,6 +190,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     setStatus("loading");
     setError(null);
     setCopied(null);
+    setExcluded(new Set());
     try {
       const res = await fetch("/api/multiplas/generate", {
         method: "POST",
@@ -189,16 +212,16 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
     }
   };
 
-  const slipText = (t: (typeof tickets)[number], idx: number): string => {
-    const lines = t.legs.map(
+  const slipText = (t: (typeof view)[number], idx: number): string => {
+    const lines = t.active.map(
       (l) => `${l.date}${l.time ? ` ${l.time}` : ""} · ${l.home} vs ${l.away} — ${l.label} @ ${odd2(l.real)} (modelo ${pct0(l.p)})`
     );
-    return `Múltipla ${idx + 1} (${t.legs.length} pernas) — odd ${odd2(t.odd)}\n${lines.join("\n")}`;
+    return `Múltipla ${idx + 1} (${t.active.length} pernas) — odd ${odd2(t.totals.odd)}\n${lines.join("\n")}`;
   };
 
   const copy = async (idx: number): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(slipText(tickets[idx], idx));
+      await navigator.clipboard.writeText(slipText(view[idx], idx));
       setCopied(idx);
       setTimeout(() => setCopied((c) => (c === idx ? null : c)), 2000);
     } catch {
@@ -459,46 +482,84 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                   {nTickets} boletim{nTickets === 1 ? "" : "s"} = {nLegs * nTickets}). Alarga os intervalos.
                 </p>
               )}
-              {tickets.map((t, idx) => (
+              {view.map((v, idx) => (
                 <div key={idx} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-neutral-300">
-                      Múltipla {idx + 1} · {t.legs.length} perna{t.legs.length === 1 ? "" : "s"}
+                      Múltipla {idx + 1} · {v.active.length} perna{v.active.length === 1 ? "" : "s"}
+                      {v.ghosts.length > 0 && (
+                        <span className="ml-1 text-[10px] font-normal text-neutral-500">· {v.ghosts.length} fora</span>
+                      )}
                       {idx === 0 && <span className="ml-1 text-[10px] font-normal text-emerald-400">a de maior valor</span>}
                     </h3>
                     <span className="flex gap-2">
-                      <button type="button" onClick={() => saveTicket(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
+                      <button type="button" onClick={() => saveTicket(idx)} disabled={v.active.length === 0} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700 disabled:opacity-50">
                         Guardar
                       </button>
-                      <button type="button" onClick={() => copy(idx)} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700">
+                      <button type="button" onClick={() => copy(idx)} disabled={v.active.length === 0} className="rounded-lg bg-neutral-800 px-3 py-1 text-xs text-neutral-200 hover:bg-neutral-700 disabled:opacity-50">
                         {copied === idx ? "Copiado ✓" : "Copiar boletim"}
                       </button>
                     </span>
                   </div>
-                  <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
-                    <p className="text-lg font-bold text-emerald-300">Odd {odd2(t.odd)}</p>
-                    <p className="text-xs text-neutral-400">
-                      Modelo: <span className="font-medium text-neutral-200">{pct1(t.p)}</span> · justa{" "}
-                      <span className="font-medium text-neutral-200">{odd2(t.fair)}</span>
+                  {v.active.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+                      Todas as pernas estão fora. Repõe alguma em baixo.
                     </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    {t.legs.map((l) => (
-                      <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
-                        <span className="shrink-0 text-neutral-500">
-                          {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
-                        </span>
-                        <span className="min-w-0 flex-1 text-neutral-200">
-                          {l.home} vs {l.away} — <span className="font-medium text-neutral-100">{l.label}</span>
-                          <span className="ml-1 text-[10px] text-neutral-500">{l.leagueLabel}</span>
-                          {l.voidNote && <span className="ml-1 text-[10px] text-amber-300">· {l.voidNote}</span>}
-                        </span>
-                        <span className="shrink-0 tabular-nums text-neutral-400">
-                          {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>
-                        </span>
+                  ) : (
+                    <>
+                      <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
+                        <p className="text-lg font-bold text-emerald-300">Odd {odd2(v.totals.odd)}</p>
+                        <p className="text-xs text-neutral-400">
+                          Modelo: <span className="font-medium text-neutral-200">{pct1(v.totals.p)}</span> · justa{" "}
+                          <span className="font-medium text-neutral-200">{odd2(v.totals.fair)}</span>
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                      <div className="space-y-1.5">
+                        {v.active.map((l) => (
+                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                            <span className="shrink-0 text-neutral-500">
+                              {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
+                            </span>
+                            <span className="min-w-0 flex-1 text-neutral-200">
+                              {l.home} vs {l.away} — <span className="font-medium text-neutral-100">{l.label}</span>
+                              <span className="ml-1 text-[10px] text-neutral-500">{l.leagueLabel}</span>
+                              {l.voidNote && <span className="ml-1 text-[10px] text-amber-300">· {l.voidNote}</span>}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-neutral-400">
+                              {pct0(l.p)} @ <span className="font-semibold text-neutral-100">{odd2(l.real)}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleExcluded(legId(l))}
+                              title="Tirar do boletim (fica como fantasma)"
+                              className="shrink-0 text-neutral-500 hover:text-red-300"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        {v.ghosts.map((l) => (
+                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashed border-neutral-800 px-3 py-2 text-xs opacity-40">
+                            <span className="shrink-0 text-neutral-500">
+                              {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
+                            </span>
+                            <span className="min-w-0 flex-1 text-neutral-400 line-through">
+                              {l.home} vs {l.away} — {l.label}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-neutral-500">{odd2(l.real)}</span>
+                            <button
+                              type="button"
+                              onClick={() => toggleExcluded(legId(l))}
+                              title="Repor no boletim"
+                              className="shrink-0 text-emerald-400 hover:text-emerald-300"
+                            >
+                              Repor
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               <p className="text-[11px] leading-relaxed text-neutral-500">

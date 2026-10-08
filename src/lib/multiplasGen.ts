@@ -151,3 +151,14 @@ export function buildMultiple(all: PricedLeg[], opts: Omit<BuildOpts, "tickets">
   const [first] = buildMultiples(all, { ...opts, tickets: 1 });
   return first ?? { legs: [], odd: 1, p: 1, fair: 1, avgEdge: 0 };
 }
+
+// Recombines a leg list after ghosts are taken out (same math as the
+// builder, over the legs that count).
+export function retotal(legs: PricedLeg[]): { odd: number; p: number; fair: number; avgEdge: number } {
+  return {
+    odd: legs.reduce((acc, l) => acc * l.real, 1),
+    p: legs.reduce((acc, l) => acc * l.p, 1),
+    fair: legs.reduce((acc, l) => acc * l.fair, 1),
+    avgEdge: legs.length > 0 ? legs.reduce((s, l) => s + l.edge, 0) / legs.length : 0,
+  };
+}
