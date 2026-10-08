@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getIsAdmin } from "@/lib/requireAdmin";
 import Sidebar from "@/components/Sidebar";
 import BotsWatcher from "@/components/BotsWatcher";
+import BotToasts from "@/components/BotToasts";
 import FeedWatcher from "@/components/FeedWatcher";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 has-[[data-wide]]:max-w-[96rem]">{children}</main>
       </div>
       <BotsWatcher enabled={botsOn} />
+      <BotToasts />
       <FeedWatcher />
     </div>
   );

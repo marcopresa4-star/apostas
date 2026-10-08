@@ -17,7 +17,7 @@ export default function BotsWatcher({ enabled }: { enabled: boolean }) {
         const res = await fetch("/api/bots/check", { method: "POST", cache: "no-store" });
         if (!res.ok) return;
         const body = (await res.json()) as {
-          fired?: { id: string; silent: boolean; text: string }[];
+          fired?: { id: string; silent: boolean; text: string; bot_name?: string }[];
         };
         for (const f of body.fired ?? []) {
           if (seen.current.has(f.id)) continue;
@@ -27,6 +27,14 @@ export default function BotsWatcher({ enabled }: { enabled: boolean }) {
               new Notification(f.text);
             } catch {
               // Permission revoked mid-session: the Bots page keeps the alert.
+            }
+          }
+          // In-site toast on every page (BotToasts listens in the layout).
+          if (!f.silent) {
+            try {
+              window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: f }));
+            } catch {
+              // No listeners: the Bots page keeps the alert.
             }
           }
         }
