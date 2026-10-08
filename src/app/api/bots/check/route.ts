@@ -190,13 +190,25 @@ export async function POST() {
     return Response.json({ error: "scraper-offline" }, { status: 503 });
   }
   if (live.offline) return Response.json({ error: "scraper-offline" }, { status: 503 });
-  // Mapped tournaments first: with dozens of live games worldwide, the 12
+  // Watched tournaments first: with dozens of live games worldwide, the 12
   // oldest kickoffs would otherwise all be obscure unmapped games and no
   // watched league would ever be checked. No event reads needed for this —
-  // the live list already carries the unique tournament id.
+  // the live list already carries the unique tournament id. Scoped to the
+  // union of leagues the enabled bots selected (empty selection = all mapped).
+  const wanted = new Set<string>();
+  let wantAll = false;
+  for (const b of active) {
+    if (b.leagues.length === 0) {
+      wantAll = true;
+      break;
+    }
+    for (const c of b.leagues) wanted.add(c);
+  }
   const tourMaps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
-  const mappedIds = new Set(tourMaps.map((m) => m.sofascore_id).filter((id) => id > 0));
-  const mapped = live.games.filter((g) => g.uniqueId !== null && mappedIds.has(g.uniqueId));
+  const wantedIds = new Set(
+    tourMaps.filter((m) => m.sofascore_id > 0 && (wantAll || wanted.has(m.name_key))).map((m) => m.sofascore_id)
+  );
+  const mapped = live.games.filter((g) => g.uniqueId !== null && wantedIds.has(g.uniqueId));
   const games = mapped.slice(0, MAX_GAMES);
 
   const leagueData = new Map<string, Awaited<ReturnType<typeof loadSofaLeague>>>();
