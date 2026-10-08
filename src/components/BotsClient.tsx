@@ -171,6 +171,24 @@ export default function BotsClient({
         >
           🔔 Bot de teste
         </button>
+        <button
+          type="button"
+          title="Mostra um toast de exemplo no canto inferior direito (só testa o canto, não cria alerta)."
+          onClick={() => {
+            try {
+              window.dispatchEvent(
+                new CustomEvent("apostas:bot-alert", {
+                  detail: { id: `demo-${Date.now()}`, bot_name: "Demonstração", text: "Isto é um teste — o canto funciona." },
+                })
+              );
+            } catch {
+              // Sem ouvintes: nada a fazer.
+            }
+          }}
+          className="text-xs text-neutral-500 underline-offset-2 hover:text-neutral-300 hover:underline"
+        >
+          testar canto
+        </button>
         {perm !== "granted" && (
           <button
             type="button"
