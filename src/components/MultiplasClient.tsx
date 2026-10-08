@@ -468,7 +468,8 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             <>
               {placedLegs < nLegs * nTickets && (
                 <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-                  Só {placedLegs} perna{placedLegs === 1 ? "" : "s"} cumpre(m) os filtros (cabiam {nLegs * nTickets}).
+                  Só {placedLegs} perna{placedLegs === 1 ? "" : "s"} cumpre(m) os filtros (pediste {nLegs} por boletim ×{" "}
+                  {nTickets} boletim{nTickets === 1 ? "" : "s"} = {nLegs * nTickets}). Alarga intervalos ou baixa o edge.
                 </p>
               )}
               {tickets.map((t, idx) => (
