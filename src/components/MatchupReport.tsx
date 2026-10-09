@@ -288,7 +288,7 @@ const dayMonth = (date: string) => date.slice(8, 10) + "/" + date.slice(5, 7);
 
 const SCORE_STYLE = {
   V: "bg-emerald-600/30 text-emerald-300",
-  E: "bg-emerald-500/25 text-emerald-300",
+  E: "bg-neutral-600/30 text-neutral-300",
   D: "bg-red-600/30 text-red-300",
 } as const;
 
