@@ -114,8 +114,23 @@ export default function BotsClient({
     const onAlert = (): void => {
       router.refresh();
     };
+    // Same-tab broadcast.
     window.addEventListener("apostas:bot-alert", onAlert);
-    return () => window.removeEventListener("apostas:bot-alert", onAlert);
+    // Another tab found alerts (window events never cross tabs, storage does).
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key === "apostas:bots-ping") router.refresh();
+    };
+    window.addEventListener("storage", onStorage);
+    // Coming back to the tab: catch up without a manual refresh.
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("apostas:bot-alert", onAlert);
+      window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [router]);
 
   const askPerm = async () => {

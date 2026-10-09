@@ -36,6 +36,15 @@ export default function BotsWatcher() {
       } catch {
         return;
       }
+      // Cross-tab ping so other open tabs refresh their lists too (window
+      // events never leave their own tab).
+      if ((body.fired ?? []).length > 0) {
+        try {
+          window.localStorage.setItem("apostas:bots-ping", JSON.stringify({ at: Date.now() }));
+        } catch {
+          // Private mode: same-tab listeners still work.
+        }
+      }
       for (const f of body.fired ?? []) {
         if (stopRef.current || seen.current.has(f.id)) continue;
         seen.current.add(f.id);
