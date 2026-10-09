@@ -9,6 +9,7 @@ import EloChart from "./EloChart";
 import CurveChart from "./CurveChart";
 import ForecastDashboard from "./ForecastDashboard";
 import ComboGrids from "./ComboGrids";
+import RecentForm from "./RecentForm";
 import ReportTabs from "./ReportTabs";
 import H2HPatternCard from "./H2HPatternCard";
 import type { StandingsLine } from "./StandingsTable";
@@ -1616,6 +1617,8 @@ export default function MatchupReport({
         <TeamCard name={home} role="Casa" games={homeGames} venue="home" season={period} pending={pendingOf(home)} international={international} />
         <TeamCard name={away} role="Fora" games={awayGames} venue="away" season={period} pending={pendingOf(away)} international={international} />
       </div>
+
+      <RecentForm home={home} away={away} matches={matches} />
 
       <FormCurve home={home} away={away} homeCurve={homeCurve} awayCurve={awayCurve} />
       <EloChart home={home} away={away} homeCurve={elo.home} awayCurve={elo.away} />
