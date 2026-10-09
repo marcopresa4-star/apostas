@@ -68,6 +68,7 @@ export const LEAGUES = [
   { code: "eu.3", fd: "", label: "Europa · UEFA Conference League" },
   { code: "br.2", fd: "", label: "Brasil · Série B" },
   { code: "py.1", fd: "", label: "Paraguai · Primera División (Clausura)" },
+  { code: "sa.1", fd: "", label: "Arábia Saudita · Pro League" },
   // National teams: not a league, so `fd` is empty; see internationalModel.ts.
   { code: "int.1", fd: "", label: "Seleções · Todas" },
   { code: "int.nl", fd: "", label: "Seleções · Liga das Nações (UEFA)" },
