@@ -18,9 +18,8 @@ describe("formRows", () => {
     expect(rows[0]).toMatchObject({ venue: "H", gf: 0, ga: 3, hg: 0, ag: 3, hh: 0, ha: 1 });
     expect(rows[1]).toMatchObject({ venue: "A", gf: 1, ga: 1 });
   });
-  it("skips unplayed games", () => {
-    const ms = [{ ...M("A", "B", 0, 0), ft: null as [number, number] | null }];
-    expect(formRows("A", ms)).toEqual([]);
+  it("only sees played games", () => {
+    expect(formRows("Z", [M("A", "B", 2, 0)])).toEqual([]);
   });
 });
 
