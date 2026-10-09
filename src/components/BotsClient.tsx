@@ -29,6 +29,27 @@ interface Fired extends AlertRow {
   silent: boolean;
 }
 
+// Absolute birth time plus, after mount, the age ("há 1h05m"): the list is
+// history, and the age makes staleness obvious at a glance. Absolute first
+// so server and hydration renders match.
+function AlertTime({ iso }: { iso: string }) {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const abs = `${iso.slice(8, 10)}/${iso.slice(5, 7)} ${iso.slice(11, 16)}`;
+  if (now === null) return <>{abs}</>;
+  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  const rel = mins < 1 ? "agora" : mins < 60 ? `há ${mins} min` : `há ${Math.floor(mins / 60)}h${mins % 60 !== 0 ? `${mins % 60}m` : ""}`;
+  return (
+    <>
+      {abs} · {rel}
+    </>
+  );
+}
+
 // Polls the server check while watching: fired alerts arrive here, the
 // browser notifies (unless the bot is silent), and the list grows. Nothing
 // runs with this page closed — stated on the page, not hidden.
@@ -332,7 +353,7 @@ export default function BotsClient({
                   {a.text}
                 </p>
                 <span className="shrink-0 text-[11px] text-neutral-500">
-                  {a.created_at.slice(8, 10)}/{a.created_at.slice(5, 7)} {a.created_at.slice(11, 16)}
+                  <AlertTime iso={a.created_at} />
                 </span>
               </div>
             ))}
