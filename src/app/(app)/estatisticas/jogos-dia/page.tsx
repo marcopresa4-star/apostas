@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
-import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons } from "@/lib/sofaHistory";
+import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons, type SofaFixture, type SofaSeason } from "@/lib/sofaHistory";
 import { fixtureEventId, loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet } from "@/lib/sofaCache";
@@ -36,6 +36,7 @@ export default async function JogosDiaPage({
   const pais = first(params.pais).trim();
   const ligaSel = first(params.liga).trim();
   const equipa = first(params.equipa).trim().toLowerCase();
+  const refresh = first(params.refresh) === "1";
 
   const supabase = await createClient();
   const {
@@ -99,14 +100,14 @@ export default async function JogosDiaPage({
       />
 
       <Suspense
-        key={`${day}|${pais}|${ligaSel}|${equipa}`}
+        key={`${day}|${pais}|${ligaSel}|${equipa}|${refresh ? "r" : ""}`}
         fallback={
           <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
             A carregar os jogos do dia… (a primeira vez demora, depois é cache)
           </p>
         }
       >
-        <DayBoard day={day} today={today} pais={pais} ligaSel={ligaSel} equipa={equipa} />
+        <DayBoard day={day} today={today} pais={pais} ligaSel={ligaSel} equipa={equipa} refresh={refresh} />
       </Suspense>
     </div>
   );
@@ -140,7 +141,7 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   return out;
 }
 
-async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; today: string; pais: string; ligaSel: string; equipa: string }) {
+async function DayBoard({ day, today, pais, ligaSel, equipa, refresh }: { day: string; today: string; pais: string; ligaSel: string; equipa: string; refresh: boolean }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -161,9 +162,12 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
   // The fixtures of a day barely move (only results trickle in): cache them
   // 30 minutes. The live merge below stays fresh on every load.
   const cacheKey = `dayboard:${day}`;
-  const cached = await cacheGet(supabase, user.id, cacheKey, 30 * 60_000).catch(() => null);
+  const cached = refresh ? null : await cacheGet(supabase, user.id, cacheKey, 30 * 60_000).catch(() => null);
   const hit = Array.isArray(cached) ? (cached as CachedDay) : null;
   let rows: CachedDay = [];
+  // Leagues whose rounds could not be read (transient scraper failure): the
+  // board must neither hide that nor cache the partial result for 30 min.
+  const failed = new Set<string>();
   if (hit) {
     rows = hit.filter((r) => leagues.some((l) => l.code === r.code));
   } else {
@@ -178,31 +182,51 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
     await pool(leagues, 4, async (l) => {
       const map = maps.find((m) => m.name_key === l.code);
       if (!map) return;
-      const seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id).catch(() => []);
-      const readWindow = async (idx: number) => {
+      let seasons: SofaSeason[] | null = null;
+      try {
+        seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id);
+      } catch {
+        failed.add(l.code);
+        return;
+      }
+      const readWindow = async (idx: number): Promise<{ fx: SofaFixture[] | null; ok: boolean }> => {
         const s = seasons[idx];
-        if (!s) return null;
-        const { rounds, currentRound } = await tournamentRounds(supabase, user.id, map.sofascore_id, s.id, true).catch(() => ({
-          rounds: [] as number[],
-          currentRound: null as number | null,
-        }));
-        if (rounds.length === 0) return null;
+        if (!s) return { fx: null, ok: true };
+        let rounds: number[];
+        let currentRound: number | null;
+        try {
+          ({ rounds, currentRound } = await tournamentRounds(supabase, user.id, map.sofascore_id, s.id, true));
+        } catch {
+          return { fx: null, ok: false };
+        }
+        if (rounds.length === 0) return { fx: null, ok: true };
         const want =
           currentRound !== null
             ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
             : rounds.slice(0, 3);
-        if (want.length === 0) return null;
+        if (want.length === 0) return { fx: null, ok: true };
         const lists = await Promise.all(
-          want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).catch(() => []))
+          want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).then((x) => x, () => null))
         );
-        return lists.flat();
+        // A round that throws leaves a hole the day filter cannot see: fail
+        // the league instead of silently dropping its games.
+        if (lists.some((x) => x === null)) return { fx: null, ok: false };
+        return { fx: (lists as SofaFixture[][]).flat(), ok: true };
       };
-      let fx = await readWindow(0);
-      if ((!fx || fx.length === 0) && seasons.length > 1) fx = await readWindow(1);
+      let read = await readWindow(0);
+      if ((!read.fx || read.fx.length === 0) && read.ok && seasons.length > 1) read = await readWindow(1);
+      if (!read.ok) {
+        failed.add(l.code);
+        return;
+      }
+      let fx = read.fx;
       if (!fx) {
         // No rounds at all: full load so these leagues still show something.
         const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: false, shots: false, seasons: 1 }).catch(() => null);
-        if (!loaded) return;
+        if (!loaded) {
+          failed.add(l.code);
+          return;
+        }
         const games: Omit<DayGame, "live">[] = [];
         for (const f of loaded.data.fixtures) {
           if (f.date !== day) continue;
@@ -245,7 +269,9 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
       }
     });
     rows = found;
-    if (rows.length > 0) await cacheSet(supabase, user.id, cacheKey, rows).catch(() => {});
+    // Never freeze a partial board: with failed leagues the next load
+    // retries instead of serving the hole for 30 minutes.
+    if (rows.length > 0 && failed.size === 0) await cacheSet(supabase, user.id, cacheKey, rows).catch(() => {});
   }
 
   const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [], offline: true }));
@@ -279,9 +305,29 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
 
   if (byLeague.length === 0) {
     return (
-      <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
-        Sem jogos das ligas mapeadas neste dia{day < today ? " (ou os resultados ainda não entraram nos dados)" : ""}.
-      </p>
+      <div className="max-w-4xl space-y-2">
+        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          Sem jogos das ligas mapeadas neste dia{day < today ? " (ou os resultados ainda não entraram nos dados)" : ""}.
+        </p>
+        {failed.size > 0 && (
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-center text-xs text-amber-200">
+            A leitura falhou em {failed.size} liga{failed.size === 1 ? "" : "s"} — pode ser falha técnica e não falta de
+            jogos.{" "}
+            <Link
+              href={`/estatisticas/jogos-dia?${new URLSearchParams({
+                data: day,
+                ...(pais ? { pais } : {}),
+                ...(ligaSel ? { liga: ligaSel } : {}),
+                ...(equipa ? { equipa } : {}),
+                refresh: "1",
+              })}`}
+              className="font-medium underline"
+            >
+              Recarregar sem cache
+            </Link>
+          </p>
+        )}
+      </div>
     );
   }
 
@@ -290,6 +336,28 @@ async function DayBoard({ day, today, pais, ligaSel, equipa }: { day: string; to
       <p className="text-sm text-neutral-400">
         {byLeague.flatMap((l) => l.games).length} jogos · {liveCount} em direto
       </p>
+      {failed.size > 0 && (
+        <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
+          Sem leitura em {failed.size} liga{failed.size === 1 ? "" : "s"} (
+          {[...failed]
+            .map((c) => labelOf(c))
+            .slice(0, 6)
+            .join(", ")}
+          {failed.size > 6 ? ` +${failed.size - 6}` : ""}): o quadro pode estar incompleto.{" "}
+          <Link
+            href={`/estatisticas/jogos-dia?${new URLSearchParams({
+              data: day,
+              ...(pais ? { pais } : {}),
+              ...(ligaSel ? { liga: ligaSel } : {}),
+              ...(equipa ? { equipa } : {}),
+              refresh: "1",
+            })}`}
+            className="font-medium underline"
+          >
+            Recarregar sem cache
+          </Link>
+        </p>
+      )}
       {byLeague.map((l) => (
         <div key={l.code} className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
           <p className="border-b border-neutral-800 bg-neutral-800/40 px-4 py-2 text-sm font-semibold text-neutral-200">
