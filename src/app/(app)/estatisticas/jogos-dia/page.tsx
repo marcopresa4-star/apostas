@@ -334,7 +334,19 @@ async function DayBoard({ day, today, pais, ligaSel, equipa, refresh }: { day: s
   return (
     <div className="space-y-4">
       <p className="text-sm text-neutral-400">
-        {byLeague.flatMap((l) => l.games).length} jogos · {liveCount} em direto
+        {byLeague.flatMap((l) => l.games).length} jogos · {liveCount} em direto ·{" "}
+        <Link
+          href={`/estatisticas/jogos-dia?${new URLSearchParams({
+            data: day,
+            ...(pais ? { pais } : {}),
+            ...(ligaSel ? { liga: ligaSel } : {}),
+            ...(equipa ? { equipa } : {}),
+            refresh: "1",
+          })}`}
+          className="text-xs text-neutral-500 hover:text-neutral-300 hover:underline"
+        >
+          atualizar
+        </Link>
       </p>
       {failed.size > 0 && (
         <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
