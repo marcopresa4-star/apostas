@@ -118,3 +118,15 @@ describe("settleAlert", () => {
     expect(settleAlert("btts", 1, 0, 2, 0)).toBe(false);
   });
 });
+
+describe("snapMinute", () => {
+  it("reads tick marks, never ordinals", async () => {
+    const { snapMinute } = await import("../bots");
+    expect(snapMinute("63'", "live", 0)).toBe(63);
+    expect(snapMinute("45+2'", "live", 0)).toBe(47);
+    expect(snapMinute("2nd half", "live", 70)).toBe(70);
+    expect(snapMinute("1st half", "live", 10)).toBe(10);
+    expect(snapMinute("Halftime", "halftime", 0)).toBe(45);
+    expect(snapMinute("", "live", 33)).toBe(33);
+  });
+});

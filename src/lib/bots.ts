@@ -48,6 +48,15 @@ export interface LiveSnapshot {
   ag: number;
 }
 
+// Minute from a status description ("63'", "45+2'"): ordinals ("2nd half")
+// carry no minute — reading the ordinal (2nd -> 2) fabricates the minute.
+// Falls back to the live-list minute when there is no tick mark.
+export function snapMinute(desc: string, phase: "live" | "halftime", fallback: number): number {
+  if (phase === "halftime") return 45;
+  const m = desc.includes("'") ? /(\d{1,3})(?:\s*\+\s*(\d{1,2}))?/.exec(desc) : null;
+  return m ? Math.min(130, Number(m[1]) + (m[2] ? Number(m[2]) : 0)) : fallback;
+}
+
 // Score conditions on the current score (home perspective).
 export function scoreOk(score: string, hg: number, ag: number): boolean {
   switch (score) {

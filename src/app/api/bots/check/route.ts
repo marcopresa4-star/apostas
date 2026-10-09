@@ -21,6 +21,7 @@ import {
   gatesOk,
   pregameOk,
   settleAlert,
+  snapMinute,
   statsOk,
   type Bot,
   type StatValues,
@@ -251,8 +252,7 @@ export async function POST() {
       const hg = num(hs?.current) ?? num(hs?.display) ?? g.homeGoals;
       const ag = num(as?.current) ?? num(as?.display) ?? g.awayGoals;
       const desc = String(st?.description ?? "");
-      const m = /(\d{1,3})(?:\s*\+\s*(\d{1,2}))?/.exec(desc);
-      const minute = phase === "halftime" ? 45 : m ? Math.min(130, Number(m[1]) + (m[2] ? Number(m[2]) : 0)) : (g.minute ?? 0);
+      const minute = snapMinute(desc, phase, g.minute ?? 0);
       if (hg === null || ag === null) return;
       // Cards from incidents (goals carry minute order with them too).
       const inc = obj(body as Record<string, unknown>)?.incidents;
