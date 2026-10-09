@@ -1008,7 +1008,7 @@ function buildMarkets(
   const ht = prediction.halfTime;
   // BTTS combinada com o mais de 2,5, da mesma grelha do modelo.
   const combo = bttsOver25Probs(prediction.lambdaHome, prediction.lambdaAway);
-  const overRows = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5].flatMap((line) => {
+  const overRows = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].flatMap((line) => {
     const over =
       prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
     const push = Number.isInteger(line) ? matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, line) : 0;

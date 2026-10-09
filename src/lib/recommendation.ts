@@ -357,7 +357,7 @@ export function candidatesFor(
       won: ([h, a]) => (h > 0 && a > 0) || h + a > 2.5,
     }
   );
-  for (const line of [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5]) {
+  for (const line of [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]) {
     const over =
       prediction.over[String(line)] ?? matchTotalOver(prediction.lambdaHome, prediction.lambdaAway, line);
     const push = Number.isInteger(line) ? matchTotalPush(prediction.lambdaHome, prediction.lambdaAway, line) : 0;
