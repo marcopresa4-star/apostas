@@ -221,7 +221,7 @@ function tau(x: number, y: number, lh: number, la: number): number {
 }
 
 // grid[h][a] = chance the home side scores h and the away side a.
-function scoreGrid(lh: number, la: number, correct: boolean): number[][] {
+export function scoreGrid(lh: number, la: number, correct: boolean): number[][] {
   const grid: number[][] = [];
   let total = 0;
   for (let h = 0; h <= MAX_GOALS; h++) {

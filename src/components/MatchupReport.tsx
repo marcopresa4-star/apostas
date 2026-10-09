@@ -8,6 +8,7 @@ import FormChart from "./FormChart";
 import EloChart from "./EloChart";
 import CurveChart from "./CurveChart";
 import ForecastDashboard from "./ForecastDashboard";
+import ComboGrids from "./ComboGrids";
 import ReportTabs from "./ReportTabs";
 import H2HPatternCard from "./H2HPatternCard";
 import type { StandingsLine } from "./StandingsTable";
@@ -1548,6 +1549,8 @@ export default function MatchupReport({
       </div>
 
       <ForecastDashboard prediction={prediction} matches={matches} home={home} away={away} now={now} />
+
+      <ComboGrids lambdaHome={prediction.lambdaHome} lambdaAway={prediction.lambdaAway} matches={matches} />
 
       <MatchPreview
         matches={matches}
