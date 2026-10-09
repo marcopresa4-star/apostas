@@ -108,6 +108,16 @@ export default function BotsClient({
     for (const a of alerts) seen.current.add(a.id);
   }, [alerts]);
 
+  useEffect(() => {
+    // Alerts the global watcher found while we watch: refresh the list live
+    // (the toast is handled by BotToasts in the layout).
+    const onAlert = (): void => {
+      router.refresh();
+    };
+    window.addEventListener("apostas:bot-alert", onAlert);
+    return () => window.removeEventListener("apostas:bot-alert", onAlert);
+  }, [router]);
+
   const askPerm = async () => {
     try {
       const r = await Notification.requestPermission();

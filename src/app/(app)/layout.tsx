@@ -11,13 +11,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     data: { user },
   } = await supabase.auth.getUser();
   const isAdmin = await getIsAdmin();
-  // Global bot watcher: one lightweight existence check per navigation; the
-  // polling itself only runs while enabled bots exist.
-  let botsOn = false;
-  if (user) {
-    const { data } = await supabase.from("bots").select("id").eq("user_id", user.id).eq("enabled", true).limit(1);
-    botsOn = (data?.length ?? 0) > 0;
-  }
 
   return (
     <div className="min-h-screen bg-neutral-950">
@@ -30,7 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* A page holding a wide table marks itself with data-wide to get more room. */}
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 has-[[data-wide]]:max-w-[96rem]">{children}</main>
       </div>
-      <BotsWatcher enabled={botsOn} />
+      {/* The global watcher polls on every page; with no enabled bots the
+          check answers empty immediately, so no per-navigation flag needed. */}
+      <BotsWatcher />
       <BotToasts />
       <FeedWatcher />
     </div>
