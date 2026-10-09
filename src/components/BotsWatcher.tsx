@@ -37,10 +37,17 @@ export default function BotsWatcher() {
         return;
       }
       // Cross-tab ping so other open tabs refresh their lists too (window
-      // events never leave their own tab).
+      // events never leave their own tab). Carries the alerts themselves so
+      // every tab can toast, not just the one that found them.
       if ((body.fired ?? []).length > 0) {
         try {
-          window.localStorage.setItem("apostas:bots-ping", JSON.stringify({ at: Date.now() }));
+          window.localStorage.setItem(
+            "apostas:bots-ping",
+            JSON.stringify({
+              at: Date.now(),
+              alerts: (body.fired ?? []).map((f) => ({ id: f.id, bot_name: f.bot_name, text: f.text })),
+            })
+          );
         } catch {
           // Private mode: same-tab listeners still work.
         }
