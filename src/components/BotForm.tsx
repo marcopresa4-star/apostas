@@ -16,7 +16,7 @@ interface PregameDraft {
 const TEMPLATES: { label: string; fill: () => Partial<Draft> }[] = [
   {
     label: "⚡ Over 2.5 agressivo",
-    fill: () => ({ name: "Over25", minute_from: 60, score: "total2plus", market: "mais1", min_prob: "0.7", stats: { pressure_recent: 5 } }),
+    fill: () => ({ name: "Over25", minute_from: 60, score: "total2plus", market: "mais1", stats: { pressure_recent: 5 } }),
   },
   {
     label: "🚩 Cantos casa pressão",
@@ -28,7 +28,7 @@ const TEMPLATES: { label: string; fill: () => Partial<Draft> }[] = [
   },
   {
     label: "🏆 Vitória casa a segurar",
-    fill: () => ({ name: "CasaSegura", minute_from: 70, score: "home_ahead", market: "home", min_prob: "0.75" }),
+    fill: () => ({ name: "CasaSegura", minute_from: 70, score: "home_ahead", market: "home" }),
   },
 ];
 
@@ -73,8 +73,6 @@ interface Draft {
   period: BotPeriod;
   score: string;
   market: BotMarket;
-  useProb: boolean;
-  min_prob: string;
   min_odd: number;
   stats: Record<string, number>;
   pre: { on: boolean } & PregameDraft;
@@ -91,8 +89,6 @@ const fromRow = (b: BotRow): Draft => ({
   period: b.period,
   score: b.score,
   market: b.market,
-  useProb: b.min_prob !== null,
-  min_prob: b.min_prob !== null ? String(b.min_prob) : "",
   min_odd: b.min_odd !== null ? Math.min(6, b.min_odd) : 1,
   stats: Object.fromEntries(b.stats.map((s) => [s.k, s.v])),
   pre: {
@@ -115,8 +111,6 @@ const blank: Draft = {
   period: "any",
   score: "any",
   market: "mais1",
-  useProb: false,
-  min_prob: "",
   min_odd: 1,
   stats: {},
   pre: { on: false, side: "either", n: 10, metric: "sh_over15", pct: 60 },
@@ -188,7 +182,7 @@ export default function BotForm({
       period: d.period,
       score: d.score,
       market: d.market,
-      min_prob: d.useProb && d.min_prob !== "" ? Number(d.min_prob) : null,
+      min_prob: null,
       min_odd: d.min_odd > 1 ? Math.round(d.min_odd * 100) / 100 : null,
       stats,
       pregame: d.pre.on ? [{ side: d.pre.side, n: d.pre.n, metric: d.pre.metric, pct: d.pre.pct }] : [],
@@ -451,13 +445,6 @@ export default function BotForm({
                 </option>
               ))}
             </select>
-            <label className="mt-2 flex items-center gap-2 text-xs text-neutral-300">
-              <input type="checkbox" checked={d.useProb} onChange={(e) => set("useProb", e.target.checked)} className="accent-emerald-500" />
-              Só alerta se o modelo der pelo menos
-            </label>
-            {d.useProb && (
-              <input type="number" min={0.35} max={0.95} step={0.01} value={d.min_prob} onChange={(e) => set("min_prob", e.target.value)} className={`${field} mt-1`} />
-            )}
           </div>
 
           <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
