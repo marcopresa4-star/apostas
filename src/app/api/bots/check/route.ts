@@ -18,8 +18,9 @@ import { predictLive } from "@/lib/liveModel";
 import { leagueRates } from "@/lib/footballModel";
 import {
   BOT_MARKETS,
-  gatesOk,
+  BOT_SCORES,
   pregameOk,
+  scoreOk,
   settleAlert,
   snapMinute,
   statsOk,
@@ -231,7 +232,22 @@ export async function POST() {
 
   const fired: Fired[] = [];
   const stats: Record<string, { checked: number; passing: number }> = {};
-  for (const b of active) stats[b.id] = { checked: 0, passing: 0 };
+  // Why each game failed each bot (first failing gate): powers the "why not"
+  // view. Small by construction (≤ MAX_GAMES per bot).
+  interface DiagRow {
+    eventId: number;
+    home: string;
+    away: string;
+    minute: number;
+    hg: number;
+    ag: number;
+    fail: string;
+  }
+  const diag: Record<string, DiagRow[]> = {};
+  for (const b of active) {
+    stats[b.id] = { checked: 0, passing: 0 };
+    diag[b.id] = [];
+  }
 
   await pool(games, 4, async (g) => {
     let resolved: Awaited<ReturnType<typeof resolveSofaLink>> | null = null;
@@ -337,7 +353,31 @@ export async function POST() {
 
     for (const b of mine) {
       stats[b.id].checked++;
-      if (!gatesOk(b, snap)) continue;
+      const nope = (fail: string): void => {
+        diag[b.id].push({ eventId: g.id, home: resolved.homeSofa, away: resolved.awaySofa, minute: snap.minute, hg: snap.hg, ag: snap.ag, fail });
+      };
+      if (snap.minute < b.minute_from || snap.minute > b.minute_to) {
+        nope(`fora da janela (${b.minute_from}–${b.minute_to}')`);
+        continue;
+      }
+      const periodWant =
+        b.period === "first" ? "só 1ª parte" : b.period === "second" ? "só 2ª parte" : b.period === "half" ? "só intervalo" : "";
+      const periodOk =
+        b.period === "any"
+          ? true
+          : b.period === "first"
+            ? snap.phase === "live" && snap.minute < 45
+            : b.period === "second"
+              ? snap.phase === "live" && snap.minute >= 45
+              : snap.phase === "halftime";
+      if (!periodOk) {
+        nope(`período (${periodWant})`);
+        continue;
+      }
+      if (!scoreOk(b.score, snap.hg, snap.ag)) {
+        nope(`marcador (pede ${BOT_SCORES.find((s) => s.key === b.score)?.label ?? b.score})`);
+        continue;
+      }
       // Pre-game history filter (all rules required).
       let ok = true;
       if (b.pregame.length > 0) {
@@ -351,13 +391,25 @@ export async function POST() {
           }
         }
       }
-      if (!ok) continue;
-      if (!statsOk(b.mode, b.stats, vals)) continue;
+      if (!ok) {
+        nope("pré-jogo");
+        continue;
+      }
+      if (!statsOk(b.mode, b.stats, vals)) {
+        nope("estatísticas");
+        continue;
+      }
       // Model probability for the alert market (fails closed without a model).
       if (b.min_prob !== null && b.min_prob !== undefined) {
-        if (!pre || !pre.fromModel) continue;
+        if (!pre || !pre.fromModel) {
+          nope("sem modelo");
+          continue;
+        }
         const league = await leagueOf(leagueCode);
-        if (!league) continue;
+        if (!league) {
+          nope("sem modelo");
+          continue;
+        }
         const live = predictLive({
           lambdaHome: pre.home,
           lambdaAway: pre.away,
@@ -382,13 +434,19 @@ export async function POST() {
                   : b.market === "draw"
                     ? live.fullTime.draw
                     : live.bothScore;
-        if (!(prob >= b.min_prob)) continue;
+        if (!(prob >= b.min_prob)) {
+          nope("probabilidade do modelo");
+          continue;
+        }
       }
       // Live odd floor (ignored when the feed has no price for the market).
       if (b.min_odd !== null && b.min_odd !== undefined) {
         const key = ODD_KEY[b.market];
         const odd = key && byKey ? findRealOdd(byKey, key, casa, fora) : undefined;
-        if (odd !== undefined && !(odd >= b.min_odd)) continue;
+        if (odd !== undefined && !(odd >= b.min_odd)) {
+          nope(`odd ${odd} abaixo da mínima ${b.min_odd}`);
+          continue;
+        }
       }
       stats[b.id].passing++;
       // Dedupe: same game already fired (unless re-fire allows a new minute).
@@ -399,10 +457,14 @@ export async function POST() {
           .eq("bot_id", b.id)
           .eq("event_id", g.id)
           .limit(1);
-        if (seen && seen.length > 0) continue;
+        if (seen && seen.length > 0) {
+          nope("já disparou neste jogo");
+          continue;
+        }
       }
       const label = BOT_MARKETS.find((m) => m.key === b.market)?.label ?? b.market;
       const text = `ALERTA ${b.name} — ${label} · ${resolved.homeSofa} ${snap.hg}–${snap.ag} ${resolved.awaySofa} · ${snap.minute}'`;
+      diag[b.id].push({ eventId: g.id, home: resolved.homeSofa, away: resolved.awaySofa, minute: snap.minute, hg: snap.hg, ag: snap.ag, fail: "" });
       const { data: ins, error } = await supabase
         .from("bot_alerts")
         .insert({
@@ -437,5 +499,5 @@ export async function POST() {
     }
   });
 
-  return Response.json({ fired, stats, games: games.length, truncated: live.games.length > MAX_GAMES });
+  return Response.json({ fired, stats, diag, games: games.length, truncated: live.games.length > MAX_GAMES });
 }

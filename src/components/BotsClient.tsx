@@ -29,6 +29,16 @@ interface Fired extends AlertRow {
   silent: boolean;
 }
 
+interface DiagRow {
+  eventId: number;
+  home: string;
+  away: string;
+  minute: number;
+  hg: number;
+  ag: number;
+  fail: string;
+}
+
 // Absolute birth time plus, after mount, the age ("há 1h05m"): the list is
 // history, and the age makes staleness obvious at a glance. Absolute first
 // so server and hydration renders match.
@@ -70,6 +80,7 @@ export default function BotsClient({
   const [offline, setOffline] = useState(false);
   const [lastCheck, setLastCheck] = useState<string | null>(null);
   const [passing, setPassing] = useState<Record<string, { checked: number; passing: number }>>({});
+  const [diag, setDiag] = useState<Record<string, DiagRow[]>>({});
   const [sort, setSort] = useState("padrao");
   // "denied" until mounted: Notification only exists in the browser, and
   // reading it during hydration would mismatch the server render for users
@@ -91,8 +102,9 @@ export default function BotsClient({
         return;
       }
       setOffline(false);
-      const body = (await res.json()) as { fired?: Fired[]; stats?: Record<string, { checked: number; passing: number }> };
+      const body = (await res.json()) as { fired?: Fired[]; stats?: Record<string, { checked: number; passing: number }>; diag?: Record<string, DiagRow[]> };
       if (body.stats) setPassing(body.stats);
+      if (body.diag) setDiag(body.diag);
       const fresh = (body.fired ?? []).filter((f) => !seen.current.has(f.id));
       for (const f of fresh) seen.current.add(f.id);
       if (fresh.length > 0) {
@@ -278,21 +290,23 @@ export default function BotsClient({
             {ordered.map((b) => {
               const rate = hitRate(b.id);
               const pass = passing[b.id];
+              const rows = diag[b.id] ?? [];
               return (
-                <div key={b.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-neutral-100">
-                      {b.enabled ? "● " : "○ "}
-                      {b.name}
-                      {b.silent && <span className="ml-2 text-[11px] font-normal text-neutral-500">silencioso</span>}
-                    </p>
-                    <p className="text-[11px] text-neutral-500">
-                      {(byBot.get(b.id)?.length ?? 0)} alertas
-                      {rate !== null && ` · acerto ${rate}`}
-                      {pass !== undefined && ` · ${pass.passing}/${pass.checked} jogos cumprem agora`}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
+                <div key={b.id} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-neutral-100">
+                        {b.enabled ? "● " : "○ "}
+                        {b.name}
+                        {b.silent && <span className="ml-2 text-[11px] font-normal text-neutral-500">silencioso</span>}
+                      </p>
+                      <p className="text-[11px] text-neutral-500">
+                        {(byBot.get(b.id)?.length ?? 0)} alertas
+                        {rate !== null && ` · acerto ${rate}`}
+                        {pass !== undefined && ` · ${pass.passing}/${pass.checked} jogos cumprem agora`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -319,7 +333,25 @@ export default function BotsClient({
                     >
                       Apagar
                     </button>
+                    </div>
                   </div>
+                  {rows.length > 0 && (
+                    <details className="mt-2 border-t border-neutral-800/60 pt-2">
+                      <summary className="cursor-pointer text-[11px] font-medium text-neutral-400 hover:text-neutral-200">
+                        Ver jogos ({rows.length}) — porque cumprem ou não
+                      </summary>
+                      <div className="mt-1.5 space-y-1">
+                        {rows.map((r) => (
+                          <p key={`${r.eventId}`} className="truncate text-[11px] text-neutral-400">
+                            <span className="text-neutral-200">
+                              {r.home} vs {r.away} · {r.minute}&apos; · {r.hg}–{r.ag}
+                            </span>{" "}
+                            — {r.fail === "" ? <span className="font-semibold text-emerald-400">cumpre ✓</span> : r.fail}
+                          </p>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               );
             })}
