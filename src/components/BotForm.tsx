@@ -8,6 +8,7 @@ import type { BotRow } from "@/components/BotsClient";
 
 interface PregameDraft {
   side: PregameSide;
+  n: 5 | 10 | 20;
   metric: PregameMetric;
   pct: number;
 }
@@ -31,9 +32,40 @@ const TEMPLATES: { label: string; fill: () => Partial<Draft> }[] = [
   },
 ];
 
+function Slider({ value, min, max, step, onChange }: { value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
+  return (
+    <input
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className="w-full accent-emerald-500"
+    />
+  );
+}
+
+function Ticks({ items }: { items: string[] }) {
+  return (
+    <div className="flex justify-between text-[10px] tabular-nums text-neutral-600">
+      {items.map((t) => (
+        <span key={t}>{t}</span>
+      ))}
+    </div>
+  );
+}
+
+const PRE_LABELS: Record<PregameMetric, string> = {
+  total_over15: "Over 1.5 — jogo",
+  total_over25: "Over 2.5 — jogo",
+  btts: "Ambas marcam",
+  sh_over05: "Over 0.5 — 2ª parte",
+  sh_over15: "Over 1.5 — 2ª parte",
+};
+
 interface Draft {
-  name: string;
-  silent: boolean;
+  name: string;  silent: boolean;
   leagues: string[];
   mode: BotMode;
   minute_from: number;
@@ -43,10 +75,9 @@ interface Draft {
   market: BotMarket;
   useProb: boolean;
   min_prob: string;
-  useOdd: boolean;
-  min_odd: string;
+  min_odd: number;
   stats: Record<string, number>;
-  pregame: PregameDraft[];
+  pre: { on: boolean } & PregameDraft;
   refire: boolean;
 }
 
@@ -62,10 +93,15 @@ const fromRow = (b: BotRow): Draft => ({
   market: b.market,
   useProb: b.min_prob !== null,
   min_prob: b.min_prob !== null ? String(b.min_prob) : "",
-  useOdd: b.min_odd !== null,
-  min_odd: b.min_odd !== null ? String(b.min_odd) : "",
+  min_odd: b.min_odd !== null ? Math.min(6, b.min_odd) : 1,
   stats: Object.fromEntries(b.stats.map((s) => [s.k, s.v])),
-  pregame: b.pregame.map((r) => ({ side: r.side, metric: r.metric, pct: r.pct })),
+  pre: {
+    on: b.pregame.length > 0,
+    side: b.pregame[0]?.side ?? "either",
+    n: b.pregame[0]?.n === 5 || b.pregame[0]?.n === 20 ? b.pregame[0].n : 10,
+    metric: b.pregame[0]?.metric ?? "sh_over15",
+    pct: b.pregame[0]?.pct ?? 60,
+  },
   refire: b.refire,
 });
 
@@ -81,10 +117,9 @@ const blank: Draft = {
   market: "mais1",
   useProb: false,
   min_prob: "",
-  useOdd: false,
-  min_odd: "",
+  min_odd: 1,
   stats: {},
-  pregame: [],
+  pre: { on: false, side: "either", n: 10, metric: "sh_over15", pct: 60 },
   refire: false,
 };
 
@@ -128,7 +163,7 @@ export default function BotForm({
           period: d.period,
           minute_to: d.minute_to,
           score: d.score,
-          pregame: d.pregame.map((r) => ({ ...r, n: 10 })),
+          pregame: d.pre.on ? [{ side: d.pre.side, n: d.pre.n, metric: d.pre.metric, pct: d.pre.pct }] : [],
         }),
       });
       const body = (await res.json()) as { tested?: number; passed?: number };
@@ -154,9 +189,9 @@ export default function BotForm({
       score: d.score,
       market: d.market,
       min_prob: d.useProb && d.min_prob !== "" ? Number(d.min_prob) : null,
-      min_odd: d.useOdd && d.min_odd !== "" ? Number(d.min_odd) : null,
+      min_odd: d.min_odd > 1 ? Math.round(d.min_odd * 100) / 100 : null,
       stats,
-      pregame: d.pregame,
+      pregame: d.pre.on ? [{ side: d.pre.side, n: d.pre.n, metric: d.pre.metric, pct: d.pre.pct }] : [],
       refire: d.refire,
       enabled: initial?.enabled ?? true,
     };
@@ -246,16 +281,21 @@ export default function BotForm({
 
           <div className="space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
             <p className="text-sm font-medium text-neutral-200">⏱ Minuto do jogo</p>
-            <div className="grid grid-cols-2 gap-3">
-              <label className="text-xs text-neutral-400">
-                A partir do minuto
-                <input type="number" min={1} max={120} value={d.minute_from} onChange={(e) => set("minute_from", Number(e.target.value))} className={`${field} mt-1`} />
-              </label>
-              <label className="text-xs text-neutral-400">
-                Até ao minuto
-                <input type="number" min={1} max={120} value={d.minute_to} onChange={(e) => set("minute_to", Number(e.target.value))} className={`${field} mt-1`} />
-              </label>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-xs text-neutral-400">A partir do minuto</span>
+                <span className="text-base font-bold tabular-nums text-emerald-400">{d.minute_from}&apos;</span>
+              </div>
+              <Slider value={d.minute_from} min={1} max={120} step={1} onChange={(v) => set("minute_from", Math.min(v, d.minute_to))} />
             </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-xs text-neutral-400">Até ao minuto</span>
+                <span className="text-base font-bold tabular-nums text-emerald-400">{d.minute_to}&apos;</span>
+              </div>
+              <Slider value={d.minute_to} min={1} max={120} step={1} onChange={(v) => set("minute_to", Math.max(v, d.minute_from))} />
+            </div>
+            <Ticks items={["1'", "45'", "90'", "120'"]} />
             <div>
               <p className="mb-1.5 text-xs text-neutral-400">Período do jogo</p>
               <div className="flex flex-wrap gap-1.5">
@@ -273,71 +313,84 @@ export default function BotForm({
             </div>
           </div>
 
-          <div className="mt-3 space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
-            <p className="text-sm font-medium text-neutral-200">📈 Odd mínima ao vivo (opcional)</p>
-            <label className="flex items-center gap-2 text-xs text-neutral-300">
-              <input type="checkbox" checked={d.useOdd} onChange={(e) => set("useOdd", e.target.checked)} className="accent-emerald-500" />
-              Só alerta se a odd estiver acima de
-            </label>
-            {d.useOdd && (
-              <input type="number" min={1.01} max={20} step={0.05} value={d.min_odd} onChange={(e) => set("min_odd", e.target.value)} className={field} />
-            )}
-            <p className="text-[11px] text-neutral-500">
-              Compara com a odd ao vivo do mercado abaixo. Sem preço nesse instante, ignora só esta condição.
+          <div className="mt-3 space-y-2 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
+              <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-neutral-400">Só alerta se a odd estiver acima de</p>
+            <Slider value={d.min_odd} min={1} max={6} step={0.05} onChange={(v) => set("min_odd", Math.round(v * 100) / 100)} />
+            <Ticks items={["1.00", "2.00", "3.00", "4.00", "6.00"]} />
+            <p className="text-[11px] leading-relaxed text-neutral-500">
+              Compara com a odd ao vivo do mercado escolhido abaixo. Se a API não tiver odds disponíveis para esse
+              mercado nesse instante, esta condição é ignorada só nesse disparo (não bloqueia as restantes).
             </p>
+            <p className="text-[11px] text-neutral-500">Útil para filtrar mercados com odds muito baixas ao vivo que não têm valor real.</p>
+            {d.min_odd <= 1 && (
+              <p className="text-[11px] text-neutral-500">Em 1,00 a condição fica neutra: qualquer odd conta.</p>
+            )}
           </div>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
-            <p className="text-sm font-medium text-neutral-200">🕐 Critério pré-jogo (opcional)</p>
-            <p className="mb-2 text-[11px] text-neutral-500">
-              Decide à partida que jogos o bot vigia, pelo historial antes do apito (ex: % dos últimos 10 com mais de
-              1,5 na 2.ª parte ≥ 60%). Quem não cumprir nunca chega a ser vigiado.
-            </p>
-            {d.pregame.map((r, i) => (
-              <div key={i} className="mb-2 flex flex-wrap items-center gap-2">
-                <select
-                  value={r.side}
-                  onChange={(e) => set("pregame", d.pregame.map((x, j) => (j === i ? { ...x, side: e.target.value as PregameDraft["side"] } : x)))}
-                  className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 outline-none"
-                >
-                  <option value="home">Casa</option>
-                  <option value="away">Fora</option>
-                  <option value="either">Qualquer das duas</option>
-                </select>
-                <select
-                  value={r.metric}
-                  onChange={(e) => set("pregame", d.pregame.map((x, j) => (j === i ? { ...x, metric: e.target.value as PregameDraft["metric"] } : x)))}
-                  className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 outline-none"
-                >
-                  {PREGAME_METRICS.map((m) => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}
-                    </option>
+          <div className="mt-3 space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+            <label className="flex cursor-pointer items-start gap-2">
+              <input type="checkbox" checked={d.pre.on} onChange={(e) => set("pre", { ...d.pre, on: e.target.checked })} className="mt-0.5 accent-emerald-500" />
+              <span className="text-xs text-neutral-300">
+                <span className="font-semibold uppercase tracking-wide">✅ Ativar critério pré-jogo</span>
+                <span className="mt-0.5 block text-[11px] font-normal normal-case tracking-normal text-neutral-500">
+                  Diferente de tudo o resto — isto decide logo que jogos o bot considera, com base no historial da
+                  equipa antes do apito inicial (ex: % dos últimos 10 jogos com mais de 1,5 golos na 2ª parte ≥ 60%).
+                  Um jogo que não cumpra isto nunca chega a ser vigiado ao vivo, mesmo que as restantes condições se
+                  verifiquem.
+                </span>
+              </span>
+            </label>
+            {d.pre.on && (
+              <>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-neutral-400">Equipa</span>
+                  {[
+                    { v: "home", l: "Casa" },
+                    { v: "away", l: "Fora" },
+                    { v: "either", l: "Ambas" },
+                  ].map((s) => (
+                    <button key={s.v} type="button" onClick={() => set("pre", { ...d.pre, side: s.v as PregameSide })} className={pill(d.pre.side === s.v)}>
+                      {s.l}
+                    </button>
                   ))}
-                </select>
-                <span className="text-xs text-neutral-400">nos últimos 10 ≥</span>
-                <input
-                  type="number"
-                  min={10}
-                  max={95}
-                  value={r.pct}
-                  onChange={(e) => set("pregame", d.pregame.map((x, j) => (j === i ? { ...x, pct: Number(e.target.value) } : x)))}
-                  className="w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-200 outline-none"
-                />
-                <span className="text-xs text-neutral-400">%</span>
-                <button type="button" onClick={() => set("pregame", d.pregame.filter((_, j) => j !== i))} className="text-xs text-red-300 hover:underline">
-                  tirar
-                </button>
-              </div>
-            ))}
-            {d.pregame.length < 4 && (
-              <button
-                type="button"
-                onClick={() => set("pregame", [...d.pregame, { side: "either", metric: "sh_over15", pct: 60 }])}
-                className="text-xs font-medium text-emerald-400 hover:underline"
-              >
-                + adicionar critério
-              </button>
+                  <span className="ml-2 text-xs text-neutral-400">Últimos</span>
+                  {([5, 10, 20] as const).map((n) => (
+                    <button key={n} type="button" onClick={() => set("pre", { ...d.pre, n })} className={pill(d.pre.n === n)}>
+                      {n}j
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-neutral-400">Mercado</p>
+                  <select
+                    value={d.pre.metric}
+                    onChange={(e) => set("pre", { ...d.pre, metric: e.target.value as PregameMetric })}
+                    className={field}
+                  >
+                    {PREGAME_METRICS.map((m) => (
+                      <option key={m.key} value={m.key}>
+                        {PRE_LABELS[m.key]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-xs text-neutral-400">% mínima dos jogos que cumprem o mercado</span>
+                    <span className="text-base font-bold tabular-nums text-emerald-400">{d.pre.pct}%</span>
+                  </div>
+                  <Slider value={d.pre.pct} min={10} max={100} step={1} onChange={(v) => set("pre", { ...d.pre, pct: v })} />
+                  <Ticks items={["10%", "50%", "100%"]} />
+                </div>
+                <p className="text-[11px] leading-relaxed text-neutral-500">
+                  Verificada uma única vez por jogo (não muda durante a partida). Se a API não tiver dados suficientes
+                  dos últimos jogos dessa equipa, esta condição é ignorada só nesse jogo (não bloqueia os outros).
+                </p>
+              </>
             )}
           </div>
 
@@ -414,7 +467,7 @@ export default function BotForm({
               {marketLabel.toUpperCase()} · Porto 1–0 Benfica · 44'
             </p>
             <p className="font-mono text-[11px] text-neutral-500">
-              Min {d.minute_from}'–{d.minute_to}'{d.useOdd && d.min_odd !== "" ? ` · odd mín. ${d.min_odd}` : ""}
+              Min {d.minute_from}'–{d.minute_to}'{d.min_odd > 1 ? ` · odd mín. ${d.min_odd.toFixed(2)}` : ""}
             </p>
           </div>
 

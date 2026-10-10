@@ -75,7 +75,8 @@ function clean(input: Record<string, unknown>): CleanBot | { error: string } {
         const q = r as Record<string, unknown>;
         if (q.side !== "home" && q.side !== "away" && q.side !== "either") return [];
         if (typeof q.metric !== "string" || !metrics.has(q.metric)) return [];
-        return [{ side: q.side, metric: q.metric as PregameRule["metric"], n: 10, pct: int(q.pct, 10, 95, 60) }];
+        const n = q.n === 5 || q.n === 20 ? q.n : 10;
+        return [{ side: q.side, metric: q.metric as PregameRule["metric"], n, pct: int(q.pct, 10, 100, 60) }];
       }).slice(0, 4)
     : [];
   return {
