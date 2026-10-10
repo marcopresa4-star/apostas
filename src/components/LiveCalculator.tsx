@@ -635,14 +635,14 @@ function Calculator({
   // Whole-number lines sit right after their .5 neighbour, so the table reads
   // in line order (2,5 · 3,0 · 3,5 …), not .5s first and wholes after.
   const goalRows: Row[] = [];
-  for (let k = 0; k < 4; k++) {
+  for (let k = 0; k < 5; k++) {
     const half = total + k + 0.5;
     const over = p.over[String(half)];
     goalRows.push(
       { label: `Mais de ${dot(half)} golos`, p: over, note: `faltam ${k + 1}`, key: `over:${half}` },
       { label: `Menos de ${dot(half)} golos`, p: 1 - over, key: `under:${half}` }
     );
-    if (k < 3) {
+    if (k < 4) {
       const whole = total + k + 1;
       const t = liveTotalLine(p, h, a, whole);
       goalRows.push(
