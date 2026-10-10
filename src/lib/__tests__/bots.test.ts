@@ -117,6 +117,12 @@ describe("settleAlert", () => {
     expect(settleAlert("btts", 1, 0, 1, 1)).toBe(true);
     expect(settleAlert("btts", 1, 0, 2, 0)).toBe(false);
   });
+  it("settles 2nd-half totals only from the break on", () => {
+    expect(settleAlert("sh_over15", 0, 0, 2, 0, 45)).toBe(true);
+    expect(settleAlert("sh_over15", 1, 0, 2, 0, 60)).toBe(false);
+    expect(settleAlert("sh_over15", 0, 0, 3, 0, 20)).toBeNull();
+    expect(settleAlert("sh_over15", 0, 0, 3, 0, null)).toBeNull();
+  });
 });
 
 describe("snapMinute", () => {

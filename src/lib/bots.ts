@@ -5,7 +5,7 @@ import type { PlayedMatch } from "./footballModel";
 
 export type BotMode = "and" | "or";
 export type BotPeriod = "any" | "first" | "second" | "half";
-export type BotMarket = "mais1" | "home" | "draw" | "away" | "over25" | "btts";
+export type BotMarket = "mais1" | "home" | "draw" | "away" | "over25" | "btts" | "sh_over15";
 
 export interface BotStat {
   k: string;
@@ -183,14 +183,17 @@ export function pregameOk(
   return rule.side === "either" ? results.some((r) => r === true) : results.every((r) => r === true);
 }
 
-// Settles a fired alert once the game finishes.
+// Settles a fired alert once the game finishes. Second-half markets need to
+// know when the alert fired: before the break the 2nd-half score is
+// unknowable from (alert, final) alone, so they stay undecided (null).
 export function settleAlert(
   market: BotMarket,
   alertHg: number,
   alertAg: number,
   finalHg: number,
-  finalAg: number
-): boolean {
+  finalAg: number,
+  alertMinute: number | null = null
+): boolean | null {
   switch (market) {
     case "mais1":
       return finalHg + finalAg > alertHg + alertAg;
@@ -204,6 +207,9 @@ export function settleAlert(
       return finalHg + finalAg > 2.5;
     case "btts":
       return finalHg > 0 && finalAg > 0;
+    case "sh_over15":
+      if (alertMinute === null || alertMinute < 45) return null;
+      return finalHg + finalAg - (alertHg + alertAg) > 1.5;
   }
 }
 
@@ -214,6 +220,7 @@ export const BOT_MARKETS: { key: BotMarket; label: string }[] = [
   { key: "away", label: "Vitória fora" },
   { key: "over25", label: "Over 2.5 final" },
   { key: "btts", label: "BTTS sim" },
+  { key: "sh_over15", label: "Over 1.5 — 2ª parte" },
 ];
 
 export const BOT_STATS: { k: string; label: string; unit: string }[] = [

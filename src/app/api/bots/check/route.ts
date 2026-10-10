@@ -107,6 +107,7 @@ const ODD_KEY: Record<string, string | null> = {
   away: "away",
   over25: "over:2.5",
   btts: "btts:yes",
+  sh_over15: null, // 2nd-half totals have no live price: the odd condition never applies
 };
 
 // Bounded parallelism: the local scraper answers one read at a time, so
@@ -159,7 +160,7 @@ export async function POST() {
   // Settle open alerts first (bounded): finished games get their hit.
   const { data: open } = await supabase
     .from("bot_alerts")
-    .select("id, bot_id, event_id, hg, ag, market")
+    .select("id, bot_id, event_id, hg, ag, minute, market")
     .eq("user_id", user.id)
     .is("hit", null)
     .order("created_at", { ascending: false })
@@ -175,10 +176,16 @@ export async function POST() {
       const fhg = num(hs?.current) ?? num(hs?.display);
       const fag = num(as?.current) ?? num(as?.display);
       if (fhg === null || fag === null) return;
-      await supabase
-        .from("bot_alerts")
-        .update({ hit: settleAlert(a.market as Bot["market"], a.hg, a.ag, fhg, fag) })
-        .eq("id", a.id);
+      const hit = settleAlert(
+        a.market as Bot["market"],
+        a.hg,
+        a.ag,
+        fhg,
+        fag,
+        typeof (a as { minute?: unknown }).minute === "number" ? (a as { minute: number }).minute : null
+      );
+      if (hit === null) return;
+      await supabase.from("bot_alerts").update({ hit }).eq("id", a.id);
     } catch {
       // Next run.
     }
@@ -366,7 +373,9 @@ export async function POST() {
             ? 1 - live.nextGoal.none
             : b.market === "over25"
               ? (live.over["2.5"] ?? 0)
-              : b.market === "home"
+              : b.market === "sh_over15"
+                ? live.secondHalf.over15
+                : b.market === "home"
                 ? live.fullTime.home
                 : b.market === "away"
                   ? live.fullTime.away
