@@ -10,6 +10,7 @@ import { cacheGet, cacheSet } from "@/lib/sofaCache";
 import type { Fixture } from "@/lib/footballModel";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import DayFilters from "@/components/DayFilters";
+import DayMatrix from "@/components/DayMatrix";
 import { first } from "@/lib/searchParams";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -37,6 +38,8 @@ export default async function JogosDiaPage({
   const ligaSel = first(params.liga).trim();
   const equipa = first(params.equipa).trim().toLowerCase();
   const refresh = first(params.refresh) === "1";
+  const diretos = first(params.diretos) === "1";
+  const matriz = first(params.matriz) === "1";
 
   const supabase = await createClient();
   const {
@@ -96,18 +99,24 @@ export default async function JogosDiaPage({
         day={day}
         countries={countries}
         leagues={filterLeagues}
-        initial={{ pais, liga: ligaSel, equipa: first(params.equipa).trim() }}
+        initial={{ pais, liga: ligaSel, equipa: first(params.equipa).trim(), diretos: diretos ? "1" : "0", matriz: matriz ? "1" : "0" }}
       />
 
       <Suspense
-        key={`${day}|${pais}|${ligaSel}|${equipa}|${refresh ? "r" : ""}`}
+        key={`${day}|${pais}|${ligaSel}|${equipa}|${refresh ? "r" : ""}|${diretos ? "d" : ""}|${matriz ? "m" : ""}`}
         fallback={
           <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
-            A carregar os jogos do dia… (a primeira vez demora, depois é cache)
+            {matriz
+              ? "A calcular a matriz… (carrega os históricos das ligas: demora minutos à primeira, depois é cache)"
+              : "A carregar os jogos do dia… (a primeira vez demora, depois é cache)"}
           </p>
         }
       >
-        <DayBoard day={day} today={today} pais={pais} ligaSel={ligaSel} equipa={equipa} refresh={refresh} />
+        {matriz ? (
+          <DayMatrix day={day} pais={pais} ligaSel={ligaSel} equipa={equipa} diretos={diretos} refresh={refresh} />
+        ) : (
+          <DayBoard day={day} today={today} pais={pais} ligaSel={ligaSel} equipa={equipa} refresh={refresh} diretos={diretos} />
+        )}
       </Suspense>
     </div>
   );
@@ -141,7 +150,7 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   return out;
 }
 
-async function DayBoard({ day, today, pais, ligaSel, equipa, refresh }: { day: string; today: string; pais: string; ligaSel: string; equipa: string; refresh: boolean }) {
+async function DayBoard({ day, today, pais, ligaSel, equipa, refresh, diretos }: { day: string; today: string; pais: string; ligaSel: string; equipa: string; refresh: boolean; diretos: boolean }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -298,7 +307,8 @@ async function DayBoard({ day, today, pais, ligaSel, equipa, refresh }: { day: s
         eventId: same ? same.id : g.eventId,
         live: same ? { minute: same.minute, phase: same.phase, hg: same.homeGoals, ag: same.awayGoals } : null,
       };
-    }),
+    })
+        .filter((g) => !diretos || g.live !== null),
   })).filter((r) => r.games.length > 0);
   byLeague.sort((a, b) => a.games[0].leagueLabel.localeCompare(b.games[0].leagueLabel));
   const liveCount = byLeague.flatMap((l) => l.games).filter((g) => g.live).length;
@@ -307,7 +317,9 @@ async function DayBoard({ day, today, pais, ligaSel, equipa, refresh }: { day: s
     return (
       <div className="max-w-4xl space-y-2">
         <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
-          Sem jogos das ligas mapeadas neste dia{day < today ? " (ou os resultados ainda não entraram nos dados)" : ""}.
+          {diretos
+            ? "Nenhum jogo a decorrer agora nas ligas e filtros escolhidos."
+            : `Sem jogos das ligas mapeadas neste dia${day < today ? " (ou os resultados ainda não entraram nos dados)" : ""}.`}
         </p>
         {failed.size > 0 && (
           <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-center text-xs text-amber-200">
