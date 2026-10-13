@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { LEAGUES } from "@/lib/footballData";
-import { loadMaps, linkLocalName } from "@/lib/sofaHistory";
-import { fixtureEventId, loadSofaLeague } from "@/lib/sofaLeague";
+import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
+import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { leagueRates, predict } from "@/lib/footballModel";
@@ -97,7 +98,7 @@ export default async function DayMatrix({
   const cacheKey = `daymatrix:${day}|${pais}|${ligaSel}`;
   const cached = refresh
     ? null
-    : await cacheGet(supabase, user.id, cacheKey, 3 * HOUR_MS).catch(() => null);
+    : await cacheGet(supabase, user.id, cacheKey, HOUR_MS).catch(() => null);
   let table: MatrixLeague[] = [];
   let failed: string[] = [];
   let thin = 0;
@@ -110,10 +111,48 @@ export default async function DayMatrix({
     const failedSet = new Set<string>();
     const found: MatrixLeague[] = [];
     let thinCount = 0;
+    // Same fixture source as the day board (round window, shared cache), so
+    // the two views can never disagree on which games exist. History loads
+    // only for leagues with games that day.
     await pool(leagues, 4, async (l) => {
+      const map = maps.find((m) => m.name_key === l.code);
+      if (!map) return;
+      let seasons;
+      try {
+        seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id);
+      } catch {
+        failedSet.add(l.code);
+        return;
+      }
+      const s = seasons[0];
+      if (!s) return;
+      let rounds: number[];
+      let currentRound: number | null;
+      try {
+        ({ rounds, currentRound } = await tournamentRounds(supabase, user.id, map.sofascore_id, s.id, true));
+      } catch {
+        failedSet.add(l.code);
+        return;
+      }
+      if (rounds.length === 0) return;
+      const want =
+        currentRound !== null
+          ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
+          : rounds.slice(0, 3);
+      const lists = await Promise.all(
+        want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).then((x) => x, () => null))
+      );
+      if (lists.some((x) => x === null)) {
+        failedSet.add(l.code);
+        return;
+      }
+      const flat: SofaFixture[] = [];
+      for (const l of lists) if (l !== null) flat.push(...l);
+      const dayFx = flat.filter((f) => f.date === day);
+      if (dayFx.length === 0) return;
       let data;
       try {
-        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true });
+        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false });
         data = loaded?.data ?? null;
       } catch {
         failedSet.add(l.code);
@@ -125,8 +164,7 @@ export default async function DayMatrix({
       }
       const fhs = leagueRates(data.matches, now).firstHalfShare;
       const rows: MatrixRow[] = [];
-      for (const f of data.fixtures) {
-        if (f.date !== day || f.ft) continue;
+      for (const f of dayFx) {
         const home = convert(f.team1);
         const away = convert(f.team2);
         if (!data.teams.includes(home) || !data.teams.includes(away)) {
@@ -156,7 +194,7 @@ export default async function DayMatrix({
           a: prediction.fullTime.away,
         };
         rows.push({
-          eventId: fixtureEventId(f),
+          eventId: f.id,
           time: f.time ?? null,
           home,
           away,
@@ -203,7 +241,21 @@ export default async function DayMatrix({
           <span className="font-semibold text-amber-300">40–64%</span> · <span className="font-semibold text-red-400">＜40%</span>
         </span>
         <span>
-          {nRows} jogos{nRows === 1 ? "" : "s"} · % do modelo (justa = 1/p em pequeno)
+          {nRows} jogos{nRows === 1 ? "" : "s"} · % do modelo (justa = 1/p em pequeno) ·{" "}
+          <Link
+            href={`/estatisticas/jogos-dia?${new URLSearchParams({
+              data: day,
+              ...(pais ? { pais } : {}),
+              ...(ligaSel ? { liga: ligaSel } : {}),
+              ...(equipa ? { equipa } : {}),
+              ...(diretos ? { diretos: "1" } : {}),
+              matriz: "1",
+              refresh: "1",
+            })}`}
+            className="text-neutral-400 hover:text-neutral-200 hover:underline"
+          >
+            atualizar
+          </Link>
         </span>
         {thin > 0 && <span>{thin} sem histórico suficiente ficam de fora.</span>}
         {failed.length > 0 && (
