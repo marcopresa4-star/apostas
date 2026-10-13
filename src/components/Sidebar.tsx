@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/(app)/actions";
 
 interface NavLink {
@@ -116,6 +116,12 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// Menu children have no sub-routes: exact match avoids lighting the parent
+// on sibling pages that share the prefix (e.g. /estatisticas/ao-vivo).
+function isActiveChild(pathname: string, href: string) {
+  return pathname === href;
+}
+
 export default function Sidebar({
   userEmail,
   isAdmin,
@@ -125,6 +131,8 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<string | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // A new page always closes the menu.
   useEffect(() => {
     setOpen(null);
@@ -136,6 +144,31 @@ export default function Sidebar({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+  // The nav scrolls horizontally: an absolutely-positioned panel would be
+  // clipped, so dropdowns are viewport-fixed from the button rect and close
+  // on any scroll.
+  useEffect(() => {
+    if (open === null) return;
+    const close = (): void => setOpen(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open ]);
+  const toggle = (id: string): void => {
+    if (open === id) {
+      setOpen(null);
+      return;
+    }
+    const el = btnRefs.current[id];
+    if (el) {
+      const r = el.getBoundingClientRect();
+      setPos({ left: Math.max(8, r.left), top: r.bottom + 4 });
+    }
+    setOpen(id);
+  };
 
   const visible = NAV.filter((item) => isAdmin || !item.adminOnly);
   const pill =
@@ -167,13 +200,16 @@ export default function Sidebar({
                 </Link>
               );
             }
-            const active = item.items.some((s) => isActivePath(pathname, s.href));
+            const active = item.items.some((s) => isActiveChild(pathname, s.href));
             const isOpen = open === item.id;
             return (
               <div key={item.id} className="relative shrink-0">
                 <button
+                  ref={(el) => {
+                    btnRefs.current[item.id] = el;
+                  }}
                   type="button"
-                  onClick={() => setOpen(isOpen ? null : item.id)}
+                  onClick={() => toggle(item.id)}
                   aria-expanded={isOpen}
                   className={`${pill} ${
                     active || isOpen
@@ -187,10 +223,13 @@ export default function Sidebar({
                   {item.label}
                   <span aria-hidden className={`text-[10px] transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
                 </button>
-                {isOpen && (
-                  <div className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950/98 py-1 shadow-2xl backdrop-blur-md">
+                {isOpen && pos && (
+                  <div
+                    className="fixed z-50 w-60 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950/98 py-1 shadow-2xl backdrop-blur-md"
+                    style={{ left: pos.left, top: pos.top }}
+                  >
                     {item.items.map((s) => {
-                      const sub = isActivePath(pathname, s.href);
+                      const sub = isActiveChild(pathname, s.href);
                       return (
                         <Link
                           key={s.href}
