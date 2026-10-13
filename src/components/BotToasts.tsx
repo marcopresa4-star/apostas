@@ -31,6 +31,12 @@ export default function BotToasts() {
   };
 
   useEffect(() => {
+    // Embedded panels don't toast inside their frame.
+    try {
+      if (new URLSearchParams(window.location.search).get("embed") === "1") return;
+    } catch {
+      // No URL access: listen normally.
+    }
     const onAlert = (e: Event): void => {
       const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown }>).detail;
       if (!f || typeof f.id !== "string" || typeof f.text !== "string") return;

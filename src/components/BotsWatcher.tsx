@@ -15,6 +15,13 @@ export default function BotsWatcher() {
   const stopRef = useRef(false);
 
   useEffect(() => {
+    // Embedded panels (Vista Dinâmica iframes) don't poll: the top-level tab
+    // already watches, and toasts inside a frame help nobody.
+    try {
+      if (new URLSearchParams(window.location.search).get("embed") === "1") return;
+    } catch {
+      // No URL access: poll normally.
+    }
     stopRef.current = false;
     const check = async (): Promise<void> => {
       if (stopRef.current) return;

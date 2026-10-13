@@ -22,6 +22,13 @@ function intervalFor(phase: string | null): number {
 
 export default function FeedWatcher() {
   useEffect(() => {
+    // Embedded panels (Vista Dinâmica iframes) don't poll: the top-level tab
+    // already captures, and double polling only burns the serial scraper.
+    try {
+      if (new URLSearchParams(window.location.search).get("embed") === "1") return;
+    } catch {
+      // No URL access: poll normally.
+    }
     let stop = false;
     const lastPoll = new Map<number, number>();
     const lastPhase = new Map<number, string | null>();
