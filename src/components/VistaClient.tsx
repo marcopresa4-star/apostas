@@ -95,7 +95,9 @@ export default function VistaClient() {
   }, [left, right]);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-9rem)] lg:flex-row">
+    // Break out of the page max-width: the split uses the full viewport.
+    <div className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 px-4">
+      <div className="flex min-h-0 flex-col gap-3 lg:h-[calc(100vh-9rem)] lg:flex-row">
       <Panel side="Esquerda" value={left} onChange={setLeft} />
       <div className="flex shrink-0 items-center justify-center">
         <button
@@ -111,6 +113,7 @@ export default function VistaClient() {
         </button>
       </div>
       <Panel side="Direita" value={right} onChange={setRight} />
+      </div>
     </div>
   );
 }

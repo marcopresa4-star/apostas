@@ -131,6 +131,16 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<string | null>(null);
+  // Embedded panels (Vista Dinâmica iframes) hide the sign-out button: the
+  // top-level tab owns the session. Post-mount so hydration matches.
+  const [embed, setEmbed] = useState(false);
+  useEffect(() => {
+    try {
+      setEmbed(new URLSearchParams(window.location.search).get("embed") === "1");
+    } catch {
+      // No URL access: show everything.
+    }
+  }, []);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   // A new page always closes the menu.
@@ -257,15 +267,17 @@ export default function Sidebar({
             {userEmail}
           </p>
         )}
-        <form action={signOut}>
-          <button
-            type="submit"
-            title="Sair"
-            className="shrink-0 rounded-xl px-3 py-1.5 text-sm text-neutral-400 transition hover:bg-red-950/40 hover:text-red-300"
-          >
-            🚪 <span className="hidden sm:inline">Sair</span>
-          </button>
-        </form>
+        {!embed && (
+          <form action={signOut}>
+            <button
+              type="submit"
+              title="Sair"
+              className="shrink-0 rounded-xl px-3 py-1.5 text-sm text-neutral-400 transition hover:bg-red-950/40 hover:text-red-300"
+            >
+              🚪 <span className="hidden sm:inline">Sair</span>
+            </button>
+          </form>
+        )}
       </div>
     </header>
   );
