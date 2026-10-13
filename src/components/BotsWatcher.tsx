@@ -30,11 +30,21 @@ export default function BotsWatcher() {
         return;
       }
       if (!res.ok) return;
-      let body: { fired?: { id: string; silent: boolean; text: string; bot_name?: string }[] };
+      let body: { fired?: { id: string; silent: boolean; text: string; bot_name?: string }[]; games?: number };
       try {
         body = (await res.json()) as typeof body;
       } catch {
         return;
+      }
+      // Heartbeat so the Bots page can show the automatic pass is alive
+      // (last pass time + games seen), without pressing anything.
+      try {
+        window.localStorage.setItem(
+          "apostas:bots-watch",
+          JSON.stringify({ at: Date.now(), games: typeof body.games === "number" ? body.games : null })
+        );
+      } catch {
+        // Private mode: nothing persists.
       }
       // Cross-tab ping so other open tabs refresh their lists too (window
       // events never leave their own tab). Carries the alerts themselves so

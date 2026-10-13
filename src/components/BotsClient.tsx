@@ -39,6 +39,40 @@ interface DiagRow {
   fail: string;
 }
 
+// Shows the automatic watcher's heartbeat (last pass + games seen),
+// refreshing every few seconds. Stale = no open tab is watching.
+function WatchHeartbeat() {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
+  let at: number | null = null;
+  let games: number | null = null;
+  try {
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem("apostas:bots-watch") : null;
+    if (raw) {
+      const p = JSON.parse(raw) as { at?: unknown; games?: unknown };
+      if (typeof p.at === "number") at = p.at;
+      if (typeof p.games === "number") games = p.games;
+    }
+  } catch {
+    // No heartbeat yet.
+  }
+  if (now === null || at === null) return null;
+  const secs = Math.max(0, Math.round((now - at) / 1000));
+  const stale = secs > 180;
+  const age = secs < 10 ? "agora mesmo" : secs < 60 ? `há ${secs}s` : `há ${Math.floor(secs / 60)}min`;
+  return (
+    <span className={`text-xs ${stale ? "text-amber-300" : "text-neutral-500"}`}>
+      Passagem automática {age}
+      {games !== null && ` · ${games} jogo${games === 1 ? "" : "s"} vistos`}
+      {stale && " — sem separador a vigiar?"}
+    </span>
+  );
+}
+
 // Absolute birth time plus, after mount, the age ("há 1h05m"): the list is
 // history, and the age makes staleness obvious at a glance. Absolute first
 // so server and hydration renders match.
@@ -263,6 +297,7 @@ export default function BotsClient({
             : "Sem bots ativos: nada a vigiar."}{" "}
           {perm === "granted" ? "Notificações ligadas." : "Notificações desligadas (só a lista)."}
         </span>
+        <WatchHeartbeat />
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
