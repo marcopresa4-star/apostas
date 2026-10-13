@@ -102,6 +102,7 @@ export default async function DayMatrix({
   let table: MatrixLeague[] = [];
   let failed: string[] = [];
   let thin = 0;
+  let missedNames: string[] = [];
   if (Array.isArray(cached)) {
     table = cached as MatrixLeague[];
   } else {
@@ -111,6 +112,7 @@ export default async function DayMatrix({
     const failedSet = new Set<string>();
     const found: MatrixLeague[] = [];
     let thinCount = 0;
+    const missed = new Set<string>();
     // Same fixture source as the day board (round window, shared cache), so
     // the two views can never disagree on which games exist. History loads
     // only for leagues with games that day.
@@ -167,6 +169,8 @@ export default async function DayMatrix({
       for (const f of dayFx) {
         const home = convert(f.team1);
         const away = convert(f.team2);
+        if (!data.teams.includes(home)) missed.add(`${f.team1}→${home}`);
+        if (!data.teams.includes(away)) missed.add(`${f.team2}→${away}`);
         if (!data.teams.includes(home) || !data.teams.includes(away)) {
           thinCount++;
           continue;
@@ -211,6 +215,7 @@ export default async function DayMatrix({
     table = found;
     failed = [...failedSet];
     thin = thinCount;
+    missedNames = [...missed].slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
   }
 
@@ -258,6 +263,9 @@ export default async function DayMatrix({
           </Link>
         </span>
         {thin > 0 && <span>{thin} sem histórico suficiente ficam de fora.</span>}
+        {missedNames.length > 0 && (
+          <span className="text-amber-300">Nomes fora dos dados: {missedNames.join(" · ")}</span>
+        )}
         {failed.length > 0 && (
           <span className="text-amber-300">
             Sem leitura em {failed.length} liga{failed.length === 1 ? "" : "s"} — recarrega.
