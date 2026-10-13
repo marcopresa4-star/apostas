@@ -140,7 +140,7 @@ export default function BotForm({
     setD((prev) => {
       const stats = { ...prev.stats };
       if (k in stats) delete stats[k];
-      else stats[k] = k.startsWith("poss_") ? 55 : k === "pressure_recent" ? 6 : k === "corners_total" ? 5 : 3;
+      else stats[k] = k.startsWith("poss_") ? 55 : k === "pressure_recent" ? 6 : k === "corners_total" ? 5 : k === "big_total" ? 2 : 3;
       return { ...prev, stats };
     });
   };

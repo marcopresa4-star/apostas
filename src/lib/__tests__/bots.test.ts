@@ -136,3 +136,13 @@ describe("snapMinute", () => {
     expect(snapMinute("", "live", 33)).toBe(33);
   });
 });
+
+describe("statsOk big chances", () => {
+  it("passes on total, fails closed when missing", async () => {
+    const { statsOk, statOk } = await import("../bots");
+    expect(statOk("big_total", 2, { big_total: 3 })).toBe(true);
+    expect(statOk("big_total", 4, { big_total: 3 })).toBe(false);
+    expect(statOk("big_total", 1, {})).toBe(false);
+    expect(statsOk("and", [{ k: "big_total", v: 2 }], { big_total: 2 })).toBe(true);
+  });
+});

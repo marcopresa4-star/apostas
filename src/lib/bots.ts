@@ -106,6 +106,7 @@ export interface StatValues {
   poss_away: number;
   fouls_total: number;
   saves_total: number;
+  big_total: number;
   yellows_total: number;
   reds_total: number;
   pressure_recent: number;
@@ -238,6 +239,7 @@ export const BOT_STATS: { k: string; label: string; unit: string }[] = [
   { k: "reds_total", label: "Vermelhos (total) ≥", unit: "" },
   { k: "fouls_total", label: "Faltas (total) ≥", unit: "" },
   { k: "saves_total", label: "Defesas (total) ≥", unit: "" },
+  { k: "big_total", label: "Grandes oportunidades ≥", unit: "" },
 ];
 
 export const BOT_SCORES: { key: string; label: string }[] = [

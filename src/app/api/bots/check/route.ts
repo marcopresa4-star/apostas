@@ -98,6 +98,9 @@ function parseStats(body: unknown): Partial<StatValues> {
   put("Goalkeeper saves", (v) => {
     out.saves_total = v.home + v.away;
   });
+  put("Big chances", (v) => {
+    out.big_total = v.home + v.away;
+  });
   return out;
 }
 
