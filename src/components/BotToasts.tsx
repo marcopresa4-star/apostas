@@ -12,6 +12,7 @@ interface Toast {
   text: string;
   at: number;
   link?: string;
+  sticky?: boolean;
 }
 
 const MAX = 4;
@@ -21,14 +22,17 @@ export default function BotToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seen = useRef<Set<string>>(new Set());
 
-  const push = (id: string, bot: string, text: string, link?: string): void => {
+  const push = (id: string, bot: string, text: string, link?: string, sticky?: boolean): void => {
     if (seen.current.has(id)) return;
     seen.current.add(id);
-    const toast: Toast = { id, bot, text, at: Date.now(), link };
+    const toast: Toast = { id, bot, text, at: Date.now(), link, sticky };
     setToasts((prev) => [toast, ...prev.filter((t) => t.id !== toast.id)].slice(0, MAX));
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id || Date.now() - t.at < TTL_MS));
-    }, TTL_MS + 500);
+    // Goal toasts never expire on their own: only the ✕ takes them out.
+    if (!sticky) {
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== toast.id || Date.now() - t.at < TTL_MS));
+      }, TTL_MS + 500);
+    }
   };
 
   useEffect(() => {
@@ -39,13 +43,14 @@ export default function BotToasts() {
       // No URL access: listen normally.
     }
     const onAlert = (e: Event): void => {
-      const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown }>).detail;
+      const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown; sticky?: unknown }>).detail;
       if (!f || typeof f.id !== "string" || typeof f.text !== "string") return;
       push(
         f.id,
         typeof f.bot_name === "string" ? f.bot_name : "Bot",
         f.text,
-        typeof f.link === "string" ? f.link : undefined
+        typeof f.link === "string" ? f.link : undefined,
+        f.sticky === true
       );
     };
     window.addEventListener("apostas:bot-alert", onAlert);

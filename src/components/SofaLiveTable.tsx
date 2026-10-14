@@ -160,6 +160,7 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
                   id: `goal-${g.id}-${hg}-${ag}`,
                   bot_name: "Golo",
                   text: `⚽ Golo ${scorer ? `${scorer}! ` : ""}${g.home} ${hg}–${ag} ${g.away}`,
+                  sticky: true,
                 },
               })
             );
