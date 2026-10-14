@@ -8,6 +8,7 @@ import { addWatchedMatch } from "@/app/(app)/actions";
 import PinnedLiveStats from "./PinnedLiveStats";
 import PinnedMiniTable from "./PinnedMiniTable";
 import PinnedLineups from "./PinnedLineups";
+import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
@@ -118,6 +119,8 @@ function Btts({ value }: { value: number | null }) {
 const FAV_LEAGUES_KEY = "apostas:favLeagues";
 const PINNED_GAMES_KEY = "apostas:pinnedGames";
 const PINNED_COLS_KEY = "apostas:pinnedCols";
+// Manual order of the pinned cards (ids): new pins append at the end.
+const PINNED_ORDER_KEY = "apostas:pinnedOrder";
 
 // Pinned-card header with its own 30s score/minute poll (light read): the
 // board refreshes every 60s, so without this the score lags the bars, which
@@ -254,6 +257,16 @@ export default function SofaLiveTable({
   const [expandedTable, setExpandedTable] = useState<Set<number>>(new Set());
   const [expandedLineups, setExpandedLineups] = useState<Set<number>>(new Set());
   const [pinnedCols, setPinnedCols] = useState<1 | 2 | 3>(3);
+  const [pinOrder, setPinOrder] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PINNED_ORDER_KEY);
+      const list: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) setPinOrder(list.filter((x): x is string => typeof x === "string"));
+    } catch {
+      // Private mode: default order.
+    }
+  }, []);
   useEffect(() => {
     try {
       const v = Number(window.localStorage.getItem("apostas:pinnedCols"));
@@ -357,6 +370,23 @@ export default function SofaLiveTable({
   const isPinned = (g: SofaLiveEntry): boolean => pinned.has(String(g.id)) || autoSet.has(String(g.id));
   const pinnedRows = byKickoff.filter((g) => isPinned(g));
   const restRows = byKickoff.filter((g) => !isPinned(g));
+  // Manual order for the pinned block (ids not yet ordered go last, by
+  // kickoff): ‹ › on each card, remembered in this browser.
+  const pinnedKeys = sortByOrder(
+    pinnedRows.map((g) => String(g.id)),
+    pinOrder
+  );
+  const orderedPinned = pinnedKeys.flatMap((k) => pinnedRows.filter((g) => String(g.id) === k));
+  const movePin = (id: number, to: Move): void => {
+    const next = moveKey(pinnedKeys, String(id), to);
+    if (!next) return;
+    setPinOrder(next);
+    try {
+      window.localStorage.setItem(PINNED_ORDER_KEY, JSON.stringify(next));
+    } catch {
+      // Private mode: order just doesn't persist.
+    }
+  };
   // Stats start open on every pinned game (manual + auto): newly pinned ids
   // join the set, minimized ones are never re-added.
   const pinnedKey = pinnedRows.map((g) => g.id).join(",");
@@ -557,7 +587,7 @@ export default function SofaLiveTable({
               ))}
             </div>
             <div className="grid grid-cols-1 gap-3" style={{ gridTemplateColumns: `repeat(${pinnedCols}, minmax(0, 1fr))` }}>
-            {pinnedRows.map((g) => {
+            {orderedPinned.map((g) => {
               const d = detail[g.id];
               const f = form[g.id];
               const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
@@ -565,12 +595,28 @@ export default function SofaLiveTable({
                 <div key={g.id} className="min-w-0 rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <p className="truncate text-[11px] text-neutral-500">{leagueOf(g)}</p>
-                    <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="flex shrink-0 items-center gap-1">
                       {autoSet.has(String(g.id)) && !pinned.has(String(g.id)) && (
                         <span title="Afixado automático: jogo seguido, em direto" className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
                           auto
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => movePin(g.id, "earlier")}
+                        title="Passar para a esquerda"
+                        className="text-[11px] text-neutral-600 transition hover:text-neutral-200"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => movePin(g.id, "later")}
+                        title="Passar para a direita"
+                        className="text-[11px] text-neutral-600 transition hover:text-neutral-200"
+                      >
+                        ›
+                      </button>
                       <button
                         type="button"
                         onClick={() => togglePin(g)}
