@@ -138,7 +138,7 @@ export default async function DayDetail({
   });
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
-  const cacheKey = `daydetail:v2:${day}|${pais}|${ligaSel}`;
+  const cacheKey = `daydetail:v3:${day}|${pais}|${ligaSel}`;
   const cached = refresh ? null : await cacheGet(supabase, user.id, cacheKey, HOUR_MS / 2).catch(() => null);
   let table: DetailLeague[] = [];
   let failed: string[] = [];
@@ -310,7 +310,21 @@ export default async function DayDetail({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span>
-          {nRows} jogo{nRows === 1 ? "" : "s"} · GM/GS últimos 5 · GM-C em casa · GS-F fora · BTS nos últimos 10 · Frm-C últimos 5 em casa · Frm-F últimos 5 fora
+          {nRows} jogo{nRows === 1 ? "" : "s"} · GM/GS últimos 5 · GM-C em casa · GS-F fora · BTS nos últimos 10 · Frm-C últimos 5 em casa · Frm-F últimos 5 fora ·{" "}
+          <Link
+            href={`/estatisticas/jogos-dia?${new URLSearchParams({
+              data: day,
+              ...(pais ? { pais } : {}),
+              ...(ligaSel ? { liga: ligaSel } : {}),
+              ...(equipa ? { equipa } : {}),
+              ...(diretos ? { diretos: "1" } : {}),
+              vista: "detalhada",
+              refresh: "1",
+            })}`}
+            className="text-neutral-400 hover:text-neutral-200 hover:underline"
+          >
+            atualizar
+          </Link>
         </span>
         {truncated && <span className="text-amber-300">Limite de 60 leituras de odds: as restantes ficam a "—".</span>}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
