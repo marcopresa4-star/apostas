@@ -11,6 +11,7 @@ interface Toast {
   bot: string;
   text: string;
   at: number;
+  link?: string;
 }
 
 const MAX = 4;
@@ -20,10 +21,10 @@ export default function BotToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seen = useRef<Set<string>>(new Set());
 
-  const push = (id: string, bot: string, text: string): void => {
+  const push = (id: string, bot: string, text: string, link?: string): void => {
     if (seen.current.has(id)) return;
     seen.current.add(id);
-    const toast: Toast = { id, bot, text, at: Date.now() };
+    const toast: Toast = { id, bot, text, at: Date.now(), link };
     setToasts((prev) => [toast, ...prev.filter((t) => t.id !== toast.id)].slice(0, MAX));
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== toast.id || Date.now() - t.at < TTL_MS));
@@ -38,19 +39,29 @@ export default function BotToasts() {
       // No URL access: listen normally.
     }
     const onAlert = (e: Event): void => {
-      const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown }>).detail;
+      const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown }>).detail;
       if (!f || typeof f.id !== "string" || typeof f.text !== "string") return;
-      push(f.id, typeof f.bot_name === "string" ? f.bot_name : "Bot", f.text);
+      push(
+        f.id,
+        typeof f.bot_name === "string" ? f.bot_name : "Bot",
+        f.text,
+        typeof f.link === "string" ? f.link : undefined
+      );
     };
     window.addEventListener("apostas:bot-alert", onAlert);
     // Alerts another tab found (payload rides the ping): toast here too.
     const onStorage = (e: StorageEvent): void => {
       if (e.key !== "apostas:bots-ping" || !e.newValue) return;
       try {
-        const body = JSON.parse(e.newValue) as { alerts?: { id?: unknown; bot_name?: unknown; text?: unknown }[] };
+        const body = JSON.parse(e.newValue) as { alerts?: { id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown }[] };
         for (const f of body.alerts ?? []) {
           if (!f || typeof f.id !== "string" || typeof f.text !== "string") continue;
-          push(f.id, typeof f.bot_name === "string" ? f.bot_name : "Bot", f.text);
+          push(
+            f.id,
+            typeof f.bot_name === "string" ? f.bot_name : "Bot",
+            f.text,
+            typeof f.link === "string" ? f.link : undefined
+          );
         }
       } catch {
         // Malformed ping: the list refresh still runs on the Bots page.
@@ -84,9 +95,11 @@ export default function BotToasts() {
             </button>
           </div>
           <p className="mt-0.5 leading-snug text-neutral-200">{t.text}</p>
-          <Link href="/bots" className="mt-1 inline-block font-medium text-emerald-400 hover:underline">
-            Ver bots →
-          </Link>
+          {t.link && (
+            <Link href={t.link} className="mt-1 inline-block font-medium text-emerald-400 hover:underline">
+              Ver bots →
+            </Link>
+          )}
         </div>
       ))}
     </div>

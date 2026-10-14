@@ -154,7 +154,7 @@ export default function BotsClient({
           // Same in-site toast as the global watcher (bottom-right, every page).
           if (!f.silent) {
             try {
-              window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: f }));
+              window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: { ...f, link: "/bots" } }));
             } catch {
               // No listeners: the list keeps the alert.
             }

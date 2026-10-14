@@ -62,7 +62,7 @@ export default function BotsWatcher() {
             "apostas:bots-ping",
             JSON.stringify({
               at: Date.now(),
-              alerts: (body.fired ?? []).map((f) => ({ id: f.id, bot_name: f.bot_name, text: f.text })),
+              alerts: (body.fired ?? []).map((f) => ({ id: f.id, bot_name: f.bot_name, text: f.text, link: "/bots" })),
             })
           );
         } catch {
@@ -82,7 +82,7 @@ export default function BotsWatcher() {
         // In-site toast on every page + live list refresh on /bots.
         if (!f.silent) {
           try {
-            window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: f }));
+            window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: { ...f, link: "/bots" } }));
           } catch {
             // No listeners: the Bots page keeps the alert.
           }
