@@ -3,9 +3,6 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { predictLive } from "@/lib/liveModel";
-import { IncidentLances, MomentumBars, StatGroups } from "./PinnedLiveStats";
-import { parseStatRows } from "./LiveEvolutionChart";
-import type { GameIncident } from "@/app/api/sofascore/incidents/route";
 
 export interface MomentumPoint {
   minute: number;
@@ -890,7 +887,6 @@ export default function SofaScoreWidget({
   const [momentum, setMomentum] = useState<MomentumPoint[] | null>(null);
   const [stats, setStats] = useState<StatRow[] | null>(null);
   const [xg, setXg] = useState<XgShot[] | null>(null);
-  const [incidents, setIncidents] = useState<GameIncident[]>([]);
   // Fake-3D tilt of the 2D tracker (the embed is cross-origin: its inside
   // cannot be re-rendered, only tilted). Persisted in this browser, read after
   // mount so the server render matches (hydration).
@@ -989,26 +985,6 @@ export default function SofaScoreWidget({
     };
   }, [eventId]);
 
-  // Full incident timeline (lances + momentum markers): cheap light read on
-  // the same slow poll as the graphs above.
-  useEffect(() => {
-    let stop = false;
-    const load = (): void => {
-      fetch(`/api/sofascore/incidents?id=${eventId}`, { cache: "no-store" })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((body: { incidents?: GameIncident[] } | null) => {
-          if (!stop && body && Array.isArray(body.incidents)) setIncidents(body.incidents);
-        })
-        .catch(() => {});
-    };
-    load();
-    const id = setInterval(load, 120_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, [eventId]);
-
   // Kickoff time for upcoming games ("Por começar · Amanhã 19:45"): the event
   // route already returns it as meta, timezone-free ISO (UTC).
   const kickoffLabel = (iso: string): string => {
@@ -1076,32 +1052,31 @@ export default function SofaScoreWidget({
   const hasXg = xgShots.some((s) => s.xg !== null);
   const xgTotal = (isHome: boolean): number =>
     xgShots.filter((s) => s.home === isHome).reduce((n, s) => n + (s.xg ?? 0), 0);
+  const phase =
+    !state || state.phase === "live"
+      ? state?.minute !== null && state?.minute !== undefined
+        ? `${state.minute}'`
+        : "Em direto"
+      : state.phase === "halftime"
+        ? "Intervalo"
+        : state.phase === "finished"
+          ? "Terminado"
+          : state.phase === "upcoming"
+            ? kickoff
+              ? `Por começar · ${kickoffLabel(kickoff)}`
+              : "Por começar"
+            : state.raw.statusText || "";
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      <div className="border-b border-neutral-800 px-4 py-2.5">
-        <div className="mb-2">
-          {state?.phase === "halftime" ? (
-            <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
-          ) : state?.phase === "live" && state.minute !== null && state.minute !== undefined ? (
-            <span className="text-xs font-semibold text-red-400">● {state.minute}&apos; AO VIVO</span>
-          ) : state?.phase === "live" ? (
-            <span className="text-xs font-semibold text-red-400">● Em direto</span>
-          ) : state?.phase === "finished" ? (
-            <span className="text-xs font-semibold text-neutral-400">Terminado</span>
-          ) : state?.phase === "upcoming" ? (
-            <span className="text-xs font-semibold text-neutral-400">
-              {kickoff ? `Por começar · ${kickoffLabel(kickoff)}` : "Por começar"}
-            </span>
-          ) : null}
-        </div>
-        <p className="truncate text-sm text-neutral-200">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-neutral-800 bg-gradient-to-b from-neutral-800/50 to-transparent px-4 py-2.5">
+        <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
           {homeName}
           {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
         </p>
-        <div className="my-1 flex items-baseline gap-2">
+        <div className="flex flex-col items-center px-1">
           {score !== null ? (
-            <span key={score} className="score-pop text-2xl font-bold tabular-nums text-emerald-400">
+            <span key={score} className="score-pop text-2xl font-extrabold tabular-nums text-neutral-50">
               {score}
             </span>
           ) : (
@@ -1113,10 +1088,28 @@ export default function SofaScoreWidget({
             </span>
           )}
         </div>
-        <p className="truncate text-sm text-neutral-200">
-          {awayName}
-          {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="ml-1 text-xs">🟥</span>}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-red-200">
+            {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="mr-1 text-xs">🟥</span>}
+            {awayName}
+          </p>
+          {phase && (
+            <span
+              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
+                state?.phase === "live"
+                  ? "bg-red-500/15 text-red-300"
+                  : state?.phase === "halftime"
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-neutral-800 text-neutral-400"
+              }`}
+            >
+              {state?.phase === "live" && (
+                <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+              )}
+              {phase}
+            </span>
+          )}
+        </div>
       </div>
 
       {state && (state.phase === "live" || state.phase === "halftime") && (
@@ -1129,27 +1122,6 @@ export default function SofaScoreWidget({
           homeName={homeName}
           awayName={awayName}
         />
-      )}
-
-      {(momentum !== null || incidents.length > 0) && (
-        <div className="border-b border-neutral-800 px-4 py-3">
-          <MomentumBars
-            points={momentum ?? []}
-            incidents={incidents}
-            home={homeName}
-            away={awayName}
-          />
-          <IncidentLances incidents={incidents} />
-          <StatGroups
-            stats={parseStatRows(
-              (stats ?? []).map((s) => ({ name: s.name, home: s.home, away: s.away }))
-            )}
-            yellows={{
-              home: typeof state?.yellows?.home === "number" ? state.yellows.home : null,
-              away: typeof state?.yellows?.away === "number" ? state.yellows.away : null,
-            }}
-          />
-        </div>
       )}
 
       {hasTracker !== false && showMap && (

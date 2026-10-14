@@ -66,9 +66,8 @@ function BarRow({ home, away, label, pct }: { home: number | null; away: number 
 }
 
 // Attack momentum as bars (home up, away down) with goal/card markers and
-// per-layer toggles in the legend. Shared by the pinned cards and the Jogos
-// widgets.
-export function MomentumBars({
+// per-layer toggles in the legend.
+function MomentumBars({
   points,
   incidents,
   home,
@@ -153,7 +152,7 @@ export function MomentumBars({
   );
 }
 
-export function IncidentLances({ incidents }: { incidents: GameIncident[] }) {
+function Lances({ incidents }: { incidents: GameIncident[] }) {
   const rows = incidents.filter((i) => i.kind === "goal" || i.kind === "yellow" || i.kind === "red").slice().reverse();
   if (rows.length === 0) return null;
   const second = rows.filter((r) => r.minute > 45);
@@ -189,37 +188,6 @@ async function readJson(url: string): Promise<unknown | null> {
   } catch {
     return null;
   }
-}
-
-// Grouped stat bars (Domínio/Remates/Bolas paradas/Disciplina), photo-style.
-// Shared by the pinned cards and the Jogos widgets.
-export function StatGroups({
-  stats,
-  yellows,
-}: {
-  stats: Record<string, { home: number | null; away: number | null }>;
-  yellows: { home: number | null; away: number | null };
-}) {
-  const val = (key: string): { home: number | null; away: number | null } =>
-    key === "__yellows" ? yellows : (stats[key] ?? { home: null, away: null });
-  return (
-    <>
-      {GROUPS.map((g) => {
-        const rows = g.rows
-          .map((r) => ({ ...r, v: val(r.key) }))
-          .filter((r) => r.v.home !== null || r.v.away !== null);
-        if (rows.length === 0) return null;
-        return (
-          <div key={g.title} className="mt-2 rounded-lg bg-neutral-900 px-3 py-2">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{g.title}</p>
-            {rows.map((r) => (
-              <BarRow key={r.key} home={r.v.home} away={r.v.away} label={r.label} pct={r.pct} />
-            ))}
-          </div>
-        );
-      })}
-    </>
-  );
 }
 
 export default function PinnedLiveStats({
@@ -280,6 +248,8 @@ export default function PinnedLiveStats({
     };
   }, [eventId]);
 
+  const val = (key: string): StatVals =>
+    key === "__yellows" ? yellows : (stats[key] ?? { home: null, away: null });
   const pair = (s: StatVals): string => `${s.home ?? 0}–${s.away ?? 0}`;
   const shots = stats["Remates"] ?? { home: null, away: null };
   const corners = stats["Cantos"] ?? { home: null, away: null };
@@ -302,8 +272,21 @@ export default function PinnedLiveStats({
           ⛔ {pair(fouls)}
         </span>
       </div>
-      <IncidentLances incidents={incidents} />
-      <StatGroups stats={stats} yellows={yellows} />
+      <Lances incidents={incidents} />
+      {GROUPS.map((g) => {
+        const rows = g.rows
+          .map((r) => ({ ...r, v: val(r.key) }))
+          .filter((r) => r.v.home !== null || r.v.away !== null);
+        if (rows.length === 0) return null;
+        return (
+          <div key={g.title} className="mt-2 rounded-lg bg-neutral-900 px-3 py-2">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{g.title}</p>
+            {rows.map((r) => (
+              <BarRow key={r.key} home={r.v.home} away={r.v.away} label={r.label} pct={r.pct} />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
