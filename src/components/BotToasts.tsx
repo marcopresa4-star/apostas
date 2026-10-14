@@ -17,6 +17,29 @@ interface Toast {
 
 const MAX = 4;
 const TTL_MS = 15_000;
+// Sticky (goal) toasts survive reloads: reloaded only if recent enough.
+const STICKY_KEY = "apostas:stickyToasts";
+const STICKY_MAX_AGE_MS = 24 * 3_600_000;
+
+function loadSticky(): Toast[] {
+  try {
+    const raw = window.localStorage.getItem(STICKY_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw) as Toast[];
+    if (!Array.isArray(list)) return [];
+    const now = Date.now();
+    return list.filter(
+      (t) =>
+        t &&
+        typeof t.id === "string" &&
+        typeof t.text === "string" &&
+        typeof t.at === "number" &&
+        now - t.at < STICKY_MAX_AGE_MS
+    );
+  } catch {
+    return [];
+  }
+}
 
 export default function BotToasts() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -41,6 +64,12 @@ export default function BotToasts() {
       if (new URLSearchParams(window.location.search).get("embed") === "1") return;
     } catch {
       // No URL access: listen normally.
+    }
+    // Sticky toasts survive reloads (a code pull wipes in-memory state).
+    const restored = loadSticky();
+    if (restored.length > 0) {
+      for (const t of restored) seen.current.add(t.id);
+      setToasts((prev) => [...restored, ...prev].slice(0, MAX));
     }
     const onAlert = (e: Event): void => {
       const f = (e as CustomEvent<{ id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown; sticky?: unknown }>).detail;
@@ -79,6 +108,15 @@ export default function BotToasts() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist sticky toasts every change (dismissals included).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STICKY_KEY, JSON.stringify(toasts.filter((t) => t.sticky)));
+    } catch {
+      // Private mode: persistence just doesn't happen.
+    }
+  }, [toasts]);
 
   if (toasts.length === 0) return null;
   return (
