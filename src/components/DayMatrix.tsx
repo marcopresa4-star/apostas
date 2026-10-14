@@ -25,6 +25,7 @@ interface MatrixRow {
   ft: [number, number] | null;
   cells: Record<string, number>;
   games: number;
+  fragile: boolean;
 }
 
 interface MatrixLeague {
@@ -101,9 +102,7 @@ export default async function DayMatrix({
     : await cacheGet(supabase, user.id, cacheKey, HOUR_MS).catch(() => null);
   let table: MatrixLeague[] = [];
   let failed: string[] = [];
-  let thin = 0;
   let missedNames: string[] = [];
-  let thinDetail: string[] = [];
   if (Array.isArray(cached)) {
     table = cached as MatrixLeague[];
   } else {
@@ -112,9 +111,7 @@ export default async function DayMatrix({
     const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
     const failedSet = new Set<string>();
     const found: MatrixLeague[] = [];
-    let thinCount = 0;
     const missed = new Set<string>();
-    const thinNames: string[] = [];
     // Same fixture source as the day board (round window, shared cache), so
     // the two views can never disagree on which games exist. History loads
     // only for leagues with games that day.
@@ -174,16 +171,13 @@ export default async function DayMatrix({
         if (!data.teams.includes(home)) missed.add(`${f.team1}→${home}`);
         if (!data.teams.includes(away)) missed.add(`${f.team2}→${away}`);
         if (!data.teams.includes(home) || !data.teams.includes(away)) {
-          thinCount++;
           continue;
         }
         const prediction = predict(data.matches, home, away, now);
         const games = Math.min(prediction.gamesHome, prediction.gamesAway);
-        if (games < MIN_GAMES) {
-          thinCount++;
-          thinNames.push(`${home} ${prediction.gamesHome} · ${away} ${prediction.gamesAway}`);
-          continue;
-        }
+        // Cups early on: little same-competition history is shown dimmed
+        // with a tag (like Comparar's fragile estimates), never hidden.
+        const fragile = games < MIN_GAMES;
         const lh = prediction.lambdaHome;
         const la = prediction.lambdaAway;
         const h1 = lh * fhs;
@@ -208,6 +202,7 @@ export default async function DayMatrix({
           ft: null,
           cells,
           games,
+          fragile,
         });
       }
       if (rows.length > 0) {
@@ -217,9 +212,7 @@ export default async function DayMatrix({
     });
     table = found;
     failed = [...failedSet];
-    thin = thinCount;
     missedNames = [...missed].slice(0, 12);
-    thinDetail = thinNames.slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
   }
 
@@ -266,11 +259,6 @@ export default async function DayMatrix({
             atualizar
           </Link>
         </span>
-        {thin > 0 && (
-          <span title={thinDetail.join(" · ")}>
-            {thin} sem histórico suficiente ficam de fora{thinDetail.length > 0 ? `: ${thinDetail.join(" · ")}` : "."}
-          </span>
-        )}
         {missedNames.length > 0 && (
           <span className="text-amber-300">Nomes fora dos dados: {missedNames.join(" · ")}</span>
         )}
@@ -281,8 +269,9 @@ export default async function DayMatrix({
         )}
       </div>
       <p className="max-w-4xl text-[11px] leading-relaxed text-neutral-500">
-        Sem colunas de cantos/cartões: o histórico não traz esses dados. Sem odds reais aqui (isso é uma leitura por
-        jogo: vai ao Value ou ao Comparar).
+        Linhas esbatidas: menos de 5 jogos desta competição nos dados — estimativa frágil (Roma e Porto, por exemplo,
+        andavam na Liga Europa). Sem colunas de cantos/cartões: o histórico não traz esses dados. Sem odds reais aqui
+        (isso é uma leitura por jogo: vai ao Value ou ao Comparar).
       </p>
       {shown.length === 0 ? (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
@@ -307,12 +296,17 @@ export default async function DayMatrix({
               </thead>
               <tbody className="divide-y divide-neutral-800/60">
                 {l.rows.map((r) => (
-                  <tr key={`${r.home}|${r.away}|${r.time ?? ""}`} className="transition-colors hover:bg-neutral-800/40">
+                  <tr key={`${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
                     <td className="min-w-52 px-4 py-2">
                       <span className="mr-2 tabular-nums text-neutral-500">{r.time ? r.time.slice(0, 5) : "—"}</span>
                       <span className="text-neutral-100">
                         {r.home} <span className="text-neutral-600">vs</span> {r.away}
                       </span>
+                      {r.fragile && (
+                        <span title={`Só ${r.games} jogo${r.games === 1 ? "" : "s"} desta competição nos dados`} className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                          poucos jogos
+                        </span>
+                      )}
                     </td>
                     {COLS.map((c) => {
                       const p = r.cells[c.key] ?? 0;
