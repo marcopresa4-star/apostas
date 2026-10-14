@@ -82,6 +82,30 @@ export function fixtureEventId(f: Fixture): number | null {
   return typeof sid === "number" && Number.isInteger(sid) && sid > 0 ? sid : null;
 }
 
+// Union of round fixtures with the team-events supplement: same game twice
+// collapses by event id (then by date+teams), so silent round holes fill in
+// without duplicating anything.
+function unionFixtures(
+  base: SofaFixtureWithId[],
+  extra: SofaFixtureWithId[]
+): SofaFixtureWithId[] {
+  const seen = new Set<string>();
+  const out: SofaFixtureWithId[] = [];
+  for (const f of [...base, ...extra]) {
+    const key = f.sid > 0 ? `id:${f.sid}` : `${f.date}|${f.team1}|${f.team2}|${f.ft ? f.ft.join("-") : "-"}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(f);
+  }
+  return out;
+}
+
+function shiftDays(iso: string, by: number): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + by);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export async function loadSofaLeague(
   supabase: SupabaseClient,
   userId: string,
@@ -157,9 +181,14 @@ export async function loadSofaLeague(
 
   // Seasons with no rounds on SofaScore (MLS 2026 lists none): the round path
   // above finds no fixtures and no results for the season being played.
-  // Collect it from the teams' own event lists instead (league games only).
+  // Same when rounds go quiet while games exist (cup knockouts whose round
+  // endpoints come back empty): then the teams' own event lists still carry
+  // them. Collect from the teams instead (league games only), as a full
+  // replacement when rounds say nothing at all, or unioned on top otherwise.
   let fallback: { results: PlayedMatch[]; fixtures: Fixture[] } | null = null;
-  if (currentFx.length === 0) {
+  const todayStr = todayISO(new Date());
+  const nearTerm = currentFx.some((f) => f.date >= shiftDays(todayStr, -7) && f.date <= shiftDays(todayStr, 60));
+  if (currentFx.length === 0 || !nearTerm) {
     const rows = await seasonStandings(supabase, userId, uniqueId, current.id, true, tracker).catch(() => []);
     const names = [...new Set(rows.map((r) => r.team))];
     const { resolved: teamIdByName } = await resolveLeagueTeamIds(supabase, userId, teamMaps, names).catch(
@@ -195,8 +224,8 @@ export async function loadSofaLeague(
 
   const fixtures: Fixture[] = !wantFixtures
     ? []
-    : currentFx.length > 0
-      ? currentFx.map(
+    : unionFixtures(
+        currentFx.map(
           (f): SofaFixtureWithId => ({
             date: f.date,
             team1: convert(f.team1),
@@ -206,8 +235,9 @@ export async function loadSofaLeague(
             time: f.time ?? undefined,
             sid: f.id,
           })
-        )
-      : (fallback?.fixtures ?? []).map((f) => convertFixture(f));
+        ),
+        (fallback?.fixtures ?? []).map((f) => convertFixture(f))
+      );
 
   const order: string[] = [];
   const teamSource = wantFixtures ? fixtures : matches;
