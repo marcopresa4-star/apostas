@@ -1052,31 +1052,32 @@ export default function SofaScoreWidget({
   const hasXg = xgShots.some((s) => s.xg !== null);
   const xgTotal = (isHome: boolean): number =>
     xgShots.filter((s) => s.home === isHome).reduce((n, s) => n + (s.xg ?? 0), 0);
-  const phase =
-    !state || state.phase === "live"
-      ? state?.minute !== null && state?.minute !== undefined
-        ? `${state.minute}'`
-        : "Em direto"
-      : state.phase === "halftime"
-        ? "Intervalo"
-        : state.phase === "finished"
-          ? "Terminado"
-          : state.phase === "upcoming"
-            ? kickoff
-              ? `Por começar · ${kickoffLabel(kickoff)}`
-              : "Por começar"
-            : state.raw.statusText || "";
 
   return (
     <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-neutral-800 bg-gradient-to-b from-neutral-800/50 to-transparent px-4 py-2.5">
-        <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
+      <div className="border-b border-neutral-800 px-4 py-2.5">
+        <div className="mb-2">
+          {state?.phase === "halftime" ? (
+            <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
+          ) : state?.phase === "live" && state.minute !== null && state.minute !== undefined ? (
+            <span className="text-xs font-semibold text-red-400">● {state.minute}&apos; AO VIVO</span>
+          ) : state?.phase === "live" ? (
+            <span className="text-xs font-semibold text-red-400">● Em direto</span>
+          ) : state?.phase === "finished" ? (
+            <span className="text-xs font-semibold text-neutral-400">Terminado</span>
+          ) : state?.phase === "upcoming" ? (
+            <span className="text-xs font-semibold text-neutral-400">
+              {kickoff ? `Por começar · ${kickoffLabel(kickoff)}` : "Por começar"}
+            </span>
+          ) : null}
+        </div>
+        <p className="truncate text-sm text-neutral-200">
           {homeName}
           {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
         </p>
-        <div className="flex flex-col items-center px-1">
+        <div className="my-1 flex items-baseline gap-2">
           {score !== null ? (
-            <span key={score} className="score-pop text-2xl font-extrabold tabular-nums text-neutral-50">
+            <span key={score} className="score-pop text-2xl font-bold tabular-nums text-emerald-400">
               {score}
             </span>
           ) : (
@@ -1088,28 +1089,10 @@ export default function SofaScoreWidget({
             </span>
           )}
         </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-red-200">
-            {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="mr-1 text-xs">🟥</span>}
-            {awayName}
-          </p>
-          {phase && (
-            <span
-              className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${
-                state?.phase === "live"
-                  ? "bg-red-500/15 text-red-300"
-                  : state?.phase === "halftime"
-                    ? "bg-emerald-500/15 text-emerald-300"
-                    : "bg-neutral-800 text-neutral-400"
-              }`}
-            >
-              {state?.phase === "live" && (
-                <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
-              )}
-              {phase}
-            </span>
-          )}
-        </div>
+        <p className="truncate text-sm text-neutral-200">
+          {awayName}
+          {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="ml-1 text-xs">🟥</span>}
+        </p>
       </div>
 
       {state && (state.phase === "live" || state.phase === "halftime") && (
