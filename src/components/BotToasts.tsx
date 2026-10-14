@@ -87,14 +87,15 @@ export default function BotToasts() {
     const onStorage = (e: StorageEvent): void => {
       if (e.key !== "apostas:bots-ping" || !e.newValue) return;
       try {
-        const body = JSON.parse(e.newValue) as { alerts?: { id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown }[] };
+        const body = JSON.parse(e.newValue) as { alerts?: { id?: unknown; bot_name?: unknown; text?: unknown; link?: unknown; sticky?: unknown }[] };
         for (const f of body.alerts ?? []) {
           if (!f || typeof f.id !== "string" || typeof f.text !== "string") continue;
           push(
             f.id,
             typeof f.bot_name === "string" ? f.bot_name : "Bot",
             f.text,
-            typeof f.link === "string" ? f.link : undefined
+            typeof f.link === "string" ? f.link : undefined,
+            f.sticky === true
           );
         }
       } catch {
