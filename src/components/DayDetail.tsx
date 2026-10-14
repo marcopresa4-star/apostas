@@ -211,6 +211,10 @@ export default async function DayDetail({
           (m) =>
             (venue !== "A" && m.team1 === team) || (venue !== "H" && m.team2 === team)
         );
+      // Newest first, like every football app: the leftmost dot is the most
+      // recent game.
+      const last5 = (team: string, venue: "H" | "A" | null): PlayedMatch[] =>
+        teamGames(team, venue).slice(-5).reverse();
       const avg = (ms: PlayedMatch[], f: (m: PlayedMatch) => number): number | null =>
         ms.length === 0 ? null : ms.reduce((s, m) => s + f(m), 0) / ms.length;
       const res = (team: string, m: PlayedMatch): { r: "V" | "E" | "D"; date: string; opp: string } => {
@@ -269,8 +273,8 @@ export default async function DayDetail({
           gmC,
           gsF,
           btts,
-          formH: hHome.map((m) => res(home, m)),
-          formF: aAway.map((m) => res(away, m)),
+          formH: last5(home, "H").map((m) => res(home, m)),
+          formF: last5(away, "A").map((m) => res(away, m)),
           o1,
           oX,
           o2,
