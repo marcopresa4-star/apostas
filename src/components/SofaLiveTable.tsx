@@ -293,6 +293,23 @@ export default function SofaLiveTable({
   const isPinned = (g: SofaLiveEntry): boolean => pinned.has(String(g.id)) || autoSet.has(String(g.id));
   const pinnedRows = byKickoff.filter((g) => isPinned(g));
   const restRows = byKickoff.filter((g) => !isPinned(g));
+  // Stats start open on every pinned game (manual + auto): newly pinned ids
+  // join the set, minimized ones are never re-added.
+  const pinnedKey = pinnedRows.map((g) => g.id).join(",");
+  useEffect(() => {
+    if (!pinnedKey) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of pinnedKey.split(",").map(Number)) {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [pinnedKey]);
   // Groups in order of appearance.
   const groups = useMemo(() => {
     const out: { league: string; games: SofaLiveEntry[] }[] = [];
