@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import type { ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
 import PinnedLiveStats from "./PinnedLiveStats";
@@ -118,52 +117,6 @@ function Btts({ value }: { value: number | null }) {
 // to; games can be pinned (📌) to the top. Both persist in this browser.
 const FAV_LEAGUES_KEY = "apostas:favLeagues";
 const PINNED_GAMES_KEY = "apostas:pinnedGames";
-const PINNED_SIZE_KEY = "apostas:pinnedCardSize";
-
-// Manual resize wrapper for pinned cards (native drag handle, bottom-right):
-// width/height persist per game in this browser. Flex row (not grid) so a
-// card can actually grow sideways.
-function Resizable({ id, children }: { id: number; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    try {
-      const raw = window.localStorage.getItem(PINNED_SIZE_KEY);
-      const saved = raw ? (JSON.parse(raw) as Record<string, { w?: unknown; h?: unknown }>) : {};
-      const s = saved[String(id)];
-      if (s && typeof s.w === "number") el.style.width = `${Math.min(920, Math.max(240, s.w))}px`;
-      if (s && typeof s.h === "number") el.style.height = `${Math.max(180, s.h)}px`;
-    } catch {
-      // Private mode: default size.
-    }
-    const save = (): void => {
-      try {
-        const raw = window.localStorage.getItem(PINNED_SIZE_KEY);
-        const saved = raw ? (JSON.parse(raw) as Record<string, { w?: unknown; h?: unknown }>) : {};
-        const r = el.getBoundingClientRect();
-        saved[String(id)] = { w: Math.round(r.width), h: Math.round(r.height) };
-        window.localStorage.setItem(PINNED_SIZE_KEY, JSON.stringify(saved));
-      } catch {
-        // Private mode: size just doesn't persist.
-      }
-    };
-    const ro = new ResizeObserver(() => save());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [id]);
-  return (
-    <div
-      ref={ref}
-      style={{ resize: "both", overflow: "auto", minWidth: 240, minHeight: 180 }}
-      className="w-[21rem] max-w-full shrink-0 grow-0"
-      title="Arrasta o canto inferior direito para redimensionar"
-    >
-      {children}
-    </div>
-  );
-}
-
 function loadSet(key: string): Set<string> {
   try {
     const raw = localStorage.getItem(key);
@@ -206,6 +159,23 @@ export default function SofaLiveTable({
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [expandedTable, setExpandedTable] = useState<Set<number>>(new Set());
   const [expandedLineups, setExpandedLineups] = useState<Set<number>>(new Set());
+  const [pinnedCols, setPinnedCols] = useState<1 | 2 | 3>(3);
+  useEffect(() => {
+    try {
+      const v = Number(window.localStorage.getItem("apostas:pinnedCols"));
+      if (v === 1 || v === 2 || v === 3) setPinnedCols(v);
+    } catch {
+      // Private mode: default stands.
+    }
+  }, []);
+  const setCols = (n: 1 | 2 | 3): void => {
+    setPinnedCols(n);
+    try {
+      window.localStorage.setItem("apostas:pinnedCols", String(n));
+    } catch {
+      // Private mode: just this session.
+    }
+  };
   useEffect(() => {
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
@@ -473,14 +443,32 @@ export default function SofaLiveTable({
       </div>
       <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
         {pinnedRows.length > 0 && (
-          <div className="flex flex-wrap gap-3 border-b border-neutral-800 p-4">
+          <div className="border-b border-neutral-800 p-4">
+            <div className="mb-2 flex items-center gap-1.5">
+              <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Afixados por linha</span>
+              {([1, 2, 3] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setCols(n)}
+                  title={`${n} por linha`}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    pinnedCols === n
+                      ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
+                      : "border border-neutral-700 text-neutral-400 hover:text-neutral-200"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3" style={{ gridTemplateColumns: `repeat(${pinnedCols}, minmax(0, 1fr))` }}>
             {pinnedRows.map((g) => {
               const d = detail[g.id];
               const f = form[g.id];
               const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
               return (
-                <Resizable key={g.id} id={g.id}>
-                <div className="h-full rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
+                <div key={g.id} className="min-w-0 rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <p className="truncate text-[11px] text-neutral-500">{leagueOf(g)}</p>
                     <span className="flex shrink-0 items-center gap-1.5">
@@ -580,9 +568,9 @@ export default function SofaLiveTable({
                   {expandedLineups.has(g.id) && <PinnedLineups eventId={g.id} homeName={g.home} awayName={g.away} />}
                   {expanded.has(g.id) && <PinnedLiveStats eventId={g.id} homeName={g.home} awayName={g.away} />}
                 </div>
-                </Resizable>
               );
             })}
+            </div>
           </div>
         )}
         <table className="w-full min-w-[64rem] text-sm">
