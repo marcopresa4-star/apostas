@@ -253,8 +253,8 @@ export default async function DayDetail({
           gmC,
           gsF,
           btts,
-          formH: hAll.map((m) => res(home, m)),
-          formF: aAll.map((m) => res(away, m)),
+          formH: hHome.map((m) => res(home, m)),
+          formF: aAway.map((m) => res(away, m)),
           o1,
           oX,
           o2,
@@ -292,7 +292,7 @@ export default async function DayDetail({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span>
-          {nRows} jogo{nRows === 1 ? "" : "s"} · GM/GS últimos 5 da casa · GM-C em casa · GS-F fora · BTS nos últimos 10
+          {nRows} jogo{nRows === 1 ? "" : "s"} · GM/GS últimos 5 · GM-C em casa · GS-F fora · BTS nos últimos 10 · Frm-C últimos 5 em casa · Frm-F últimos 5 fora
         </span>
         {truncated && <span className="text-amber-300">Limite de 60 leituras de odds: as restantes ficam a "—".</span>}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
