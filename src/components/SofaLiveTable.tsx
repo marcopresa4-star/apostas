@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
 import PinnedLiveStats from "./PinnedLiveStats";
+import PinnedMiniTable from "./PinnedMiniTable";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
@@ -198,6 +199,7 @@ export default function SofaLiveTable({
   const [favLeagues, setFavLeagues] = useState<Set<string>>(new Set());
   const [pinned, setPinned] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [expandedTable, setExpandedTable] = useState<Set<number>>(new Set());
   useEffect(() => {
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
@@ -440,6 +442,7 @@ export default function SofaLiveTable({
           <div className="flex flex-wrap gap-3 border-b border-neutral-800 p-4">
             {pinnedRows.map((g) => {
               const d = detail[g.id];
+              const f = form[g.id];
               const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
               return (
                 <Resizable key={g.id} id={g.id}>
@@ -476,22 +479,48 @@ export default function SofaLiveTable({
                     <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
                       Analisar no live →
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpanded((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(g.id)) next.delete(g.id);
-                          else next.add(g.id);
-                          return next;
-                        })
-                      }
-                      title={expanded.has(g.id) ? "Esconder estatísticas" : "Ver momentum e estatísticas"}
-                      className="shrink-0 text-xs font-medium text-sky-400 hover:underline"
-                    >
-                      {expanded.has(g.id) ? "Esconder ▲" : "Stats ▼"}
-                    </button>
+                    <span className="flex shrink-0 gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedTable((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(g.id)) next.delete(g.id);
+                            else next.add(g.id);
+                            return next;
+                          })
+                        }
+                        title={expandedTable.has(g.id) ? "Esconder tabela" : "Ver tabela da liga"}
+                        className="shrink-0 text-xs font-medium text-amber-300 hover:underline"
+                      >
+                        {expandedTable.has(g.id) ? "Esconder ▲" : "Tabela ▼"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpanded((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(g.id)) next.delete(g.id);
+                            else next.add(g.id);
+                            return next;
+                          })
+                        }
+                        title={expanded.has(g.id) ? "Esconder estatísticas" : "Ver momentum e estatísticas"}
+                        className="shrink-0 text-xs font-medium text-sky-400 hover:underline"
+                      >
+                        {expanded.has(g.id) ? "Esconder ▲" : "Stats ▼"}
+                      </button>
+                    </span>
                   </div>
+                  {expandedTable.has(g.id) && (
+                    <PinnedMiniTable
+                      eventId={g.id}
+                      homeName={g.home}
+                      awayName={g.away}
+                      formHome={f?.home ?? []}
+                      formAway={f?.away ?? []}
+                    />
+                  )}
                   {expanded.has(g.id) && <PinnedLiveStats eventId={g.id} homeName={g.home} awayName={g.away} />}
                 </div>
                 </Resizable>
