@@ -87,15 +87,21 @@ function Dots({ form, title }: { form: { r: "V" | "E" | "D"; date: string; opp: 
   if (form.length === 0) return <span className="text-neutral-700">—</span>;
   return (
     <span className="inline-flex gap-0.5" title={title}>
-      {form.map((g, i) => (
-        <span
-          key={i}
-          title={`${g.date.slice(8, 10)}/${g.date.slice(5, 7)} vs ${g.opp} (${g.r})`}
-          className={`flex h-4 w-4 cursor-default items-center justify-center rounded text-[9px] font-bold text-white ${FORM_CLS[g.r]}`}
-        >
-          {g.r}
-        </span>
-      ))}
+      {form.map((g, i) => {
+        const when =
+          g && typeof g.date === "string" && g.date.length >= 10
+            ? `${g.date.slice(8, 10)}/${g.date.slice(5, 7)} vs ${typeof g.opp === "string" ? g.opp : "?"} (${g.r})`
+            : String(g?.r ?? "?");
+        return (
+          <span
+            key={i}
+            title={when}
+            className={`flex h-4 w-4 cursor-default items-center justify-center rounded text-[9px] font-bold text-white ${FORM_CLS[g?.r ?? "E"]}`}
+          >
+            {g?.r ?? "?"}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -132,7 +138,7 @@ export default async function DayDetail({
   });
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
-  const cacheKey = `daydetail:${day}|${pais}|${ligaSel}`;
+  const cacheKey = `daydetail:v2:${day}|${pais}|${ligaSel}`;
   const cached = refresh ? null : await cacheGet(supabase, user.id, cacheKey, HOUR_MS / 2).catch(() => null);
   let table: DetailLeague[] = [];
   let failed: string[] = [];
