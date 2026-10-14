@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { predictLive } from "@/lib/liveModel";
 
-interface MomentumPoint {
+export interface MomentumPoint {
   minute: number;
   value: number;
 }
@@ -722,7 +722,7 @@ function XgChart({
 // below = away), drawn from /api/sofascore/graph. The fill is split by side
 // (blue above, red below), the line draws itself in, a dashed cursor marks
 // the current minute, and hovering reads the pressure at that minute.
-function MomentumChart({
+export function MomentumChart({
   points,
   home,
   away,

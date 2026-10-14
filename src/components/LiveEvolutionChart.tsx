@@ -64,7 +64,7 @@ export function parseStatRows(rows: { name?: unknown; home?: unknown; away?: unk
     };
   };
   const out: Record<string, { home: number | null; away: number | null }> = {};
-  for (const name of ["Remates", "Remates à baliza", "Cantos", "Posse de bola", "Faltas", "Defesas", "Cruzamentos", "Foras de jogo"]) {
+  for (const name of ["Remates", "Remates à baliza", "Cantos", "Posse de bola", "Faltas", "Defesas", "Cruzamentos", "Foras de jogo", "Grandes chances"]) {
     out[name] = { home: f(name, "home"), away: f(name, "away") };
   }
   // Accuracies: the parenthesised % when present, else accurate/total.

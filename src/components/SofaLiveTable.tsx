@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
+import PinnedLiveStats from "./PinnedLiveStats";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
@@ -150,6 +151,7 @@ export default function SofaLiveTable({
   // initializer would disagree with the server and break hydration.
   const [favLeagues, setFavLeagues] = useState<Set<string>>(new Set());
   const [pinned, setPinned] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   useEffect(() => {
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
@@ -423,9 +425,27 @@ export default function SofaLiveTable({
                     {d?.ht && <span className="text-xs text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
                   </div>
                   <p className="mb-3 truncate text-sm text-neutral-200">{g.away}</p>
-                  <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
-                    Analisar no live →
-                  </Link>
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
+                      Analisar no live →
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpanded((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(g.id)) next.delete(g.id);
+                          else next.add(g.id);
+                          return next;
+                        })
+                      }
+                      title={expanded.has(g.id) ? "Esconder estatísticas" : "Ver momentum e estatísticas"}
+                      className="shrink-0 text-xs font-medium text-sky-400 hover:underline"
+                    >
+                      {expanded.has(g.id) ? "Esconder ▲" : "Stats ▼"}
+                    </button>
+                  </div>
+                  {expanded.has(g.id) && <PinnedLiveStats eventId={g.id} homeName={g.home} awayName={g.away} />}
                 </div>
               );
             })}
