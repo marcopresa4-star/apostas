@@ -8,6 +8,7 @@ import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
 import PinnedLiveStats from "./PinnedLiveStats";
 import PinnedMiniTable from "./PinnedMiniTable";
+import PinnedLineups from "./PinnedLineups";
 
 const num1 = (n: number) => n.toFixed(1).replace(".", ",");
 
@@ -200,6 +201,7 @@ export default function SofaLiveTable({
   const [pinned, setPinned] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [expandedTable, setExpandedTable] = useState<Set<number>>(new Set());
+  const [expandedLineups, setExpandedLineups] = useState<Set<number>>(new Set());
   useEffect(() => {
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
@@ -483,6 +485,21 @@ export default function SofaLiveTable({
                       <button
                         type="button"
                         onClick={() =>
+                          setExpandedLineups((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(g.id)) next.delete(g.id);
+                            else next.add(g.id);
+                            return next;
+                          })
+                        }
+                        title={expandedLineups.has(g.id) ? "Esconder onzes" : "Ver onzes no relvado"}
+                        className="shrink-0 text-xs font-medium text-violet-300 hover:underline"
+                      >
+                        {expandedLineups.has(g.id) ? "Esconder ▲" : "Onzes ▼"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
                           setExpandedTable((prev) => {
                             const next = new Set(prev);
                             if (next.has(g.id)) next.delete(g.id);
@@ -521,6 +538,7 @@ export default function SofaLiveTable({
                       formAway={f?.away ?? []}
                     />
                   )}
+                  {expandedLineups.has(g.id) && <PinnedLineups eventId={g.id} homeName={g.home} awayName={g.away} />}
                   {expanded.has(g.id) && <PinnedLiveStats eventId={g.id} homeName={g.home} awayName={g.away} />}
                 </div>
                 </Resizable>
