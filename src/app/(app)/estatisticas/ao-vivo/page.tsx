@@ -210,8 +210,9 @@ async function AoVivoBoard() {
   );
 }
 
-// Games the user follows (Em direto feed) that are live right now: they pin
-// themselves at the top of Ao vivo, marked auto. Needs no localStorage.
+// Starred games that are live right now: they pin themselves at the top of
+// Ao vivo, marked auto. Reads favorite_games straight (never the Em direto
+// feed). Needs no localStorage.
 async function feedPinned(liveIds: number[]): Promise<number[]> {
   if (liveIds.length === 0) return [];
   const supabase = await createClient();
@@ -219,7 +220,7 @@ async function feedPinned(liveIds: number[]): Promise<number[]> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return [];
-  const { data } = await supabase.from("feed_games").select("event_id").eq("user_id", user.id);
+  const { data } = await supabase.from("favorite_games").select("event_id").eq("user_id", user.id);
   const live = new Set(liveIds);
   return (data ?? [])
     .map((r) => (r as { event_id?: unknown }).event_id)

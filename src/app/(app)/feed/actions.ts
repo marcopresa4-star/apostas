@@ -54,8 +54,9 @@ export async function removeFeedGameAction(id: string): Promise<void> {
 }
 
 // Promotes a starred favorite at kickoff (called by the global watcher):
-// into the Em direto feed (if room) and the Jogos dashboard, then marks it
-// so it promotes once. Finished games only get marked (nothing to follow).
+// into the Jogos dashboard, then marks it so it promotes once. Finished
+// games only get marked (nothing to follow). Never touches the Em direto
+// feed: favorites pin themselves in Ao vivo straight from this table.
 export async function promoteFavoriteAction(
   eventId: number,
   home: string,
@@ -68,21 +69,14 @@ export async function promoteFavoriteAction(
   // Unknown phase (scraper down): don't mark, retry next tick.
   if (phase === null) return { ok: false, error: "Sem leitura." };
   if (phase === "live" || phase === "halftime") {
-    const { count } = await supabase.from("feed_games").select("id", { count: "exact", head: true }).eq("user_id", user.id);
-    if ((count ?? 0) < FEED_MAX) {
-      await supabase
-        .from("feed_games")
-        .upsert({ user_id: user.id, event_id: eventId, home, away, tournament }, { onConflict: "user_id,event_id" });
-      const { addWatchedMatch } = await import("@/app/(app)/actions");
-      try {
-        await addWatchedMatch(home, away, null, null, `id:${eventId}`);
-      } catch {
-        // Duplicate or write failure: the feed entry is what matters.
-      }
+    const { addWatchedMatch } = await import("@/app/(app)/actions");
+    try {
+      await addWatchedMatch(home, away, null, null, `id:${eventId}`);
+    } catch {
+      // Duplicate or write failure: marking below still stops retries.
     }
   }
   await supabase.from("favorite_games").update({ promoted_at: new Date().toISOString() }).eq("user_id", user.id).eq("event_id", eventId);
-  revalidatePath("/feed");
   return { ok: true };
 }
 

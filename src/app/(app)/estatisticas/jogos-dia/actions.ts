@@ -13,7 +13,8 @@ async function authed() {
 }
 
 // Star / unstar a game in Jogos por dia. The global watcher promotes
-// starred games automatically at kickoff (feed + dashboard + auto-pin).
+// starred games automatically at kickoff (Jogos dashboard + auto-pin in
+// Ao vivo, never the Em direto feed).
 export async function addFavoriteAction(
   eventId: number,
   home: string,
