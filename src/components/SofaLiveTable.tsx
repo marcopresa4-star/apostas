@@ -117,6 +117,73 @@ function Btts({ value }: { value: number | null }) {
 // to; games can be pinned (📌) to the top. Both persist in this browser.
 const FAV_LEAGUES_KEY = "apostas:favLeagues";
 const PINNED_GAMES_KEY = "apostas:pinnedGames";
+const PINNED_COLS_KEY = "apostas:pinnedCols";
+
+// Pinned-card header with its own 30s score/minute poll (light read): the
+// board refreshes every 60s, so without this the score lags the bars, which
+// poll on their own. Falls back to the board values between polls.
+function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null }) {
+  const [live, setLive] = useState<{ minute: number | null; phase: string; hg: number | null; ag: number | null } | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const poll = async (): Promise<void> => {
+      try {
+        const res = await fetch(`/api/sofascore/event?id=${g.id}&light=1`, { cache: "no-store" });
+        if (!res.ok || stop) return;
+        const body = (await res.json()) as {
+          state?: { minute?: unknown; phase?: unknown; homeGoals?: unknown; awayGoals?: unknown };
+        };
+        const st = body?.state;
+        if (!st || stop) return;
+        setLive({
+          minute: num(st.minute),
+          phase: typeof st.phase === "string" ? st.phase : g.phase,
+          hg: num(st.homeGoals),
+          ag: num(st.awayGoals),
+        });
+      } catch {
+        // Next round retries; board values stand in.
+      }
+    };
+    void poll();
+    const id = setInterval(() => void poll(), 30_000);
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") void poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stop = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [g.id, g.phase]);
+  const minute = live?.minute ?? g.minute;
+  const phase = live?.phase ?? g.phase;
+  const hg = live?.hg ?? g.homeGoals;
+  const ag = live?.ag ?? g.awayGoals;
+  return (
+    <>
+      <div className="mb-2">
+        {phase === "halftime" ? (
+          <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
+        ) : minute !== null ? (
+          <span className="text-xs font-semibold text-red-400">● {minute}&apos; AO VIVO</span>
+        ) : (
+          <PeriodLabel g={g} />
+        )}
+      </div>
+      <p className="truncate text-sm text-neutral-200">{g.home}</p>
+      <div className="my-1 flex items-baseline gap-2">
+        <span className="text-2xl font-bold tabular-nums text-emerald-400">
+          {hg ?? "?"}–{ag ?? "?"}
+        </span>
+        {ht && <span className="text-xs text-neutral-500">({ht[0]}–{ht[1]})</span>}
+      </div>
+      <p className="mb-3 truncate text-sm text-neutral-200">{g.away}</p>
+    </>
+  );
+}
 function loadSet(key: string): Set<string> {
   try {
     const raw = localStorage.getItem(key);
@@ -487,23 +554,7 @@ export default function SofaLiveTable({
                       </button>
                     </span>
                   </div>
-                  <div className="mb-2">
-                    {g.phase === "halftime" ? (
-                      <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
-                    ) : g.minute !== null ? (
-                      <span className="text-xs font-semibold text-red-400">● {g.minute}&apos; AO VIVO</span>
-                    ) : (
-                      <PeriodLabel g={g} />
-                    )}
-                  </div>
-                  <p className="truncate text-sm text-neutral-200">{g.home}</p>
-                  <div className="my-1 flex items-baseline gap-2">
-                    <span className="text-2xl font-bold tabular-nums text-emerald-400">
-                      {g.homeGoals ?? "?"}–{g.awayGoals ?? "?"}
-                    </span>
-                    {d?.ht && <span className="text-xs text-neutral-500">({d.ht[0]}–{d.ht[1]})</span>}
-                  </div>
-                  <p className="mb-3 truncate text-sm text-neutral-200">{g.away}</p>
+                  <PinnedHead g={g} ht={d?.ht} />
                   <div className="flex items-center justify-between gap-2">
                     <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
                       Analisar no live →
