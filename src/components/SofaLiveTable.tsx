@@ -210,16 +210,24 @@ export default function SofaLiveTable({
     setFavLeagues(loadSet(FAV_LEAGUES_KEY));
     setPinned(loadSet(PINNED_GAMES_KEY));
   }, []);
-  // Refresh from the server every minute while this tab is visible (paused
-  // in background tabs): the board re-reads the live list, filters and pins
-  // survive because they live in client state.
+  // Refresh from the server every minute, even in background tabs (the
+  // browser throttles hidden tabs to ~1/min anyway, which is our cadence):
+  // pinned games must not go stale just because the tab lost focus. Filters
+  // and pins survive because they live in client state.
   useEffect(() => {
     if (!auto) return;
     const tick = (): void => {
-      if (document.visibilityState === "visible") router.refresh();
+      router.refresh();
     };
     const t = setInterval(tick, 60_000);
-    return () => clearInterval(t);
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [auto, router]);
 
   const leagueOf = (g: SofaLiveEntry): string => stats[g.id]?.leagueLabel ?? g.competition;
