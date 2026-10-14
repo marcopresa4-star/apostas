@@ -111,11 +111,7 @@ export default function PinnedMiniTable({
   );
 
   const top = rows.filter((r) => r.position >= 1).sort((a, b) => a.position - b.position);
-  const keep = new Set<number>();
-  for (const r of top.slice(0, 8)) keep.add(r.position);
-  if (hm) keep.add(hm.position);
-  if (am) keep.add(am.position);
-  const shown = top.filter((r) => keep.has(r.position));
+  const shown = top;
 
   return (
     <div className="mt-2 border-t border-neutral-800 pt-2">
@@ -127,7 +123,7 @@ export default function PinnedMiniTable({
         </div>
         {card(awayName, am, formAway, "text-orange-300")}
       </div>
-      <div className="mt-2 overflow-hidden rounded-lg bg-neutral-900">
+      <div className="mt-2 max-h-72 overflow-auto rounded-lg bg-neutral-900">
         <table className="w-full text-[11px]">
           <thead>
             <tr className="text-[9px] uppercase tracking-wide text-neutral-500">
