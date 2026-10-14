@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { linkLocalName, loadMaps, seasonTeamNames, tournamentSeasons } from "@/lib/sofaHistory";
+import { slugify } from "@/lib/slugify";
 import { loadSofaLeague, teamGoalTiming } from "@/lib/sofaLeague";
 import { gamesOf } from "@/lib/footballModel";
 import { first } from "@/lib/searchParams";
@@ -90,6 +91,16 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
   if (!data.teams.includes(team)) {
     const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
     team = linkLocalName(teamMaps, team) ?? team;
+  }
+  if (!data.teams.includes(team)) {
+    // Same team, different SofaScore spelling across endpoints ("Feyenoord"
+    // vs "Feyenoord Rotterdam"): accept an unambiguous containment match.
+    const needle = slugify(team);
+    const cands = data.teams.filter((t) => {
+      const s = slugify(t);
+      return s === needle || s.includes(needle) || needle.includes(s);
+    });
+    if (cands.length === 1) team = cands[0];
   }
   if (!data.teams.includes(team)) {
     return (
