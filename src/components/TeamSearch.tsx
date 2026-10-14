@@ -6,7 +6,15 @@ import { useState } from "react";
 // Global team search on the idle Comparar screen: type a club, jump straight
 // to its analysis (as casa — pick the opponent there). The index is built
 // server-side from the mapped leagues' current teams.
-export default function TeamSearch({ index }: { index: { team: string; league: string; leagueLabel: string }[] }) {
+export default function TeamSearch({
+  index,
+  base = "/estatisticas",
+  teamKey = "casa",
+}: {
+  index: { team: string; league: string; leagueLabel: string }[];
+  base?: string;
+  teamKey?: string;
+}) {
   const [q, setQ] = useState("");
   const needle = q.trim().toLowerCase();
   const hits =
@@ -27,7 +35,7 @@ export default function TeamSearch({ index }: { index: { team: string; league: s
           {hits.map((h) => (
             <Link
               key={`${h.league}|${h.team}`}
-              href={`/estatisticas?${new URLSearchParams({ liga: h.league, casa: h.team })}`}
+              href={`${base}?${new URLSearchParams({ liga: h.league, [teamKey]: h.team })}`}
               className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm transition hover:bg-neutral-800/60"
             >
               <span className="font-medium text-neutral-100">{h.team}</span>

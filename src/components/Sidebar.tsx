@@ -48,6 +48,7 @@ const NAV: NavEntry[] = [
     adminOnly: true,
     items: [
       { href: "/estatisticas", label: "Comparar equipas", icon: "⚖️" },
+      { href: "/estatisticas/equipa", label: "Análise equipa", icon: "🔍" },
       { href: "/estatisticas/jogos-dia", label: "Jogos por dia", icon: "📅" },
       { href: "/estatisticas/jornada", label: "Jogos da jornada", icon: "🗓️" },
       { href: "/estatisticas/live", label: "Calculadora live", icon: "🧮" },

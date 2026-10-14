@@ -459,7 +459,7 @@ function FormCurve({
 // When each side scores and concedes, per 15 minutes over its last games with
 // incident data (stoppage time counts in 31–45 and 76'–fim). Bars scale to the
 // busiest block of each column.
-function GoalTimingCard({
+export function GoalTimingCard({
   home,
   away,
   timing,
@@ -518,7 +518,7 @@ function GoalTimingCard({
 // averages scored/conceded/total, clean sheets, scoreless games and over/under
 // 2,5 — for home games, away games and overall. The column matching the side's
 // role in this fixture is shaded.
-function VenueGoalsCard({
+export function VenueGoalsCard({
   home,
   away,
   homeGames,

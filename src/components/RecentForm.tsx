@@ -14,7 +14,7 @@ const RES_CHIP: Record<string, string> = {
   D: "bg-red-500/20 text-red-300",
 };
 
-function TeamForm({ team, matches }: { team: string; matches: PlayedMatch[] }) {
+export function TeamForm({ team, matches }: { team: string; matches: PlayedMatch[] }) {
   const [venue, setVenue] = useState<Venue>("all");
   const rows = formRows(team, matches).filter((r) => venue === "all" || r.venue === venue);
   const avg = formAverages(rows);
