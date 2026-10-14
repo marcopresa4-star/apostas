@@ -66,6 +66,7 @@ export const LEAGUES = [
   { code: "eu.1", fd: "", label: "Europa · UEFA Champions League" },
   { code: "eu.2", fd: "", label: "Europa · UEFA Europa League" },
   { code: "eu.3", fd: "", label: "Europa · UEFA Conference League" },
+  { code: "am.1", fd: "", label: "América · CONMEBOL Sudamericana" },
   { code: "br.2", fd: "", label: "Brasil · Série B" },
   { code: "py.1", fd: "", label: "Paraguai · Primera División (Clausura)" },
   { code: "sa.1", fd: "", label: "Arábia Saudita · Pro League" },
@@ -84,7 +85,7 @@ const ONLY_FOOTBALL_DATA = new Set(["ro.1", "pl.1", "dk.1", "ch.1", "mx.1", "jp.
 
 // Seasons that run over a calendar year (March to November) rather than from
 // summer to spring. Japan is not here: it moved to August to May in 2026/27.
-const CALENDAR_YEAR = new Set(["br.1", "br.2", "ar.1", "us.1", "no.1", "se.1", "fi.1", "ie.1", "cn.1", "py.1", "kr.1"]);
+const CALENDAR_YEAR = new Set(["br.1", "br.2", "ar.1", "us.1", "no.1", "se.1", "fi.1", "ie.1", "cn.1", "py.1", "kr.1", "am.1"]);
 
 // One division of a file that holds several.
 const DIVISION: Record<string, string> = { "ch.1": "Super League" };
