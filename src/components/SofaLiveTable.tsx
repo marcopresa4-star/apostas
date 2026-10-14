@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
 import PinnedLiveStats from "./PinnedLiveStats";
@@ -124,6 +124,11 @@ const PINNED_COLS_KEY = "apostas:pinnedCols";
 // poll on their own. Falls back to the board values between polls.
 function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null }) {
   const [live, setLive] = useState<{ minute: number | null; phase: string; hg: number | null; ag: number | null } | null>(null);
+  // Baseline score: only increases after the first reading toast.
+  const prevScore = useRef<{ hg: number; ag: number } | null>(null);
+  useEffect(() => {
+    prevScore.current = null;
+  }, [g.id]);
   useEffect(() => {
     let stop = false;
     const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -136,12 +141,33 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
         };
         const st = body?.state;
         if (!st || stop) return;
+        const hg = num(st.homeGoals);
+        const ag = num(st.awayGoals);
         setLive({
           minute: num(st.minute),
           phase: typeof st.phase === "string" ? st.phase : g.phase,
-          hg: num(st.homeGoals),
-          ag: num(st.awayGoals),
+          hg,
+          ag,
         });
+        // Goal since the last reading: toast it in the corner (global).
+        const prev = prevScore.current;
+        if (prev && hg !== null && ag !== null && (hg > prev.hg || ag > prev.ag)) {
+          const scorer = hg > prev.hg ? g.home : ag > prev.ag ? g.away : null;
+          try {
+            window.dispatchEvent(
+              new CustomEvent("apostas:bot-alert", {
+                detail: {
+                  id: `goal-${g.id}-${hg}-${ag}`,
+                  bot_name: "Golo",
+                  text: `⚽ Golo ${scorer ? `${scorer}! ` : ""}${g.home} ${hg}–${ag} ${g.away}`,
+                },
+              })
+            );
+          } catch {
+            // No listeners: nothing to show it on.
+          }
+        }
+        if (hg !== null && ag !== null) prevScore.current = { hg, ag };
       } catch {
         // Next round retries; board values stand in.
       }
