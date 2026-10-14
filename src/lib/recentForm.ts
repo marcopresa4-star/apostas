@@ -14,17 +14,28 @@ export interface FormRow {
   ga: number;
 }
 
+// Same tie listed twice (postponed/rescheduled duplicates across rounds):
+// keep one per date+opponent+venue so form never repeats a game. Home and
+// away legs stay (different venue, both legit).
+export function dedupeForm<T extends { date: string; opp: string; venue: "H" | "A" }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const k = `${r.date}|${r.opp}|${r.venue}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
 export function formRows(team: string, matches: PlayedMatch[], n = 10): FormRow[] {
-  return matches
+  const rows = matches
     .filter((m) => m.ft !== null && (m.team1 === team || m.team2 === team))
-    .slice(-n)
-    .reverse()
     .map((m) => {
       const home = m.team1 === team;
       const [hg, ag] = m.ft as [number, number];
       return {
         date: m.date,
-        venue: home ? "H" : "A",
+        venue: home ? ("H" as const) : ("A" as const),
         opp: home ? m.team2 : m.team1,
         hg,
         ag,
@@ -34,6 +45,7 @@ export function formRows(team: string, matches: PlayedMatch[], n = 10): FormRow[
         ga: home ? ag : hg,
       };
     });
+  return dedupeForm(rows).slice(-n).reverse();
 }
 
 export type FormResult = "V" | "E" | "D";

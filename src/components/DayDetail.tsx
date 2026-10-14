@@ -206,11 +206,19 @@ export default async function DayDetail({
         failedSet.add(l.code);
         return;
       }
-      const teamGames = (team: string, venue: "H" | "A" | null): PlayedMatch[] =>
-        data.matches.filter(
-          (m) =>
-            (venue !== "A" && m.team1 === team) || (venue !== "H" && m.team2 === team)
-        );
+      const teamGames = (team: string, venue: "H" | "A" | null): PlayedMatch[] => {
+        const seen = new Set<string>();
+        return data.matches.filter((m) => {
+          if (!((venue !== "A" && m.team1 === team) || (venue !== "H" && m.team2 === team))) return false;
+          // Same duplicate guard as the form dots: one entry per
+          // date+opponent+venue, so averages never double-count a tie.
+          const v = m.team1 === team ? "H" : "A";
+          const k = `${m.date}|${m.team1 === team ? m.team2 : m.team1}|${v}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+      };
       // Newest first, like every football app: the leftmost dot is the most
       // recent game.
       const last5 = (team: string, venue: "H" | "A" | null): PlayedMatch[] =>

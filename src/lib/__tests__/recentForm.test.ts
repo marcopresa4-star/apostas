@@ -41,3 +41,15 @@ describe("formAverages", () => {
     expect(formAverages([])).toBeNull();
   });
 });
+
+describe("dedupeForm", () => {
+  it("drops exact repeats but keeps both legs", async () => {
+    const { dedupeForm } = await import("../recentForm");
+    const rows = [
+      { date: "2026-10-01", opp: "B", venue: "H" as const },
+      { date: "2026-10-01", opp: "B", venue: "H" as const },
+      { date: "2026-10-01", opp: "B", venue: "A" as const },
+    ];
+    expect(dedupeForm(rows)).toEqual([rows[0], rows[2]]);
+  });
+});
