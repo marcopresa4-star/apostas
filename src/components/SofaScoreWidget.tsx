@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { predictLive } from "@/lib/liveModel";
+import { IncidentLances, MomentumBars, StatGroups } from "./PinnedLiveStats";
+import { parseStatRows } from "./LiveEvolutionChart";
+import type { GameIncident } from "@/app/api/sofascore/incidents/route";
 
 export interface MomentumPoint {
   minute: number;
@@ -887,6 +890,7 @@ export default function SofaScoreWidget({
   const [momentum, setMomentum] = useState<MomentumPoint[] | null>(null);
   const [stats, setStats] = useState<StatRow[] | null>(null);
   const [xg, setXg] = useState<XgShot[] | null>(null);
+  const [incidents, setIncidents] = useState<GameIncident[]>([]);
   // Fake-3D tilt of the 2D tracker (the embed is cross-origin: its inside
   // cannot be re-rendered, only tilted). Persisted in this browser, read after
   // mount so the server render matches (hydration).
@@ -979,6 +983,26 @@ export default function SofaScoreWidget({
     };
     loadGraph();
     const id = setInterval(loadGraph, 120_000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [eventId]);
+
+  // Full incident timeline (lances + momentum markers): cheap light read on
+  // the same slow poll as the graphs above.
+  useEffect(() => {
+    let stop = false;
+    const load = (): void => {
+      fetch(`/api/sofascore/incidents?id=${eventId}`, { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body: { incidents?: GameIncident[] } | null) => {
+          if (!stop && body && Array.isArray(body.incidents)) setIncidents(body.incidents);
+        })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 120_000);
     return () => {
       stop = true;
       clearInterval(id);
@@ -1105,6 +1129,27 @@ export default function SofaScoreWidget({
           homeName={homeName}
           awayName={awayName}
         />
+      )}
+
+      {(momentum !== null || incidents.length > 0) && (
+        <div className="border-b border-neutral-800 px-4 py-3">
+          <MomentumBars
+            points={momentum ?? []}
+            incidents={incidents}
+            home={homeName}
+            away={awayName}
+          />
+          <IncidentLances incidents={incidents} />
+          <StatGroups
+            stats={parseStatRows(
+              (stats ?? []).map((s) => ({ name: s.name, home: s.home, away: s.away }))
+            )}
+            yellows={{
+              home: typeof state?.yellows?.home === "number" ? state.yellows.home : null,
+              away: typeof state?.yellows?.away === "number" ? state.yellows.away : null,
+            }}
+          />
+        </div>
       )}
 
       {hasTracker !== false && showMap && (
