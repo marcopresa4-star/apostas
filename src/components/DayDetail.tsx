@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import FavoriteButton from "@/components/FavoriteButton";
 import { LEAGUES } from "@/lib/footballData";
 import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
@@ -129,6 +130,8 @@ export default async function DayDetail({
 
   const maps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
   const codes = new Set(maps.map((m) => m.name_key));
+  const { data: favRows } = await supabase.from("favorite_games").select("event_id").eq("user_id", user.id);
+  const favIds = new Set((favRows ?? []).map((r) => (r as { event_id?: unknown }).event_id).filter((n): n is number => typeof n === "number"));
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const leagues = LEAGUES.filter((l) => {
     if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
@@ -431,6 +434,9 @@ export default async function DayDetail({
                       <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">{odd2(r.oX)}</td>
                       <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">{odd2(r.o2)}</td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                        {r.eventId !== null && r.eventId > 0 && (
+                          <FavoriteButton eventId={r.eventId} home={r.home} away={r.away} tournament={lg.label} initial={favIds.has(r.eventId)} />
+                        )}{" "}
                         {r.eventId !== null && (
                           <Link href={`/estatisticas/live?${new URLSearchParams({ sofascore: `id:${r.eventId}` })}`} className="text-xs font-medium text-emerald-400 hover:underline">
                             Analisar →

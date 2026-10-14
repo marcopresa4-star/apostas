@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { markPolled, pollEvoGame, pollLight } from "@/lib/useEvoSnapshots";
 import { loadFeedStore, notifyFeedStore, saveFeedStore } from "@/lib/feedStore";
+import { promoteFavoriteAction } from "@/app/(app)/feed/actions";
 
 // Global feed capture: lives in the layout, so snapshots accumulate on EVERY
 // site page (not just /feed) while a tab is open. Skips games whose store is
@@ -34,16 +35,31 @@ export default function FeedWatcher() {
     const lastPhase = new Map<number, string | null>();
     let cachedIds: number[] = [];
     let idsAt = 0;
+    let cachedFavs: { event_id: number; home: string; away: string; tournament: string }[] = [];
 
     const gameIds = async (): Promise<number[]> => {
       if (Date.now() - idsAt < GAMES_TTL_MS) return cachedIds;
       try {
         const res = await fetch("/api/feed/games", { cache: "no-store" });
         if (res.ok) {
-          const body = (await res.json()) as { eventIds?: unknown };
+          const body = (await res.json()) as { eventIds?: unknown; favorites?: unknown };
           if (Array.isArray(body.eventIds)) {
             cachedIds = body.eventIds.filter((n): n is number => typeof n === "number").slice(0, 5);
             idsAt = Date.now();
+          }
+          if (Array.isArray(body.favorites)) {
+            cachedFavs = body.favorites.flatMap((f) =>
+              typeof f === "object" && f !== null && typeof (f as { event_id?: unknown }).event_id === "number"
+                ? [
+                    {
+                      event_id: (f as { event_id: number }).event_id,
+                      home: String((f as { home?: unknown }).home ?? ""),
+                      away: String((f as { away?: unknown }).away ?? ""),
+                      tournament: String((f as { tournament?: unknown }).tournament ?? ""),
+                    },
+                  ]
+                : []
+            );
           }
         }
       } catch {
@@ -54,7 +70,22 @@ export default function FeedWatcher() {
 
     const tick = async (): Promise<void> => {
       const ids = await gameIds();
-      if (stop || ids.length === 0) return;
+      if (stop) return;
+      // Starred favorites promote themselves at kickoff (feed + dashboard);
+      // the server marks them so each promotes once.
+      for (const f of cachedFavs) {
+        if (stop) return;
+        try {
+          const r = await promoteFavoriteAction(f.event_id, f.home, f.away, f.tournament);
+          if (r.ok) {
+            cachedFavs = cachedFavs.filter((x) => x.event_id !== f.event_id);
+            idsAt = 0;
+          }
+        } catch {
+          // Next tick retries.
+        }
+      }
+      if (ids.length === 0) return;
       for (const id of ids) {
         if (stop) return;
         const stored = loadFeedStore(id);

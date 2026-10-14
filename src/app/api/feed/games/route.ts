@@ -12,5 +12,16 @@ export async function GET() {
   const eventIds = (data ?? [])
     .map((r) => (r as { event_id?: unknown }).event_id)
     .filter((n): n is number => typeof n === "number");
-  return Response.json({ eventIds }, { headers: { "Cache-Control": "private, max-age=60" } });
+  const { data: favs } = await supabase
+    .from("favorite_games")
+    .select("event_id, home, away, tournament, promoted_at")
+    .eq("user_id", user.id)
+    .is("promoted_at", null);
+  const favorites = (favs ?? []).flatMap((r) => {
+    const f = r as { event_id?: unknown; home?: unknown; away?: unknown; tournament?: unknown; promoted_at?: unknown };
+    return typeof f.event_id === "number"
+      ? [{ event_id: f.event_id, home: typeof f.home === "string" ? f.home : "", away: typeof f.away === "string" ? f.away : "", tournament: typeof f.tournament === "string" ? f.tournament : "" }]
+      : [];
+  });
+  return Response.json({ eventIds, favorites }, { headers: { "Cache-Control": "private, max-age=60" } });
 }

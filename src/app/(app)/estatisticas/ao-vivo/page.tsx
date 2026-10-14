@@ -204,8 +204,24 @@ async function AoVivoBoard() {
           vez — tenta atualizar daqui a pouco.
         </p>
       ) : (
-        <SofaLiveTable games={games} stats={stats} form={forms} rings={rings} detail={detail} />
+        <SofaLiveTable games={games} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={await feedPinned(games.map((g) => g.id))} />
       )}
     </>
   );
+}
+
+// Games the user follows (Em direto feed) that are live right now: they pin
+// themselves at the top of Ao vivo, marked auto. Needs no localStorage.
+async function feedPinned(liveIds: number[]): Promise<number[]> {
+  if (liveIds.length === 0) return [];
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase.from("feed_games").select("event_id").eq("user_id", user.id);
+  const live = new Set(liveIds);
+  return (data ?? [])
+    .map((r) => (r as { event_id?: unknown }).event_id)
+    .filter((n): n is number => typeof n === "number" && live.has(n));
 }

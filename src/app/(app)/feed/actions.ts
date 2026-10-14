@@ -52,3 +52,52 @@ export async function removeFeedGameAction(id: string): Promise<void> {
   await supabase.from("feed_games").delete().eq("user_id", user.id).eq("id", id);
   revalidatePath("/feed");
 }
+
+// Promotes a starred favorite at kickoff (called by the global watcher):
+// into the Em direto feed (if room) and the Jogos dashboard, then marks it
+// so it promotes once. Finished games only get marked (nothing to follow).
+export async function promoteFavoriteAction(
+  eventId: number,
+  home: string,
+  away: string,
+  tournament: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, user } = await authed();
+  if (!Number.isInteger(eventId) || eventId <= 0) return { ok: false, error: "Jogo inválido." };
+  const phase = await livePhase(eventId);
+  // Unknown phase (scraper down): don't mark, retry next tick.
+  if (phase === null) return { ok: false, error: "Sem leitura." };
+  if (phase === "live" || phase === "halftime") {
+    const { count } = await supabase.from("feed_games").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+    if ((count ?? 0) < FEED_MAX) {
+      await supabase
+        .from("feed_games")
+        .upsert({ user_id: user.id, event_id: eventId, home, away, tournament }, { onConflict: "user_id,event_id" });
+      const { addWatchedMatch } = await import("@/app/(app)/actions");
+      try {
+        await addWatchedMatch(home, away, null, null, `id:${eventId}`);
+      } catch {
+        // Duplicate or write failure: the feed entry is what matters.
+      }
+    }
+  }
+  await supabase.from("favorite_games").update({ promoted_at: new Date().toISOString() }).eq("user_id", user.id).eq("event_id", eventId);
+  revalidatePath("/feed");
+  return { ok: true };
+}
+
+async function livePhase(eventId: number): Promise<string | null> {
+  try {
+    const body = await sofaRaw<unknown>(`/event/${eventId}`);
+    const event = obj(obj(body)?.event ?? body) ?? {};
+    const st = obj(event.status) ?? {};
+    const type = String(st.type ?? "").toLowerCase();
+    const desc = String(st.description ?? "");
+    if (type === "finished" || /\b(ended|full.?time|after (extra|penalt)|apito final)/.test(desc)) return "finished";
+    if (/half.?time|intervalo|pausa|break/.test(desc) && !/1st|2nd|first|second|1\.|2\./.test(desc)) return "halftime";
+    if (type === "inprogress" || /1st|2nd|first half|second half|extra|penalt/.test(desc)) return "live";
+    return String(st.type ?? "") || null;
+  } catch {
+    return null;
+  }
+}

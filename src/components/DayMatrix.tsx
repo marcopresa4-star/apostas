@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import FavoriteButton from "@/components/FavoriteButton";
 import { LEAGUES } from "@/lib/footballData";
 import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
@@ -86,6 +87,8 @@ export default async function DayMatrix({
 
   const maps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
   const codes = new Set(maps.map((m) => m.name_key));
+  const { data: favRows } = await supabase.from("favorite_games").select("event_id").eq("user_id", user.id);
+  const favIds = new Set((favRows ?? []).map((r) => (r as { event_id?: unknown }).event_id).filter((n): n is number => typeof n === "number"));
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const leagues = LEAGUES.filter((l) => {
     if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
@@ -318,6 +321,9 @@ export default async function DayMatrix({
                   <tr key={`${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
                     <td className="min-w-52 px-4 py-2">
                       <span className="mr-2 tabular-nums text-neutral-500">{r.time ? r.time.slice(0, 5) : "—"}</span>
+                      {r.eventId !== null && r.eventId > 0 && (
+                        <FavoriteButton eventId={r.eventId} home={r.home} away={r.away} tournament={l.label} initial={favIds.has(r.eventId)} />
+                      )}{" "}
                       <span className="text-neutral-100">
                         {r.home} <span className="text-neutral-600">vs</span> {r.away}
                       </span>

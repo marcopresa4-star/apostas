@@ -180,12 +180,16 @@ export default function SofaLiveTable({
   form,
   rings,
   detail,
+  autoPinned = [],
 }: {
   games: SofaLiveEntry[];
   stats: Record<number, SofaBoardStats>;
   form: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }>;
   rings: Record<number, SofaBoardRings>;
   detail: Record<number, SofaBoardDetail>;
+  // Games followed in Em direto that are live now: pinned automatically
+  // (no localStorage). Manual pins still work on top.
+  autoPinned?: number[];
 }) {
   const router = useRouter();
   const [auto, setAuto] = useState(true);
@@ -275,9 +279,12 @@ export default function SofaLiveTable({
   });
   // Pinned games form one flat block on top (no league headers: the same
   // league would otherwise headline twice); the rest groups by league.
+  // Auto-pins (followed games gone live) join the manual pins.
   const byKickoff = [...visible].sort((a, b) => a.kickoff.localeCompare(b.kickoff));
-  const pinnedRows = byKickoff.filter((g) => pinned.has(String(g.id)));
-  const restRows = byKickoff.filter((g) => !pinned.has(String(g.id)));
+  const autoSet = useMemo(() => new Set(autoPinned.map(String)), [autoPinned]);
+  const isPinned = (g: SofaLiveEntry): boolean => pinned.has(String(g.id)) || autoSet.has(String(g.id));
+  const pinnedRows = byKickoff.filter((g) => isPinned(g));
+  const restRows = byKickoff.filter((g) => !isPinned(g));
   // Groups in order of appearance.
   const groups = useMemo(() => {
     const out: { league: string; games: SofaLiveEntry[] }[] = [];
@@ -451,14 +458,21 @@ export default function SofaLiveTable({
                 <div className="h-full rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <p className="truncate text-[11px] text-neutral-500">{leagueOf(g)}</p>
-                    <button
-                      type="button"
-                      onClick={() => togglePin(g)}
-                      title="Desafixar"
-                      className="shrink-0 text-sm text-emerald-400 transition hover:text-neutral-400"
-                    >
-                      📌
-                    </button>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {autoSet.has(String(g.id)) && !pinned.has(String(g.id)) && (
+                        <span title="Afixado automático: jogo seguido, em direto" className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
+                          auto
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => togglePin(g)}
+                        title={pinned.has(String(g.id)) ? "Desafixar" : autoSet.has(String(g.id)) ? "Afixar também manualmente" : "Afixar no topo e pôr nos Jogos"}
+                        className={`text-sm transition ${pinned.has(String(g.id)) ? "text-emerald-400 hover:text-neutral-400" : "text-neutral-700 hover:text-neutral-400"}`}
+                      >
+                        📌
+                      </button>
+                    </span>
                   </div>
                   <div className="mb-2">
                     {g.phase === "halftime" ? (
