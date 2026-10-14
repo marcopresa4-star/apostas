@@ -260,7 +260,7 @@ export default function PinnedLiveStats({
       <MomentumBars points={momentum} incidents={incidents} home={homeName} away={awayName} />
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
         <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Remates casa–fora">
-          ⚽ {pair(shots)}
+          🎯 {pair(shots)}
         </span>
         <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Cantos casa–fora">
           ⛳ {pair(corners)}
