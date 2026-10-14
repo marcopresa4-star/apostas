@@ -103,6 +103,7 @@ export default async function DayMatrix({
   let failed: string[] = [];
   let thin = 0;
   let missedNames: string[] = [];
+  let thinDetail: string[] = [];
   if (Array.isArray(cached)) {
     table = cached as MatrixLeague[];
   } else {
@@ -113,6 +114,7 @@ export default async function DayMatrix({
     const found: MatrixLeague[] = [];
     let thinCount = 0;
     const missed = new Set<string>();
+    const thinNames: string[] = [];
     // Same fixture source as the day board (round window, shared cache), so
     // the two views can never disagree on which games exist. History loads
     // only for leagues with games that day.
@@ -179,6 +181,7 @@ export default async function DayMatrix({
         const games = Math.min(prediction.gamesHome, prediction.gamesAway);
         if (games < MIN_GAMES) {
           thinCount++;
+          thinNames.push(`${home} ${prediction.gamesHome} · ${away} ${prediction.gamesAway}`);
           continue;
         }
         const lh = prediction.lambdaHome;
@@ -216,6 +219,7 @@ export default async function DayMatrix({
     failed = [...failedSet];
     thin = thinCount;
     missedNames = [...missed].slice(0, 12);
+    thinDetail = thinNames.slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
   }
 
@@ -262,7 +266,11 @@ export default async function DayMatrix({
             atualizar
           </Link>
         </span>
-        {thin > 0 && <span>{thin} sem histórico suficiente ficam de fora.</span>}
+        {thin > 0 && (
+          <span title={thinDetail.join(" · ")}>
+            {thin} sem histórico suficiente ficam de fora{thinDetail.length > 0 ? `: ${thinDetail.join(" · ")}` : "."}
+          </span>
+        )}
         {missedNames.length > 0 && (
           <span className="text-amber-300">Nomes fora dos dados: {missedNames.join(" · ")}</span>
         )}
