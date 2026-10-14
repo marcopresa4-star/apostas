@@ -54,9 +54,9 @@ export async function removeFeedGameAction(id: string): Promise<void> {
 }
 
 // Promotes a starred favorite at kickoff (called by the global watcher):
-// into the Jogos dashboard, then marks it so it promotes once. Finished
-// games only get marked (nothing to follow). Never touches the Em direto
-// feed: favorites pin themselves in Ao vivo straight from this table.
+// only marks it (the Ao vivo auto-pin reads this table straight, and the
+// waiting list clears). Finished games get marked too. Never touches the
+// Em direto feed nor the Jogos dashboard.
 export async function promoteFavoriteAction(
   eventId: number,
   home: string,
@@ -66,17 +66,12 @@ export async function promoteFavoriteAction(
   const { supabase, user } = await authed();
   if (!Number.isInteger(eventId) || eventId <= 0) return { ok: false, error: "Jogo inválido." };
   const phase = await livePhase(eventId);
-  // Unknown phase (scraper down): don't mark, retry next tick.
+  // Unknown phase (scraper down): don't mark, retry next tick. Pre-match
+  // games stay unmarked too, so the waiting list keeps them until kickoff.
   if (phase === null) return { ok: false, error: "Sem leitura." };
-  if (phase === "live" || phase === "halftime") {
-    const { addWatchedMatch } = await import("@/app/(app)/actions");
-    try {
-      await addWatchedMatch(home, away, null, null, `id:${eventId}`);
-    } catch {
-      // Duplicate or write failure: marking below still stops retries.
-    }
+  if (phase === "live" || phase === "halftime" || phase === "finished") {
+    await supabase.from("favorite_games").update({ promoted_at: new Date().toISOString() }).eq("user_id", user.id).eq("event_id", eventId);
   }
-  await supabase.from("favorite_games").update({ promoted_at: new Date().toISOString() }).eq("user_id", user.id).eq("event_id", eventId);
   return { ok: true };
 }
 

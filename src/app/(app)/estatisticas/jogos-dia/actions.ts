@@ -12,9 +12,9 @@ async function authed() {
   return { supabase, user };
 }
 
-// Star / unstar a game in Jogos por dia. The global watcher promotes
-// starred games automatically at kickoff (Jogos dashboard + auto-pin in
-// Ao vivo, never the Em direto feed).
+// Star / unstar a game in Jogos por dia. The global watcher marks starred
+// games once they start (or finish), clearing the waiting list; the Ao vivo
+// auto-pin reads this table straight. Nothing ever goes to Em direto or Jogos.
 export async function addFavoriteAction(
   eventId: number,
   home: string,

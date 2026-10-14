@@ -37,7 +37,7 @@ export default async function DashboardPage() {
       {(favs ?? []).length > 0 && (
         <div className="mb-4 max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
-            A seguir ★ · entram sozinhos ao apito
+            A seguir ★ · afixam sozinhos no Ao vivo ao apito
           </p>
           <div className="space-y-1.5">
             {(favs ?? []).map((f) => {

@@ -32,7 +32,7 @@ export default function FavoriteButton({
           .catch(() => setFav(!next))
           .finally(() => setBusy(false));
       }}
-      title={fav ? "Deixar de seguir" : "Seguir: ao apito vai para os Jogos e fica afixado no Ao vivo"}
+      title={fav ? "Deixar de seguir" : "Seguir: ao apito fica afixado no Ao vivo"}
       className={`shrink-0 transition disabled:opacity-50 ${
         fav ? "text-amber-300 hover:text-neutral-400" : "text-neutral-700 hover:text-amber-300"
       }`}
