@@ -24,8 +24,8 @@ interface DetailRow {
   gmC: number | null;
   gsF: number | null;
   btts: number | null;
-  formH: ("V" | "E" | "D")[];
-  formF: ("V" | "E" | "D")[];
+  formH: { r: "V" | "E" | "D"; date: string; opp: string }[];
+  formF: { r: "V" | "E" | "D"; date: string; opp: string }[];
   o1: number | null;
   oX: number | null;
   o2: number | null;
@@ -83,13 +83,17 @@ function Ring({ value, tone, title }: { value: number | null; tone: "green" | "o
 
 const FORM_CLS = { V: "bg-emerald-600", E: "bg-neutral-600", D: "bg-red-600" } as const;
 
-function Dots({ form, title }: { form: ("V" | "E" | "D")[]; title: string }) {
+function Dots({ form, title }: { form: { r: "V" | "E" | "D"; date: string; opp: string }[]; title: string }) {
   if (form.length === 0) return <span className="text-neutral-700">—</span>;
   return (
     <span className="inline-flex gap-0.5" title={title}>
-      {form.map((r, i) => (
-        <span key={i} className={`flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-white ${FORM_CLS[r]}`}>
-          {r}
+      {form.map((g, i) => (
+        <span
+          key={i}
+          title={`${g.date.slice(8, 10)}/${g.date.slice(5, 7)} vs ${g.opp} (${g.r})`}
+          className={`flex h-4 w-4 cursor-default items-center justify-center rounded text-[9px] font-bold text-white ${FORM_CLS[g.r]}`}
+        >
+          {g.r}
         </span>
       ))}
     </span>
@@ -132,6 +136,8 @@ export default async function DayDetail({
   const cached = refresh ? null : await cacheGet(supabase, user.id, cacheKey, HOUR_MS / 2).catch(() => null);
   let table: DetailLeague[] = [];
   let failed: string[] = [];
+  let staleLeagues: string[] = [];
+  let unlinkedNames: string[] = [];
   let truncated = false;
   let oddsTotal = 0;
   if (Array.isArray(cached)) {
@@ -141,6 +147,8 @@ export default async function DayDetail({
     const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
     const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
     const failedSet = new Set<string>();
+    const staleSet = new Set<string>();
+    const unlinkedSet = new Set<string>();
     const found: DetailLeague[] = [];
     await pool(leagues, 4, async (l) => {
       const map = maps.find((m) => m.name_key === l.code);
@@ -182,6 +190,8 @@ export default async function DayDetail({
       try {
         const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false });
         data = loaded?.data ?? null;
+        if (loaded?.stale) staleSet.add(l.code);
+        for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
       } catch {
         failedSet.add(l.code);
         return;
@@ -197,10 +207,10 @@ export default async function DayDetail({
         );
       const avg = (ms: PlayedMatch[], f: (m: PlayedMatch) => number): number | null =>
         ms.length === 0 ? null : ms.reduce((s, m) => s + f(m), 0) / ms.length;
-      const res = (team: string, m: PlayedMatch): "V" | "E" | "D" => {
+      const res = (team: string, m: PlayedMatch): { r: "V" | "E" | "D"; date: string; opp: string } => {
         const gf = m.team1 === team ? m.ft[0] : m.ft[1];
         const ga = m.team1 === team ? m.ft[1] : m.ft[0];
-        return gf > ga ? "V" : gf < ga ? "D" : "E";
+        return { r: gf > ga ? "V" : gf < ga ? "D" : "E", date: m.date, opp: m.team1 === team ? m.team2 : m.team1 };
       };
       const rows: DetailRow[] = [];
       const jobs: { f: SofaFixture; home: string; away: string }[] = [];
@@ -268,6 +278,8 @@ export default async function DayDetail({
     });
     table = found;
     failed = [...failedSet];
+    staleLeagues = [...staleSet];
+    unlinkedNames = [...unlinkedSet].slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
   }
 
@@ -296,6 +308,17 @@ export default async function DayDetail({
         </span>
         {truncated && <span className="text-amber-300">Limite de 60 leituras de odds: as restantes ficam a "—".</span>}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
+        {staleLeagues.length > 0 && (
+          <span className="text-amber-300" title={staleLeagues.join(", ")}>
+            Cache antiga em {staleLeagues.length} liga{staleLeagues.length === 1 ? "" : "s"} (falha técnica): os números podem estar desatualizados — recarrega.
+          </span>
+        )}
+        {unlinkedNames.length > 0 && (
+          <span className="text-amber-300" title={unlinkedNames.join(", ")}>
+            Grafias por ligar no Mapa: {unlinkedNames.slice(0, 6).join(", ")}
+            {unlinkedNames.length > 6 ? ` +${unlinkedNames.length - 6}` : ""} — jogos dessas equipas podem faltar ou sair trocados.
+          </span>
+        )}
       </div>
       {shown.length === 0 ? (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">

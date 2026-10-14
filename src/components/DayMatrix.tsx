@@ -102,6 +102,8 @@ export default async function DayMatrix({
     : await cacheGet(supabase, user.id, cacheKey, HOUR_MS).catch(() => null);
   let table: MatrixLeague[] = [];
   let failed: string[] = [];
+  let staleLeagues: string[] = [];
+  let unlinkedNames: string[] = [];
   let missedNames: string[] = [];
   if (Array.isArray(cached)) {
     table = cached as MatrixLeague[];
@@ -110,6 +112,8 @@ export default async function DayMatrix({
     const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
     const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
     const failedSet = new Set<string>();
+    const staleSet = new Set<string>();
+    const unlinkedSet = new Set<string>();
     const found: MatrixLeague[] = [];
     const missed = new Set<string>();
     // Same fixture source as the day board (round window, shared cache), so
@@ -155,6 +159,8 @@ export default async function DayMatrix({
       try {
         const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false });
         data = loaded?.data ?? null;
+        if (loaded?.stale) staleSet.add(l.code);
+        for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
       } catch {
         failedSet.add(l.code);
         return;
@@ -212,6 +218,8 @@ export default async function DayMatrix({
     });
     table = found;
     failed = [...failedSet];
+    staleLeagues = [...staleSet];
+    unlinkedNames = [...unlinkedSet].slice(0, 12);
     missedNames = [...missed].slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
   }
@@ -265,6 +273,17 @@ export default async function DayMatrix({
         {failed.length > 0 && (
           <span className="text-amber-300">
             Sem leitura em {failed.length} liga{failed.length === 1 ? "" : "s"} — recarrega.
+          </span>
+        )}
+        {staleLeagues.length > 0 && (
+          <span className="text-amber-300" title={staleLeagues.join(", ")}>
+            Cache antiga em {staleLeagues.length} liga{staleLeagues.length === 1 ? "" : "s"} (falha técnica): os números podem estar desatualizados — recarrega.
+          </span>
+        )}
+        {unlinkedNames.length > 0 && (
+          <span className="text-amber-300" title={unlinkedNames.join(", ")}>
+            Grafias por ligar no Mapa: {unlinkedNames.slice(0, 6).join(", ")}
+            {unlinkedNames.length > 6 ? ` +${unlinkedNames.length - 6}` : ""}.
           </span>
         )}
       </div>
