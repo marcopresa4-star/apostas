@@ -142,14 +142,9 @@ function MomentumBars({
         {cards.map((c, i) => (
           <g key={`c${i}`}>
             <title>{`${c.minute}' — ${c.text}`}</title>
-            <rect
-              x={x(c.minute) - 2}
-              y={mid - 5}
-              width="4"
-              height="10"
-              rx="1"
-              fill={c.kind === "red" ? "#ef4444" : "#facc15"}
-            />
+            <text x={x(c.minute)} y={c.home ? 28 : H - 32} textAnchor="middle" fontSize="11">
+              {c.kind === "red" ? "🟥" : "🟨"}
+            </text>
           </g>
         ))}
       </svg>
