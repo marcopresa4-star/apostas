@@ -243,7 +243,7 @@ export default async function DayMatrix({
           <span className="font-semibold text-amber-300">40–64%</span> · <span className="font-semibold text-red-400">＜40%</span>
         </span>
         <span>
-          {nRows} jogos{nRows === 1 ? "" : "s"} · % do modelo (justa = 1/p em pequeno) ·{" "}
+          {nRows} jogo{nRows === 1 ? "" : "s"} · % do modelo (justa = 1/p em pequeno) ·{" "}
           <Link
             href={`/estatisticas/jogos-dia?${new URLSearchParams({
               data: day,
