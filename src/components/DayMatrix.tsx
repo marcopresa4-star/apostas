@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import FavoriteButton from "@/components/FavoriteButton";
 import { LEAGUES } from "@/lib/footballData";
-import { loadMaps, linkLocalName, roundFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
+import { loadMaps, linkLocalName, roundFixtures, fetchLiveEntries, seasonUpcomingExtra, tournamentLiveFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet, HOUR_MS } from "@/lib/sofaCache";
@@ -99,7 +99,7 @@ export default async function DayMatrix({
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
   const now = new Date();
 
-  const cacheKey = `daymatrix:${day}|${pais}|${ligaSel}`;
+  const cacheKey = `daymatrix:v3:${day}|${pais}|${ligaSel}`;
   const cached = refresh
     ? null
     : await cacheGet(supabase, user.id, cacheKey, HOUR_MS).catch(() => null);
@@ -119,9 +119,11 @@ export default async function DayMatrix({
     const unlinkedSet = new Set<string>();
     const found: MatrixLeague[] = [];
     const missed = new Set<string>();
-    // Same fixture source as the day board (round window, shared cache), so
-    // the two views can never disagree on which games exist. History loads
-    // only for leagues with games that day.
+    // Same fixture source as the day board (round window + tournament upcoming
+    // extras + live ties, shared cache), so the two views can never disagree
+    // on which games exist. History loads only for leagues with games that day.
+    // One live read per render (scraper caches it 60s), shared by all leagues.
+    const liveEntries = await fetchLiveEntries().catch(() => []);
     await pool(leagues, 4, async (l) => {
       const map = maps.find((m) => m.name_key === l.code);
       if (!map) return;
@@ -142,20 +144,35 @@ export default async function DayMatrix({
         failedSet.add(l.code);
         return;
       }
-      if (rounds.length === 0) return;
-      const want =
-        currentRound !== null
-          ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
-          : rounds.slice(0, 3);
-      const lists = await Promise.all(
-        want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).then((x) => x, () => null))
-      );
-      if (lists.some((x) => x === null)) {
-        failedSet.add(l.code);
-        return;
-      }
+      // Sem jornadas no SofaScore (a MLS 2026 devolve 404): nesse caso a
+      // época vive só nos extras (próximos + ao vivo), lidos sempre em baixo.
       const flat: SofaFixture[] = [];
-      for (const l of lists) if (l !== null) flat.push(...l);
+      if (rounds.length > 0) {
+        const want =
+          currentRound !== null
+            ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
+            : rounds.slice(0, 3);
+        const lists = await Promise.all(
+          want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).then((x) => x, () => null))
+        );
+        if (lists.some((x) => x === null)) {
+          failedSet.add(l.code);
+          return;
+        }
+        for (const l of lists) if (l !== null) flat.push(...l);
+      }
+      // Knockout ties missing from the round endpoints (Libertadores/
+      // Sudamericana semifinals on): the tournament's own upcoming page holds
+      // the scheduled legs, the live list the legs in play (neither list has
+      // the other). Dedupe by event id (league games live on both).
+      const extra = await seasonUpcomingExtra(supabase, user.id, map.sofascore_id, s.id, true, currentRound ?? 0).catch(() => [] as SofaFixture[]);
+      const seenIds = new Set(flat.map((f) => f.id));
+      for (const f of [...extra, ...tournamentLiveFixtures(liveEntries, map.sofascore_id, currentRound ?? 0)]) {
+        if (!seenIds.has(f.id)) {
+          seenIds.add(f.id);
+          flat.push(f);
+        }
+      }
       const dayFx = flat.filter((f) => f.date === day);
       if (dayFx.length === 0) return;
       let data;

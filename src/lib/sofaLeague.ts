@@ -231,7 +231,9 @@ export async function loadSofaLeague(
             team1: convert(f.team1),
             team2: convert(f.team2),
             ft: f.ft ? ([f.ft[0], f.ft[1]] as [number, number]) : null,
-            round: `Matchday ${f.round}`,
+            // Extras sem jornada (mata-mata, MLS sem rondas) agrupam por mês,
+            // como o fallback por equipas (a Jornada trata-os como tal).
+            round: f.round > 0 ? `Matchday ${f.round}` : (PT_MONTHS[Number(f.date.slice(5, 7)) - 1] ?? ""),
             time: f.time ?? undefined,
             sid: f.id,
           })

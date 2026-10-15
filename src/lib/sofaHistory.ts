@@ -9,6 +9,7 @@ import { slugify } from "./slugify";
 import { sideTokensIn } from "./sportscoreSlug";
 import { tokens } from "./teamNames";
 import { sofaRaw, ScraperOffline } from "./sofaRaw";
+import { parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
 import { cacheGet, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
 export type { StaleTracker } from "./sofaCache";
 
@@ -188,6 +189,11 @@ const COUNTRY_CATEGORY: Record<string, string> = {
   Finlândia: "Finland",
   Irlanda: "Ireland",
   China: "China",
+  "Arábia Saudita": "Saudi Arabia",
+  "Coreia do Sul": "South Korea",
+  Croácia: "Croatia",
+  Paraguai: "Paraguay",
+  América: "South America",
 };
 
 // One-shot guess for a "Country · Competition" label: search the competition,
@@ -387,6 +393,122 @@ export async function roundFixtures(
   return data ?? [];
 }
 
+// Tournament-level event pages (knockout phases don't come back on the round
+// endpoints: verified 2026-10-14 that Libertadores season 87760 rounds 27
+// (Quarterfinals) and 28 (Semifinals) read count 0, while
+// /events/next/0 holds the 4 semifinal legs; same for Sudamericana 87770.
+// Round-only reads therefore hide every knockout game). Each page is one
+// scraper call; the joined list is what gets cached.
+async function tournamentEventsPages(
+  uniqueId: number,
+  seasonId: number,
+  dir: "next" | "last",
+  round: number,
+  maxPages: number
+): Promise<{ events: SofaFixture[]; hasNextPage: boolean }> {
+  const events: SofaFixture[] = [];
+  let hasNextPage = false;
+  for (let page = 0; page < maxPages; page++) {
+    const body = await sofaRaw<unknown>(`/unique-tournament/${uniqueId}/season/${seasonId}/events/${dir}/${page}`);
+    const list = obj(body)?.events;
+    if (!Array.isArray(list)) break;
+    hasNextPage = obj(body)?.hasNextPage === true;
+    for (const item of list) {
+      const f = obj(item) ? toFixture(obj(item)!, round) : null;
+      if (f) events.push(f);
+    }
+    if (!hasNextPage) break;
+  }
+  return { events, hasNextPage };
+}
+
+// Every upcoming game of a season that the round endpoints miss (knockout
+// ties): usually a single page. Cached like the rounds (1h current, 30d old).
+// `round` labels the rows for the round grouping (the current round number).
+export async function seasonUpcomingExtra(
+  supabase: SupabaseClient,
+  userId: string,
+  uniqueId: number,
+  seasonId: number,
+  current: boolean,
+  round: number,
+  tracker?: StaleTracker
+): Promise<SofaFixture[]> {
+  const key = `nextfx:${uniqueId}:${seasonId}`;
+  const data = await cachedRead<SofaFixture[]>(
+    supabase,
+    userId,
+    key,
+    current ? HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const { events } = await tournamentEventsPages(uniqueId, seasonId, "next", round, 2);
+      events.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+      return events;
+    },
+    tracker,
+    Array.isArray
+  );
+  return data ?? [];
+}
+
+// Recent games of a season that the round endpoints miss (same knockout
+// hole, past side): the newest pages first, so a cap of 4 (120 games) always
+// covers the whole knockout phase while old group games stay on the rounds.
+export async function seasonRecentExtra(
+  supabase: SupabaseClient,
+  userId: string,
+  uniqueId: number,
+  seasonId: number,
+  current: boolean,
+  tracker?: StaleTracker
+): Promise<SofaFixture[]> {
+  const key = `lastfx:${uniqueId}:${seasonId}`;
+  const data = await cachedRead<SofaFixture[]>(
+    supabase,
+    userId,
+    key,
+    current ? HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const { events } = await tournamentEventsPages(uniqueId, seasonId, "last", 0, 4);
+      events.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+      return events;
+    },
+    tracker,
+    Array.isArray
+  );
+  return data ?? [];
+}
+
+// Every live game right now, one scraper read (cached 60s scraper-side):
+// shared by a render across leagues instead of one read per league. [] when
+// the scraper is down — callers simply skip the live supplement then.
+export async function fetchLiveEntries(now = Date.now()): Promise<SofaLiveEntry[]> {
+  let body: unknown;
+  try {
+    body = await sofaRaw<unknown>("/sport/football/events/live");
+  } catch {
+    return [];
+  }
+  if (!body) return [];
+  return parseSofascoreLiveList(body, now).filter((g) => g.phase === "live" || g.phase === "halftime");
+}
+
+// Live games of one tournament as fixtures (labeled with `round`): a
+// knockout tie in play is neither finished (rounds/next miss it once it
+// starts — verified 2026-10-14 with Atlético-MG–Torque at 21', absent from
+// both round 28 and next/0) nor upcoming, only live.
+export function tournamentLiveFixtures(entries: SofaLiveEntry[], uniqueId: number, round: number): SofaFixture[] {
+  const out: SofaFixture[] = [];
+  for (const g of entries) {
+    if (g.uniqueId !== uniqueId) continue;
+    const start = Date.parse(g.kickoff) / 1000;
+    if (!Number.isFinite(start)) continue;
+    const { date, time } = lisbonParts(start);
+    out.push({ id: g.id, date, time, team1: g.home, team2: g.away, ft: null, ht: null, round });
+  }
+  return out.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+}
+
 // Shots on target [home, away] of one event, from its statistics endpoint
 // (period ALL, "Match overview"). Cached 30 days: results never change.
 // Null when the game carries no stats (low coverage, old seasons).
@@ -474,6 +596,8 @@ export async function roundResults(
 // some seasons number rounds sparsely). Deduped like the fixtures: cup rounds
 // can repeat a tie, and the model must not count it twice. `current` selects
 // the TTL; `shots` attaches shots on target for the model seasons.
+// Knockout ties missing from the round endpoints (Libertadores/Sudamericana
+// quarterfinals on) come from the tournament's own recent pages instead.
 export async function seasonResults(
   supabase: SupabaseClient,
   userId: string,
@@ -484,17 +608,24 @@ export async function seasonResults(
   tracker?: StaleTracker
 ): Promise<PlayedMatch[]> {
   const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current, tracker);
-  const lists = await Promise.all(rounds.map((r) => roundResults(supabase, userId, uniqueId, seasonId, r, current, shots, tracker)));
+  const [lists, recent] = await Promise.all([
+    Promise.all(rounds.map((r) => roundResults(supabase, userId, uniqueId, seasonId, r, current, shots, tracker))),
+    seasonRecentExtra(supabase, userId, uniqueId, seasonId, current, tracker).catch(() => [] as SofaFixture[]),
+  ]);
   const seen = new Set<string>();
-  return lists
-    .flat()
-    .filter((m) => {
-      const key = `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const out: PlayedMatch[] = [];
+  const push = (m: PlayedMatch): void => {
+    const key = `${m.date}|${m.team1}|${m.team2}|${m.ft[0]}-${m.ft[1]}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(m);
+  };
+  for (const m of lists.flat()) push(m);
+  for (const f of recent) {
+    if (!f.ft) continue;
+    push({ date: f.date, team1: f.team1, team2: f.team2, ft: f.ft, ht: f.ht });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // Whole calendar of a season (played + scheduled), for tables and rounds.
@@ -504,6 +635,9 @@ export async function seasonResults(
 // rescheduled one): with `today`, the stale past entry without a result is
 // dropped whenever the tie also has a result or a future date — otherwise it
 // would sit forever as "played but missing".
+// Knockout ties missing from the round endpoints join from the tournament's
+// own upcoming/recent pages (labeled with the current round number); ties in
+// play join from the live list (current season only, always fresh).
 export async function seasonFixtures(
   supabase: SupabaseClient,
   userId: string,
@@ -513,10 +647,18 @@ export async function seasonFixtures(
   today = "",
   tracker?: StaleTracker
 ): Promise<SofaFixture[]> {
-  const { rounds } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current, tracker);
-  const lists = await Promise.all(rounds.map((r) => roundFixtures(supabase, userId, uniqueId, seasonId, r, current, tracker)));
+  const { rounds, currentRound } = await tournamentRounds(supabase, userId, uniqueId, seasonId, current, tracker);
+  const roundLabel = currentRound ?? 0;
+  const [lists, upcoming, recent, live] = await Promise.all([
+    Promise.all(rounds.map((r) => roundFixtures(supabase, userId, uniqueId, seasonId, r, current, tracker))),
+    seasonUpcomingExtra(supabase, userId, uniqueId, seasonId, current, roundLabel, tracker).catch(() => [] as SofaFixture[]),
+    seasonRecentExtra(supabase, userId, uniqueId, seasonId, current, tracker).catch(() => [] as SofaFixture[]),
+    current
+      ? fetchLiveEntries().then((entries) => tournamentLiveFixtures(entries, uniqueId, roundLabel)).catch(() => [] as SofaFixture[])
+      : Promise.resolve([] as SofaFixture[]),
+  ]);
   const byTie = new Map<string, SofaFixture[]>();
-  for (const f of lists.flat()) {
+  for (const f of [...lists.flat(), ...upcoming, ...recent, ...live]) {
     const key = `${f.round}|${[f.team1, f.team2].sort().join("~")}`;
     const arr = byTie.get(key) ?? [];
     arr.push(f);
