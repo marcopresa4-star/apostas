@@ -203,14 +203,14 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
           <PeriodLabel g={g} />
         )}
       </div>
-      <p className="truncate text-sm text-neutral-200">{g.home}</p>
-      <div className="my-1 flex items-baseline gap-2">
-        <span className="text-2xl font-bold tabular-nums text-emerald-400">
+      <div className="mb-3 flex items-baseline gap-x-2">
+        <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{g.home}</span>
+        <span className="shrink-0 text-2xl font-bold tabular-nums text-emerald-400">
           {hg ?? "?"}–{ag ?? "?"}
         </span>
-        {ht && <span className="text-xs text-neutral-500">({ht[0]}–{ht[1]})</span>}
+        {ht && <span className="shrink-0 text-xs tabular-nums text-neutral-500">({ht[0]}–{ht[1]})</span>}
+        <span className="min-w-0 flex-1 truncate text-right text-sm text-neutral-200">{g.away}</span>
       </div>
-      <p className="mb-3 truncate text-sm text-neutral-200">{g.away}</p>
     </>
   );
 }
