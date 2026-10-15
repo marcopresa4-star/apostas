@@ -224,7 +224,7 @@ async function PrevisoesBoard({
   }
 
   return (
-    <div className="max-w-4xl space-y-2.5">
+    <div className="space-y-2.5 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
       {ranked.map((r, i) => (
         <div key={`${r.league}|${r.home}|${r.away}|${r.title}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
           <span className="w-7 shrink-0 text-lg font-bold tabular-nums text-neutral-600">{i + 1}</span>
