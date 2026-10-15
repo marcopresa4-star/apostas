@@ -286,14 +286,21 @@ async function ValueResults({
                     {p.home} <span className="font-normal text-neutral-500">vs</span> {p.away}
                   </p>
                   <p className="text-[11px] text-neutral-500">
-                    {p.leagueLabel} · {p.market} · {dayMonth(p.date)}
+                    {p.leagueLabel} · {dayMonth(p.date)}
                     {p.time ? ` às ${p.time.slice(0, 5)}` : ""} ·{" "}
-                    <span className={p.games >= SOLID_GAMES ? "text-emerald-400" : "text-emerald-400"}>
+                    <span className="text-emerald-400">
                       {p.games >= SOLID_GAMES ? "Alta" : "Média"} confiança
                     </span>
                   </p>
                 </div>
                 <p className="text-xl font-bold text-emerald-400">+{Math.round(p.edge * 100)}%</p>
+              </div>
+              <div className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-500/40">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Aposta</span>
+                <span className="text-base font-bold text-neutral-100">{p.market}</span>
+                <span className="text-xs tabular-nums text-neutral-400">
+                  à odd {oddText(p.odd)} (justa {oddText(p.fair)})
+                </span>
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs tabular-nums">
                 <div>
