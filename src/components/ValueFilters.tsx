@@ -93,13 +93,24 @@ export default function ValueFilters({
       <input type="hidden" name="analisar" value="1" />
       <div className="space-y-5">
         <div>
-          <button
-            type="button"
-            onClick={() => setOpenComp((o) => !o)}
-            className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-200"
-          >
-            {openComp ? "▾" : "▸"} Competições ({ligas.length} de {leagues.length})
-          </button>
+          <div className="mb-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setOpenComp((o) => !o)}
+              className="text-xs font-semibold uppercase tracking-wide text-neutral-400 hover:text-neutral-200"
+            >
+              {openComp ? "▾" : "▸"} Competições ({ligas.length} de {leagues.length})
+            </button>
+            {ligas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setLigas([])}
+                className="text-[11px] font-medium text-neutral-500 hover:text-red-300 hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
           {openComp && (
             <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950 p-3">
               {leagues.map((l) => (
@@ -120,9 +131,20 @@ export default function ValueFilters({
           {!openComp && ligas.map((c) => <input key={c} type="hidden" name="ligas" value={c} />)}
         </div>
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Mercados ({mercados.length} selecionados)
-          </p>
+          <div className="mb-2 flex items-center gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              Mercados ({mercados.length} selecionados)
+            </p>
+            {mercados.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMercados([])}
+                className="text-[11px] font-medium text-neutral-500 hover:text-red-300 hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
           {groups.map((g) => (
             <div key={g} className="mb-2">
               <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{g}</p>
