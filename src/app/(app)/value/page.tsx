@@ -255,7 +255,7 @@ async function ValueResults({
   };
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <div className="mb-4 grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-center">
           <p className="text-2xl font-bold text-emerald-400">{picks.length}</p>
