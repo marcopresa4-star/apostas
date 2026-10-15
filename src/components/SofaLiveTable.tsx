@@ -152,21 +152,38 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
           hg,
           ag,
         });
-        // Goal since the last reading: toast it in the corner (global).
+        // Goal since the last reading: toast it in the corner (global). A step
+        // back (1-0 -> 0-0: disallowed goal) toasts a correction instead —
+        // the board already corrects itself, this explains why. Both sticky.
         const prev = prevScore.current;
-        if (prev && hg !== null && ag !== null && (hg > prev.hg || ag > prev.ag)) {
+        if (prev && hg !== null && ag !== null) {
+          const scored = hg > prev.hg || ag > prev.ag;
+          const chalkedOff = !scored && (hg < prev.hg || ag < prev.ag);
           const scorer = hg > prev.hg ? g.home : ag > prev.ag ? g.away : null;
           try {
-            window.dispatchEvent(
-              new CustomEvent("apostas:bot-alert", {
-                detail: {
-                  id: `goal-${g.id}-${hg}-${ag}`,
-                  bot_name: "Golo",
-                  text: `⚽ Golo ${scorer ? `${scorer}! ` : ""}${g.home} ${hg}–${ag} ${g.away}`,
-                  sticky: true,
-                },
-              })
-            );
+            if (scored) {
+              window.dispatchEvent(
+                new CustomEvent("apostas:bot-alert", {
+                  detail: {
+                    id: `goal-${g.id}-${hg}-${ag}`,
+                    bot_name: "Golo",
+                    text: `⚽ Golo ${scorer ? `${scorer}! ` : ""}${g.home} ${hg}–${ag} ${g.away}`,
+                    sticky: true,
+                  },
+                })
+              );
+            } else if (chalkedOff) {
+              window.dispatchEvent(
+                new CustomEvent("apostas:bot-alert", {
+                  detail: {
+                    id: `anulado-${g.id}-${hg}-${ag}`,
+                    bot_name: "Golo anulado",
+                    text: `⚠️ Golo anulado: estava ${g.home} ${prev.hg}–${prev.ag} ${g.away}, agora ${hg}–${ag}`,
+                    sticky: true,
+                  },
+                })
+              );
+            }
           } catch {
             // No listeners: nothing to show it on.
           }
