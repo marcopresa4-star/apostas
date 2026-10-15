@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getIsAdmin } from "@/lib/requireAdmin";
 import Sidebar from "@/components/Sidebar";
+import Assistente from "@/components/Assistente";
 import BotsWatcher from "@/components/BotsWatcher";
 import BotToasts from "@/components/BotToasts";
 import FeedWatcher from "@/components/FeedWatcher";
@@ -28,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <BotsWatcher />
       <BotToasts />
       <FeedWatcher />
+      <Assistente />
     </div>
   );
 }
