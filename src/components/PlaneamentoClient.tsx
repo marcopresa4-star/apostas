@@ -37,6 +37,9 @@ export default function PlaneamentoClient({
   const [scans, setScans] = useState<Record<string, ScanState>>(() =>
     Object.fromEntries(tables.map((t) => [t.id, { status: "loading" as const }]))
   );
+  // Ordenação por cartão: "valor" (padrão, do melhor padrão para o pior) ou
+  // "hora" (por pontapé de saída, para preparar a sessão).
+  const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
   const [editing, setEditing] = useState<LiveTableDef | "new" | null>(null);
   const favSet = new Set(favIds);
 
@@ -125,6 +128,14 @@ export default function PlaneamentoClient({
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setSorts((s) => ({ ...s, [t.id]: (s[t.id] ?? "valor") === "valor" ? "hora" : "valor" }))}
+                    title={(sorts[t.id] ?? "valor") === "valor" ? "Ordenar por hora" : "Ordenar por valor"}
+                    className="text-xs text-neutral-500 transition hover:text-neutral-200"
+                  >
+                    {(sorts[t.id] ?? "valor") === "valor" ? "⏱" : "⭐"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => scan(t)}
                     disabled={scanState.status === "loading"}
                     title="Voltar a analisar"
@@ -188,7 +199,12 @@ export default function PlaneamentoClient({
                     </p>
                   ) : (
                     <ul className="space-y-1.5">
-                      {data.jogos.map((g) => {
+                      {((sorts[t.id] ?? "valor") === "hora"
+                        ? [...data.jogos].sort((a, b) =>
+                            `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`)
+                          )
+                        : data.jogos
+                      ).map((g) => {
                         const e0 = g.evals[0];
                         const big = c0.agg === "avg" ? num1(e0.avg) : `${Math.round(e0.pct)}%`;
                         const sub =
