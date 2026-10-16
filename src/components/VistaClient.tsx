@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const VIEWS: { href: string; label: string }[] = [
   { href: "/estatisticas/jogos-dia", label: "Jogos por dia" },
@@ -16,8 +16,6 @@ const VIEWS: { href: string; label: string }[] = [
   { href: "/bots", label: "Bots" },
 ];
 
-const LS_KEY = "apostas:vista";
-
 const withEmbed = (href: string): string => (href.includes("?") ? `${href}&embed=1` : `${href}?embed=1`);
 
 function Panel({
@@ -29,70 +27,63 @@ function Panel({
   value: string;
   onChange: (href: string) => void;
 }) {
-  const view = VIEWS.find((v) => v.href === value) ?? VIEWS[0];
+  // Empty until chosen: mounting an iframe loads the whole page behind it
+  // (Jogos por dia takes minutes on cold cache), so nothing loads unasked.
+  const view = VIEWS.find((v) => v.href === value) ?? null;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
       <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
         <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{side}</span>
         <select
-          value={view.href}
+          value={view?.href ?? ""}
           onChange={(e) => onChange(e.target.value)}
           title={`Conteúdo do painel ${side}`}
           className="min-w-0 flex-1 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
         >
+          <option value="">Escolher o que vai aqui…</option>
           {VIEWS.map((v) => (
             <option key={v.href} value={v.href}>
               {v.label}
             </option>
           ))}
         </select>
-        <a
-          href={view.href}
-          target="_blank"
-          rel="noreferrer"
-          title={`Abrir ${view.label} num separador`}
-          className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
-        >
-          ↗
-        </a>
+        {view && (
+          <a
+            href={view.href}
+            target="_blank"
+            rel="noreferrer"
+            title={`Abrir ${view.label} num separador`}
+            className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
+          >
+            ↗
+          </a>
+        )}
       </div>
-      <iframe
-        key={view.href}
-        src={withEmbed(view.href)}
-        title={view.label}
-        className="min-h-[32rem] w-full flex-1 border-0"
-        style={{ height: "calc(100vh - 16rem)" }}
-      />
+      {view ? (
+        <iframe
+          key={view.href}
+          src={withEmbed(view.href)}
+          title={view.label}
+          className="min-h-[32rem] w-full flex-1 border-0"
+          style={{ height: "calc(100vh - 16rem)" }}
+        />
+      ) : (
+        <p className="flex min-h-[16rem] flex-1 items-center justify-center px-4 text-center text-sm text-neutral-600">
+          Escolhe em cima o que vai neste painel — nada carrega sem pedires.
+        </p>
+      )}
     </div>
   );
 }
 
 // Split screen: two live site panels side by side, each with its own view.
 // Same-origin iframes share the session; embedded frames don't run the
-// global watchers (the top-level tab already does).
+// global watchers (the top-level tab already does). Panels start EMPTY and
+// only load after choosing: mounting an iframe loads the whole page behind
+// it, so nothing heavy runs unasked.
 export default function VistaClient() {
-  const [left, setLeft] = useState(VIEWS[0].href);
-  const [right, setRight] = useState(VIEWS[1].href);
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(LS_KEY);
-      if (!raw) return;
-      const p = JSON.parse(raw) as { left?: string; right?: string };
-      if (typeof p.left === "string" && VIEWS.some((v) => v.href === p.left)) setLeft(p.left);
-      if (typeof p.right === "string" && VIEWS.some((v) => v.href === p.right)) setRight(p.right);
-    } catch {
-      // No saved split.
-    }
-  }, []);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(LS_KEY, JSON.stringify({ left, right }));
-    } catch {
-      // Private mode: split just doesn't persist.
-    }
-  }, [left, right]);
+  const [left, setLeft] = useState("");
+  const [right, setRight] = useState("");
 
   return (
     // Break out of the page max-width: the split uses the full viewport.
