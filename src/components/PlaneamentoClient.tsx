@@ -10,6 +10,17 @@ import { deleteLiveTableAction } from "@/app/(app)/planeamento/actions";
 import PlaneamentoEditor from "@/components/PlaneamentoEditor";
 
 const FAVS_KEY = "apostas:favLeagues";
+const MIN_KEY = "apostas:planMin";
+
+function loadMin(): Set<string> {
+  try {
+    if (typeof window === "undefined") return new Set();
+    const list: unknown = JSON.parse(window.localStorage.getItem(MIN_KEY) ?? "[]");
+    return new Set(Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
 
 function loadFavLabels(): string[] {
   try {
@@ -40,6 +51,25 @@ export default function PlaneamentoClient({
   // Ordenação por cartão: "valor" (padrão, do melhor padrão para o pior) ou
   // "hora" (por pontapé de saída, para preparar a sessão).
   const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
+  // Cartões minimizados (persistente neste browser): nem sequer arrancam o
+  // scan até expandir — poupa leituras ao abrir a página.
+  const [min, setMin] = useState<Set<string>>(() => loadMin());
+
+  const toggleMin = (table: LiveTableDef): void => {
+    const minimized = !min.has(table.id);
+    setMin((prev) => {
+      const next = new Set(prev);
+      if (minimized) next.add(table.id);
+      else next.delete(table.id);
+      try {
+        window.localStorage.setItem(MIN_KEY, JSON.stringify([...next]));
+      } catch {
+        // Private mode: só nesta sessão.
+      }
+      return next;
+    });
+    if (!minimized && !scans[table.id]) void scan(table);
+  };
   const [editing, setEditing] = useState<LiveTableDef | "new" | null>(null);
   const favSet = new Set(favIds);
 
@@ -64,9 +94,11 @@ export default function PlaneamentoClient({
   // otherwise fight over the scraper) — no synchronous setState in the effect.
   useEffect(() => {
     let stop = false;
+    // Minimizadas não arrancam (só ao expandir): menos leituras ao abrir.
+    const skip = loadMin();
     void (async () => {
       for (const t of tables) {
-        if (stop) return;
+        if (stop || skip.has(t.id)) continue;
         try {
           const res = await fetch("/api/planeamento/scan", {
             method: "POST",
@@ -130,6 +162,14 @@ export default function PlaneamentoClient({
                 <div className="flex shrink-0 items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => toggleMin(t)}
+                    title={min.has(t.id) ? "Expandir" : "Minimizar"}
+                    className="text-xs text-neutral-500 transition hover:text-neutral-200"
+                  >
+                    {min.has(t.id) ? "+" : "–"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setSorts((s) => ({ ...s, [t.id]: (s[t.id] ?? "valor") === "valor" ? "hora" : "valor" }))}
                     title={(sorts[t.id] ?? "valor") === "valor" ? "Ordenar por hora" : "Ordenar por valor"}
                     className="text-xs text-neutral-500 transition hover:text-neutral-200"
@@ -176,24 +216,24 @@ export default function PlaneamentoClient({
                 ))}
               </div>
 
-              {scanState.status === "idle" && (
+              {!min.has(t.id) && scanState.status === "idle" && (
                 <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
                   <button type="button" onClick={() => scan(t)} className="underline">
                     Analisar
                   </button>
                 </p>
               )}
-              {scanState.status === "loading" && (
+              {!min.has(t.id) && scanState.status === "loading" && (
                 <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-8 text-center text-xs text-neutral-500">
                   A analisar os jogos… (a primeira vez demora: lê os lances dos jogos recentes)
                 </p>
               )}
-              {scanState.status === "error" && (
+              {!min.has(t.id) && scanState.status === "error" && (
                 <p className="rounded-xl border border-red-900/50 bg-red-950/20 px-4 py-6 text-center text-xs text-red-300">
                   Falhou a leitura. <button type="button" onClick={() => scan(t)} className="underline">Tentar de novo</button>
                 </p>
               )}
-              {scanState.status === "ok" && data && (
+              {!min.has(t.id) && scanState.status === "ok" && data && (
                 <>
                   {data.jogos.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
