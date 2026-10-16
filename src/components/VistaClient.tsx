@@ -14,6 +14,7 @@ const VIEWS: { href: string; label: string }[] = [
   { href: "/previsoes", label: "Previsões do dia" },
   { href: "/multiplas", label: "Múltiplas" },
   { href: "/bots", label: "Bots" },
+  { href: "/planeamento", label: "Planeamento Live" },
 ];
 
 const withEmbed = (href: string): string => (href.includes("?") ? `${href}&embed=1` : `${href}?embed=1`);
