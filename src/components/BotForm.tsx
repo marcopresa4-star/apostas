@@ -62,6 +62,8 @@ const PRE_LABELS: Record<PregameMetric, string> = {
   btts: "Ambas marcam",
   sh_over05: "Over 0.5 — 2ª parte",
   sh_over15: "Over 1.5 — 2ª parte",
+  fh_over05: "Over 0.5 — 1ª parte",
+  fh_over15: "Over 1.5 — 1ª parte",
 };
 
 interface Draft {

@@ -5,7 +5,7 @@ import type { PlayedMatch } from "./footballModel";
 
 export type BotMode = "and" | "or";
 export type BotPeriod = "any" | "first" | "second" | "half";
-export type BotMarket = "mais1" | "home" | "draw" | "away" | "over25" | "btts" | "sh_over15";
+export type BotMarket = "mais1" | "home" | "draw" | "away" | "over25" | "btts" | "sh_over15" | "fh_over05";
 
 export interface BotStat {
   k: string;
@@ -13,7 +13,7 @@ export interface BotStat {
 }
 
 export type PregameSide = "home" | "away" | "either";
-export type PregameMetric = "total_over15" | "total_over25" | "btts" | "sh_over05" | "sh_over15";
+export type PregameMetric = "total_over15" | "total_over25" | "btts" | "sh_over05" | "sh_over15" | "fh_over05" | "fh_over15";
 
 export interface PregameRule {
   side: PregameSide;
@@ -144,6 +144,20 @@ export function historyShares(games: PlayedMatch[], team: string, n: number): {
   };
 }
 
+// First-half shares need the raw totals, computed apart (kept explicit so a
+// thin history without half-time scores fails the rule instead of guessing).
+export function firstHalfShares(games: PlayedMatch[], team: string, n: number): { over05: number; over15: number; games: number } {
+  const totals = games
+    .filter((m) => m.team1 === team || m.team2 === team)
+    .slice(-n)
+    .flatMap((m) => (m.ht ? [m.ht[0] + m.ht[1]] : []));
+  return {
+    over05: totals.length > 0 ? totals.filter((t) => t > 0.5).length / totals.length : 0,
+    over15: totals.length > 0 ? totals.filter((t) => t > 1.5).length / totals.length : 0,
+    games: totals.length,
+  };
+}
+
 // Second-half shares need the raw totals, computed apart (kept explicit so a
 // thin history without half-time scores fails the rule instead of guessing).
 export function secondHalfShares(games: PlayedMatch[], team: string, n: number): { over05: number; over15: number; games: number } {
@@ -169,6 +183,11 @@ export function pregameOk(
 ): boolean {
   const sides = rule.side === "home" ? [home] : rule.side === "away" ? [away] : [home, away];
   const test = (team: string): boolean | null => {
+    if (rule.metric === "fh_over05" || rule.metric === "fh_over15") {
+      const s = firstHalfShares(pool, team, rule.n);
+      if (s.games < 5) return null;
+      return ((rule.metric === "fh_over05" ? s.over05 : s.over15) * 100 >= rule.pct);
+    }
     if (rule.metric === "sh_over05" || rule.metric === "sh_over15") {
       const s = secondHalfShares(pool, team, rule.n);
       if (s.games < 5) return null;
@@ -186,14 +205,18 @@ export function pregameOk(
 
 // Settles a fired alert once the game finishes. Second-half markets need to
 // know when the alert fired: before the break the 2nd-half score is
-// unknowable from (alert, final) alone, so they stay undecided (null).
+// unknowable from (alert, final) alone, so they stay undecided (null). The
+// 1st-half market needs the half-time score instead: pass it when known,
+// else undecided too.
 export function settleAlert(
   market: BotMarket,
   alertHg: number,
   alertAg: number,
   finalHg: number,
   finalAg: number,
-  alertMinute: number | null = null
+  alertMinute: number | null = null,
+  htHg: number | null = null,
+  htAg: number | null = null
 ): boolean | null {
   switch (market) {
     case "mais1":
@@ -211,6 +234,9 @@ export function settleAlert(
     case "sh_over15":
       if (alertMinute === null || alertMinute < 45) return null;
       return finalHg + finalAg - (alertHg + alertAg) > 1.5;
+    case "fh_over05":
+      if (htHg === null || htAg === null) return null;
+      return htHg + htAg > 0.5;
   }
 }
 
@@ -222,6 +248,7 @@ export const BOT_MARKETS: { key: BotMarket; label: string }[] = [
   { key: "over25", label: "Over 2.5 final" },
   { key: "btts", label: "BTTS sim" },
   { key: "sh_over15", label: "Over 1.5 — 2ª parte" },
+  { key: "fh_over05", label: "Over 0.5 — 1ª parte" },
 ];
 
 export const BOT_STATS: { k: string; label: string; unit: string }[] = [
@@ -259,4 +286,6 @@ export const PREGAME_METRICS: { key: PregameMetric; label: string }[] = [
   { key: "btts", label: "ambas marcam" },
   { key: "sh_over05", label: "mais de 0,5 na 2.ª parte" },
   { key: "sh_over15", label: "mais de 1,5 na 2.ª parte" },
+  { key: "fh_over05", label: "mais de 0,5 na 1.ª parte" },
+  { key: "fh_over15", label: "mais de 1,5 na 1.ª parte" },
 ];

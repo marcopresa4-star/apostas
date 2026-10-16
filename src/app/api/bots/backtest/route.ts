@@ -5,7 +5,7 @@
 // as proof the bot would have fired.
 import { createClient } from "@/lib/supabase/server";
 import { loadSofaLeague } from "@/lib/sofaLeague";
-import { pregameOk, scoreOk } from "@/lib/bots";
+import { pregameOk, scoreOk, type PregameMetric } from "@/lib/bots";
 import type { PlayedMatch } from "@/lib/footballModel";
 
 interface Draft {
@@ -13,7 +13,7 @@ interface Draft {
   period: "any" | "first" | "second" | "half";
   minute_to: number;
   score: string;
-  pregame: { side: "home" | "away" | "either"; metric: "total_over15" | "total_over25" | "btts" | "sh_over05" | "sh_over15"; n: number; pct: number }[];
+  pregame: { side: "home" | "away" | "either"; metric: PregameMetric; n: number; pct: number }[];
 }
 
 const BACKTEST_GAMES = 40;

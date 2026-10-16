@@ -25,6 +25,7 @@ import {
   snapMinute,
   statsOk,
   type Bot,
+  type PregameMetric,
   type StatValues,
 } from "@/lib/bots";
 
@@ -112,6 +113,7 @@ const ODD_KEY: Record<string, string | null> = {
   over25: "over:2.5",
   btts: "btts:yes",
   sh_over15: null, // 2nd-half totals have no live price: the odd condition never applies
+  fh_over05: null, // 1st-half totals have no live price either: the odd condition never applies
 };
 
 // Bounded parallelism: the local scraper answers one read at a time, so
@@ -191,13 +193,17 @@ export async function POST() {
       const fhg = num(hs?.current) ?? num(hs?.display);
       const fag = num(as?.current) ?? num(as?.display);
       if (fhg === null || fag === null) return;
+      const hthg = num(hs?.period1);
+      const htag = num(as?.period1);
       const hit = settleAlert(
         a.market as Bot["market"],
         a.hg,
         a.ag,
         fhg,
         fag,
-        typeof (a as { minute?: unknown }).minute === "number" ? (a as { minute: number }).minute : null
+        typeof (a as { minute?: unknown }).minute === "number" ? (a as { minute: number }).minute : null,
+        hthg,
+        htag
       );
       if (hit === null) return;
       await supabase.from("bot_alerts").update({ hit }).eq("id", a.id);
@@ -398,7 +404,7 @@ export async function POST() {
         const league = await leagueOf(leagueCode);
         const pool = league?.data ? [...league.data.history, ...league.data.matches] : [];
         for (const rule of b.pregame) {
-          const r = rule as { side: "home" | "away" | "either"; metric: "total_over15" | "total_over25" | "btts" | "sh_over05" | "sh_over15"; n: number; pct: number };
+          const r = rule as { side: "home" | "away" | "either"; metric: PregameMetric; n: number; pct: number };
           if (!pregameOk(r, pool, casa, fora)) {
             ok = false;
             break;
@@ -441,6 +447,8 @@ export async function POST() {
               ? (live.over["2.5"] ?? 0)
               : b.market === "sh_over15"
                 ? live.secondHalf.over15
+                : b.market === "fh_over05"
+                  ? live.halfTime.over05
                 : b.market === "home"
                 ? live.fullTime.home
                 : b.market === "away"

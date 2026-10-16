@@ -1,6 +1,7 @@
 // Evaluators of the live-monitoring bots (pure functions in bots.ts).
 import { describe, it, expect } from "vitest";
 import {
+  firstHalfShares,
   gatesOk,
   historyShares,
   pregameOk,
@@ -90,6 +91,12 @@ describe("historyShares / secondHalfShares", () => {
     expect(s.over05).toBeCloseTo(2 / 3, 9);
     expect(s.over15).toBeCloseTo(2 / 3, 9);
   });
+  it("first half reads the half-time totals", () => {
+    const s = firstHalfShares(pool, "A", 10);
+    expect(s.games).toBe(3);
+    expect(s.over05).toBeCloseTo(2 / 3, 9);
+    expect(s.over15).toBe(0);
+  });
 });
 
 describe("pregameOk", () => {
@@ -101,6 +108,19 @@ describe("pregameOk", () => {
     expect(pregameOk({ side: "either", metric: "btts", n: 10, pct: 50 }, pool, "A", "B")).toBe(true);
     expect(pregameOk({ side: "home", metric: "sh_over15", n: 10, pct: 10 }, pool, "A", "B")).toBe(false);
     expect(pregameOk({ side: "home", metric: "total_over15", n: 10, pct: 50 }, pool, "Z", "B")).toBe(false);
+  });
+  it("first-half over needs 5 games with half-time scores", () => {
+    const big: PlayedMatch[] = [
+      M("X", "B", [2, 1], [1, 0], "2026-08-01"),
+      M("C", "X", [1, 1], [0, 1], "2026-08-02"),
+      M("X", "D", [0, 0], [0, 0], "2026-08-03"),
+      M("E", "X", [3, 2], [2, 0], "2026-08-04"),
+      M("X", "F", [1, 0], [1, 0], "2026-08-05"),
+      M("G", "X", [0, 0], [0, 0], "2026-08-06"),
+    ];
+    expect(pregameOk({ side: "home", metric: "fh_over05", n: 10, pct: 60 }, big, "X", "B")).toBe(true);
+    expect(pregameOk({ side: "home", metric: "fh_over05", n: 10, pct: 80 }, big, "X", "B")).toBe(false);
+    expect(pregameOk({ side: "home", metric: "fh_over05", n: 10, pct: 10 }, pool, "A", "B")).toBe(false);
   });
 });
 
@@ -122,6 +142,12 @@ describe("settleAlert", () => {
     expect(settleAlert("sh_over15", 1, 0, 2, 0, 60)).toBe(false);
     expect(settleAlert("sh_over15", 0, 0, 3, 0, 20)).toBeNull();
     expect(settleAlert("sh_over15", 0, 0, 3, 0, null)).toBeNull();
+  });
+  it("settles 1st-half over from the half-time score", () => {
+    expect(settleAlert("fh_over05", 0, 0, 1, 1, 30, 1, 0)).toBe(true);
+    expect(settleAlert("fh_over05", 0, 0, 0, 0, 30, 0, 0)).toBe(false);
+    expect(settleAlert("fh_over05", 0, 0, 2, 1, 30, null, null)).toBeNull();
+    expect(settleAlert("fh_over05", 0, 0, 0, 0, 30)).toBeNull();
   });
 });
 
