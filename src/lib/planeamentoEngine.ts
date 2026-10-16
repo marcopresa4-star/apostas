@@ -145,7 +145,11 @@ export async function scanTable(
 
   await pool(leagueCodes, 4, async (code) => {
     if (truncated) return;
-    const loaded = await loadSofaLeague(supabase, userId, code, { history: false, shots: false }).catch(() => null);
+    // One season is enough: samples and upcoming games both come from the
+    // current season's fixtures (older seasons only slow the scan down).
+    const loaded = await loadSofaLeague(supabase, userId, code, { history: false, shots: false, seasons: 1 }).catch(
+      () => null
+    );
     if (!loaded) return;
     const label = LEAGUES.find((l) => l.code === code)?.label ?? code;
     const upcoming = loaded.data.fixtures
