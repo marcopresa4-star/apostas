@@ -125,10 +125,10 @@ export default function BotToasts() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto rounded-xl border border-emerald-500/40 bg-neutral-950/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur"
+          className="pointer-events-auto rounded-xl border border-amber-500/40 bg-neutral-950/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur"
         >
           <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-emerald-300">🤖 {t.bot}</p>
+            <p className="font-semibold text-amber-300">🤖 {t.bot}</p>
             <button
               type="button"
               onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
@@ -140,7 +140,7 @@ export default function BotToasts() {
           </div>
           <p className="mt-0.5 leading-snug text-neutral-200">{t.text}</p>
           {t.link && (
-            <Link href={t.link} className="mt-1 inline-block font-medium text-emerald-400 hover:underline">
+            <Link href={t.link} className="mt-1 inline-block font-medium text-amber-400 hover:underline">
               Ver bots →
             </Link>
           )}
