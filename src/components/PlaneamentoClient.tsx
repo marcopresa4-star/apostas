@@ -43,13 +43,13 @@ export default function PlaneamentoClient({
   const [editing, setEditing] = useState<LiveTableDef | "new" | null>(null);
   const favSet = new Set(favIds);
 
-  const scan = async (table: LiveTableDef) => {
+  const scan = async (table: LiveTableDef, refresh = false) => {
     setScans((s) => ({ ...s, [table.id]: { status: "loading" } }));
     try {
       const res = await fetch("/api/planeamento/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ table, favLabels: loadFavLabels() }),
+        body: JSON.stringify({ table, favLabels: loadFavLabels(), ...(refresh ? { refresh: true } : {}) }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ScanOutput;
@@ -59,12 +59,14 @@ export default function PlaneamentoClient({
     }
   };
 
-  // First paint already marks every table loading (state initializer above),
-  // so this only fires the fetches — no synchronous setState in the effect.
+  // First paint already marks every table loading (state initializer above).
+  // Tables go one at a time (cached ones answer instantly; cold ones would
+  // otherwise fight over the scraper) — no synchronous setState in the effect.
   useEffect(() => {
     let stop = false;
-    void Promise.all(
-      tables.map(async (t) => {
+    void (async () => {
+      for (const t of tables) {
+        if (stop) return;
         try {
           const res = await fetch("/api/planeamento/scan", {
             method: "POST",
@@ -77,8 +79,8 @@ export default function PlaneamentoClient({
         } catch {
           if (!stop) setScans((s) => ({ ...s, [t.id]: { status: "error" } }));
         }
-      })
-    );
+      }
+    })();
     return () => {
       stop = true;
     };
@@ -136,9 +138,9 @@ export default function PlaneamentoClient({
                   </button>
                   <button
                     type="button"
-                    onClick={() => scan(t)}
+                    onClick={() => scan(t, true)}
                     disabled={scanState.status === "loading"}
-                    title="Voltar a analisar"
+                    title="Voltar a analisar (força leitura fresca)"
                     className="text-xs text-neutral-500 transition hover:text-neutral-200 disabled:opacity-50"
                   >
                     ↻

@@ -5,8 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { LEAGUES } from "@/lib/footballData";
 import { todayISO } from "@/lib/searchParams";
 import { loadMaps } from "@/lib/sofaHistory";
+import { cacheGet, cacheSet } from "@/lib/sofaCache";
 import { sanitizeTable } from "@/lib/planeamento";
 import { scanTable } from "@/lib/planeamentoEngine";
+
+const SCAN_TTL_MS = 30 * 60_000;
 
 const shift = (date: string, by: number): string => {
   const d = new Date(`${date}T12:00:00`);
@@ -21,7 +24,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { table?: unknown; favLabels?: unknown };
+  let body: { table?: unknown; favLabels?: unknown; refresh?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -45,6 +48,20 @@ export async function POST(req: Request) {
   if (leagues.length === 0) return Response.json({ jogos: [], semDados: 0, truncated: false, stale: false });
 
   const today = todayISO(new Date());
+  // Repeat views reuse the verdict for 30 minutes (the pattern only shifts
+  // as games finish): without this every page open re-reads everything.
+  const hash = (): string => {
+    const s = JSON.stringify([table.criteria, table.sample, table.venueSplit, leagues]);
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  };
+  const cacheKey = `plan:${table.id || "new"}:${today}:${hash()}`;
+  if (body.refresh !== true) {
+    const hit = await cacheGet(supabase, user.id, cacheKey, SCAN_TTL_MS).catch(() => null);
+    if (hit && typeof hit === "object" && !Array.isArray(hit)) return Response.json(hit);
+  }
   const out = await scanTable(supabase, user.id, table, leagues, today, shift(today, 1));
+  await cacheSet(supabase, user.id, cacheKey, out).catch(() => {});
   return Response.json(out);
 }
