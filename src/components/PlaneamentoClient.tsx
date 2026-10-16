@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import FavoriteButton from "@/components/FavoriteButton";
 import { criterionLabel, type LiveTableDef } from "@/lib/planeamento";
@@ -45,9 +45,7 @@ export default function PlaneamentoClient({
   favIds: number[];
 }) {
   const router = useRouter();
-  const [scans, setScans] = useState<Record<string, ScanState>>(() =>
-    Object.fromEntries(tables.map((t) => [t.id, { status: "loading" as const }]))
-  );
+  const [scans, setScans] = useState<Record<string, ScanState>>({});
   // Ordenação por cartão: "valor" (padrão, do melhor padrão para o pior) ou
   // "hora" (por pontapé de saída, para preparar a sessão).
   const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
@@ -89,36 +87,8 @@ export default function PlaneamentoClient({
     }
   };
 
-  // First paint already marks every table loading (state initializer above).
-  // Tables go one at a time (cached ones answer instantly; cold ones would
-  // otherwise fight over the scraper) — no synchronous setState in the effect.
-  useEffect(() => {
-    let stop = false;
-    // Minimizadas não arrancam (só ao expandir): menos leituras ao abrir.
-    const skip = loadMin();
-    void (async () => {
-      for (const t of tables) {
-        if (stop || skip.has(t.id)) continue;
-        try {
-          const res = await fetch("/api/planeamento/scan", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ table: t, favLabels: loadFavLabels() }),
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = (await res.json()) as ScanOutput;
-          if (!stop) setScans((s) => ({ ...s, [t.id]: { status: "ok", data } }));
-        } catch {
-          if (!stop) setScans((s) => ({ ...s, [t.id]: { status: "error" } }));
-        }
-      }
-    })();
-    return () => {
-      stop = true;
-    };
-    // Tables come from the server render: scan once per mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Sem arranque automático: cada tabela só analisa quando pedida (botão
+  // Analisar, expandir ou ↻). Abrir a página passa a ser instantâneo.
 
   const remove = async (id: string, name: string) => {
     if (!window.confirm(`Apagar a tabela "${name}"?`)) return;
