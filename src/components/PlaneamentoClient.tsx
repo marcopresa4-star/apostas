@@ -54,6 +54,9 @@ export default function PlaneamentoClient({
   // mount (o servidor não vê o localStorage: ler aqui dava mismatch).
   const [min, setMin] = useState<Set<string>>(new Set());
   useEffect(() => {
+    // Sincroniza com o localStorage (sistema externo): única leitura segura
+    // sem mismatch de hidratação.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMin(loadMin());
   }, []);
 
