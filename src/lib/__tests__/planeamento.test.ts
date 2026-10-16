@@ -26,6 +26,7 @@ describe("planeamento", () => {
     expect(intervalLabel(0, 45)).toBe("1ª parte");
     expect(intervalLabel(45, 90)).toBe("2ª parte");
     expect(intervalLabel(30, 45)).toBe("30–45′");
+    expect(intervalLabel(75, 90)).toBe("75–90′");
     expect(criterionLabel(crit())).toBe("Cantos 1ª parte: ≥ 2 esperados");
     expect(criterionLabel(crit({ agg: "pct", target: 1, minPct: 70, metric: "amarelos" }))).toBe(
       "Amarelos 1ª parte: 70%+ com 1+"

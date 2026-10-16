@@ -47,7 +47,7 @@ export const isHalvesOnly = (metric: LiveMetric): boolean => metric === "cantos"
 export function intervalLabel(from: number, to: number): string {
   if (from <= 0 && to >= 90) return "Jogo";
   if (from <= 0 && to <= 45) return "1ª parte";
-  if (from >= 45 && to >= 90) return "2ª parte";
+  if (from === 45 && to >= 90) return "2ª parte";
   return `${from}–${to}′`;
 }
 
