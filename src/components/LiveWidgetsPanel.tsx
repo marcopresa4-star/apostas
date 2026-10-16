@@ -62,6 +62,9 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
     setOrder(loadOrder());
   }, []);
   const [alerts, setAlerts] = useState<boolean>(false);
+  // Event ids already whistled finished: their cards hide at once (the row
+  // itself is deleted server-side by the widget's own poll).
+  const [gone, setGone] = useState<Set<number>>(new Set());
   useEffect(() => {
     setAlerts(alertsOn());
   }, []);
@@ -242,6 +245,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
             const key = `w:${w.id}`;
             const pos = position.get(key) ?? 0;
             const eventId = w.sofascore_url ? parseSofascoreId(w.sofascore_url) : null;
+            if (eventId !== null && gone.has(eventId)) return null;
             return (
               <div key={key} style={{ order: pos }}>
                 <div className="mb-1.5 flex items-center justify-between">
@@ -289,7 +293,13 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
                   </button>
                 </div>
                 {eventId !== null ? (
-                  <SofaScoreWidget eventId={eventId} home={w.home_team} away={w.away_team} />
+                  <SofaScoreWidget
+                    eventId={eventId}
+                    home={w.home_team}
+                    away={w.away_team}
+                    watchedId={w.id}
+                    onFinished={(id) => setGone((prev) => new Set(prev).add(id))}
+                  />
                 ) : (
                   <div className="w-full rounded-xl border border-dashed border-neutral-800 bg-neutral-900 px-4 py-8 text-center">
                     <p className="text-sm font-medium text-neutral-200">

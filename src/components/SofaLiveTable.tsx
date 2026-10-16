@@ -344,7 +344,6 @@ export default function SofaLiveTable({
 
   const togglePin = (game: SofaLiveEntry) => {
     const key = String(game.id);
-    const pinning = !pinned.has(key);
     setPinned((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -356,19 +355,8 @@ export default function SofaLiveTable({
       }
       return next;
     });
-    // Pinning also puts the game on the Dashboard (its own Remover ✕ takes it
-    // off again; unpinning here only unsorts). Duplicates are refused server-side.
-    if (pinning) {
-      setPendingId(game.id);
-      startTransition(async () => {
-        try {
-          await addWatchedMatch(game.home, game.away, null, null, `id:${game.id}`);
-          setAdded((prev) => new Set(prev).add(game.id));
-        } finally {
-          setPendingId(null);
-        }
-      });
-    }
+    // Pinning stays local to Ao vivo agora: Jogos gets games only through the
+    // explicit "+ Jogos" button below (or by hand on the Jogos page).
   };
 
   const q = query.trim().toLowerCase();
@@ -449,7 +437,7 @@ export default function SofaLiveTable({
           <button
             type="button"
             onClick={() => togglePin(g)}
-            title={isPinned ? "Desafixar do topo" : "Afixar no topo e pôr nos Jogos"}
+            title={isPinned ? "Desafixar do topo" : "Afixar no topo"}
             className={`text-sm transition ${isPinned ? "text-emerald-400" : "text-neutral-700 hover:text-neutral-400"}`}
           >
             📌
@@ -639,7 +627,7 @@ export default function SofaLiveTable({
                       <button
                         type="button"
                         onClick={() => togglePin(g)}
-                        title={pinned.has(String(g.id)) ? "Desafixar" : autoSet.has(String(g.id)) ? "Afixar também manualmente" : "Afixar no topo e pôr nos Jogos"}
+                        title={pinned.has(String(g.id)) ? "Desafixar" : autoSet.has(String(g.id)) ? "Afixar também manualmente" : "Afixar no topo"}
                         className={`text-sm transition ${pinned.has(String(g.id)) ? "text-emerald-400 hover:text-neutral-400" : "text-neutral-700 hover:text-neutral-400"}`}
                       >
                         📌

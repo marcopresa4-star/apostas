@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { removeWatchedMatch } from "@/app/(app)/actions";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { predictLive } from "@/lib/liveModel";
 
@@ -871,6 +872,8 @@ export default function SofaScoreWidget({
   away,
   expectedHome,
   expectedAway,
+  watchedId,
+  onFinished,
 }: {
   eventId: number;
   home?: string;
@@ -879,6 +882,11 @@ export default function SofaScoreWidget({
   // projection lines. Without them the chart shows actual xG only.
   expectedHome?: number | null;
   expectedAway?: number | null;
+  // Row id in watched_matches (Jogos page only): at the final whistle the
+  // widget removes the row itself — one cheap DELETE on the existing minute
+  // poll, no extra reads. onFinished hides the card without a reload.
+  watchedId?: string;
+  onFinished?: (eventId: number) => void;
 }) {
   const [state, setState] = useState<LiveGameState | null>(null);
   const [hasTracker, setHasTracker] = useState<boolean | null>(null);
@@ -909,6 +917,11 @@ export default function SofaScoreWidget({
     missing: { name: string; home: boolean }[];
   } | null>(null);
 
+  // Final-whistle retirement (Jogos cards only): fires once per mount.
+  const retiredRef = useRef(false);
+  const finishedCb = useRef(onFinished);
+  finishedCb.current = onFinished;
+
   useEffect(() => {
     let stop = false;
     const poll = async () => {
@@ -925,6 +938,13 @@ export default function SofaScoreWidget({
         if (body?.state) {
           setState(body.state as LiveGameState);
           noteResult(eventId, true);
+          // Final whistle on a Jogos card: leave Jogos by itself (once).
+          const phase = (body.state as LiveGameState).phase;
+          if (phase === "finished" && watchedId && !retiredRef.current) {
+            retiredRef.current = true;
+            removeWatchedMatch(watchedId).catch(() => {});
+            finishedCb.current?.(eventId);
+          }
         } else {
           noteResult(eventId, false);
         }
@@ -942,7 +962,7 @@ export default function SofaScoreWidget({
       stop = true;
       clearInterval(id);
     };
-  }, [eventId]);
+  }, [eventId, watchedId]);
 
   // Momentum + statistics + xG load once each, then refresh on a slow poll
   // (graphs redrawn every minute would flicker). Skipped while backing off.
