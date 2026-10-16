@@ -13,6 +13,10 @@ import { useEffect, useRef } from "react";
 export default function BotsWatcher() {
   const seen = useRef<Set<string>>(new Set());
   const stopRef = useRef(false);
+  // A check can take minutes when the scraper is loaded (live games × odds ×
+  // stats reads); never stack a new one on top — that piled up overlapping
+  // runs and starved every other scraper read (verified Oct 2026: 3min runs).
+  const busyRef = useRef(false);
 
   useEffect(() => {
     // Embedded panels (Vista Dinâmica iframes) don't poll: the top-level tab
@@ -24,69 +28,74 @@ export default function BotsWatcher() {
     }
     stopRef.current = false;
     const check = async (): Promise<void> => {
-      if (stopRef.current) return;
-      let res: Response;
+      if (stopRef.current || busyRef.current) return;
+      busyRef.current = true;
       try {
-        res = await fetch("/api/bots/check", { method: "POST", cache: "no-store" });
-      } catch {
-        return;
-      }
-      // Logged out: nothing to watch on this tab ever.
-      if (res.status === 401) {
-        stopRef.current = true;
-        return;
-      }
-      if (!res.ok) return;
-      let body: { fired?: { id: string; silent: boolean; text: string; bot_name?: string }[]; games?: number };
-      try {
-        body = (await res.json()) as typeof body;
-      } catch {
-        return;
-      }
-      // Heartbeat so the Bots page can show the automatic pass is alive
-      // (last pass time + games seen), without pressing anything.
-      try {
-        window.localStorage.setItem(
-          "apostas:bots-watch",
-          JSON.stringify({ at: Date.now(), games: typeof body.games === "number" ? body.games : null })
-        );
-      } catch {
-        // Private mode: nothing persists.
-      }
-      // Cross-tab ping so other open tabs refresh their lists too (window
-      // events never leave their own tab). Carries the alerts themselves so
-      // every tab can toast, not just the one that found them.
-      if ((body.fired ?? []).length > 0) {
+        let res: Response;
+        try {
+          res = await fetch("/api/bots/check", { method: "POST", cache: "no-store" });
+        } catch {
+          return;
+        }
+        // Logged out: nothing to watch on this tab ever.
+        if (res.status === 401) {
+          stopRef.current = true;
+          return;
+        }
+        if (!res.ok) return;
+        let body: { fired?: { id: string; silent: boolean; text: string; bot_name?: string }[]; games?: number };
+        try {
+          body = (await res.json()) as typeof body;
+        } catch {
+          return;
+        }
+        // Heartbeat so the Bots page can show the automatic pass is alive
+        // (last pass time + games seen), without pressing anything.
         try {
           window.localStorage.setItem(
-            "apostas:bots-ping",
-            JSON.stringify({
-              at: Date.now(),
-              alerts: (body.fired ?? []).map((f) => ({ id: f.id, bot_name: f.bot_name, text: f.text, link: "/bots", sticky: true })),
-            })
+            "apostas:bots-watch",
+            JSON.stringify({ at: Date.now(), games: typeof body.games === "number" ? body.games : null })
           );
         } catch {
-          // Private mode: same-tab listeners still work.
+          // Private mode: nothing persists.
         }
-      }
-      for (const f of body.fired ?? []) {
-        if (stopRef.current || seen.current.has(f.id)) continue;
-        seen.current.add(f.id);
-        if (!f.silent && typeof Notification !== "undefined" && Notification.permission === "granted") {
+        // Cross-tab ping so other open tabs refresh their lists too (window
+        // events never leave their own tab). Carries the alerts themselves so
+        // every tab can toast, not just the one that found them.
+        if ((body.fired ?? []).length > 0) {
           try {
-            new Notification(f.text);
+            window.localStorage.setItem(
+              "apostas:bots-ping",
+              JSON.stringify({
+                at: Date.now(),
+                alerts: (body.fired ?? []).map((f) => ({ id: f.id, bot_name: f.bot_name, text: f.text, link: "/bots", sticky: true })),
+              })
+            );
           } catch {
-            // Permission revoked mid-session: the Bots page keeps the alert.
+            // Private mode: same-tab listeners still work.
           }
         }
-        // In-site toast on every page + live list refresh on /bots.
-        if (!f.silent) {
-          try {
-            window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: { ...f, link: "/bots", sticky: true } }));
-          } catch {
-            // No listeners: the Bots page keeps the alert.
+        for (const f of body.fired ?? []) {
+          if (stopRef.current || seen.current.has(f.id)) continue;
+          seen.current.add(f.id);
+          if (!f.silent && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              new Notification(f.text);
+            } catch {
+              // Permission revoked mid-session: the Bots page keeps the alert.
+            }
+          }
+          // In-site toast on every page + live list refresh on /bots.
+          if (!f.silent) {
+            try {
+              window.dispatchEvent(new CustomEvent("apostas:bot-alert", { detail: { ...f, link: "/bots", sticky: true } }));
+            } catch {
+              // No listeners: the Bots page keeps the alert.
+            }
           }
         }
+      } finally {
+        busyRef.current = false;
       }
     };
     void check();

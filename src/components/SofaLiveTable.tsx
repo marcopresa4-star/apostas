@@ -137,7 +137,9 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
     const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
     const poll = async (): Promise<void> => {
       try {
-        const res = await fetch(`/api/sofascore/event?id=${g.id}&light=1`, { cache: "no-store" });
+        // No `cache: no-store` here: the route answers max-age=30, shared by
+        // every tab and card instead of one fresh scraper read each.
+        const res = await fetch(`/api/sofascore/event?id=${g.id}&light=1`);
         if (!res.ok || stop) return;
         const body = (await res.json()) as {
           state?: { minute?: unknown; phase?: unknown; homeGoals?: unknown; awayGoals?: unknown };

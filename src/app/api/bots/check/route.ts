@@ -144,12 +144,23 @@ interface Fired {
   created_at: string;
 }
 
+// One process serves all open tabs, so this module flag serializes their
+// per-minute polls (see POST below).
+let checkRunning = false;
+
 export async function POST() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  // One run at a time per process: a pass can take minutes when the scraper
+  // is loaded, and every open tab polls each minute — without this the runs
+  // stack and starve every other scraper read. Losers answer empty instantly.
+  if (checkRunning) return Response.json({ fired: [], stats: {}, games: 0, busy: true });
+  checkRunning = true;
+  try {
 
   const { data: bots } = await supabase
     .from("bots")
@@ -503,4 +514,7 @@ export async function POST() {
   });
 
   return Response.json({ fired, stats, diag, games: games.length, truncated: live.games.length > MAX_GAMES });
+  } finally {
+    checkRunning = false;
+  }
 }
