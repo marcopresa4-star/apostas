@@ -111,7 +111,7 @@ export default function PlaneamentoClient({
         </p>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
         {tables.map((t) => {
           const scanState = scans[t.id] ?? { status: "idle" as const };
           const data = scanState.data;
