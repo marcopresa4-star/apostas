@@ -122,13 +122,20 @@ export default function BotToasts() {
   if (toasts.length === 0) return null;
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
-      {toasts.map((t) => (
+      {toasts.map((t) => {
+        // Goal toasts (Golo / Golo anulado) share this rail: keep them green,
+        // bot alerts stay amber so the two are told apart at a glance.
+        const golo = t.bot === "Golo" || t.bot === "Golo anulado";
+        const border = golo ? "border-emerald-500/40" : "border-amber-500/40";
+        const title = golo ? "text-emerald-300" : "text-amber-300";
+        const link = golo ? "text-emerald-400" : "text-amber-400";
+        return (
         <div
           key={t.id}
-          className="pointer-events-auto rounded-xl border border-amber-500/40 bg-neutral-950/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur"
+          className={`pointer-events-auto rounded-xl border ${border} bg-neutral-950/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur`}
         >
           <div className="flex items-start justify-between gap-2">
-            <p className="font-semibold text-amber-300">🤖 {t.bot}</p>
+            <p className={`font-semibold ${title}`}>🤖 {t.bot}</p>
             <button
               type="button"
               onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
@@ -140,12 +147,13 @@ export default function BotToasts() {
           </div>
           <p className="mt-0.5 leading-snug text-neutral-200">{t.text}</p>
           {t.link && (
-            <Link href={t.link} className="mt-1 inline-block font-medium text-amber-400 hover:underline">
+            <Link href={t.link} className={`mt-1 inline-block font-medium ${link} hover:underline`}>
               Ver bots →
             </Link>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
