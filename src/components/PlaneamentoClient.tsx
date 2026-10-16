@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FavoriteButton from "@/components/FavoriteButton";
 import { criterionLabel, type LiveTableDef } from "@/lib/planeamento";
@@ -50,8 +50,12 @@ export default function PlaneamentoClient({
   // "hora" (por pontapé de saída, para preparar a sessão).
   const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
   // Cartões minimizados (persistente neste browser): nem sequer arrancam o
-  // scan até expandir — poupa leituras ao abrir a página.
-  const [min, setMin] = useState<Set<string>>(() => loadMin());
+  // scan até expandir — poupa leituras ao abrir a página. Hidrata após o
+  // mount (o servidor não vê o localStorage: ler aqui dava mismatch).
+  const [min, setMin] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setMin(loadMin());
+  }, []);
 
   const toggleMin = (table: LiveTableDef): void => {
     const minimized = !min.has(table.id);
