@@ -919,6 +919,118 @@ export async function eventGoalMinutes(
   return marks.every((g) => typeof g === "object" && g !== null) ? (marks as SofaGoalMark[]) : null;
 }
 
+export interface SofaCardMark {
+  minute: number;
+  home: boolean; // the booked player's side
+}
+
+// Yellow-card minutes of one event (second yellows count as yellow): what the
+// "+1 Amarelo HT" tables aggregate. Same cache shape as the goal minutes.
+export async function eventCardMinutes(
+  supabase: SupabaseClient,
+  userId: string,
+  eventId: number,
+  tracker?: StaleTracker
+): Promise<SofaCardMark[] | null> {
+  const key = `cardmin:${eventId}`;
+  const data = await cachedRead<{ marks: SofaCardMark[] | null }>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      let body: unknown;
+      try {
+        body = await sofaRaw<unknown>(`/event/${eventId}/incidents`);
+      } catch (err) {
+        if (err instanceof ScraperOffline) throw err;
+        return null;
+      }
+      const raw = obj(body)?.incidents;
+      if (!Array.isArray(raw)) return { marks: null };
+      const out: SofaCardMark[] = [];
+      for (const item of raw) {
+        const e = obj(item);
+        if (!e) continue;
+        const type = str(e.incidentType).toLowerCase();
+        if (!type.includes("card")) continue;
+        // Straight reds are not yellows; a second yellow shows up yellow.
+        if (!str(e.incidentClass).toLowerCase().includes("yellow")) continue;
+        const minute = num(e.time);
+        if (minute === null || minute < 1 || minute > 130) continue;
+        out.push({ minute, home: e.isHome === true });
+      }
+      return { marks: out };
+    },
+    tracker,
+    (v): boolean =>
+      !!v && typeof v === "object" && !Array.isArray(v) && (Array.isArray((v as { marks?: unknown }).marks) || (v as { marks?: unknown }).marks === null)
+  );
+  if (!data) return null;
+  const marks = data.marks;
+  if (marks === null) return null;
+  return marks.every((m) => typeof m === "object" && m !== null) ? (marks as SofaCardMark[]) : null;
+}
+
+export interface SofaCorners {
+  all: [number, number]; // [home, away] whole game
+  first: [number, number]; // 1st half
+  second: [number, number]; // 2nd half
+}
+
+// Corner kicks of one event, whole game and per half (the statistics endpoint
+// carries ALL/1ST/2ND periods — no 15' slices exist, so corner criteria are
+// halves/game only). Cached 30 days: results never change.
+export async function eventCorners(
+  supabase: SupabaseClient,
+  userId: string,
+  eventId: number,
+  tracker?: StaleTracker
+): Promise<SofaCorners | null> {
+  const key = `corners:${eventId}`;
+  const data = await cachedRead<{ corners: SofaCorners | null }>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      let body: unknown;
+      try {
+        body = await sofaRaw<unknown>(`/event/${eventId}/statistics`);
+      } catch (err) {
+        if (err instanceof ScraperOffline) throw err;
+        return null;
+      }
+      const periods = obj(body)?.statistics;
+      if (!Array.isArray(periods)) return { corners: null };
+      const pick = (name: string): [number, number] | null => {
+        const p = periods.map(obj).find((x) => x?.period === name);
+        const groups = Array.isArray(p?.groups) ? (p!.groups as unknown[]) : [];
+        for (const g of groups.map(obj)) {
+          const items = Array.isArray(g?.statisticsItems) ? (g!.statisticsItems as unknown[]) : [];
+          for (const item of items.map(obj)) {
+            if (item?.name === "Corner kicks" && typeof item.home === "number" && typeof item.away === "number") {
+              return [item.home, item.away];
+            }
+          }
+        }
+        return null;
+      };
+      const all = pick("ALL");
+      const first = pick("1ST");
+      const second = pick("2ND");
+      // Halves occasionally missing on low coverage: guessing them from the
+      // total would fabricate the split, so the game counts as no data.
+      if (!all || !first || !second) return { corners: null };
+      return { corners: { all, first, second } };
+    },
+    tracker,
+    (v): boolean => !!v && typeof v === "object" && !Array.isArray(v)
+  );
+  if (!data) return null;
+  return data.corners;
+}
+
 // ---------------------------------------------------------------------------
 // National teams (phase 3b): every game of a team back to `since`
 // ---------------------------------------------------------------------------
