@@ -113,12 +113,13 @@ async function AoVivoBoard() {
   const forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }> = {};
   const rings: Record<number, SofaBoardRings> = {};
   const detail: Record<number, SofaBoardDetail> = {};
+  const labels: Record<number, string> = {};
   const mappedIds = new Set<number>();
   if (games.length > 0 && user) {
     const maps = await loadMaps(supabase, user.id, "tournament");
       const teamMaps = await loadMaps(supabase, user.id, "team");
       const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
-      const labelByCode = new Map(LEAGUES.map((l) => [l.code, l.label as string]));
+      const labelByCode = new Map<string, string>(LEAGUES.map((l) => [l.code, l.label as string]));
       const loaded = await Promise.all(
         maps.map(async (m) => {
           const seasons = await tournamentSeasons(supabase, user.id, m.sofascore_id).catch(() => []);
@@ -143,12 +144,30 @@ async function AoVivoBoard() {
         matchesByCode.set(code, matches);
         return matches;
       };
+      // Torneio mapeado pelo id (o live list traz o uniqueTournament em cada
+      // fila): manter o jogo não pode depender de os nomes casarem com a
+      // cache — uma grafia diferente deixa o jogo fora do quadro (Liga MX:
+      // Guadalajara–Tigres desapareceu enquanto Santos–Querétaro ficava, o
+      // mesmo torneio e a mesma lista ao vivo).
+      const byTid = new Map<number, string>();
+      for (const m of maps) {
+        const label = labelByCode.get(m.name_key);
+        if (label) byTid.set(m.sofascore_id, label);
+      }
       for (const g of games) {
         const found = findGameByNames([g.home], [g.away], leagues);
-        if (!found) continue;
+        const mappedLabel = g.uniqueId !== null ? byTid.get(g.uniqueId) : undefined;
+        if (!found && !mappedLabel) continue;
+        mappedIds.add(g.id);
+        if (!found) {
+          // Liga mapeada mas nomes por casar: linha só-com-resultado sob o
+          // cabeçalho da liga (como um jogo com estrela, sem história);
+          // insinuar stats aqui seria inventar números.
+          labels[g.id] = mappedLabel!;
+          continue;
+        }
         // A mapped-league game keeps its row even when its clubs have no
         // history yet (score-only display, like a starred game).
-        mappedIds.add(g.id);
         const local = (name: string): string => toLocal.get(name) ?? name;
         const matches = await matchesFor(found.code as (typeof LEAGUES)[number]["code"]);
         if (matches.length === 0) continue;
@@ -226,7 +245,7 @@ async function AoVivoBoard() {
             : `Há ${n(games.length)} no mundo, mas nenhum nas tuas ligas mapeadas, estrelado ou seguido — cola o link ao lado de cima se quiseres acompanhar um deles.`}
         </p>
       ) : (
-        <SofaLiveTable games={kept} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={[...favorites]} />
+        <SofaLiveTable games={kept} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={[...favorites]} labels={labels} />
       )}
     </>
   );

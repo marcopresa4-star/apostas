@@ -264,6 +264,7 @@ export default function SofaLiveTable({
   rings,
   detail,
   autoPinned = [],
+  labels = {},
 }: {
   games: SofaLiveEntry[];
   stats: Record<number, SofaBoardStats>;
@@ -273,6 +274,10 @@ export default function SofaLiveTable({
   // Games followed in Em direto that are live now: pinned automatically
   // (no localStorage). Manual pins still work on top.
   autoPinned?: number[];
+  // Mapped-league rows kept by tournament id when the team names didn't
+  // match the history cache: they show score-only but must group under the
+  // same mapped header as their league (not the raw competition string).
+  labels?: Record<number, string>;
 }) {
   const router = useRouter();
   const [auto, setAuto] = useState(true);
@@ -383,7 +388,7 @@ export default function SofaLiveTable({
     };
   }, [auto, router]);
 
-  const leagueOf = (g: SofaLiveEntry): string => stats[g.id]?.leagueLabel ?? g.competition;
+  const leagueOf = (g: SofaLiveEntry): string => stats[g.id]?.leagueLabel ?? labels[g.id] ?? g.competition;
 
   const toggleFavLeague = (league: string) => {
     setFavLeagues((prev) => {
