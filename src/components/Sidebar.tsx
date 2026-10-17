@@ -84,6 +84,7 @@ const NAV: NavEntry[] = [
     items: [
       { href: "/bots", label: "Bots", icon: "🤖" },
       { href: "/planeamento", label: "Planeamento Live", icon: "🗂️" },
+      { href: "/notas", label: "Notas", icon: "📝" },
       { href: "/value", label: "Value Bets", icon: "💎" },
       { href: "/previsoes", label: "Previsões do dia", icon: "🔮" },
       { href: "/multiplas", label: "Múltiplas", icon: "🎲" },

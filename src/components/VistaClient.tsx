@@ -13,6 +13,7 @@ const VIEWS: { href: string; label: string }[] = [
   { href: "/value", label: "Value Bets" },
   { href: "/previsoes", label: "Previsões do dia" },
   { href: "/multiplas", label: "Múltiplas" },
+  { href: "/notas", label: "Notas" },
   { href: "/bots", label: "Bots" },
   { href: "/planeamento", label: "Planeamento Live" },
 ];
