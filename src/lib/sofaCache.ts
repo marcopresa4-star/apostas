@@ -57,6 +57,30 @@ export async function cacheGetMeta(
   }
 }
 
+// The cached payload whatever its age, with the age itself: pages can show
+// the last evaluation while re-evaluating in the background.
+export async function cacheGetAny(
+  supabase: SupabaseClient,
+  userId: string,
+  key: string
+): Promise<{ payload: unknown; fetchedAt: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from("sofascore_cache")
+      .select("payload, fetched_at")
+      .eq("user_id", userId)
+      .eq("key", key)
+      .maybeSingle();
+    if (error || !data) return null;
+    const row = data as CacheRow;
+    const at = Date.parse(row.fetched_at);
+    if (!Number.isFinite(at)) return null;
+    return { payload: row.payload, fetchedAt: at };
+  } catch {
+    return null;
+  }
+}
+
 // Flagged when any read in the chain served expired cache: pages turn it
 // into a "dados em cache" banner. One per top-level load, passed down.
 export interface StaleTracker {

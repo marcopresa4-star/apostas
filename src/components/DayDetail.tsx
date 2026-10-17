@@ -7,7 +7,7 @@ import { LEAGUES } from "@/lib/footballData";
 import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonRecentLite, tournamentLiveFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
-import { cacheGet, cacheSet, HOUR_MS } from "@/lib/sofaCache";
+import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd } from "@/lib/oddsParse";
 import type { PlayedMatch } from "@/lib/footballModel";
@@ -124,6 +124,18 @@ function Ring({ value, tone, title }: { value: number | null; tone: "green" | "o
 
 const FORM_CLS = { V: "bg-emerald-600", E: "bg-neutral-600", D: "bg-red-600" } as const;
 
+// Refrescos em segundo plano em curso (por chave; igual à Matriz): quando a
+// página serve a última avaliação e lança o refresco, visitas repetidas à
+// mesma tabela não empilham outra passagem por cima.
+const recomputing = new Set<string>();
+function kickRecompute(key: string, run: () => Promise<void>): void {
+  if (recomputing.has(key)) return;
+  recomputing.add(key);
+  void run()
+    .catch(() => {})
+    .finally(() => recomputing.delete(key));
+}
+
 function Dots({ form, title }: { form: { r: "V" | "E" | "D"; date: string; opp: string }[]; title: string }) {
   if (form.length === 0) return <span className="text-neutral-700">—</span>;
   return (
@@ -182,14 +194,15 @@ export default async function DayDetail({
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
   const cacheKey = `daydetail:v5:${day}|${pais}|${ligaSel}`;
-  const cached = refresh ? null : await cacheGet(supabase, user.id, cacheKey, HOUR_MS / 2).catch(() => null);
+  const meta = refresh ? null : await cacheGetAny(supabase, user.id, cacheKey).catch(() => null);
+  const age = meta ? Date.now() - meta.fetchedAt : Infinity;
   let table: DetailLeague[] = [];
   let failed: string[] = [];
   let staleLeagues: string[] = [];
   let unlinkedNames: string[] = [];
-  if (Array.isArray(cached)) {
-    table = cached as DetailLeague[];
-  } else {
+  let shownAge: number | null = null; // idade da última avaliação servida
+  let refazendo = false;
+  const compute = async (): Promise<void> => {
     const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
     const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
     const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
@@ -311,6 +324,18 @@ export default async function DayDetail({
     staleLeagues = [...staleSet];
     unlinkedNames = [...unlinkedSet].slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
+  };
+  if (age <= HOUR_MS / 2 && Array.isArray(meta?.payload)) {
+    table = meta.payload as DetailLeague[];
+  } else if (age <= 6 * HOUR_MS && Array.isArray(meta?.payload)) {
+    // Igual à matriz: servimos já a última avaliação e reavaliamos ao lado —
+    // a página deixa de esperar minutos quando o refresco de 30 min expira.
+    table = meta.payload as DetailLeague[];
+    shownAge = Math.max(0, Math.round(age / 60_000));
+    refazendo = true;
+    kickRecompute(cacheKey, compute);
+  } else {
+    await compute();
   }
 
   const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [] as { id: number; minute: number | null; phase: string; homeGoals: number | null; awayGoals: number | null }[] }));
@@ -350,6 +375,11 @@ export default async function DayDetail({
             atualizar
           </Link>
         </span>
+        {shownAge !== null && refazendo && (
+          <span className="text-sky-300" title="A última avaliação é de hoje; a nova corre agora em segundo plano">
+            Mostrada a última avaliação (há {shownAge} min) — a reavaliar em segundo plano; recarrega daqui a ~1 min.
+          </span>
+        )}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
         {staleLeagues.length > 0 && (
           <span className="text-amber-300" title={staleLeagues.join(", ")}>

@@ -5,7 +5,7 @@ import { LEAGUES } from "@/lib/footballData";
 import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonRecentLite, tournamentLiveFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
-import { cacheGet, cacheSet, HOUR_MS } from "@/lib/sofaCache";
+import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { matchTotalOver, MIN_GAMES } from "@/lib/recommendation";
 
@@ -64,6 +64,18 @@ const fair2 = (p: number): string => (p > 0 ? (1 / p).toFixed(2).replace(".", ",
 const band = (p: number): string =>
   p >= 0.65 ? "text-emerald-400" : p >= 0.4 ? "text-amber-300" : "text-red-400";
 
+// Refrescos já em curso, por chave: quando a página serve a última avaliação
+// e lança a reavaliação em segundo plano, visitas seguintes à mesma tabela
+// não empilham outra por cima (o refresco termina quando termina).
+const recomputing = new Set<string>();
+function kickRecompute(key: string, run: () => Promise<void>): void {
+  if (recomputing.has(key)) return;
+  recomputing.add(key);
+  void run()
+    .catch(() => {})
+    .finally(() => recomputing.delete(key));
+}
+
 export default async function DayMatrix({
   day,
   pais,
@@ -100,17 +112,17 @@ export default async function DayMatrix({
   const now = new Date();
 
   const cacheKey = `daymatrix:v3:${day}|${pais}|${ligaSel}`;
-  const cached = refresh
-    ? null
-    : await cacheGet(supabase, user.id, cacheKey, HOUR_MS).catch(() => null);
+  const meta = refresh ? null : await cacheGetAny(supabase, user.id, cacheKey).catch(() => null);
+  const age = meta ? now.getTime() - meta.fetchedAt : Infinity;
   let table: MatrixLeague[] = [];
   let failed: string[] = [];
   let staleLeagues: string[] = [];
   let unlinkedNames: string[] = [];
   let missedNames: string[] = [];
-  if (Array.isArray(cached)) {
-    table = cached as MatrixLeague[];
-  } else {
+  let shownAge: number | null = null; // minutos quando servimos a última avaliação
+  let refazendo = false;
+
+  const compute = async (): Promise<void> => {
     const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
     const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
     const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
@@ -223,6 +235,22 @@ export default async function DayMatrix({
     unlinkedNames = [...unlinkedSet].slice(0, 12);
     missedNames = [...missed].slice(0, 12);
     if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
+  };
+
+  if (age <= HOUR_MS && Array.isArray(meta?.payload)) {
+    table = meta.payload as MatrixLeague[];
+  } else if (age <= 6 * HOUR_MS && Array.isArray(meta?.payload)) {
+    // A última avaliação serve já (dados de hoje raramente mudam sem novo
+    // histórico) e a reavaliação corre em segundo plano: a página deixa de
+    // esperar minutos no refresco horário — o até-6h é a mesma barra que os
+    // utilizador escolheu para as jornadas terminadas.
+    table = meta.payload as MatrixLeague[];
+    shownAge = Math.round(age / 60_000);
+    if (shownAge < 1) shownAge = 0;
+    refazendo = true;
+    kickRecompute(cacheKey, compute);
+  } else {
+    await compute();
   }
 
   // Live-only view + team search filter on the (cached) rows.
@@ -268,6 +296,11 @@ export default async function DayMatrix({
             atualizar
           </Link>
         </span>
+        {shownAge !== null && refazendo && (
+          <span className="text-sky-300" title="A última avaliação é de hoje; a nova corre agora em segundo plano">
+            Mostrada a última avaliação (há {shownAge} min) — a reavaliar em segundo plano; recarrega daqui a ~1 min para ver o refresco.
+          </span>
+        )}
         {missedNames.length > 0 && (
           <span className="text-amber-300">Nomes fora dos dados: {missedNames.join(" · ")}</span>
         )}
