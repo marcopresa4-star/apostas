@@ -8,6 +8,10 @@ import { parseSofascoreId } from "@/lib/sofascore";
 
 function revalidateAll() {
   revalidatePath("/");
+  // Ao vivo agora shares watched_matches and favorite_games with the widgets:
+  // its board (chips + followed rows) must refresh too, or a pasted link only
+  // shows up at the next natural rebuild of the page.
+  revalidatePath("/estatisticas/ao-vivo");
 }
 
 export async function signOut() {
