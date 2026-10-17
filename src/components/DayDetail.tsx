@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense, type ReactNode } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import FavoriteButton from "@/components/FavoriteButton";
 import { LEAGUES } from "@/lib/footballData";
@@ -14,7 +16,8 @@ import type { PlayedMatch } from "@/lib/footballModel";
 // recent averages (rings), BTTS share, form dots and live 1X2 odds — the
 // photo-style board. Same fixture source as the list/matrix (round window +
 // tournament upcoming extras), history only for leagues with games that day,
-// one odds read per game (capped), verdict cached 30 minutes.
+// verdict cached 30 minutes. The odds read per game streams in after the
+// render: the table shows up before the dozens of odds reads finish.
 interface DetailRow {
   eventId: number | null;
   time: string | null;
@@ -27,9 +30,6 @@ interface DetailRow {
   btts: number | null;
   formH: { r: "V" | "E" | "D"; date: string; opp: string }[];
   formF: { r: "V" | "E" | "D"; date: string; opp: string }[];
-  o1: number | null;
-  oX: number | null;
-  o2: number | null;
   fragile: boolean;
 }
 
@@ -38,8 +38,6 @@ interface DetailLeague {
   label: string;
   rows: DetailRow[];
 }
-
-const MAX_ODDS = 60;
 
 async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -52,6 +50,48 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   });
   await Promise.all(workers);
   return out;
+}
+
+// The 1/X/2 odds of one game as a lazy read per row: the table renders from
+// the (cached) day data right away and each cell streams in on its own when
+// its single read finishes — no row waits for the dozens of odds reads a
+// cold rebuild takes. Suspense fallback and result are both 3 <td>s.
+async function GameOddsCells({ supabase, userId, eventId, home, away }: { supabase: SupabaseClient; userId: string; eventId: number; home: string; away: string }) {
+  let o1: number | null = null;
+  let oX: number | null = null;
+  let o2: number | null = null;
+  try {
+    const parsed = await eventOdds(supabase, userId, eventId, HOUR_MS).catch(() => null);
+    if (parsed) {
+      const byKey: Record<string, number> = {};
+      for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
+      o1 = findRealOdd(byKey, "home", home, away) ?? null;
+      oX = findRealOdd(byKey, "draw", home, away) ?? null;
+      o2 = findRealOdd(byKey, "away", home, away) ?? null;
+    }
+  } catch {
+    // Scraper offline or unreadable odds: dash like an uncovered game.
+  }
+  const cls = "px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300";
+  return (
+    <>
+      <td className={cls}>{odd2(o1)}</td>
+      <td className={cls}>{odd2(oX)}</td>
+      <td className={cls}>{odd2(o2)}</td>
+    </>
+  );
+}
+
+function OddsPending(): ReactNode {
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <td key={i} className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-700">
+          ⋯
+        </td>
+      ))}
+    </>
+  );
 }
 
 const num1 = (v: number): string => v.toFixed(1).replace(".", ",");
@@ -147,8 +187,6 @@ export default async function DayDetail({
   let failed: string[] = [];
   let staleLeagues: string[] = [];
   let unlinkedNames: string[] = [];
-  let truncated = false;
-  let oddsTotal = 0;
   if (Array.isArray(cached)) {
     table = cached as DetailLeague[];
   } else {
@@ -193,7 +231,7 @@ export default async function DayDetail({
       if (dayFx.length === 0) return;
       let data;
       try {
-        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false });
+        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false, shots: false });
         data = loaded?.data ?? null;
         if (loaded?.stale) staleSet.add(l.code);
         for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
@@ -238,7 +276,6 @@ export default async function DayDetail({
         jobs.push({ f, home, away });
       }
       await pool(jobs, 8, async ({ f, home, away }) => {
-        if (truncated) return;
         const hAll = teamGames(home, null).slice(-5);
         const hHome = teamGames(home, "H").slice(-5);
         const aAll = teamGames(away, null).slice(-5);
@@ -249,27 +286,6 @@ export default async function DayDetail({
         const gsF = avg(aAway, (m) => m.ft[1]);
         const pool10 = [...hAll, ...aAll];
         const btts = pool10.length > 0 ? pool10.filter((m) => m.ft[0] > 0 && m.ft[1] > 0).length / pool10.length : null;
-        let o1: number | null = null;
-        let oX: number | null = null;
-        let o2: number | null = null;
-        if (oddsTotal < MAX_ODDS && typeof f.id === "number") {
-          oddsTotal++;
-          if (oddsTotal >= MAX_ODDS) truncated = true;
-          try {
-            const parsed = await eventOdds(supabase, user.id, f.id, HOUR_MS).catch(() => null);
-            if (parsed) {
-              const byKey: Record<string, number> = {};
-              for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
-              o1 = findRealOdd(byKey, "home", home, away) ?? null;
-              oX = findRealOdd(byKey, "draw", home, away) ?? null;
-              o2 = findRealOdd(byKey, "away", home, away) ?? null;
-            }
-          } catch {
-            // Sem odds: ficam a "—".
-          }
-        } else if (oddsTotal >= MAX_ODDS) {
-          truncated = true;
-        }
         rows.push({
           eventId: typeof f.id === "number" ? f.id : null,
           time: f.time ?? null,
@@ -282,9 +298,6 @@ export default async function DayDetail({
           btts,
           formH: last5(home, "H").map((m) => res(home, m)),
           formF: last5(away, "A").map((m) => res(away, m)),
-          o1,
-          oX,
-          o2,
           fragile: hAll.length < 5 || aAll.length < 5,
         });
       });
@@ -337,7 +350,6 @@ export default async function DayDetail({
             atualizar
           </Link>
         </span>
-        {truncated && <span className="text-amber-300">Limite de 60 leituras de odds: as restantes ficam a "—".</span>}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
         {staleLeagues.length > 0 && (
           <span className="text-amber-300" title={staleLeagues.join(", ")}>
@@ -426,9 +438,19 @@ export default async function DayDetail({
                       </td>
                       <td className="px-2 py-2.5"><Dots form={r.formH} title="Forma da casa, últimos 5" /></td>
                       <td className="px-2 py-2.5"><Dots form={r.formF} title="Forma do fora, últimos 5" /></td>
-                      <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">{odd2(r.o1)}</td>
-                      <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">{odd2(r.oX)}</td>
-                      <td className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-300">{odd2(r.o2)}</td>
+                      {r.eventId !== null && r.eventId > 0 ? (
+                        <Suspense key={r.eventId} fallback={<OddsPending />}>
+                          <GameOddsCells supabase={supabase} userId={user.id} eventId={r.eventId} home={r.home} away={r.away} />
+                        </Suspense>
+                      ) : (
+                        <>
+                          {[0, 1, 2].map((i) => (
+                            <td key={i} className="px-2 py-2.5 text-center text-xs tabular-nums text-neutral-700">
+                              —
+                            </td>
+                          ))}
+                        </>
+                      )}
                       <td className="whitespace-nowrap px-4 py-2.5 text-right">
                         {r.eventId !== null && r.eventId > 0 && (
                           <FavoriteButton eventId={r.eventId} home={r.home} away={r.away} tournament={lg.label} initial={favIds.has(r.eventId)} />
