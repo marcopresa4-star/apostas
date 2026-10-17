@@ -2,8 +2,6 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps, seasonTeamNames, tournamentSeasons } from "@/lib/sofaHistory";
-import { sofaRaw } from "@/lib/sofaRaw";
-import { eventOdds } from "@/lib/sofaOdds";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { findGameByNames } from "@/lib/liveMatch";
@@ -30,25 +28,6 @@ function ringOf(games: TeamGame[], venue: "home" | "away"): { gm: number | null;
   };
 }
 
-// Bounded parallelism for the per-game detail reads below.
-async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let i = 0;
-  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
-    while (i < items.length) {
-      const k = i++;
-      out[k] = await fn(items[k]);
-    }
-  });
-  await Promise.all(workers);
-  return out;
-}
-
-const num = (v: unknown): number | null =>
-  typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : null;
-const obj = (x: unknown): Record<string, unknown> | null =>
-  typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
-
 export default async function AoVivoPage() {
   await requireAdmin();
 
@@ -56,8 +35,8 @@ export default async function AoVivoPage() {
     <div data-wide>
       <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Todos os jogos em direto agora, do mundo inteiro, via SofaScore. Nas ligas mapeadas vêm também os golos por jogo e a forma
-        de cada equipa; nas outras só o resultado.
+        Os jogos em direto agora nas tuas ligas mapeadas — e qualquer jogo que tenhas estrelado — via SofaScore. Ligas
+        fora do mapa não aparecem: o mundo tem 500+ em direto nas horas de ponta e nenhuma delas teria estatísticas aqui.
       </p>
 
       <EstatisticasTabs />
@@ -86,23 +65,27 @@ export default async function AoVivoPage() {
   );
 }
 
-// The slow part streams in after the shell: live list plus one history load
-// per mapped league (cached afterwards). Refreshing mid-load used to abort
-// the whole page with "destination stream closed early".
+// Fast pass: the live list, the mapping and the per-league history (all
+// cached) render the board; live 1X2 odds load client-side afterwards (see
+// SofaLiveTable), and the interval score comes free in the list rows.
 async function AoVivoBoard() {
   const now = new Date();
   // Live list from SofaScore via the local CloakBrowser scraper. Scraper
   // offline -> offline: true, and the page says so instead of showing nothing.
   const { games, offline } = await fetchSofaLiveNow(now.getTime());
 
-  // Only loaded when there is something to look up: most of the time this page
-  // has nothing live and costs nothing beyond the SofaScore call above.
+  // Starred games that are live pin themselves at the top, mapped or not:
+  // they keep their row even though the board shows the mapped leagues only.
+  const favorites = new Set(await feedPinned(games.map((g) => g.id)));
+
+  // Only built when there is something to look up: most of the time this page
+  // has nothing mapped live and costs nothing beyond the SofaScore call above.
   // Form/averages come from the mapped leagues' SofaScore history (cached);
-  // games whose clubs aren't linked show score only.
   const stats: Record<number, SofaBoardStats> = {};
   const forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }> = {};
   const rings: Record<number, SofaBoardRings> = {};
   const detail: Record<number, SofaBoardDetail> = {};
+  const mappedIds = new Set<number>();
   if (games.length > 0) {
     const supabase = await createClient();
     const {
@@ -130,7 +113,9 @@ async function AoVivoBoard() {
       const matchesFor = async (code: (typeof LEAGUES)[number]["code"]): Promise<PlayedMatch[]> => {
         const hit = matchesByCode.get(code);
         if (hit) return hit;
-        const loaded = await loadSofaLeague(supabase, user.id, code, { shots: false }).catch(() => null);
+        // fixtures:false: the board reads results only, and the loader's
+        // fixture walk is the expensive half per league.
+        const loaded = await loadSofaLeague(supabase, user.id, code, { shots: false, fixtures: false }).catch(() => null);
         const matches = loaded?.data.matches ?? [];
         matchesByCode.set(code, matches);
         return matches;
@@ -138,6 +123,9 @@ async function AoVivoBoard() {
       for (const g of games) {
         const found = findGameByNames([g.home], [g.away], leagues);
         if (!found) continue;
+        // A mapped-league game keeps its row even when its clubs have no
+        // history yet (score-only display, like a starred game).
+        mappedIds.add(g.id);
         const local = (name: string): string => toLocal.get(name) ?? name;
         const matches = await matchesFor(found.code as (typeof LEAGUES)[number]["code"]);
         if (matches.length === 0) continue;
@@ -148,45 +136,34 @@ async function AoVivoBoard() {
         forms[g.id] = { home: form(homeGames), away: form(awayGames) };
         rings[g.id] = { home: ringOf(homeGames, "home"), away: ringOf(awayGames, "away") };
       }
-      // Per-game detail (interval score + live 1X2) for mapped games only:
-      // the world list is long, and each game costs two scraper reads.
-      const mapped = games.filter((g) => stats[g.id]);
-      await pool(mapped, 6, async (g) => {
-        try {
-          const body = await sofaRaw<unknown>(`/event/${g.id}`);
-          const event = obj(obj(body)?.event ?? body) ?? {};
-          const hs = obj(event.homeScore);
-          const as = obj(event.awayScore);
-          const h1 = num(hs?.period1);
-          const a1 = num(as?.period1);
-          const d: SofaBoardDetail = { ht: h1 !== null && a1 !== null ? [h1, a1] : null };
-          try {
-            const parsed = await eventOdds(supabase, user.id, g.id, 60_000).catch(() => null);
-            if (parsed) {
-              const byKey: Record<string, number> = {};
-              for (const m of parsed.markets) for (const c of m.choices) byKey[c.key] = c.odd;
-              if (byKey["ft:home"] && byKey["ft:draw"] && byKey["ft:away"]) {
-                d.odds = { home: byKey["ft:home"], draw: byKey["ft:draw"], away: byKey["ft:away"] };
-              }
-            }
-          } catch {
-            // Odds are garnish: the row stands without them.
-          }
-          detail[g.id] = d;
-        } catch {
-          // Event read failed: the list row (minute + score) still stands.
-        }
-      });
     }
   }
+  // The board shows the mapped leagues only (plus starred games from any
+  // league): the world list tops 500 rows at peak time, and the extras carry
+  // no useful stats. The interval score falls out of the list rows — the old
+  // per-game `/event/{id}` read is gone.
+  const kept = games.filter((g) => mappedIds.has(g.id) || favorites.has(g.id));
+  for (const g of kept) {
+    const h1 = g.homeHt;
+    const a1 = g.awayHt;
+    detail[g.id] = { ht: h1 !== null && a1 !== null ? [h1, a1] : null };
+  }
 
+  const n = (x: number): string => `${x} ${x === 1 ? "jogo em direto" : "jogos em direto"}`;
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-neutral-400">
-          {offline
-            ? "Scraper SofaScore desligado"
-            : `${games.length} ${games.length === 1 ? "jogo em direto" : "jogos em direto"} agora`}
+          {offline ? (
+            "Scraper SofaScore desligado"
+          ) : kept.length < games.length ? (
+            <>
+              {n(kept.length)} agora nas tuas ligas mapeadas
+              <span className="text-neutral-600"> · {n(games.length)} no mundo</span>
+            </>
+          ) : (
+            n(kept.length)
+          )}
         </p>
         <a href="/estatisticas/ao-vivo" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">
           Atualizar
@@ -203,8 +180,12 @@ async function AoVivoBoard() {
           Não encontrei nenhum jogo em direto agora. Ou não há mesmo nenhum a decorrer, ou a fonte não o mostrou desta
           vez — tenta atualizar daqui a pouco.
         </p>
+      ) : kept.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          Há {n(games.length)} no mundo, mas nenhum nas tuas ligas mapeadas (nem um jogo teu estrelado).
+        </p>
       ) : (
-        <SofaLiveTable games={games} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={await feedPinned(games.map((g) => g.id))} />
+        <SofaLiveTable games={kept} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={[...favorites]} />
       )}
     </>
   );

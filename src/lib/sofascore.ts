@@ -259,6 +259,11 @@ export interface SofaLiveEntry {  id: number;
   uniqueId: number | null;
   homeGoals: number | null;
   awayGoals: number | null;
+  // Interval score straight from the list rows' period1 (verified against the
+  // live feed): frees the board's HT column from one read per game. Null
+  // until the break / while the feed hasn't set it.
+  homeHt: number | null;
+  awayHt: number | null;
 }
 
 // One row of GET /sport/football/events/live ({ events: [...] }). The list rows
@@ -286,6 +291,8 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
     const uniqueId = num(obj(tournament?.uniqueTournament)?.id);
     const homeGoals = num(obj(e.homeScore)?.current) ?? num(obj(e.homeScore)?.display);
     const awayGoals = num(obj(e.awayScore)?.current) ?? num(obj(e.awayScore)?.display);
+    const homeHt = num(obj(e.homeScore)?.period1);
+    const awayHt = num(obj(e.awayScore)?.period1);
     const minute =
       phase === "halftime" ? 45 : minuteOf(e, [], now) ?? null;
     out.push({
@@ -302,6 +309,8 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
       uniqueId,
       homeGoals,
       awayGoals,
+      homeHt,
+      awayHt,
     });
   }
   return out;

@@ -26,7 +26,8 @@ export interface SofaBoardRings {
 }
 
 export interface SofaBoardDetail {
-  // Half-time score, only read for mapped leagues (one extra read per game).
+  // Half-time score, straight from the live list rows (period1) — no extra
+  // read per game anymore.
   ht: [number, number] | null;
   // Live 1X2, when the feed prices the game.
   odds?: { home: number; draw: number; away: number };
@@ -277,6 +278,49 @@ export default function SofaLiveTable({
   const [expandedLineups, setExpandedLineups] = useState<Set<number>>(new Set());
   const [pinnedCols, setPinnedCols] = useState<1 | 2 | 3>(3);
   const [pinOrder, setPinOrder] = useState<string[]>([]);
+  // Live 1X2 loads client-side, in one batched request after the table has
+  // rendered: the server render stands without odds, so a busy scraper never
+  // holds the board. Each server cycle re-renders rows (fresh `games`),
+  // refetching the users' visible prices; sense-check throttling 15s guards
+  // double mounts.
+  const [liveOdds, setLiveOdds] = useState<Record<number, { home: number; draw: number; away: number }>>({});
+  const lastOddsAt = useRef(0);
+  useEffect(() => {
+    const ids = games
+      .filter((g) => stats[g.id])
+      .map((g) => g.id)
+      .slice(0, 40);
+    if (ids.length === 0 || Date.now() - lastOddsAt.current < 15_000) return;
+    lastOddsAt.current = Date.now();
+    let alive = true;
+    fetch(`/api/sofascore/live-odds?ids=${ids.join(",")}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { odds?: Record<string, [number, number, number] | null> } | null) => {
+        if (!alive || !data?.odds) return;
+        const next: Record<number, { home: number; draw: number; away: number }> = {};
+        for (const [k, v] of Object.entries(data.odds)) {
+          if (v) next[Number(k)] = { home: v[0], draw: v[1], away: v[2] };
+        }
+        setLiveOdds((prev) => ({ ...prev, ...next }));
+      })
+      .catch(() => {
+        // Gimmicky column: a failed batch leaves "—" where the price would be.
+      });
+    return () => {
+      alive = false;
+    };
+  }, [games, stats]);
+  // Server detail (interval) merged with the client-fetched odds: the two
+  // render spots below read this one map.
+  const fullDetail = useMemo<Record<number, SofaBoardDetail>>(() => {
+    const out: Record<number, SofaBoardDetail> = {};
+    for (const [k, v] of Object.entries(detail)) out[Number(k)] = v;
+    for (const [k, o] of Object.entries(liveOdds)) {
+      const id = Number(k);
+      out[id] = { ht: out[id]?.ht ?? null, odds: o };
+    }
+    return out;
+  }, [detail, liveOdds]);
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(PINNED_ORDER_KEY);
@@ -427,7 +471,7 @@ export default function SofaLiveTable({
   // One game row, shared by the pinned block and the league groups.
   const gameRow = (g: SofaLiveEntry) => {
     const r = rings[g.id];
-    const d = detail[g.id];
+    const d = fullDetail[g.id];
     const f = form[g.id];
     const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
     const isPinned = pinned.has(String(g.id));
@@ -595,7 +639,7 @@ export default function SofaLiveTable({
             </div>
             <div className="grid grid-cols-1 gap-3" style={{ gridTemplateColumns: `repeat(${pinnedCols}, minmax(0, 1fr))` }}>
             {orderedPinned.map((g) => {
-              const d = detail[g.id];
+              const d = fullDetail[g.id];
               const f = form[g.id];
               const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
               return (
