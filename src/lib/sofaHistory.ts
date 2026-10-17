@@ -366,12 +366,13 @@ export async function roundFixtures(
   current: boolean,
   tracker?: StaleTracker
 ): Promise<SofaFixture[]> {
-  // Finished games never change: a round whose every fixture carries a score
-  // is stored under `:done` and read for 3 days, so the season-long walk of
-  // the model stops re-reading finished rounds hourly (only the rounds still
-  // holding scheduled games keep the fresh 1h TTL).
+  // Finished games never change but the user prefers catching any last
+  // correction fast: a round whose every fixture carries a score is stored
+  // under `:done` and re-read every 6h — 6× less churn than the old hourly
+  // walk, fresh enough for score fixes (only the rounds still holding
+  // scheduled games keep the fresh 1h TTL).
   const doneKey = `roundfx:${uniqueId}:${seasonId}:${round}:done`;
-  const done = await cacheGet(supabase, userId, doneKey, 3 * DAY_MS).catch(() => null);
+  const done = await cacheGet(supabase, userId, doneKey, 6 * HOUR_MS).catch(() => null);
   if (Array.isArray(done)) return done as SofaFixture[];
   const key = `roundfx:${uniqueId}:${seasonId}:${round}`;
   let allDone = false;
@@ -612,12 +613,13 @@ export async function roundResults(
   shots = false,
   tracker?: StaleTracker
 ): Promise<PlayedMatch[]> {
-  // The result only holds finished games: cache it under `:done` for 3 days
-  // so the season walk of the model is one cache hit per round on repeat
-  // builds (the fixtures read below then only happens once every 3 days).
+  // The result only holds finished games: cache it under `:done` for 6h so
+  // the season walk of the model is one cache hit per round on repeat builds
+  // (churn ~6× lower than before; corrections up to 6h late on the worst
+  // case, the freshness bar the user picked over the 3-day option).
   const suffix = shots ? ":sot" : "";
   const doneKey = `round:${uniqueId}:${seasonId}:${round}${suffix}:done`;
-  const doneHit = await cacheGet(supabase, userId, doneKey, 3 * DAY_MS).catch(() => null);
+  const doneHit = await cacheGet(supabase, userId, doneKey, 6 * HOUR_MS).catch(() => null);
   if (Array.isArray(doneHit)) return doneHit as PlayedMatch[];
   const key = `round:${uniqueId}:${seasonId}:${round}${suffix}`;
   const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
