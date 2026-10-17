@@ -49,9 +49,8 @@ export default function PlaneamentoClient({
   // Ordenação por cartão: "valor" (padrão, do melhor padrão para o pior) ou
   // "hora" (por pontapé de saída, para preparar a sessão).
   const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
-  // Cartões minimizados (persistente neste browser): nem sequer arrancam o
-  // scan até expandir — poupa leituras ao abrir a página. Hidrata após o
-  // mount (o servidor não vê o localStorage: ler aqui dava mismatch).
+  // Cartões minimizados (persistente neste browser). Hidrata após o mount (o
+  // servidor não vê o localStorage: ler aqui dava mismatch).
   const [min, setMin] = useState<Set<string>>(new Set());
   useEffect(() => {
     // Sincroniza com o localStorage (sistema externo): única leitura segura
@@ -73,7 +72,8 @@ export default function PlaneamentoClient({
       }
       return next;
     });
-    if (!minimized && !scans[table.id]) void scan(table);
+    // Expanding no longer starts a scan by itself: only an explicit Analisar
+    // (or ↻) click does. Nothing analyses without being asked.
   };
   const [editing, setEditing] = useState<LiveTableDef | "new" | null>(null);
   const favSet = new Set(favIds);
