@@ -13,14 +13,15 @@ export async function eventOdds(
   supabase: SupabaseClient,
   userId: string,
   eventId: number,
-  ttlMs: number
+  ttlMs: number,
+  low = false
 ): Promise<ParsedOdds | null> {
   const key = `odds:${eventId}`;
   const hit = await cacheGet(supabase, userId, key, ttlMs);
   if (hit && typeof hit === "object" && !Array.isArray(hit)) return hit as ParsedOdds;
   let body: unknown;
   try {
-    body = await sofaRaw<unknown>(`/event/${eventId}/odds/1/all`);
+    body = await sofaRaw<unknown>(`/event/${eventId}/odds/1/all`, {}, { low });
   } catch (err) {
     if (err instanceof ScraperOffline) throw err;
     return null;

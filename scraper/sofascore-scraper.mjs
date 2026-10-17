@@ -310,12 +310,19 @@ function withTimeout(promise, ms, label) {
 // shared page behind `enqueue`. Creation is guarded so a burst can't pile up
 // tabs.
 const API_SLOTS = Math.max(1, Math.min(8, Number(process.env.SCRAPER_API_SLOTS ?? 4) || 4));
+// Low-priority reads (bots monitoring) may only use this many slots; the
+// reserved half always stays free for page-driven reads so a bot watch or a
+// planeamento scan never starves the boards.
+const HIGH_RESERVED = Math.floor(API_SLOTS / 2);
 const slots = [];
 let creating = false;
+let nextSlotId = 0;
 
-async function acquire() {
+async function acquire(priority = "high") {
   for (;;) {
-    const free = slots.find((s) => !s.busy && s.page && !s.page.isClosed());
+    const isFree = (s) => !s.busy && s.page && !s.page.isClosed();
+    const allowed = (s) => priority === "high" || s.id >= HIGH_RESERVED;
+    const free = slots.find((s) => isFree(s) && allowed(s));
     if (free) {
       free.busy = true;
       return free;
@@ -326,7 +333,7 @@ async function acquire() {
         await ensureBrowser();
         const page = await withTimeout(ctx.newPage(), OP_TIMEOUT_MS, "newPage");
         await parkTab(page);
-        const slot = { page, busy: true };
+        const slot = { id: nextSlotId++, page, busy: true };
         slots.push(slot);
         return slot;
       } catch (err) {
@@ -352,8 +359,8 @@ function release(slot, dead = false) {
   slot.busy = false;
 }
 
-async function apiGet(path, retried = false) {
-  const slot = await acquire();
+async function apiGet(path, retried = false, priority = "high") {
+  const slot = await acquire(priority);
   try {
     const url = `${API_BASE}${path}`;
     // The page authenticates its own calls with the captcha JWT it keeps in
@@ -398,7 +405,7 @@ async function apiGet(path, retried = false) {
         ).catch(() => {});
         await new Promise((r) => setTimeout(r, 3000));
       });
-      return apiGet(path, true);
+      return apiGet(path, true, priority);
     }
     release(slot);
     if (result.status === 403 || result.status === 401) {
@@ -421,7 +428,7 @@ async function apiGet(path, retried = false) {
     // try once more. Never hang the queue: withTimeout bounds every wait.
     if (!retried && /closed|crash|target|timeout/i.test(String(err?.message ?? err))) {
       release(slot, true);
-      return apiGet(path, true);
+      return apiGet(path, true, priority);
     }
     release(slot);
     throw err;
@@ -713,15 +720,18 @@ const server = http.createServer(async (req, res) => {
     // Generic read of SofaScore's own JSON API inside the cleared page (local
     // development only): /raw?path=/search/all&query=benfica... The path must
     // stay inside /api/v1 and is passed to apiGet with its query string.
+    // &low=1 marks background (bots monitoring) reads: they queue behind the
+    // reserved high-priority slots, so long scans never block page views.
     if (url.pathname === "/raw") {
       const path = url.searchParams.get("path") || "";
+      const low = url.searchParams.get("low") === "1";
       const rest = [...url.searchParams.entries()]
-        .filter(([k]) => k !== "path")
+        .filter(([k]) => k !== "path" && k !== "low")
         .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
         .join("&");
       if (!/^\/[A-Za-z0-9/_-]+$/.test(path)) return send(res, 400, { error: "bad path" });
       try {
-        const body = await apiGet(rest ? `${path}?${rest}` : path);
+        const body = await apiGet(rest ? `${path}?${rest}` : path, false, low ? "low" : "high");
         return send(res, 200, body);
       } catch (err) {
         const code = err?.code;

@@ -23,14 +23,23 @@ function encodeQuery(params: Record<string, string>): string {
 
 // GET /api/v1{path} through the scraper's /raw passthrough (local dev only).
 // Returns null on 404 (unknown id, round past the end...), throws
-// ScraperOffline when the scraper cannot be reached.
-export async function sofaRaw<T = unknown>(path: string, params: Record<string, string> = {}): Promise<T | null> {
+// ScraperOffline when the scraper cannot be reached. opts.low marks background
+// reads (bots monitoring): the scraper queues them behind the slots reserved
+// for page views, so a long bot scan never starves the boards.
+export async function sofaRaw<T = unknown>(
+  path: string,
+  params: Record<string, string> = {},
+  opts: { low?: boolean } = {}
+): Promise<T | null> {
   let raw: Response;
   try {
-    raw = await fetch(`${SCRAPER}/raw?path=${encodeURIComponent(path)}${encodeQuery(params).replace(/^\?/, "&")}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(20_000),
-    });
+    raw = await fetch(
+      `${SCRAPER}/raw?path=${encodeURIComponent(path)}${encodeQuery(params).replace(/^\?/, "&")}${opts.low ? "&low=1" : ""}`,
+      {
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      }
+    );
   } catch {
     throw new ScraperOffline();
   }

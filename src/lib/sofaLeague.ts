@@ -375,15 +375,20 @@ export interface SofaLinkResolution {
 export async function resolveSofaLink(
   supabase: SupabaseClient,
   userId: string,
-  link: string
+  link: string,
+  opts: { body?: unknown; low?: boolean } = {}
 ): Promise<SofaLinkResolution | { error: string }> {
   const eventId = parseSofascoreId(link);
   if (eventId === null) return { error: "Não encontrei o id do jogo neste link." };
-  let body: unknown;
-  try {
-    body = await sofaRaw<unknown>(`/event/${eventId}`);
-  } catch {
-    return { error: "Não consegui ler o jogo (scraper desligado?)." };
+  // A caller with the event body in hand (one read shared across resolve,
+  // snapshot and prematch) skips the fetch entirely.
+  let body: unknown = opts.body;
+  if (body === undefined || body === null) {
+    try {
+      body = await sofaRaw<unknown>(`/event/${eventId}`, {}, { low: opts.low });
+    } catch {
+      return { error: "Não consegui ler o jogo (scraper desligado?)." };
+    }
   }
   if (!body) return { error: "O SofaScore não devolveu o jogo." };
   const root = (body ?? {}) as Record<string, unknown>;

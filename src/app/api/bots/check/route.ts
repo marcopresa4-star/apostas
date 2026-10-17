@@ -184,7 +184,7 @@ export async function POST() {
     .limit(MAX_SETTLE);
   await pool(open ?? [], 6, async (a) => {
     try {
-      const body = await sofaRaw<unknown>(`/event/${a.event_id}`);
+      const body = await sofaRaw<unknown>(`/event/${a.event_id}`, {}, { low: true });
       const event = obj((body as Record<string, unknown> | null)?.event ?? body);
       const finished = String(obj(event?.status)?.type ?? "").toLowerCase() === "finished";
       if (!finished) return;
@@ -270,9 +270,20 @@ export async function POST() {
   }
 
   await pool(games, 4, async (g) => {
+    // One event read per game per run: this same body serves resolve
+    // (league/team mapping), the minute/cards snapshot and the pre-match
+    // model below. The resolve and prematch calls skip their own reads.
+    let read: unknown = null;
+    try {
+      read = await sofaRaw<unknown>(`/event/${g.id}`, {}, { low: true });
+    } catch (err) {
+      if (err instanceof ScraperOffline) return; // transient: next minute retries
+      return;
+    }
+    if (!read) return;
     let resolved: Awaited<ReturnType<typeof resolveSofaLink>> | null = null;
     try {
-      resolved = await resolveSofaLink(supabase, user.id, `id:${g.id}`);
+      resolved = await resolveSofaLink(supabase, user.id, `id:${g.id}`, { body: read, low: true });
     } catch {
       return;
     }
@@ -286,7 +297,7 @@ export async function POST() {
     // One event read serves score, minute, phase and cards for every bot.
     let snap: { minute: number; phase: "live" | "halftime"; hg: number; ag: number; rh: number; ra: number; yh: number } | null = null;
     try {
-      const body = await sofaRaw<unknown>(`/event/${g.id}`);
+      const body = read;
       const event = obj((body as Record<string, unknown> | null)?.event ?? body) ?? {};
       const st = obj(event.status);
       const phase = String(st?.type ?? "").toLowerCase() === "halftime" || /halftime|break/i.test(String(st?.description ?? "")) ? "halftime" : "live";
@@ -328,25 +339,31 @@ export async function POST() {
     const needShots = mine.some((b) => b.stats.some((s) => ["shots_total", "shots_home", "shots_away", "pressure_recent"].includes(s.k)));
     const needModel = mine.some((b) => b.min_prob !== null && b.min_prob !== undefined);
     const needOdds = mine.some((b) => b.min_odd !== null && b.min_odd !== undefined);
+    // The prematch league is the same loader the pregame rules use below:
+    // load it once here and hand it to prematchFor instead of a second walk.
+    const needLeague = needModel || mine.some((b) => b.pregame.length > 0);
     const [statRes, shotRes, preRes, oddRes] = await Promise.all([
       needStats
-        ? sofaRaw<unknown>(`/event/${g.id}/statistics`).then(
+        ? sofaRaw<unknown>(`/event/${g.id}/statistics`, {}, { low: true }).then(
             (b) => ({ ok: true as const, v: parseStats(b) }),
             () => ({ ok: false as const, v: {} as Partial<StatValues> })
           )
         : Promise.resolve(null),
       needShots
-        ? sofaRaw<unknown>(`/event/${g.id}/shotmap`).then(
+        ? sofaRaw<unknown>(`/event/${g.id}/shotmap`, {}, { low: true }).then(
             (b) => ({ ok: true as const, v: parseShots(b) }),
             () => ({ ok: false as const, v: [] as Shot[] })
           )
         : Promise.resolve(null),
-      needModel ? prematchFor(supabase, user.id, g.id).then(
-        (v) => ({ ok: true as const, v }),
-        () => ({ ok: false as const, v: null })
-      ) : Promise.resolve(null),
+      needModel ? (async () => {
+        const league = needLeague ? await leagueOf(leagueCode) : null;
+        return prematchFor(supabase, user.id, g.id, { body: read, league, low: true }).then(
+          (v) => ({ ok: true as const, v }),
+          () => ({ ok: false as const, v: null })
+        );
+      })() : Promise.resolve(null),
       needOdds
-        ? eventOdds(supabase, user.id, g.id, 60_000)
+        ? eventOdds(supabase, user.id, g.id, 60_000, true)
             .catch(() => null)
             .then((parsed) => {
               if (!parsed) return { ok: false as const, v: null as Record<string, number> | null };

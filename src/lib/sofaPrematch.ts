@@ -30,13 +30,19 @@ const TYPICAL: PrematchExpectation = {
 export async function prematchFor(
   supabase: SupabaseClient,
   userId: string,
-  eventId: number
+  eventId: number,
+  opts: { body?: unknown; league?: Awaited<ReturnType<typeof loadSofaLeague>>; low?: boolean } = {}
 ): Promise<PrematchExpectation> {
-  let body: unknown;
-  try {
-    body = await sofaRaw<unknown>(`/event/${eventId}`);
-  } catch {
-    throw new Error("scraper-offline");
+  // One event read serves resolve + snapshot + prematch (the bots route shares
+  // the body); and a league already loaded by the caller is reused — the
+  // loader's full walk is the most expensive read chain there was.
+  let body: unknown = opts.body;
+  if (body === undefined || body === null) {
+    try {
+      body = await sofaRaw<unknown>(`/event/${eventId}`, {}, { low: opts.low });
+    } catch {
+      throw new Error("scraper-offline");
+    }
   }
   const root = (body ?? {}) as Record<string, unknown>;
   const event = (root.event ?? root) as Record<string, unknown>;
@@ -53,7 +59,10 @@ export async function prematchFor(
   const code =
     typeof unique.id === "number" ? (tournaments.find((m) => m.sofascore_id === unique.id)?.name_key ?? null) : null;
   if (!code) return TYPICAL;
-  const loaded = await loadSofaLeague(supabase, userId, code).catch(() => null);
+  // Results-only load: the model needs matches (and the team list falls out
+  // of them). history/fixtures/shots add no information here — the old
+  // default full load re-read the whole fixture walk per live game.
+  const loaded = opts.league ?? (await loadSofaLeague(supabase, userId, code, { history: false, shots: false, fixtures: false }).catch(() => null));
   if (!loaded) return TYPICAL;
   const teams = await loadMaps(supabase, userId, "team");
   const toLocal = new Map(teams.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
