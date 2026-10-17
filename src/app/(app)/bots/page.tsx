@@ -1,37 +1,38 @@
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdminWithUser } from "@/lib/requireAdmin";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import BotsClient, { type BotRow, type AlertRow } from "@/components/BotsClient";
 
 export default async function BotsPage() {
-  await requireAdmin();
+  const user = await requireAdminWithUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return <p className="text-sm text-neutral-400">Sem sessão.</p>;
 
-  const maps = await loadMaps(supabase, user.id, "tournament").catch(() => []);
+  // One round-trip instead of three sequential awaits: the maps, the bot
+  // list and the alert feed hit Supabase together (~0.15s each).
+  const [maps, botsRes, alertsRes] = await Promise.all([
+    loadMaps(supabase, user.id, "tournament"),
+    supabase
+      .from("bots")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .returns<BotRow[]>(),
+    supabase
+      .from("bot_alerts")
+      .select("id, bot_id, market, text, minute, home, away, hg, ag, hit, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(40)
+      .returns<AlertRow[]>(),
+  ]);
+  const bots = botsRes.data ?? [];
+  const alerts = alertsRes.data ?? [];
   const codes = new Set(maps.map((m) => m.name_key));
   const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int.")).map((l) => ({
     code: l.code,
     label: l.label as string,
   }));
-
-  const { data: bots } = await supabase
-    .from("bots")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: true })
-    .returns<BotRow[]>();
-  const { data: alerts } = await supabase
-    .from("bot_alerts")
-    .select("id, bot_id, market, text, minute, home, away, hg, ag, hit, created_at")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(40)
-    .returns<AlertRow[]>();
 
   return (
     <div data-wide>
