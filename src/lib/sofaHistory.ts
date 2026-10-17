@@ -10,7 +10,7 @@ import { sideTokensIn } from "./sportscoreSlug";
 import { tokens } from "./teamNames";
 import { sofaRaw, ScraperOffline } from "./sofaRaw";
 import { incidentIsGoal, parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
-import { cacheGet, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
+import { cacheGet, cacheGetAny, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
 export type { StaleTracker } from "./sofaCache";
 
 type Json = Record<string, unknown>;
@@ -27,6 +27,29 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 // seasons, unparseable bodies) — null is never cached. Anything that is not
 // the scraper being offline still throws, like before.
 // Exported for the club adapter (teamEventList), which caches the same way.
+// Rounds whose results are older than DONE_LOCK_AGE_MS never change: score
+// corrections (the reason finished rounds re-read every 6h) only happen in
+// the hours right after a game. Old rounds therefore hold a long TTL — this
+// was the "first analysis of the day is slow all over again" cost: dozens of
+// upstream reads for rounds that cannot move.
+const DONE_LOCK_AGE_MS = 2 * DAY_MS;
+const DONE_LOCK_TTL = 14 * DAY_MS;
+
+// Is a `:done` round cache still trustworthy? Rounds whose latest finished
+// game ended over 48h ago stay valid for DONE_LOCK_TTL; anything recent keeps
+// the user's 6h correction window. `date` strings like 2026-05-17.
+function doneStillFresh(rows: { date: string }[], fetchedAt: number, now: number): boolean {
+  let last = "";
+  for (const r of rows) if (typeof r?.date === "string" && r.date > last) last = r.date;
+  if (!last) return now - fetchedAt <= 6 * HOUR_MS;
+  // End of that day as the grace boundary (a game's result may still be
+  // corrected the same evening).
+  const endedAt = Date.parse(`${last}T23:59:59`);
+  if (!Number.isFinite(endedAt)) return now - fetchedAt <= 6 * HOUR_MS;
+  const valid = now - endedAt > DONE_LOCK_AGE_MS ? DONE_LOCK_TTL : 6 * HOUR_MS;
+  return now - fetchedAt <= valid;
+}
+
 export async function cachedRead<T>(
   supabase: SupabaseClient,
   userId: string,
@@ -372,8 +395,10 @@ export async function roundFixtures(
   // walk, fresh enough for score fixes (only the rounds still holding
   // scheduled games keep the fresh 1h TTL).
   const doneKey = `roundfx:${uniqueId}:${seasonId}:${round}:done`;
-  const done = await cacheGet(supabase, userId, doneKey, 6 * HOUR_MS).catch(() => null);
-  if (Array.isArray(done)) return done as SofaFixture[];
+  const doneMeta = await cacheGetAny(supabase, userId, doneKey).catch(() => null);
+  if (doneMeta && Array.isArray(doneMeta.payload) && doneStillFresh(doneMeta.payload as { date: string }[], doneMeta.fetchedAt, Date.now())) {
+    return doneMeta.payload as SofaFixture[];
+  }
   const key = `roundfx:${uniqueId}:${seasonId}:${round}`;
   let allDone = false;
   const data = await cachedRead<SofaFixture[]>(
@@ -619,8 +644,10 @@ export async function roundResults(
   // case, the freshness bar the user picked over the 3-day option).
   const suffix = shots ? ":sot" : "";
   const doneKey = `round:${uniqueId}:${seasonId}:${round}${suffix}:done`;
-  const doneHit = await cacheGet(supabase, userId, doneKey, 6 * HOUR_MS).catch(() => null);
-  if (Array.isArray(doneHit)) return doneHit as PlayedMatch[];
+  const doneMeta = await cacheGetAny(supabase, userId, doneKey).catch(() => null);
+  if (doneMeta && Array.isArray(doneMeta.payload) && doneStillFresh(doneMeta.payload as { date: string }[], doneMeta.fetchedAt, Date.now())) {
+    return doneMeta.payload as PlayedMatch[];
+  }
   const key = `round:${uniqueId}:${seasonId}:${round}${suffix}`;
   const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
   if (Array.isArray(hit)) return hit as PlayedMatch[];
