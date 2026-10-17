@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import FavoriteButton from "@/components/FavoriteButton";
 import { LEAGUES } from "@/lib/footballData";
-import { loadMaps, linkLocalName, roundFixtures, fetchLiveEntries, seasonUpcomingExtra, tournamentLiveFixtures, tournamentRounds, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
+import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonRecentLite, tournamentLiveFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGet, cacheSet, HOUR_MS } from "@/lib/sofaCache";
@@ -119,7 +119,7 @@ export default async function DayMatrix({
     const unlinkedSet = new Set<string>();
     const found: MatrixLeague[] = [];
     const missed = new Set<string>();
-    // Same fixture source as the day board (round window + tournament upcoming
+    // Same fixture source as the day board (season upcoming page 0 + recent
     // extras + live ties, shared cache), so the two views can never disagree
     // on which games exist. History loads only for leagues with games that day.
     // One live read per render (scraper caches it 60s), shared by all leagues.
@@ -136,39 +136,20 @@ export default async function DayMatrix({
       }
       const s = seasons[0];
       if (!s) return;
-      let rounds: number[];
-      let currentRound: number | null;
-      try {
-        ({ rounds, currentRound } = await tournamentRounds(supabase, user.id, map.sofascore_id, s.id, true));
-      } catch {
+      // Sonda leve: os próximos e os recentes da época (2–3 leituras, matas-
+      // mata incluídos) cobrem o dia inteiro — agendados, ao vivo e acabados.
+      // Ligas sem jogos no dia ficam-se por aqui (jornadas e histórico nunca
+      // arrancam para elas, e era isso que enlentecia a visita fria).
+      const upcoming = await seasonUpcomingExtra(supabase, user.id, map.sofascore_id, s.id, true, 0).catch(() => null);
+      if (upcoming === null) {
         failedSet.add(l.code);
         return;
       }
-      // Sem jornadas no SofaScore (a MLS 2026 devolve 404): nesse caso a
-      // época vive só nos extras (próximos + ao vivo), lidos sempre em baixo.
+      const recent = await seasonRecentLite(supabase, user.id, map.sofascore_id, s.id, true).catch(() => [] as SofaFixture[]);
+      const seenIds = new Set<number>();
       const flat: SofaFixture[] = [];
-      if (rounds.length > 0) {
-        const want =
-          currentRound !== null
-            ? [currentRound - 1, currentRound, currentRound + 1].filter((r) => rounds.includes(r))
-            : rounds.slice(0, 3);
-        const lists = await Promise.all(
-          want.map((r) => roundFixtures(supabase, user.id, map.sofascore_id, s.id, r, true).then((x) => x, () => null))
-        );
-        if (lists.some((x) => x === null)) {
-          failedSet.add(l.code);
-          return;
-        }
-        for (const l of lists) if (l !== null) flat.push(...l);
-      }
-      // Knockout ties missing from the round endpoints (Libertadores/
-      // Sudamericana semifinals on): the tournament's own upcoming page holds
-      // the scheduled legs, the live list the legs in play (neither list has
-      // the other). Dedupe by event id (league games live on both).
-      const extra = await seasonUpcomingExtra(supabase, user.id, map.sofascore_id, s.id, true, currentRound ?? 0).catch(() => [] as SofaFixture[]);
-      const seenIds = new Set(flat.map((f) => f.id));
-      for (const f of [...extra, ...tournamentLiveFixtures(liveEntries, map.sofascore_id, currentRound ?? 0)]) {
-        if (!seenIds.has(f.id)) {
+      for (const f of [...upcoming, ...(recent ?? []), ...tournamentLiveFixtures(liveEntries, map.sofascore_id, 0)]) {
+        if (f.date === day && !seenIds.has(f.id)) {
           seenIds.add(f.id);
           flat.push(f);
         }

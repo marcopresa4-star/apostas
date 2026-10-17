@@ -479,6 +479,42 @@ export async function seasonRecentExtra(
   return data ?? [];
 }
 
+// SofaScore's day catalog (`/sport/football/scheduled-tournaments/{day}`,
+// what the site's schedule page reads): unusable for us — 2026-10-17, 33
+// pages (2128 tournaments of the day) checked and club cups are MISSING
+// from the list (Libertadores, Sudamericana, Conference League, even
+// Primeira Liga of Portugal absent), so gating day views by it would hide
+// real games. Re-probe only if SofaScore changes that behaviour.
+// Page 0 only of the season's recent feed: the games finishing most
+// recently, cups included (rounds miss them). One read; the day views need
+// it because today's finished games leave the upcoming feed — without it an
+// evening visit of a day played in the morning would show nothing. Finished
+// games never change, so the cache can live far longer than the fixtures'.
+export async function seasonRecentLite(
+  supabase: SupabaseClient,
+  userId: string,
+  uniqueId: number,
+  seasonId: number,
+  current: boolean,
+  tracker?: StaleTracker
+): Promise<SofaFixture[] | null> {
+  const key = `lastone:${uniqueId}:${seasonId}`;
+  const data = await cachedRead<SofaFixture[]>(
+    supabase,
+    userId,
+    key,
+    current ? 6 * HOUR_MS : 30 * DAY_MS,
+    async () => {
+      const { events } = await tournamentEventsPages(uniqueId, seasonId, "last", 0, 1);
+      events.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+      return events;
+    },
+    tracker,
+    Array.isArray
+  );
+  return Array.isArray(data) ? (data as SofaFixture[]) : null;
+}
+
 // Every live game right now, one scraper read (cached 60s scraper-side):
 // shared by a render across leagues instead of one read per league. [] when
 // the scraper is down — callers simply skip the live supplement then.
