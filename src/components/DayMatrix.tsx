@@ -183,7 +183,7 @@ export default async function DayMatrix({
         return;
       }
       const fhs = leagueRates(data.matches, now).firstHalfShare;
-      const rows: MatrixRow[] = [];
+      let rows: MatrixRow[] = [];
       for (const f of dayFx) {
         const home = convert(f.team1);
         const away = convert(f.team2);
@@ -226,7 +226,17 @@ export default async function DayMatrix({
       }
       if (rows.length > 0) {
         rows.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
-        found.push({ code: l.code, label: labelOf(l.code), rows });
+        // The same tie twice under different event ids (a postponed entry
+        // beside its rescheduling, upstream data overlap) duplicates the row
+        // and breaks React keys: one pairing per league per day is the rule.
+        const seenPairs = new Set<string>();
+        rows = rows.filter((r) => {
+          const k = `${r.home}|${r.away}`;
+          if (seenPairs.has(k)) return false;
+          seenPairs.add(k);
+          return true;
+        });
+        if (rows.length > 0) found.push({ code: l.code, label: labelOf(l.code), rows });
       }
     });
     table = found;
@@ -349,7 +359,7 @@ export default async function DayMatrix({
               </thead>
               <tbody className="divide-y divide-neutral-800/60">
                 {l.rows.map((r) => (
-                  <tr key={`${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
+                  <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
                     <td className="min-w-52 px-4 py-2">
                       <span className="mr-2 tabular-nums text-neutral-500">{r.time ? r.time.slice(0, 5) : "—"}</span>
                       {r.eventId !== null && r.eventId > 0 && (

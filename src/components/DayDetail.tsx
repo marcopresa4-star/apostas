@@ -282,10 +282,16 @@ export default async function DayDetail({
       };
       const rows: DetailRow[] = [];
       const jobs: { f: SofaFixture; home: string; away: string }[] = [];
+      const jobsSeen = new Set<string>();
       for (const f of dayFx) {
         const home = convert(f.team1);
         const away = convert(f.team2);
         if (!data.teams.includes(home) || !data.teams.includes(away)) continue;
+        // Same tie under two ids (postponed stale entry) would render twice:
+        // one pairing per league per day.
+        const pair = `${home}|${away}`;
+        if (jobsSeen.has(pair)) continue;
+        jobsSeen.add(pair);
         jobs.push({ f, home, away });
       }
       await pool(jobs, 8, async ({ f, home, away }) => {
@@ -427,7 +433,7 @@ export default async function DayDetail({
                   const gl = r.lg;
                   const isLive = gl !== undefined && (gl.phase === "live" || gl.phase === "halftime");
                   return (
-                    <tr key={`${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
+                    <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
                       <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">
                         {isLive && gl !== undefined ? (
                           <span className="font-semibold text-red-400">
