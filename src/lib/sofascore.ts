@@ -49,6 +49,23 @@ export function parseSofascoreId(input: string): number | null {
   return null;
 }
 
+// Is this SofaScore incident a real goal? `inGamePenalty` is BOTH the scored
+// spot-kick and the missed/saved/post one — only incidentClass separates
+// them, and a missed penalty rendered as a goal lies next to the score (the
+// widget showed De Bruyne's 68' post as ⚽ in Venezia–Napoli while the score
+// stayed 1–0). Open-play goals carry type "goal" (class "regular"/"own");
+// disallowed strikes guarded through varDecision too.
+export function incidentIsGoal(inc: Record<string, unknown>): boolean {
+  const type = String(inc.incidentType ?? "").toLowerCase();
+  if (!type.includes("goal") && !type.includes("penalt")) return false;
+  const cls = String(inc.incidentClass ?? "").toLowerCase();
+  if (/own/.test(cls)) return true; // own goal: a goal, the caller flips the side
+  if (/miss|saved|post|blocked|off|disallowed/.test(cls)) return false;
+  const varD = String(inc.varDecision ?? "").toLowerCase();
+  if (/disallow|cancel|no.?goal/.test(varD)) return false;
+  return true;
+}
+
 // Canonical event page for an id (the slug part is optional for SofaScore).
 export function sofascoreEventUrl(id: number): string {
   return `https://www.sofascore.com/football/match/#/id:${id}`;

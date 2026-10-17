@@ -1,4 +1,4 @@
-import { parseSofascoreEvent, lastSofascoreChange } from "@/lib/sofascore";
+import { incidentIsGoal, parseSofascoreEvent, lastSofascoreChange } from "@/lib/sofascore";
 import { checkLive } from "@/lib/sportscoreLive";
 
 // One match's live status from SofaScore, via the local CloakBrowser scraper.
@@ -63,17 +63,30 @@ export async function GET(request: Request) {
           const type = String(inc.incidentType ?? "").toLowerCase();
           if (SKIP_TYPES.has(type)) return [];
           const cls = String(inc.incidentClass ?? "").toLowerCase();
+          // Missed/saved penalties carry the player identity too: without this
+          // gate the board would read De Bruyne's 68' post as ⚽ while the
+          // scoreboard said 1–0. They demote to a labelled info row.
+          const isGoalInc = incidentIsGoal(inc);
           const kind =
-            type.includes("goal") || type.includes("penalt") ? "goal"
-            : type.includes("card") ? (cls.includes("red") ? "red" : "yellow")
-            : type.includes("subst") ? "sub"
-            : "info";
+            isGoalInc
+              ? "goal"
+              : type.includes("penalt")
+                ? "info"
+                : type.includes("card")
+                  ? (cls.includes("red") ? "red" : "yellow")
+                  : type.includes("subst")
+                    ? "sub"
+                    : "info";
           const text =
             kind === "sub"
               ? [nameOf(inc.playerIn), nameOf(inc.playerOut)].every(Boolean)
                 ? `Entra ${nameOf(inc.playerIn)} · Sai ${nameOf(inc.playerOut)}`
                 : ""
-              : nameOf(inc.player) || (typeof inc.playerName === "string" ? (inc.playerName as string) : "");
+              : isGoalInc
+                ? nameOf(inc.player) || (typeof inc.playerName === "string" ? (inc.playerName as string) : "")
+                : type.includes("penalt")
+                  ? `Grande penalidade falhada — ${nameOf(inc.player) || (typeof inc.playerName === "string" ? (inc.playerName as string) : "")}`
+                  : nameOf(inc.player) || (typeof inc.playerName === "string" ? (inc.playerName as string) : "");
           if (!text) return [];
           return [
             {
@@ -128,8 +141,9 @@ export async function GET(request: Request) {
   const goals = allIncidents.flatMap((item) => {
     if (typeof item !== "object" || item === null) return [];
     const inc = item as Record<string, unknown>;
-    const type = String(inc.incidentType ?? "").toLowerCase();
-    if (!type.includes("goal") && !type.includes("penalt")) return [];
+    // Only true goals backfill the charts: a missed penalty carries the same
+    // "inGamePenalty" type but never changed the score.
+    if (!incidentIsGoal(inc)) return [];
     const time = typeof inc.time === "number" ? inc.time : null;
     if (time === null || time < 0 || time > 130) return [];
     return [{ minute: time, home: inc.isHome === true }];

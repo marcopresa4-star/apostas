@@ -9,7 +9,7 @@ import { slugify } from "./slugify";
 import { sideTokensIn } from "./sportscoreSlug";
 import { tokens } from "./teamNames";
 import { sofaRaw, ScraperOffline } from "./sofaRaw";
-import { parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
+import { incidentIsGoal, parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
 import { cacheGet, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
 export type { StaleTracker } from "./sofaCache";
 
@@ -962,8 +962,10 @@ export async function eventGoalMinutes(
       const events = raw.flatMap((e) => (obj(e) ? [obj(e)!] : []));
       const out: SofaGoalMark[] = [];
       for (const e of events) {
-        const type = str(e.incidentType).toLowerCase();
-        if (!type.includes("goal") && !type.includes("penalt")) continue;
+        // incidentIsGoal keeps the missed/saved penalties out of the marks:
+        // a spot-kick to the post would otherwise read as a goal minute in
+        // the histories (and a miss is not a goal the model should feed).
+        if (!incidentIsGoal(e)) continue;
         const minute = num(e.time);
         if (minute === null || minute < 1 || minute > 130) continue;
         const own = str(e.incidentClass).toLowerCase().includes("own");

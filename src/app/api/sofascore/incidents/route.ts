@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { incidentIsGoal } from "@/lib/sofascore";
 
 // Full incident timeline for one event (goals, cards, substitutions): what
 // the "lances do jogo" list and the momentum markers are drawn from. The
@@ -60,17 +61,15 @@ export async function GET(request: Request) {
       const type = String(inc.incidentType ?? "").toLowerCase();
       if (SKIP_TYPES.has(type)) return [];
       const cls = String(inc.incidentClass ?? "").toLowerCase();
-      const kind =
-        type.includes("goal") || type.includes("penalt")
-          ? ("goal" as const)
-          : type.includes("card")
-            ? cls.includes("red")
-              ? ("red" as const)
-              : ("yellow" as const)
-            : type.includes("subst")
-              ? ("sub" as const)
-              : ("info" as const);
-      if (kind !== "goal" && kind !== "red" && kind !== "yellow" && kind !== "sub") return [];
+      // Same arbitrage as the event route: a missed penalty is not a goal.
+      if (!incidentIsGoal(inc) && !type.includes("card") && !type.includes("subst")) return [];
+      const kind: GameIncident["kind"] = incidentIsGoal(inc)
+        ? "goal"
+        : type.includes("card")
+          ? cls.includes("red")
+            ? "red"
+            : "yellow"
+          : "sub";
       const text =
         kind === "sub"
           ? [nameOf(inc.playerIn), nameOf(inc.playerOut)].every(Boolean)
