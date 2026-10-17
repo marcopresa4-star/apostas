@@ -366,7 +366,15 @@ export async function roundFixtures(
   current: boolean,
   tracker?: StaleTracker
 ): Promise<SofaFixture[]> {
+  // Finished games never change: a round whose every fixture carries a score
+  // is stored under `:done` and read for 3 days, so the season-long walk of
+  // the model stops re-reading finished rounds hourly (only the rounds still
+  // holding scheduled games keep the fresh 1h TTL).
+  const doneKey = `roundfx:${uniqueId}:${seasonId}:${round}:done`;
+  const done = await cacheGet(supabase, userId, doneKey, 3 * DAY_MS).catch(() => null);
+  if (Array.isArray(done)) return done as SofaFixture[];
   const key = `roundfx:${uniqueId}:${seasonId}:${round}`;
+  let allDone = false;
   const data = await cachedRead<SofaFixture[]>(
     supabase,
     userId,
@@ -382,6 +390,7 @@ export async function roundFixtures(
           })
         : [];
       out.sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
+      allDone = out.length > 0 && out.every((f) => f.ft !== null);
       // An empty round (404 past the end, or nothing scheduled yet) is cached
       // too: refetching it every load would never find anything new until the
       // TTL lapses anyway.
@@ -390,7 +399,9 @@ export async function roundFixtures(
     tracker,
     Array.isArray
   );
-  return data ?? [];
+  const out = (data ?? []) as SofaFixture[];
+  if (allDone) await cacheSet(supabase, userId, doneKey, out).catch(() => {});
+  return out;
 }
 
 // Tournament-level event pages (knockout phases don't come back on the round
@@ -601,7 +612,14 @@ export async function roundResults(
   shots = false,
   tracker?: StaleTracker
 ): Promise<PlayedMatch[]> {
-  const key = `round:${uniqueId}:${seasonId}:${round}${shots ? ":sot" : ""}`;
+  // The result only holds finished games: cache it under `:done` for 3 days
+  // so the season walk of the model is one cache hit per round on repeat
+  // builds (the fixtures read below then only happens once every 3 days).
+  const suffix = shots ? ":sot" : "";
+  const doneKey = `round:${uniqueId}:${seasonId}:${round}${suffix}:done`;
+  const doneHit = await cacheGet(supabase, userId, doneKey, 3 * DAY_MS).catch(() => null);
+  if (Array.isArray(doneHit)) return doneHit as PlayedMatch[];
+  const key = `round:${uniqueId}:${seasonId}:${round}${suffix}`;
   const hit = await cacheGet(supabase, userId, key, current ? HOUR_MS : 30 * DAY_MS);
   if (Array.isArray(hit)) return hit as PlayedMatch[];
   // One call per round serves both: the fixtures cache holds everything,
@@ -625,6 +643,12 @@ export async function roundResults(
   }));
   out.sort((a, b) => a.date.localeCompare(b.date));
   await cacheSet(supabase, userId, key, out);
+  // Finished-only result: take the long cache from now on, when the result
+  // covers the whole round (an in-progress round keeps its 1h row until it
+  // closes: `finished.length === fixtures.length` is the all-done check).
+  if (fixtures.length > 0 && finished.length >= fixtures.length) {
+    await cacheSet(supabase, userId, doneKey, out).catch(() => {});
+  }
   return out;
 }
 

@@ -300,13 +300,16 @@ function withTimeout(promise, ms, label) {
   });
 }
 
-// Reads share parked tabs (2 at a time) instead of going strictly serial:
-// season loads are hundreds of independent reads. Tabs park on SofaScore once
-// and never navigate again (parallel *navigations* look bot-like and get
-// challenged); they share the context, so clearance cookies and the captcha
-// token apply to all. Navigations + DOM reads keep the single shared page
-// behind `enqueue`. Creation is guarded so a burst can't pile up tabs.
-const API_SLOTS = 2;
+// Reads share parked tabs (default 4, SCRAPER_API_SLOTS to override) instead
+// of going strictly serial: season loads are hundreds of independent reads —
+// in-page fetch runs concurrently all the time on a real SofaScore session,
+// so a handful of parked tabs reads safely like one busy page. Tabs park on
+// SofaScore once and never navigate again (parallel *navigations* look
+// bot-like and get challenged); they share the context, so clearance cookies
+// and the captcha token apply to all. Navigations + DOM reads keep the single
+// shared page behind `enqueue`. Creation is guarded so a burst can't pile up
+// tabs.
+const API_SLOTS = Math.max(1, Math.min(8, Number(process.env.SCRAPER_API_SLOTS ?? 4) || 4));
 const slots = [];
 let creating = false;
 
