@@ -25,6 +25,7 @@ import {
   linkLocalName,
   slimEvent,
   isSlimEvent,
+  tournamentRounds,
   type SofaMap,
   type SofaSeason,
   type SlimEvent,
@@ -187,8 +188,22 @@ export async function loadSofaLeague(
   // replacement when rounds say nothing at all, or unioned on top otherwise.
   let fallback: { results: PlayedMatch[]; fixtures: Fixture[] } | null = null;
   const todayStr = todayISO(new Date());
-  const nearTerm = currentFx.some((f) => f.date >= shiftDays(todayStr, -7) && f.date <= shiftDays(todayStr, 60));
-  if (currentFx.length === 0 || !nearTerm) {
+  // With the fixture walk on, `currentFx` measures whether the rounds have
+  // gone quiet (games exist but come from elsewhere). Without fixtures there
+  // is nothing to measure — and the team fallback means dozens of reads per
+  // league, so it must not run unconditionally on every render: a present
+  // rounds list covers the season (seasonResults unions the recent pages for
+  // the knockout hole), an absent one (MLS 404s, taças sem rondas) still
+  // needs the teams.
+  let needFallback: boolean;
+  if (wantFixtures) {
+    const nearTerm = currentFx.some((f) => f.date >= shiftDays(todayStr, -7) && f.date <= shiftDays(todayStr, 60));
+    needFallback = currentFx.length === 0 || !nearTerm;
+  } else {
+    const got = await tournamentRounds(supabase, userId, uniqueId, current.id, true, tracker).catch(() => ({ currentRound: null, rounds: [] as number[] }));
+    needFallback = got.rounds.length === 0;
+  }
+  if (needFallback) {
     const rows = await seasonStandings(supabase, userId, uniqueId, current.id, true, tracker).catch(() => []);
     const names = [...new Set(rows.map((r) => r.team))];
     const { resolved: teamIdByName } = await resolveLeagueTeamIds(supabase, userId, teamMaps, names).catch(
