@@ -57,7 +57,20 @@ function Form({ form }: { form: ("V" | "E" | "D")[] }) {
 
 // No trustworthy minute for this row (list rows carry no incidents and their
 // period clock can be missing): show the period instead of a fake number.
+// Followed rows outside the live feed can be upcoming (kickoff time instead
+// of a period) or finished (simple label).
 function PeriodLabel({ g }: { g: SofaLiveEntry }) {
+  if (g.phase === "upcoming") {
+    const d = new Date(g.kickoff);
+    return (
+      <span className="text-neutral-400">
+        {String(d.getDate()).padStart(2, "0")}/{String(d.getMonth() + 1).padStart(2, "0")} {d.toTimeString().slice(0, 5)}
+      </span>
+    );
+  }
+  if (g.phase === "finished") {
+    return <span className="font-semibold text-neutral-500">Terminado</span>;
+  }
   if (g.minute !== null) {
     return (
       <span className="flex items-center gap-1.5 font-semibold text-red-400">
