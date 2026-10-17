@@ -409,9 +409,13 @@ export default async function DayDetail({
                       </td>
                       <td className="max-w-36 truncate px-2 py-2.5 text-xs text-neutral-500">{lg.label}</td>
                       <td className="min-w-56 px-2 py-2.5">
-                        <span className="text-neutral-100">
+                        <Link
+                          href={`/estatisticas?${new URLSearchParams({ liga: lg.code, casa: r.home, fora: r.away })}`}
+                          title="Abrir no Comparar equipas"
+                          className="text-neutral-100 transition hover:text-emerald-300"
+                        >
                           {r.home} <span className="text-neutral-600">vs</span> {r.away}
-                        </span>{" "}
+                        </Link>{" "}
                         {isLive && gl !== undefined && (
                           <span className="font-semibold tabular-nums text-emerald-300">
                             {gl.homeGoals ?? "?"}–{gl.awayGoals ?? "?"}

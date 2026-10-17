@@ -322,9 +322,13 @@ export default async function DayMatrix({
                       {r.eventId !== null && r.eventId > 0 && (
                         <FavoriteButton eventId={r.eventId} home={r.home} away={r.away} tournament={l.label} initial={favIds.has(r.eventId)} />
                       )}{" "}
-                      <span className="text-neutral-100">
+                      <Link
+                        href={`/estatisticas?${new URLSearchParams({ liga: l.code, casa: r.home, fora: r.away })}`}
+                        title="Abrir no Comparar equipas"
+                        className="text-neutral-100 transition hover:text-emerald-300"
+                      >
                         {r.home} <span className="text-neutral-600">vs</span> {r.away}
-                      </span>
+                      </Link>
                       {r.fragile && (
                         <span title={`Só ${r.games} jogo${r.games === 1 ? "" : "s"} desta competição nos dados`} className="ml-1.5 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
                           poucos jogos
