@@ -33,27 +33,6 @@ export async function requireAdmin() {
   if (!isAdmin) redirect("/login");
 }
 
-// Same guard, but returns the user so the page doesn't call
-// supabase.auth.getUser() a second time on an already-guarded render.
-export async function requireAdminWithUser(): Promise<{ id: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  // Same fail-open rule as fetchIsAdmin: infra errors must never lock the
-  // admin out (only a real "not admin" row does).
-  const isAdmin = (error && error.code !== NO_ROWS_CODE) || profile?.role === "admin";
-  if (!isAdmin) redirect("/login");
-  return { id: user.id };
-}
-
 export async function getIsAdmin(): Promise<boolean> {
   return (await fetchIsAdmin()) ?? false;
 }
