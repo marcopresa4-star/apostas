@@ -1,38 +1,21 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
-// PostgREST's "no rows found" code from .single() - means the profiles
-// table exists and this user genuinely has no row (i.e. not an admin).
-// Any OTHER error (e.g. the profiles table/migration not applied yet)
-// must not lock everyone - including the real admin - out of the app.
-const NO_ROWS_CODE = "PGRST116";
+// One admin behind a signed cookie (local SQLite replaced Supabase auth).
+// Kept as requireAdmin()/getIsAdmin() so the call sites stay unchanged.
 
-async function fetchIsAdmin(): Promise<boolean | null> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (error && error.code !== NO_ROWS_CODE) return true; // fail open on infra errors
-  return profile?.role === "admin";
+async function sessionOk(): Promise<boolean> {
+  const store = await cookies();
+  return verifySessionToken(store.get(SESSION_COOKIE)?.value);
 }
-
 // Guards every admin-only page (Dashboard, Apostas, Live, Analise and their
 // sub-pages). Without a Comunidade there is nowhere else to send a regular
 // (non-admin) user, so they land on the login page.
 export async function requireAdmin() {
-  const isAdmin = await fetchIsAdmin();
-  if (isAdmin === null) redirect("/login");
-  if (!isAdmin) redirect("/login");
+  if (!(await sessionOk())) redirect("/login");
 }
 
 export async function getIsAdmin(): Promise<boolean> {
-  return (await fetchIsAdmin()) ?? false;
+  return sessionOk();
 }

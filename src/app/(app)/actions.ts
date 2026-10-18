@@ -74,6 +74,8 @@ type DeleteResult = { ok: true } | { ok: false; error: string };
 
 interface BlockingTicketRow {
   match_date: string;
+  home_team_id: string;
+  away_team_id: string;
   home_team: { name: string } | null;
   away_team: { name: string } | null;
 }
@@ -83,13 +85,11 @@ async function describeBlockingTickets(
   id: string
 ): Promise<string> {
   const supabase = await createClient();
+  // Plain columns + one .in() name lookup — SQLite shim has no FK-embeds
+  // (this was teams!tickets_home_team_id_fkey(name) on Supabase).
   let query = supabase
     .from("tickets")
-    .select(
-      `match_date,
-       home_team:teams!tickets_home_team_id_fkey(name),
-       away_team:teams!tickets_away_team_id_fkey(name)`
-    );
+    .select("match_date, home_team_id, away_team_id");
 
   query =
     table === "teams"
@@ -100,10 +100,17 @@ async function describeBlockingTickets(
 
   if (!data || data.length === 0) return "";
 
+  const teamIds = [...new Set(data.flatMap((t) => [t.home_team_id, t.away_team_id]))];
+  const names: Record<string, string> = {};
+  if (teamIds.length > 0) {
+    const { data: teams } = await supabase.from("teams").select("id, name").in("id", teamIds);
+    for (const team of teams ?? []) names[team.id] = team.name;
+  }
+
   return data
     .map((t) => {
       const date = new Date(`${t.match_date}T00:00:00`).toLocaleDateString("pt-PT");
-      return `${t.home_team?.name ?? "?"} vs ${t.away_team?.name ?? "?"} (${date})`;
+      return `${names[t.home_team_id] ?? "?"} vs ${names[t.away_team_id] ?? "?"} (${date})`;
     })
     .join(", ");
 }
