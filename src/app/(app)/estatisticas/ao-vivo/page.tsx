@@ -1,12 +1,14 @@
 import { requireAdmin } from "@/lib/requireAdmin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
+import { cacheGetAny, cacheSet } from "@/lib/sofaCache";
 import { loadMaps, seasonTeamNames, tournamentSeasons } from "@/lib/sofaHistory";
 import { sofaRaw } from "@/lib/sofaRaw";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { findGameByNames } from "@/lib/liveMatch";
-import { parseSofascoreId, parseSofascoreLiveList } from "@/lib/sofascore";
+import { parseSofascoreId, parseSofascoreLiveList, type SofaLiveEntry } from "@/lib/sofascore";
 import { gamesOf, summarize, type PlayedMatch, type TeamGame } from "@/lib/footballModel";
 import { Suspense } from "react";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
@@ -32,6 +34,142 @@ function ringOf(games: TeamGame[], venue: "home" | "away"): { gm: number | null;
     venue: venue === "home" ? avg(atVenue, (g) => g.gf) : avg(atVenue, (g) => g.ga),
     btts: last.length > 0 ? last.filter((g) => g.gf > 0 && g.ga > 0).length / last.length : null,
   };
+}
+
+// Slow half of the board: the per-league history walks behind the
+// form/averages columns. Kept off the render path — see AoVivoBoard.
+type LiveStatsBundle = {
+  stats: Record<number, SofaBoardStats>;
+  forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }>;
+  rings: Record<number, SofaBoardRings>;
+  labels: Record<number, string>;
+};
+
+async function computeLiveStats(supabase: SupabaseClient, userId: string, games: SofaLiveEntry[]): Promise<LiveStatsBundle> {
+  const stats: Record<number, SofaBoardStats> = {};
+  const forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }> = {};
+  const rings: Record<number, SofaBoardRings> = {};
+  const labels: Record<number, string> = {};
+  const maps = await loadMaps(supabase, userId, "tournament");
+  const teamMaps = await loadMaps(supabase, userId, "team");
+  const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const labelByCode = new Map<string, string>(LEAGUES.map((l) => [l.code, l.label as string]));
+  const loaded = await Promise.all(
+    maps.map(async (m) => {
+      const seasons = await tournamentSeasons(supabase, userId, m.sofascore_id).catch(() => []);
+      if (seasons.length === 0) return null;
+      const teams = await seasonTeamNames(supabase, userId, m.sofascore_id, seasons[0].id, true).catch(() => [] as string[]);
+      return teams.length > 0 ? { code: m.name_key, teams } : null;
+    })
+  );
+  const leagues = (loaded.filter(Boolean) as { code: (typeof LEAGUES)[number]["code"]; teams: string[] }[]).map((l) => ({
+    code: l.code,
+    label: labelByCode.get(l.code) ?? l.code,
+    teams: l.teams,
+  }));
+  const matchesByCode = new Map<string, PlayedMatch[]>();
+  const matchesFor = async (code: (typeof LEAGUES)[number]["code"]): Promise<PlayedMatch[]> => {
+    const hit = matchesByCode.get(code);
+    if (hit) return hit;
+    // fixtures:false: the board reads results only, and the loader's
+    // fixture walk is the expensive half per league.
+    const loaded = await loadSofaLeague(supabase, userId, code, { shots: false, fixtures: false }).catch(() => null);
+    const matches = loaded?.data.matches ?? [];
+    matchesByCode.set(code, matches);
+    return matches;
+  };
+  // O torneio da própria fila decide (o live list traz o
+  // uniqueTournament em cada linha): clubes repetem-se entre listas
+  // mapeadas (São Paulo está na Série A e na Sudamericana) e escolher a
+  // liga por nomes entre TODAS empata e cai na errada — Blooming–
+  // Petrolero (División Profesional, Bolívia) e São Paulo–Vasco liam
+  // "CONMEBOL Sudamericana" só porque os nomes batem certa na lista da
+  //quela competição. Fora dos torneios mapeados, o quadro mostra só
+  // estrelas e seguidos (mapear a competição no Mapa traz o jogo).
+  const byTidCode = new Map<number, string>();
+  const byTidLabel = new Map<number, string>();
+  for (const m of maps) {
+    const label = labelByCode.get(m.name_key);
+    if (label) {
+      byTidCode.set(m.sofascore_id, m.name_key);
+      byTidLabel.set(m.sofascore_id, label);
+    }
+  }
+  for (const g of games) {
+    if (g.uniqueId === null) continue;
+    const tidCode = byTidCode.get(g.uniqueId);
+    if (!tidCode) continue;
+    // Names that don't match the history cache yet (spelling): the row
+    // stays score-only under the mapped header — inventing stats here
+    // would be fabricating numbers.
+    const scoped = leagues.filter((l) => l.code === tidCode);
+    const found = scoped.length > 0 ? findGameByNames([g.home], [g.away], scoped) : null;
+    const mappedLabel = byTidLabel.get(g.uniqueId) ?? labelByCode.get(tidCode) ?? tidCode;
+    if (!found) {
+      labels[g.id] = mappedLabel;
+      continue;
+    }
+    // A mapped-league game keeps its row even when its clubs have no
+    // history yet (score-only display, like a starred game).
+    const local = (name: string): string => toLocal.get(name) ?? name;
+    const matches = await matchesFor(tidCode as (typeof LEAGUES)[number]["code"]);
+    if (matches.length === 0) {
+      labels[g.id] = mappedLabel;
+      continue;
+    }
+    const homeGames = gamesOf(matches, local(found.home));
+    const awayGames = gamesOf(matches, local(found.away));
+    if (homeGames.length === 0 && awayGames.length === 0) {
+      labels[g.id] = mappedLabel;
+      continue;
+    }
+    stats[g.id] = { home: summarize(homeGames.slice(0, RECENT)), away: summarize(awayGames.slice(0, RECENT)), leagueLabel: mappedLabel };
+    forms[g.id] = { home: form(homeGames), away: form(awayGames) };
+    rings[g.id] = { home: ringOf(homeGames, "home"), away: ringOf(awayGames, "away") };
+  }
+  return { stats, forms, rings, labels };
+}
+
+// One build per live-games set: while a build runs, later refreshes skip it.
+const statsBuilding = new Set<string>();
+function kickLiveStats(key: string, supabase: SupabaseClient, userId: string, games: SofaLiveEntry[]): void {
+  if (statsBuilding.has(key)) return;
+  statsBuilding.add(key);
+  void computeLiveStats(supabase, userId, games)
+    .then((bundle) => cacheSet(supabase, userId, key, bundle))
+    .catch(() => {})
+    .finally(() => statsBuilding.delete(key));
+}
+
+// Keyed by the live-games set: games start and end, the set changes, the key
+// changes with it (djb2 of the sorted ids keeps the key column-sized).
+function statsKeyFor(games: SofaLiveEntry[]): string {
+  const ids = games.map((g) => g.id).sort((a, b) => a - b).join(",");
+  let h = 5381;
+  for (let i = 0; i < ids.length; i++) h = ((h << 5) + h + ids.charCodeAt(i)) | 0;
+  return `aovivostats:v1:${(h >>> 0).toString(36)}`;
+}
+
+// Cached rows written by (or for) this page only — kept shape-tolerant so a
+// past or partial bundle can never take down a render.
+function applyLiveStats(
+  payload: Record<string, unknown>,
+  into: {
+    stats: Record<number, SofaBoardStats>;
+    forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }>;
+    rings: Record<number, SofaBoardRings>;
+    labels: Record<number, string>;
+  }
+): void {
+  for (const field of ["stats", "forms", "rings", "labels"] as const) {
+    const bundle = payload[field];
+    if (typeof bundle !== "object" || bundle === null || Array.isArray(bundle)) continue;
+    for (const [id, value] of Object.entries(bundle as Record<string, unknown>)) {
+      const n = Number(id);
+      if (!Number.isInteger(n)) continue;
+      (into[field] as Record<number, unknown>)[n] = value;
+    }
+  }
 }
 
 export default async function AoVivoPage() {
@@ -108,91 +246,45 @@ async function AoVivoBoard() {
 
   // Only built when there is something to look up: most of the time this page
   // has nothing mapped live and costs nothing beyond the SofaScore call above.
-  // Form/averages come from the mapped leagues' SofaScore history (cached);
+  // Which rows belong to mapped leagues is a cheap direct mapping (tournament
+  // id only) — done inline so the board paints score rows instantly. The slow
+  // half, the per-league history walks behind the form/averages columns, runs
+  // in the background and caches per live-games set: a bot cycle or a handful
+  // of game widgets no longer holds the board hostage (Oct 2026: renders of
+  // 90s with bots/check in flight).
   const stats: Record<number, SofaBoardStats> = {};
   const forms: Record<number, { home: ("V" | "E" | "D")[]; away: ("V" | "E" | "D")[] }> = {};
   const rings: Record<number, SofaBoardRings> = {};
   const detail: Record<number, SofaBoardDetail> = {};
   const labels: Record<number, string> = {};
   const mappedIds = new Set<number>();
+  let statsAviso: string | null = null;
   if (games.length > 0 && user) {
     const maps = await loadMaps(supabase, user.id, "tournament");
-      const teamMaps = await loadMaps(supabase, user.id, "team");
-      const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
-      const labelByCode = new Map<string, string>(LEAGUES.map((l) => [l.code, l.label as string]));
-      const loaded = await Promise.all(
-        maps.map(async (m) => {
-          const seasons = await tournamentSeasons(supabase, user.id, m.sofascore_id).catch(() => []);
-          if (seasons.length === 0) return null;
-          const teams = await seasonTeamNames(supabase, user.id, m.sofascore_id, seasons[0].id, true).catch(() => [] as string[]);
-          return teams.length > 0 ? { code: m.name_key, teams } : null;
-        })
-      );
-      const leagues = (loaded.filter(Boolean) as { code: (typeof LEAGUES)[number]["code"]; teams: string[] }[]).map((l) => ({
-        code: l.code,
-        label: labelByCode.get(l.code) ?? l.code,
-        teams: l.teams,
-      }));
-      const matchesByCode = new Map<string, PlayedMatch[]>();
-      const matchesFor = async (code: (typeof LEAGUES)[number]["code"]): Promise<PlayedMatch[]> => {
-        const hit = matchesByCode.get(code);
-        if (hit) return hit;
-        // fixtures:false: the board reads results only, and the loader's
-        // fixture walk is the expensive half per league.
-        const loaded = await loadSofaLeague(supabase, user.id, code, { shots: false, fixtures: false }).catch(() => null);
-        const matches = loaded?.data.matches ?? [];
-        matchesByCode.set(code, matches);
-        return matches;
-      };
-      // O torneio da própria fila decide (o live list traz o
-      // uniqueTournament em cada linha): clubes repetem-se entre listas
-      // mapeadas (São Paulo está na Série A e na Sudamericana) e escolher a
-      // liga por nomes entre TODAS empata e cai na errada — Blooming–
-      // Petrolero (División Profesional, Bolívia) e São Paulo–Vasco liam
-      // "CONMEBOL Sudamericana" só porque os nomes batem certa na lista da
-      //quela competição. Fora dos torneios mapeados, o quadro mostra só
-      // estrelas e seguidos (mapear a competição no Mapa traz o jogo).
-      const byTidCode = new Map<number, string>();
-      const byTidLabel = new Map<number, string>();
-      for (const m of maps) {
-        const label = labelByCode.get(m.name_key);
-        if (label) {
-          byTidCode.set(m.sofascore_id, m.name_key);
-          byTidLabel.set(m.sofascore_id, label);
-        }
-      }
+    const labelByCode = new Map<string, string>(LEAGUES.map((l) => [l.code, l.label as string]));
+    for (const m of maps) {
+      const label = labelByCode.get(m.name_key);
+      if (!label) continue;
       for (const g of games) {
-        if (g.uniqueId === null) continue;
-        const tidCode = byTidCode.get(g.uniqueId);
-        if (!tidCode) continue;
-        mappedIds.add(g.id);
-        // Names that don't match the history cache yet (spelling): the row
-        // stays score-only under the mapped header — inventing stats here
-        // would be fabricating numbers.
-        const scoped = leagues.filter((l) => l.code === tidCode);
-        const found = scoped.length > 0 ? findGameByNames([g.home], [g.away], scoped) : null;
-        const mappedLabel = byTidLabel.get(g.uniqueId) ?? labelByCode.get(tidCode) ?? tidCode;        if (!found) {
-          labels[g.id] = mappedLabel;
-          continue;
+        if (g.uniqueId === m.sofascore_id) {
+          mappedIds.add(g.id);
+          if (!labels[g.id]) labels[g.id] = label;
         }
-        // A mapped-league game keeps its row even when its clubs have no
-        // history yet (score-only display, like a starred game).
-        const local = (name: string): string => toLocal.get(name) ?? name;
-        const matches = await matchesFor(tidCode as (typeof LEAGUES)[number]["code"]);
-        if (matches.length === 0) {
-          labels[g.id] = mappedLabel;
-          continue;
-        }
-        const homeGames = gamesOf(matches, local(found.home));
-        const awayGames = gamesOf(matches, local(found.away));
-        if (homeGames.length === 0 && awayGames.length === 0) {
-          labels[g.id] = mappedLabel;
-          continue;
-        }
-        stats[g.id] = { home: summarize(homeGames.slice(0, RECENT)), away: summarize(awayGames.slice(0, RECENT)), leagueLabel: mappedLabel };
-        forms[g.id] = { home: form(homeGames), away: form(awayGames) };
-        rings[g.id] = { home: ringOf(homeGames, "home"), away: ringOf(awayGames, "away") };
       }
+    }
+    const meta = await cacheGetAny(supabase, user.id, statsKeyFor(games)).catch(() => null);
+    const age = meta ? now.getTime() - meta.fetchedAt : Number.POSITIVE_INFINITY;
+    const payload = obj(meta?.payload ?? null);
+    // Fresh under 10 min: plain cache hit. Older (up to the hour): serve it
+    // anyway while the build reruns. With nothing cached yet the rows stay
+    // score-only until the refresh after the first build lands.
+    if (payload && (age <= 10 * 60_000 || age <= 60 * 60_000)) {
+      applyLiveStats(payload, { stats, forms, rings, labels });
+    }
+    if (!payload || age > 10 * 60_000) {
+      if (!payload) statsAviso = "As formas e anéis preparam-se em segundo plano — atualiza daqui a ~1 minuto.";
+      kickLiveStats(statsKeyFor(games), supabase, user.id, games);
+    }
   }
   // The board shows the mapped leagues only (plus starred games and followed
   // games): the world list tops 500 rows at peak time, and the extras carry no
@@ -247,6 +339,8 @@ async function AoVivoBoard() {
           Atualizar
         </a>
       </div>
+
+      {statsAviso && <p className="mb-3 text-xs text-sky-300">{statsAviso}</p>}
 
       {offline ? (
         <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
