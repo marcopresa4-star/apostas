@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { LEAGUES, isInternational, loadLeague, type LeagueData } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { linkLocalName, loadMaps, sofaTeamIdFor, teamLastGame, tournamentSeasons, seasonTeamNames } from "@/lib/sofaHistory";
+import { matchTeamIn } from "@/lib/liveMatch";
 import TeamSearch from "@/components/TeamSearch";
 
 // Bounded parallelism for the team-index sweep below.
@@ -328,13 +329,14 @@ async function CompararBody({
   }
 
   const teams = data?.teams ?? [];
-  // Incoming links (Previsões, Ao vivo, bots...) carry SofaScore spellings:
-  // translate to the local ones when they don't match, so the game opens
-  // instead of an empty form. Unknown spellings keep the map hint as today.
+  // Incoming links (Previsões, Ao vivo, bots, Jogos por dia...) carry mixed
+  // spellings of the same club — SofaScore itself writes "Como" in the
+  // standings and "Como 1907" in the fixtures: exact, then Map translation,
+  // then the same tolerant name fit the boards use.
   if (data && userId && (!teams.includes(casa) || !teams.includes(fora))) {
     const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
-    if (!teams.includes(casa)) casa = linkLocalName(teamMaps, casa) ?? casa;
-    if (!teams.includes(fora)) fora = linkLocalName(teamMaps, fora) ?? fora;
+    if (!teams.includes(casa)) casa = linkLocalName(teamMaps, casa) ?? matchTeamIn(casa, teams) ?? casa;
+    if (!teams.includes(fora)) fora = linkLocalName(teamMaps, fora) ?? matchTeamIn(fora, teams) ?? fora;
   }
   const ready = data !== null && casa !== "" && fora !== "" && teams.includes(casa) && teams.includes(fora);
   const sameTeam = casa !== "" && casa === fora;

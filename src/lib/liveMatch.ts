@@ -107,6 +107,17 @@ export function findGameByNames(home: string[], away: string[], leagues: LeagueT
   return null;
 }
 
+// The one name of a team list the given name is (tolerantly) about: links
+// between pages travel with different spellings of the same club — SofaScore
+// writes "Como" in the standings and "Como 1907" in the fixtures — and exact
+// matching left the Comparar form half-filled. Ambiguous fits stay null.
+export function matchTeamIn(name: string, teams: string[]): string | null {
+  if (!name) return null;
+  const slug = slugify(name);
+  if (!slug) return null;
+  return best(slug, teams)?.name ?? null;
+}
+
 // What kind of game the link is about when it is not a club's first team
 // ("feminino", "equipa B"...), or null.
 export function sideOfGame(slugs: [string, string]): string | null {
