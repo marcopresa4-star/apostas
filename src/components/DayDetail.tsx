@@ -159,6 +159,180 @@ function Dots({ form, title }: { form: { r: "V" | "E" | "D"; date: string; opp: 
   );
 }
 
+// The full day evaluation, shared by the page (first view / background
+// refresh) and by the Matrix prewarm (prewarmDayDetail below). Writes the
+// daydetail:v5 cache on success.
+export async function computeDayDetail(
+  supabase: SupabaseClient,
+  userId: string,
+  day: string,
+  pais: string,
+  ligaSel: string
+): Promise<{ table: DetailLeague[]; failed: string[]; staleLeagues: string[]; unlinkedNames: string[] }> {
+  const maps = await loadMaps(supabase, userId, "tournament").catch(() => []);
+  const codes = new Set(maps.map((m) => m.name_key));
+  const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
+  const leagues = LEAGUES.filter((l) => {
+    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (ligaSel && l.code !== ligaSel) return false;
+    if (pais && countryOf(l.label as string) !== pais) return false;
+    return true;
+  });
+  const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
+  const key = `daydetail:v5:${day}|${pais}|${ligaSel}`;
+  const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
+  const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
+  const failedSet = new Set<string>();
+  const staleSet = new Set<string>();
+  const unlinkedSet = new Set<string>();
+  const found: DetailLeague[] = [];
+  // One live read per pass (scraper caches it 60s), shared by all leagues.
+  const liveEntries = await fetchLiveEntries().catch(() => []);
+  await pool(leagues, 4, async (l) => {
+    const map = maps.find((m) => m.name_key === l.code);
+    if (!map) return;
+    let seasons;
+    try {
+      seasons = await tournamentSeasons(supabase, userId, map.sofascore_id);
+    } catch {
+      failedSet.add(l.code);
+      return;
+    }
+    const s = seasons[0];
+    if (!s) return;
+    // Sonda leve (igual à matriz): próximos + recentes da época cobrem o
+    // dia inteiro; ligas sem jogos no dia ficam-se por aqui.
+    const upcoming = await seasonUpcomingExtra(supabase, userId, map.sofascore_id, s.id, true, 0).catch(() => null);
+    if (upcoming === null) {
+      failedSet.add(l.code);
+      return;
+    }
+    const recent = await seasonRecentLite(supabase, userId, map.sofascore_id, s.id, true).catch(() => [] as SofaFixture[]);
+    const seenIds = new Set<number>();
+    const flat: SofaFixture[] = [];
+    for (const f of [...upcoming, ...(recent ?? []), ...tournamentLiveFixtures(liveEntries, map.sofascore_id, 0)]) {
+      if (f.date === day && !seenIds.has(f.id)) {
+        seenIds.add(f.id);
+        flat.push(f);
+      }
+    }
+    const dayFx = flat.filter((f) => f.date === day && !f.ft);
+    if (dayFx.length === 0) return;
+    let data;
+    try {
+      const loaded = await loadSofaLeague(supabase, userId, l.code, { history: true, fixtures: false, shots: false });
+      data = loaded?.data ?? null;
+      if (loaded?.stale) staleSet.add(l.code);
+      for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
+    } catch {
+      failedSet.add(l.code);
+      return;
+    }
+    if (!data) {
+      failedSet.add(l.code);
+      return;
+    }
+    const teamGames = (team: string, venue: "H" | "A" | null): PlayedMatch[] => {
+      const seen = new Set<string>();
+      return data.matches.filter((m) => {
+        if (!((venue !== "A" && m.team1 === team) || (venue !== "H" && m.team2 === team))) return false;
+        // Same duplicate guard as the form dots: one entry per
+        // date+opponent+venue, so averages never double-count a tie.
+        const v = m.team1 === team ? "H" : "A";
+        const k = `${m.date}|${m.team1 === team ? m.team2 : m.team1}|${v}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    };
+    // Newest first, like every football app: the leftmost dot is the most
+    // recent game.
+    const last5 = (team: string, venue: "H" | "A" | null): PlayedMatch[] => teamGames(team, venue).slice(-5).reverse();
+    const avg = (ms: PlayedMatch[], f: (m: PlayedMatch) => number): number | null =>
+      ms.length === 0 ? null : ms.reduce((s, m) => s + f(m), 0) / ms.length;
+    const res = (team: string, m: PlayedMatch): { r: "V" | "E" | "D"; date: string; opp: string } => {
+      const gf = m.team1 === team ? m.ft[0] : m.ft[1];
+      const ga = m.team1 === team ? m.ft[1] : m.ft[0];
+      return { r: gf > ga ? "V" : gf < ga ? "D" : "E", date: m.date, opp: m.team1 === team ? m.team2 : m.team1 };
+    };
+    const rows: DetailRow[] = [];
+    const jobs: { f: SofaFixture; home: string; away: string }[] = [];
+    const jobsSeen = new Set<string>();
+    for (const f of dayFx) {
+      const home = convert(f.team1);
+      const away = convert(f.team2);
+      if (!data.teams.includes(home) || !data.teams.includes(away)) continue;
+      // Same tie under two ids (postponed stale entry) would render twice:
+      // one pairing per league per day.
+      const pair = `${home}|${away}`;
+      if (jobsSeen.has(pair)) continue;
+      jobsSeen.add(pair);
+      jobs.push({ f, home, away });
+    }
+    await pool(jobs, 8, async ({ f, home, away }) => {
+      const hAll = teamGames(home, null).slice(-5);
+      const hHome = teamGames(home, "H").slice(-5);
+      const aAll = teamGames(away, null).slice(-5);
+      const aAway = teamGames(away, "A").slice(-5);
+      const gm = avg(hAll, (m) => (m.team1 === home ? m.ft[0] : m.ft[1]));
+      const gs = avg(hAll, (m) => (m.team1 === home ? m.ft[1] : m.ft[0]));
+      const gmC = avg(hHome, (m) => m.ft[0]);
+      const gsF = avg(aAway, (m) => m.ft[1]);
+      const pool10 = [...hAll, ...aAll];
+      const btts = pool10.length > 0 ? pool10.filter((m) => m.ft[0] > 0 && m.ft[1] > 0).length / pool10.length : null;
+      rows.push({
+        eventId: typeof f.id === "number" ? f.id : null,
+        time: f.time ?? null,
+        home,
+        away,
+        gm,
+        gs,
+        gmC,
+        gsF,
+        btts,
+        formH: last5(home, "H").map((m) => res(home, m)),
+        formF: last5(away, "A").map((m) => res(away, m)),
+        fragile: hAll.length < 5 || aAll.length < 5,
+      });
+    });
+    if (rows.length > 0) {
+      rows.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
+      found.push({ code: l.code, label: labelOf(l.code), rows });
+    }
+  });
+  const table = found;
+  const failed = [...failedSet];
+  const staleLeagues = [...staleSet];
+  const unlinkedNames = [...unlinkedSet].slice(0, 12);
+  if (failed.length === 0) await cacheSet(supabase, userId, key, table).catch(() => {});
+  return { table, failed, staleLeagues, unlinkedNames };
+}
+
+// Prewarm: the Matrix fires this after evaluating its own table, so the
+// user's next click into vista Detalhada finds the table ready — without it
+// that first click always waited minutes. Guarded by the same in-flight set
+// as the page's own background refresh; a fresh table (≲30 min) skips it.
+export function prewarmDayDetail(
+  supabase: SupabaseClient,
+  userId: string,
+  day: string,
+  pais: string,
+  ligaSel: string
+): void {
+  const key = `daydetail:v5:${day}|${pais}|${ligaSel}`;
+  const run = async (): Promise<void> => {
+    const meta = await cacheGetAny(supabase, userId, key).catch(() => null);
+    if (meta && Date.now() - meta.fetchedAt < HOUR_MS / 2) return;
+    await computeDayDetail(supabase, userId, day, pais, ligaSel);
+  };
+  if (recomputing.has(key)) return;
+  recomputing.add(key);
+  void run()
+    .catch(() => {})
+    .finally(() => recomputing.delete(key));
+}
+
 export default async function DayDetail({
   day,
   pais,
@@ -203,133 +377,11 @@ export default async function DayDetail({
   let shownAge: number | null = null; // idade da última avaliação servida
   let refazendo = false;
   const compute = async (): Promise<void> => {
-    const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
-    const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
-    const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
-    const failedSet = new Set<string>();
-    const staleSet = new Set<string>();
-    const unlinkedSet = new Set<string>();
-    const found: DetailLeague[] = [];
-    // One live read per render (scraper caches it 60s), shared by all leagues.
-    const liveEntries = await fetchLiveEntries().catch(() => []);
-    await pool(leagues, 4, async (l) => {
-      const map = maps.find((m) => m.name_key === l.code);
-      if (!map) return;
-      let seasons;
-      try {
-        seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id);
-      } catch {
-        failedSet.add(l.code);
-        return;
-      }
-      const s = seasons[0];
-      if (!s) return;
-      // Sonda leve (igual à matriz): próximos + recentes da época cobrem o
-      // dia inteiro; ligas sem jogos no dia ficam-se por aqui.
-      const upcoming = await seasonUpcomingExtra(supabase, user.id, map.sofascore_id, s.id, true, 0).catch(() => null);
-      if (upcoming === null) {
-        failedSet.add(l.code);
-        return;
-      }
-      const recent = await seasonRecentLite(supabase, user.id, map.sofascore_id, s.id, true).catch(() => [] as SofaFixture[]);
-      const seenIds = new Set<number>();
-      const flat: SofaFixture[] = [];
-      for (const f of [...upcoming, ...(recent ?? []), ...tournamentLiveFixtures(liveEntries, map.sofascore_id, 0)]) {
-        if (f.date === day && !seenIds.has(f.id)) {
-          seenIds.add(f.id);
-          flat.push(f);
-        }
-      }
-      const dayFx = flat.filter((f) => f.date === day && !f.ft);
-      if (dayFx.length === 0) return;
-      let data;
-      try {
-        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false, shots: false });
-        data = loaded?.data ?? null;
-        if (loaded?.stale) staleSet.add(l.code);
-        for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
-      } catch {
-        failedSet.add(l.code);
-        return;
-      }
-      if (!data) {
-        failedSet.add(l.code);
-        return;
-      }
-      const teamGames = (team: string, venue: "H" | "A" | null): PlayedMatch[] => {
-        const seen = new Set<string>();
-        return data.matches.filter((m) => {
-          if (!((venue !== "A" && m.team1 === team) || (venue !== "H" && m.team2 === team))) return false;
-          // Same duplicate guard as the form dots: one entry per
-          // date+opponent+venue, so averages never double-count a tie.
-          const v = m.team1 === team ? "H" : "A";
-          const k = `${m.date}|${m.team1 === team ? m.team2 : m.team1}|${v}`;
-          if (seen.has(k)) return false;
-          seen.add(k);
-          return true;
-        });
-      };
-      // Newest first, like every football app: the leftmost dot is the most
-      // recent game.
-      const last5 = (team: string, venue: "H" | "A" | null): PlayedMatch[] =>
-        teamGames(team, venue).slice(-5).reverse();
-      const avg = (ms: PlayedMatch[], f: (m: PlayedMatch) => number): number | null =>
-        ms.length === 0 ? null : ms.reduce((s, m) => s + f(m), 0) / ms.length;
-      const res = (team: string, m: PlayedMatch): { r: "V" | "E" | "D"; date: string; opp: string } => {
-        const gf = m.team1 === team ? m.ft[0] : m.ft[1];
-        const ga = m.team1 === team ? m.ft[1] : m.ft[0];
-        return { r: gf > ga ? "V" : gf < ga ? "D" : "E", date: m.date, opp: m.team1 === team ? m.team2 : m.team1 };
-      };
-      const rows: DetailRow[] = [];
-      const jobs: { f: SofaFixture; home: string; away: string }[] = [];
-      const jobsSeen = new Set<string>();
-      for (const f of dayFx) {
-        const home = convert(f.team1);
-        const away = convert(f.team2);
-        if (!data.teams.includes(home) || !data.teams.includes(away)) continue;
-        // Same tie under two ids (postponed stale entry) would render twice:
-        // one pairing per league per day.
-        const pair = `${home}|${away}`;
-        if (jobsSeen.has(pair)) continue;
-        jobsSeen.add(pair);
-        jobs.push({ f, home, away });
-      }
-      await pool(jobs, 8, async ({ f, home, away }) => {
-        const hAll = teamGames(home, null).slice(-5);
-        const hHome = teamGames(home, "H").slice(-5);
-        const aAll = teamGames(away, null).slice(-5);
-        const aAway = teamGames(away, "A").slice(-5);
-        const gm = avg(hAll, (m) => (m.team1 === home ? m.ft[0] : m.ft[1]));
-        const gs = avg(hAll, (m) => (m.team1 === home ? m.ft[1] : m.ft[0]));
-        const gmC = avg(hHome, (m) => m.ft[0]);
-        const gsF = avg(aAway, (m) => m.ft[1]);
-        const pool10 = [...hAll, ...aAll];
-        const btts = pool10.length > 0 ? pool10.filter((m) => m.ft[0] > 0 && m.ft[1] > 0).length / pool10.length : null;
-        rows.push({
-          eventId: typeof f.id === "number" ? f.id : null,
-          time: f.time ?? null,
-          home,
-          away,
-          gm,
-          gs,
-          gmC,
-          gsF,
-          btts,
-          formH: last5(home, "H").map((m) => res(home, m)),
-          formF: last5(away, "A").map((m) => res(away, m)),
-          fragile: hAll.length < 5 || aAll.length < 5,
-        });
-      });
-      if (rows.length > 0) {
-        rows.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
-        found.push({ code: l.code, label: labelOf(l.code), rows });
-      }
-    });
-    table = found;
-    failed = [...failedSet];
-    staleLeagues = [...staleSet];
-    unlinkedNames = [...unlinkedSet].slice(0, 12);
-    if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
+    const res = await computeDayDetail(supabase, user.id, day, pais, ligaSel);
+    table = res.table;
+    failed = res.failed;
+    staleLeagues = res.staleLeagues;
+    unlinkedNames = res.unlinkedNames;
   };
   if (age <= HOUR_MS / 2 && Array.isArray(meta?.payload)) {
     table = meta.payload as DetailLeague[];

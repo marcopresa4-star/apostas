@@ -6,6 +6,7 @@ import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonR
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
+import { prewarmDayDetail } from "@/components/DayDetail";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { matchTotalOver, MIN_GAMES } from "@/lib/recommendation";
 
@@ -244,7 +245,12 @@ export default async function DayMatrix({
     staleLeagues = [...staleSet];
     unlinkedNames = [...unlinkedSet].slice(0, 12);
     missedNames = [...missed].slice(0, 12);
-    if (failed.length === 0) await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
+    if (failed.length === 0) {
+      await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
+      // A compacta ficou pronta: pré-aquecer a detalhada do mesmo dia em
+      // segundo plano para o próximo clique não esperar minutos.
+      prewarmDayDetail(supabase, user.id, day, pais, ligaSel);
+    }
   };
 
   if (age <= HOUR_MS && Array.isArray(meta?.payload)) {
