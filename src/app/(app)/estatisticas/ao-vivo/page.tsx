@@ -144,37 +144,52 @@ async function AoVivoBoard() {
         matchesByCode.set(code, matches);
         return matches;
       };
-      // Torneio mapeado pelo id (o live list traz o uniqueTournament em cada
-      // fila): manter o jogo não pode depender de os nomes casarem com a
-      // cache — uma grafia diferente deixa o jogo fora do quadro (Liga MX:
-      // Guadalajara–Tigres desapareceu enquanto Santos–Querétaro ficava, o
-      // mesmo torneio e a mesma lista ao vivo).
-      const byTid = new Map<number, string>();
+      // O torneio da própria fila decide (o live list traz o
+      // uniqueTournament em cada linha): clubes repetem-se entre listas
+      // mapeadas (São Paulo está na Série A e na Sudamericana) e escolher a
+      // liga por nomes entre TODAS empata e cai na errada — Blooming–
+      // Petrolero (División Profesional, Bolívia) e São Paulo–Vasco liam
+      // "CONMEBOL Sudamericana" só porque os nomes batem certa na lista da
+      //quela competição. Fora dos torneios mapeados, o quadro mostra só
+      // estrelas e seguidos (mapear a competição no Mapa traz o jogo).
+      const byTidCode = new Map<number, string>();
+      const byTidLabel = new Map<number, string>();
       for (const m of maps) {
         const label = labelByCode.get(m.name_key);
-        if (label) byTid.set(m.sofascore_id, label);
+        if (label) {
+          byTidCode.set(m.sofascore_id, m.name_key);
+          byTidLabel.set(m.sofascore_id, label);
+        }
       }
       for (const g of games) {
-        const found = findGameByNames([g.home], [g.away], leagues);
-        const mappedLabel = g.uniqueId !== null ? byTid.get(g.uniqueId) : undefined;
-        if (!found && !mappedLabel) continue;
+        if (g.uniqueId === null) continue;
+        const tidCode = byTidCode.get(g.uniqueId);
+        if (!tidCode) continue;
         mappedIds.add(g.id);
-        if (!found) {
-          // Liga mapeada mas nomes por casar: linha só-com-resultado sob o
-          // cabeçalho da liga (como um jogo com estrela, sem história);
-          // insinuar stats aqui seria inventar números.
-          labels[g.id] = mappedLabel!;
+        // Names that don't match the history cache yet (spelling): the row
+        // stays score-only under the mapped header — inventing stats here
+        // would be fabricating numbers.
+        const scoped = leagues.filter((l) => l.code === tidCode);
+        const found = scoped.length > 0 ? findGameByNames([g.home], [g.away], scoped) : null;
+        const mappedLabel = byTidLabel.get(g.uniqueId) ?? labelByCode.get(tidCode) ?? tidCode;        if (!found) {
+          labels[g.id] = mappedLabel;
           continue;
         }
         // A mapped-league game keeps its row even when its clubs have no
         // history yet (score-only display, like a starred game).
         const local = (name: string): string => toLocal.get(name) ?? name;
-        const matches = await matchesFor(found.code as (typeof LEAGUES)[number]["code"]);
-        if (matches.length === 0) continue;
+        const matches = await matchesFor(tidCode as (typeof LEAGUES)[number]["code"]);
+        if (matches.length === 0) {
+          labels[g.id] = mappedLabel;
+          continue;
+        }
         const homeGames = gamesOf(matches, local(found.home));
         const awayGames = gamesOf(matches, local(found.away));
-        if (homeGames.length === 0 && awayGames.length === 0) continue;
-        stats[g.id] = { home: summarize(homeGames.slice(0, RECENT)), away: summarize(awayGames.slice(0, RECENT)), leagueLabel: found.label };
+        if (homeGames.length === 0 && awayGames.length === 0) {
+          labels[g.id] = mappedLabel;
+          continue;
+        }
+        stats[g.id] = { home: summarize(homeGames.slice(0, RECENT)), away: summarize(awayGames.slice(0, RECENT)), leagueLabel: mappedLabel };
         forms[g.id] = { home: form(homeGames), away: form(awayGames) };
         rings[g.id] = { home: ringOf(homeGames, "home"), away: ringOf(awayGames, "away") };
       }
