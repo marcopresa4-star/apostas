@@ -8,7 +8,8 @@ import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { matchTeamIn } from "@/lib/liveMatch";
 import AutoRefresh from "@/components/AutoRefresh";
-import { prewarmDayDetail } from "@/components/DayDetail";
+import { prewarmDayDetail, computeDayDetail } from "@/components/DayDetail";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { matchTotalOver, MIN_GAMES } from "@/lib/recommendation";
 
@@ -79,6 +80,219 @@ function kickRecompute(key: string, run: () => Promise<void>): void {
     .finally(() => recomputing.delete(key));
 }
 
+// Avaliação do dia independente do render: o retry em fundo do componente
+// e o pré-aquecimento dos próximos dias chamam ambos esta função. Constrói
+// a matriz completa e escreve a própria cache — tabela inteira quando todas
+// as ligas leem, { rows, failed } em caso parcial, para um passe mau nunca
+// deitar fora o trabalho de um passe bom.
+export async function computeDayMatrix(
+  supabase: SupabaseClient,
+  userId: string,
+  day: string,
+  pais: string,
+  ligaSel: string
+): Promise<{ table: MatrixLeague[]; failed: string[]; staleLeagues: string[]; unlinkedNames: string[]; missedNames: string[] }> {
+  const maps = await loadMaps(supabase, userId, "tournament").catch(() => []);
+  const codes = new Set(maps.map((m) => m.name_key));
+  const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
+  const leagues = LEAGUES.filter((l) => {
+    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (ligaSel && l.code !== ligaSel) return false;
+    if (pais && countryOf(l.label as string) !== pais) return false;
+    return true;
+  });
+  const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
+  const now = new Date();
+  let table: MatrixLeague[] = [];
+  let failed: string[] = [];
+  let staleLeagues: string[] = [];
+  let unlinkedNames: string[] = [];
+  let missedNames: string[] = [];
+  const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
+  const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
+  const failedSet = new Set<string>();
+  const staleSet = new Set<string>();
+  const unlinkedSet = new Set<string>();
+  const found: MatrixLeague[] = [];
+  const missed = new Set<string>();
+  // Same fixture source as the day board (season upcoming page 0 + recent
+  // extras + live ties, shared cache), so the two views can never disagree
+  // on which games exist. History loads only for leagues with games that day.
+  // One live read per pass (scraper caches it 60s), shared by all leagues.
+  const liveEntries = await fetchLiveEntries().catch(() => []);
+  await pool(leagues, 4, async (l) => {
+    const map = maps.find((m) => m.name_key === l.code);
+    if (!map) return;
+    let seasons;
+    try {
+      seasons = await tournamentSeasons(supabase, userId, map.sofascore_id);
+    } catch {
+      failedSet.add(l.code);
+      return;
+    }
+    const s = seasons[0];
+    if (!s) return;
+    // Sonda leve: os próximos e os recentes da época (2–3 leituras, matas-
+    // mata incluídos) cobrem o dia inteiro — agendados, ao vivo e acabados.
+    // Ligas sem jogos no dia ficam-se por aqui (jornadas e histórico nunca
+    // arrancam para elas, e era isso que enlentecia a visita fria).
+    const upcoming = await seasonUpcomingExtra(supabase, userId, map.sofascore_id, s.id, true, 0).catch(() => null);
+    if (upcoming === null) {
+      failedSet.add(l.code);
+      return;
+    }
+    const recent = await seasonRecentLite(supabase, userId, map.sofascore_id, s.id, true).catch(() => [] as SofaFixture[]);
+    const seenIds = new Set<number>();
+    const flat: SofaFixture[] = [];
+    for (const f of [...upcoming, ...(recent ?? []), ...tournamentLiveFixtures(liveEntries, map.sofascore_id, 0)]) {
+      if (f.date === day && !seenIds.has(f.id)) {
+        seenIds.add(f.id);
+        flat.push(f);
+      }
+    }
+    const dayFx = flat.filter((f) => f.date === day);
+    if (dayFx.length === 0) return;
+    let data;
+    try {
+      const loaded = await loadSofaLeague(supabase, userId, l.code, { history: true, fixtures: false });
+      data = loaded?.data ?? null;
+      if (loaded?.stale) staleSet.add(l.code);
+      for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
+    } catch {
+      failedSet.add(l.code);
+      return;
+    }
+    if (!data) {
+      failedSet.add(l.code);
+      return;
+    }
+    const fhs = leagueRates(data.matches, now).firstHalfShare;
+    let rows: MatrixRow[] = [];
+    for (const f of dayFx) {
+      const home = convert(f.team1);
+      const away = convert(f.team2);
+      if (!data.teams.includes(home) && !matchTeamIn(home, data.teams)) missed.add(`${f.team1}→${home}`);
+      if (!data.teams.includes(away) && !matchTeamIn(away, data.teams)) missed.add(`${f.team2}→${away}`);
+      // Stale spellings (cache built before the team map landed) keep the
+      // row when the tolerant fit sees "Getafe CF" == "Getafe".
+      const teamIn = (name: string): boolean => data.teams.includes(name) || matchTeamIn(name, data.teams) !== null;
+      if (!teamIn(home) || !teamIn(away)) {
+        continue;
+      }
+      const prediction = predict(data.matches, home, away, now);
+      const games = Math.min(prediction.gamesHome, prediction.gamesAway);
+      // Cups early on: little same-competition history is shown dimmed
+      // with a tag (like Comparar's fragile estimates), never hidden.
+      const fragile = games < MIN_GAMES;
+      const lh = prediction.lambdaHome;
+      const la = prediction.lambdaAway;
+      const h1 = lh * fhs;
+      const a1 = la * fhs;
+      const h2 = lh * (1 - fhs);
+      const a2 = la * (1 - fhs);
+      const cells: Record<string, number> = {
+        ht05: prediction.halfTime.over05,
+        o15: prediction.over["1.5"] ?? matchTotalOver(lh, la, 1.5),
+        o25: prediction.over["2.5"] ?? matchTotalOver(lh, la, 2.5),
+        btts: prediction.bothScore,
+        h2p: (1 - Math.exp(-(h1 + a1))) * (1 - Math.exp(-(h2 + a2))),
+        h: prediction.fullTime.home,
+        d: prediction.fullTime.draw,
+        a: prediction.fullTime.away,
+      };
+      rows.push({
+        eventId: f.id,
+        time: f.time ?? null,
+        home,
+        away,
+        ft: null,
+        cells,
+        games,
+        fragile,
+      });
+    }
+    if (rows.length > 0) {
+      rows.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
+      // The same tie twice under different event ids (a postponed entry
+      // beside its rescheduling, upstream data overlap) duplicates the row
+      // and breaks React keys: one pairing per league per day is the rule.
+      const seenPairs = new Set<string>();
+      rows = rows.filter((r) => {
+        const k = `${r.home}|${r.away}`;
+        if (seenPairs.has(k)) return false;
+        seenPairs.add(k);
+        return true;
+      });
+      if (rows.length > 0) found.push({ code: l.code, label: labelOf(l.code), rows });
+    }
+  });
+  table = found;
+  failed = [...failedSet];
+  staleLeagues = [...staleSet];
+  unlinkedNames = [...unlinkedSet].slice(0, 12);
+  missedNames = [...missed].slice(0, 12);
+  const cacheKey = `daymatrix:v3:${day}|${pais}|${ligaSel}`;
+  if (failed.length === 0) {
+    await cacheSet(supabase, userId, cacheKey, table).catch(() => {});
+    // A compacta ficou pronta: pré-aquecer a detalhada do mesmo dia em
+    // segundo plano para o próximo clique não esperar minutos.
+    prewarmDayDetail(supabase, userId, day, pais, ligaSel);
+  } else {
+    // Partial evaluations are cached too: while leagues warm up (or the
+    // scraper hiccups), the same visit must never re-block for minutes —
+    // the table keeps what worked and the retry converges in background.
+    await cacheSet(supabase, userId, cacheKey, { rows: table, failed }).catch(() => {});
+  }
+  return { table, failed, staleLeagues, unlinkedNames, missedNames };
+}
+
+const dayKeyOf = (base: Date, days: number): string => {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// Pré-aquecimento dos próximos dias: ao servir hoje, avalia amanhã (e +2)
+// em fundo, para abrir um dia novo nunca esperar a primeira avaliação. Cada
+// corrida respeita a cache fresca (skip instantâneo) e o set de em curso —
+// visitas repetidas são um no-op barato.
+export function prewarmUpcomingDays(
+  supabase: SupabaseClient,
+  userId: string,
+  daysAhead = 2,
+  base: Date = new Date()
+): void {
+  for (let i = 1; i <= daysAhead; i++) {
+    const day = dayKeyOf(base, i);
+    const jobs: Array<[string, () => Promise<void>]> = [
+      [
+        `daymatrix:v3:${day}||`,
+        async (): Promise<void> => {
+          const meta = await cacheGetAny(supabase, userId, `daymatrix:v3:${day}||`).catch(() => null);
+          if (meta && Date.now() - meta.fetchedAt < HOUR_MS) return;
+          await computeDayMatrix(supabase, userId, day, "", "");
+        },
+      ],
+      [
+        `daydetail:v5:${day}||`,
+        async (): Promise<void> => {
+          const meta = await cacheGetAny(supabase, userId, `daydetail:v5:${day}||`).catch(() => null);
+          if (meta && Date.now() - meta.fetchedAt < HOUR_MS) return;
+          await computeDayDetail(supabase, userId, day, "", "");
+        },
+      ],
+    ];
+    for (const [key, run] of jobs) {
+      if (recomputing.has(key)) continue;
+      recomputing.add(key);
+      void run()
+        .catch(() => {})
+        .finally(() => recomputing.delete(key));
+    }
+  }
+}
+
 export default async function DayMatrix({
   day,
   pais,
@@ -127,141 +341,12 @@ export default async function DayMatrix({
   let primeiraAviso: string | null = null;
 
   const compute = async (): Promise<void> => {
-    const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
-    const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
-    const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
-    const failedSet = new Set<string>();
-    const staleSet = new Set<string>();
-    const unlinkedSet = new Set<string>();
-    const found: MatrixLeague[] = [];
-    const missed = new Set<string>();
-    // Same fixture source as the day board (season upcoming page 0 + recent
-    // extras + live ties, shared cache), so the two views can never disagree
-    // on which games exist. History loads only for leagues with games that day.
-    // One live read per render (scraper caches it 60s), shared by all leagues.
-    const liveEntries = await fetchLiveEntries().catch(() => []);
-    await pool(leagues, 4, async (l) => {
-      const map = maps.find((m) => m.name_key === l.code);
-      if (!map) return;
-      let seasons;
-      try {
-        seasons = await tournamentSeasons(supabase, user.id, map.sofascore_id);
-      } catch {
-        failedSet.add(l.code);
-        return;
-      }
-      const s = seasons[0];
-      if (!s) return;
-      // Sonda leve: os próximos e os recentes da época (2–3 leituras, matas-
-      // mata incluídos) cobrem o dia inteiro — agendados, ao vivo e acabados.
-      // Ligas sem jogos no dia ficam-se por aqui (jornadas e histórico nunca
-      // arrancam para elas, e era isso que enlentecia a visita fria).
-      const upcoming = await seasonUpcomingExtra(supabase, user.id, map.sofascore_id, s.id, true, 0).catch(() => null);
-      if (upcoming === null) {
-        failedSet.add(l.code);
-        return;
-      }
-      const recent = await seasonRecentLite(supabase, user.id, map.sofascore_id, s.id, true).catch(() => [] as SofaFixture[]);
-      const seenIds = new Set<number>();
-      const flat: SofaFixture[] = [];
-      for (const f of [...upcoming, ...(recent ?? []), ...tournamentLiveFixtures(liveEntries, map.sofascore_id, 0)]) {
-        if (f.date === day && !seenIds.has(f.id)) {
-          seenIds.add(f.id);
-          flat.push(f);
-        }
-      }
-      const dayFx = flat.filter((f) => f.date === day);
-      if (dayFx.length === 0) return;
-      let data;
-      try {
-        const loaded = await loadSofaLeague(supabase, user.id, l.code, { history: true, fixtures: false });
-        data = loaded?.data ?? null;
-        if (loaded?.stale) staleSet.add(l.code);
-        for (const u of loaded?.unlinked ?? []) unlinkedSet.add(`${labelOf(l.code)}: ${u}`);
-      } catch {
-        failedSet.add(l.code);
-        return;
-      }
-      if (!data) {
-        failedSet.add(l.code);
-        return;
-      }
-      const fhs = leagueRates(data.matches, now).firstHalfShare;
-      let rows: MatrixRow[] = [];
-      for (const f of dayFx) {
-        const home = convert(f.team1);
-        const away = convert(f.team2);
-        if (!data.teams.includes(home) && !matchTeamIn(home, data.teams)) missed.add(`${f.team1}→${home}`);
-        if (!data.teams.includes(away) && !matchTeamIn(away, data.teams)) missed.add(`${f.team2}→${away}`);
-        // Stale spellings (cache built before the team map landed) keep the
-        // row when the tolerant fit sees "Getafe CF" == "Getafe".
-        const teamIn = (name: string): boolean => data.teams.includes(name) || matchTeamIn(name, data.teams) !== null;
-        if (!teamIn(home) || !teamIn(away)) {
-          continue;
-        }
-        const prediction = predict(data.matches, home, away, now);
-        const games = Math.min(prediction.gamesHome, prediction.gamesAway);
-        // Cups early on: little same-competition history is shown dimmed
-        // with a tag (like Comparar's fragile estimates), never hidden.
-        const fragile = games < MIN_GAMES;
-        const lh = prediction.lambdaHome;
-        const la = prediction.lambdaAway;
-        const h1 = lh * fhs;
-        const a1 = la * fhs;
-        const h2 = lh * (1 - fhs);
-        const a2 = la * (1 - fhs);
-        const cells: Record<string, number> = {
-          ht05: prediction.halfTime.over05,
-          o15: prediction.over["1.5"] ?? matchTotalOver(lh, la, 1.5),
-          o25: prediction.over["2.5"] ?? matchTotalOver(lh, la, 2.5),
-          btts: prediction.bothScore,
-          h2p: (1 - Math.exp(-(h1 + a1))) * (1 - Math.exp(-(h2 + a2))),
-          h: prediction.fullTime.home,
-          d: prediction.fullTime.draw,
-          a: prediction.fullTime.away,
-        };
-        rows.push({
-          eventId: f.id,
-          time: f.time ?? null,
-          home,
-          away,
-          ft: null,
-          cells,
-          games,
-          fragile,
-        });
-      }
-      if (rows.length > 0) {
-        rows.sort((a, b) => `${a.time ?? ""}`.localeCompare(`${b.time ?? ""}`) || a.home.localeCompare(b.home));
-        // The same tie twice under different event ids (a postponed entry
-        // beside its rescheduling, upstream data overlap) duplicates the row
-        // and breaks React keys: one pairing per league per day is the rule.
-        const seenPairs = new Set<string>();
-        rows = rows.filter((r) => {
-          const k = `${r.home}|${r.away}`;
-          if (seenPairs.has(k)) return false;
-          seenPairs.add(k);
-          return true;
-        });
-        if (rows.length > 0) found.push({ code: l.code, label: labelOf(l.code), rows });
-      }
-    });
-    table = found;
-    failed = [...failedSet];
-    staleLeagues = [...staleSet];
-    unlinkedNames = [...unlinkedSet].slice(0, 12);
-    missedNames = [...missed].slice(0, 12);
-    if (failed.length === 0) {
-      await cacheSet(supabase, user.id, cacheKey, table).catch(() => {});
-      // A compacta ficou pronta: pré-aquecer a detalhada do mesmo dia em
-      // segundo plano para o próximo clique não esperar minutos.
-      prewarmDayDetail(supabase, user.id, day, pais, ligaSel);
-    } else {
-      // Partial evaluations are cached too: while leagues warm up (or the
-      // scraper hiccups), the same visit must never re-block for minutes —
-      // the table keeps what worked and the retry converges in background.
-      await cacheSet(supabase, user.id, cacheKey, { rows: table, failed }).catch(() => {});
-    }
+    const res = await computeDayMatrix(supabase, user.id, day, pais, ligaSel);
+    table = res.table;
+    failed = res.failed;
+    staleLeagues = res.staleLeagues;
+    unlinkedNames = res.unlinkedNames;
+    missedNames = res.missedNames;
   };
 
   // Cached payloads come in two shapes: a plain MatrixLeague[] (complete

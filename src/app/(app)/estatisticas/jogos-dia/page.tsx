@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import DayFilters from "@/components/DayFilters";
-import DayMatrix from "@/components/DayMatrix";
+import DayMatrix, { prewarmUpcomingDays } from "@/components/DayMatrix";
 import DayDetail from "@/components/DayDetail";
 import { first } from "@/lib/searchParams";
 
@@ -42,6 +42,9 @@ export default async function JogosDiaPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  // Ao abrir Jogos por dia, amanhã (e +2) avalia-se em fundo — quando
+  // navegares para um dia novo, a matriz e a detalhada já lá estão.
+  if (user) prewarmUpcomingDays(supabase, user.id, 2, now);
   const maps = user ? await loadMaps(supabase, user.id, "tournament").catch(() => []) : [];
   const codes = new Set(maps.map((m) => m.name_key));
   const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
