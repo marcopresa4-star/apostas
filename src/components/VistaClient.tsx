@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 const VIEWS: { href: string; label: string }[] = [
+  { href: "/estatisticas/jogos-dia", label: "Jogos por dia" },
   { href: "/feed", label: "Em direto" },
   { href: "/estatisticas/ao-vivo", label: "Ao vivo agora" },
   { href: "/estatisticas/live", label: "Calculadora live" },
