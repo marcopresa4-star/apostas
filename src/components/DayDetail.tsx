@@ -9,6 +9,7 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { matchTeamIn } from "@/lib/liveMatch";
+import AutoRefresh from "@/components/AutoRefresh";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd } from "@/lib/oddsParse";
 import type { PlayedMatch } from "@/lib/footballModel";
@@ -453,6 +454,7 @@ export default async function DayDetail({
 
   return (
     <div className="space-y-4">
+      <AutoRefresh active={primeiraAviso !== null || failed.length > 0} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span>
           {nRows} jogo{nRows === 1 ? "" : "s"} · GM/GS últimos 5 · GM-C em casa · GS-F fora · BTS nos últimos 10 · Frm-C últimos 5 em casa · Frm-F últimos 5 fora ·{" "}

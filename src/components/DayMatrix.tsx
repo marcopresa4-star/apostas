@@ -7,6 +7,7 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 import { matchTeamIn } from "@/lib/liveMatch";
+import AutoRefresh from "@/components/AutoRefresh";
 import { prewarmDayDetail } from "@/components/DayDetail";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { matchTotalOver, MIN_GAMES } from "@/lib/recommendation";
@@ -334,6 +335,7 @@ export default async function DayMatrix({
 
   return (
     <div className="space-y-4">
+      <AutoRefresh active={primeiraAviso !== null || failed.length > 0} />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-500">
         <span>
           <span className="font-semibold text-emerald-400">≥65%</span> ·{" "}
