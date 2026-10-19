@@ -47,3 +47,5 @@ next-env.d.ts
 
 # SQLite local (data/app.db)
 data/
+
+scraper.log
