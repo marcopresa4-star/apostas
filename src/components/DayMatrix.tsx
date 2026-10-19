@@ -123,6 +123,7 @@ export default async function DayMatrix({
   let missedNames: string[] = [];
   let shownAge: number | null = null; // minutos quando servimos a última avaliação
   let refazendo = false;
+  let primeiraAviso: string | null = null;
 
   const compute = async (): Promise<void> => {
     const teamMaps = await loadMaps(supabase, user.id, "team").catch(() => []);
@@ -296,10 +297,20 @@ export default async function DayMatrix({
       refazendo = true;
       kickRecompute(cacheKey, compute);
     } else {
-      await compute();
+      // Muito velha (≈6h+): igual à parcial — serve-se e reavalia-se em
+      // segundo plano; nunca o render à espera de minutos de leitura.
+      shownAge = Math.max(0, Math.round(age / 60_000));
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
     }
   } else {
-    await compute();
+    // Primeira avaliação nunca vista — não bloqueia o render: navegar
+    // abortaria a computação e perder-se-iam os minutos de trabalho (era
+    // o bloqueio que voltava a cada saída no dia de warm-up). O painel
+    // abre vazio com o aviso e o recarregar encontra a tabela em cache,
+    // parcial ou completa.
+    primeiraAviso = "A avaliar em segundo plano — recarrega daqui a ~1–2 min.";
+    kickRecompute(cacheKey, compute);
   }
 
   // Live-only view + team search filter on the (cached) rows.
@@ -350,6 +361,7 @@ export default async function DayMatrix({
             Mostrada a última avaliação (há {shownAge} min) — a reavaliar em segundo plano; recarrega daqui a ~1 min para ver o refresco.
           </span>
         )}
+        {primeiraAviso && <span className="text-sky-300">{primeiraAviso}</span>}
         {missedNames.length > 0 && (
           <span className="text-amber-300">Nomes fora dos dados: {missedNames.join(" · ")}</span>
         )}

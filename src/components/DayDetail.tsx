@@ -385,6 +385,7 @@ export default async function DayDetail({
   let unlinkedNames: string[] = [];
   let shownAge: number | null = null; // idade da última avaliação servida
   let refazendo = false;
+  let primeiraAviso: string | null = null;
   const compute = async (): Promise<void> => {
     const res = await computeDayDetail(supabase, user.id, day, pais, ligaSel);
     table = res.table;
@@ -419,10 +420,18 @@ export default async function DayDetail({
       refazendo = true;
       kickRecompute(cacheKey, compute);
     } else {
-      await compute();
+      // Muito velha (≈6h+): igual à parcial — serve-se e reavalia-se em
+      // segundo plano; Jamais o render às espera de minutos.
+      shownAge = Math.max(0, Math.round(age / 60_000));
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
     }
   } else {
-    await compute();
+    // Primeira avaliação nunca vista — não bloqueia o render (igual à
+    // matriz: navegar abortaria_minutes de computação). O recarregar
+    // encontra a tabela parcial ou completa em cache.
+    primeiraAviso = "A avaliar em segundo plano — recarrega daqui a ~1–2 min.";
+    kickRecompute(cacheKey, compute);
   }
 
   const { games: live } = await fetchSofaLiveNow(Date.now()).catch(() => ({ games: [] as { id: number; minute: number | null; phase: string; homeGoals: number | null; awayGoals: number | null }[] }));
@@ -467,6 +476,7 @@ export default async function DayDetail({
             Mostrada a última avaliação (há {shownAge} min) — a reavaliar em segundo plano; recarrega daqui a ~1 min.
           </span>
         )}
+        {primeiraAviso && <span className="text-sky-300">{primeiraAviso}</span>}
         {failed.length > 0 && <span className="text-amber-300">Sem leitura em {failed.length} ligas — recarrega.</span>}
         {staleLeagues.length > 0 && (
           <span className="text-amber-300" title={staleLeagues.join(", ")}>
