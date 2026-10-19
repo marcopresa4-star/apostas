@@ -309,7 +309,12 @@ export async function computeDayDetail(
   const failed = [...failedSet];
   const staleLeagues = [...staleSet];
   const unlinkedNames = [...unlinkedSet].slice(0, 12);
-  if (failed.length === 0) await cacheSet(supabase, userId, key, table).catch(() => {});
+  if (failed.length === 0) {
+    await cacheSet(supabase, userId, key, table).catch(() => {});
+  } else {
+    // Partial evals cache too — never block a re-entry on retry cycles.
+    await cacheSet(supabase, userId, key, { rows: table, failed }).catch(() => {});
+  }
   return { table, failed, staleLeagues, unlinkedNames };
 }
 
@@ -387,15 +392,35 @@ export default async function DayDetail({
     staleLeagues = res.staleLeagues;
     unlinkedNames = res.unlinkedNames;
   };
-  if (age <= HOUR_MS / 2 && Array.isArray(meta?.payload)) {
-    table = meta.payload as DetailLeague[];
-  } else if (age <= 6 * HOUR_MS && Array.isArray(meta?.payload)) {
-    // Igual à matriz: servimos já a última avaliação e reavaliamos ao lado —
-    // a página deixa de esperar minutos quando o refresco de 30 min expira.
-    table = meta.payload as DetailLeague[];
-    shownAge = Math.max(0, Math.round(age / 60_000));
-    refazendo = true;
-    kickRecompute(cacheKey, compute);
+  const readPayload = (p: unknown): { rows: DetailLeague[]; partialFailed: string[] } | null => {
+    if (Array.isArray(p)) return { rows: p as DetailLeague[], partialFailed: [] };
+    if (p !== null && typeof p === "object") {
+      const o = p as Record<string, unknown>;
+      if (Array.isArray(o.rows)) {
+        return { rows: o.rows as DetailLeague[], partialFailed: Array.isArray(o.failed) ? (o.failed as string[]) : [] };
+      }
+    }
+    return null;
+  };
+  const served = readPayload(meta?.payload);
+  if (served) {
+    table = served.rows;
+    failed = served.partialFailed;
+    if (failed.length > 0) {
+      shownAge = Math.max(0, Math.round(age / 60_000));
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
+    } else if (age <= HOUR_MS / 2) {
+      // cache fresca, avaliação completa
+    } else if (age <= 6 * HOUR_MS) {
+      // Igual à matriz: servimos já a última avaliação e reavaliamos ao lado —
+      // a página deixa de esperar minutos quando o refresco de 30 min expira.
+      shownAge = Math.max(0, Math.round(age / 60_000));
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
+    } else {
+      await compute();
+    }
   } else {
     await compute();
   }

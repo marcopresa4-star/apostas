@@ -191,7 +191,10 @@ export default async function DayMatrix({
         const away = convert(f.team2);
         if (!data.teams.includes(home) && !matchTeamIn(home, data.teams)) missed.add(`${f.team1}→${home}`);
         if (!data.teams.includes(away) && !matchTeamIn(away, data.teams)) missed.add(`${f.team2}→${away}`);
-        if (!data.teams.includes(home) || !data.teams.includes(away)) {
+        // Stale spellings (cache built before the team map landed) keep the
+        // row when the tolerant fit sees "Getafe CF" == "Getafe".
+        const teamIn = (name: string): boolean => data.teams.includes(name) || matchTeamIn(name, data.teams) !== null;
+        if (!teamIn(home) || !teamIn(away)) {
           continue;
         }
         const prediction = predict(data.matches, home, away, now);
@@ -251,21 +254,50 @@ export default async function DayMatrix({
       // A compacta ficou pronta: pré-aquecer a detalhada do mesmo dia em
       // segundo plano para o próximo clique não esperar minutos.
       prewarmDayDetail(supabase, user.id, day, pais, ligaSel);
+    } else {
+      // Partial evaluations are cached too: while leagues warm up (or the
+      // scraper hiccups), the same visit must never re-block for minutes —
+      // the table keeps what worked and the retry converges in background.
+      await cacheSet(supabase, user.id, cacheKey, { rows: table, failed }).catch(() => {});
     }
   };
 
-  if (age <= HOUR_MS && Array.isArray(meta?.payload)) {
-    table = meta.payload as MatrixLeague[];
-  } else if (age <= 6 * HOUR_MS && Array.isArray(meta?.payload)) {
-    // A última avaliação serve já (dados de hoje raramente mudam sem novo
-    // histórico) e a reavaliação corre em segundo plano: a página deixa de
-    // esperar minutos no refresco horário — o até-6h é a mesma barra que os
-    // utilizador escolheu para as jornadas terminadas.
-    table = meta.payload as MatrixLeague[];
-    shownAge = Math.round(age / 60_000);
-    if (shownAge < 1) shownAge = 0;
-    refazendo = true;
-    kickRecompute(cacheKey, compute);
+  // Cached payloads come in two shapes: a plain MatrixLeague[] (complete
+  // evaluation) or { rows, failed } (partial eval with leagues still failing).
+  const readPayload = (p: unknown): { rows: MatrixLeague[]; partialFailed: string[] } | null => {
+    if (Array.isArray(p)) return { rows: p as MatrixLeague[], partialFailed: [] };
+    if (p !== null && typeof p === "object") {
+      const o = p as Record<string, unknown>;
+      if (Array.isArray(o.rows)) {
+        return { rows: o.rows as MatrixLeague[], partialFailed: Array.isArray(o.failed) ? (o.failed as string[]) : [] };
+      }
+    }
+    return null;
+  };
+  const served = readPayload(meta?.payload);
+  if (served) {
+    table = served.rows;
+    failed = served.partialFailed;
+    if (failed.length > 0) {
+      // Parcial: mostra o que funcionou e reavalia sempre em segundo plano —
+      // as ligas em falha só recuperam nas tentativas seguintes.
+      shownAge = Math.max(0, Math.round(age / 60_000));
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
+    } else if (age <= HOUR_MS) {
+      // cache fresca, avaliação completa: serve-se sem reavaliar
+    } else if (age <= 6 * HOUR_MS) {
+      // A última avaliação serve já (dados de hoje raramente mudam sem novo
+      // histórico) e a reavaliação corre em segundo plano: a página deixa de
+      // esperar minutos no refresco horário — o até-6h é a mesma barra que os
+      // utilizador escolheu para as jornadas terminadas.
+      shownAge = Math.round(age / 60_000);
+      if (shownAge < 1) shownAge = 0;
+      refazendo = true;
+      kickRecompute(cacheKey, compute);
+    } else {
+      await compute();
+    }
   } else {
     await compute();
   }
