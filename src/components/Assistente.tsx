@@ -135,9 +135,9 @@ export default function Assistente() {
                         {m.resposta?.resumo}
                       </p>
                       {m.resposta?.jogos.map((g, j) => <GameRow key={`${g.eventId ?? j}|${g.home}|${g.away}`} g={g} />)}
-                      {m.resposta && m.resposta.links.length > 0 && (
+                      {m.resposta && (m.resposta.links?.length ?? 0) > 0 && (
                         <div className="flex flex-wrap gap-1.5 px-1">
-                          {m.resposta.links.map((l) => (
+                          {m.resposta.links?.map((l) => (
                             <Link
                               key={l.href}
                               href={l.href}

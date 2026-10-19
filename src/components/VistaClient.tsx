@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 const VIEWS: { href: string; label: string }[] = [
-  { href: "/estatisticas/jogos-dia", label: "Jogos por dia" },
   { href: "/feed", label: "Em direto" },
   { href: "/estatisticas/ao-vivo", label: "Ao vivo agora" },
   { href: "/estatisticas/live", label: "Calculadora live" },
@@ -30,7 +29,7 @@ function Panel({
   onChange: (href: string) => void;
 }) {
   // Empty until chosen: mounting an iframe loads the whole page behind it
-  // (Jogos por dia takes minutes on cold cache), so nothing loads unasked.
+  // (Any embedded page takes time on cold cache), so nothing loads unasked.
   const view = VIEWS.find((v) => v.href === value) ?? null;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">

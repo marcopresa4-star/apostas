@@ -217,7 +217,7 @@ async function PrevisoesBoard({
         <p className="mt-1 text-xs text-neutral-500">
           {gamesTotal > 0
             ? `${gamesTotal} jogos sem dados suficientes para o modelo (5+ jogos por equipa).`
-            : "Volta amanhã ou vê os próximos dias nos Jogos por dia."}
+            : "Volta amanhã."}
         </p>
       </div>
     );

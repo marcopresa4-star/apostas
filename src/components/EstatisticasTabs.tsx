@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/estatisticas", label: "Comparar equipas" },
   { href: "/estatisticas/equipa", label: "Análise equipa" },
-  { href: "/estatisticas/jogos-dia", label: "Jogos por dia" },
   { href: "/estatisticas/jornada", label: "Jogos da jornada" },
   { href: "/estatisticas/live", label: "Calculadora live" },
   { href: "/estatisticas/classificacao", label: "Classificação e força" },

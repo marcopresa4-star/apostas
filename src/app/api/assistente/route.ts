@@ -242,13 +242,11 @@ export async function POST(req: Request) {
       return Response.json({
         resumo: `Sem jogos ${quando} nas ligas mapeadas.`,
         jogos: [],
-        links: [{ label: "Ver Jogos por dia", href: `/estatisticas/jogos-dia?data=${day}` }],
       } satisfies RespostaAssistente);
     }
     return Response.json({
       resumo: `${jogos.length} jogo${jogos.length === 1 ? "" : "s"} ${quando} (clica para comparar):`,
       jogos,
-      links: [{ label: "Ver Jogos por dia", href: `/estatisticas/jogos-dia?data=${day}` }],
     } satisfies RespostaAssistente);
   }
 
