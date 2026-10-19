@@ -309,7 +309,7 @@ function withTimeout(promise, ms, label) {
 // and the captcha token apply to all. Navigations + DOM reads keep the single
 // shared page behind `enqueue`. Creation is guarded so a burst can't pile up
 // tabs.
-const API_SLOTS = Math.max(1, Math.min(8, Number(process.env.SCRAPER_API_SLOTS ?? 4) || 4));
+const API_SLOTS = Math.max(1, Math.min(8, Number(process.env.SCRAPER_API_SLOTS ?? 8) || 8));
 // Low-priority reads (bots monitoring) may only use this many slots; the
 // reserved half always stays free for page-driven reads so a bot watch or a
 // planeamento scan never starves the boards.
