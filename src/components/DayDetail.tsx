@@ -8,6 +8,7 @@ import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonR
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
+import { matchTeamIn } from "@/lib/liveMatch";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd } from "@/lib/oddsParse";
 import type { PlayedMatch } from "@/lib/footballModel";
@@ -262,7 +263,10 @@ export async function computeDayDetail(
     for (const f of dayFx) {
       const home = convert(f.team1);
       const away = convert(f.team2);
-      if (!data.teams.includes(home) || !data.teams.includes(away)) continue;
+      // Stale spellings (league cache built before the team map landed) keep
+      // the row: the tolerant fit sees "Getafe CF" == "Getafe".
+      const teamIn = (name: string): boolean => data.teams.includes(name) || matchTeamIn(name, data.teams) !== null;
+      if (!teamIn(home) || !teamIn(away)) continue;
       // Same tie under two ids (postponed stale entry) would render twice:
       // one pairing per league per day.
       const pair = `${home}|${away}`;

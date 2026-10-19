@@ -6,6 +6,7 @@ import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonR
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
 import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
+import { matchTeamIn } from "@/lib/liveMatch";
 import { prewarmDayDetail } from "@/components/DayDetail";
 import { leagueRates, predict } from "@/lib/footballModel";
 import { matchTotalOver, MIN_GAMES } from "@/lib/recommendation";
@@ -188,8 +189,8 @@ export default async function DayMatrix({
       for (const f of dayFx) {
         const home = convert(f.team1);
         const away = convert(f.team2);
-        if (!data.teams.includes(home)) missed.add(`${f.team1}→${home}`);
-        if (!data.teams.includes(away)) missed.add(`${f.team2}→${away}`);
+        if (!data.teams.includes(home) && !matchTeamIn(home, data.teams)) missed.add(`${f.team1}→${home}`);
+        if (!data.teams.includes(away) && !matchTeamIn(away, data.teams)) missed.add(`${f.team2}→${away}`);
         if (!data.teams.includes(home) || !data.teams.includes(away)) {
           continue;
         }
