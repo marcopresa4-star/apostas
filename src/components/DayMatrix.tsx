@@ -309,7 +309,7 @@ export default async function DayMatrix({
     // o bloqueio que voltava a cada saída no dia de warm-up). O painel
     // abre vazio com o aviso e o recarregar encontra a tabela em cache,
     // parcial ou completa.
-    primeiraAviso = "A avaliar em segundo plano — recarrega daqui a ~1–2 min.";
+    primeiraAviso = "A avaliar pela primeira vez neste dia — recarrega em ~1–2 min.";
     kickRecompute(cacheKey, compute);
   }
 
@@ -387,7 +387,15 @@ export default async function DayMatrix({
         andavam na Liga Europa). Sem colunas de cantos/cartões: o histórico não traz esses dados. Sem odds reais aqui
         (isso é uma leitura por jogo: vai ao Value ou ao Comparar).
       </p>
-      {shown.length === 0 ? (
+      {primeiraAviso ? (
+        <div className="max-w-4xl rounded-xl border border-dashed border-emerald-700/40 bg-neutral-900 px-4 py-10 text-center">
+          <p className="text-sm font-medium text-neutral-200">{primeiraAviso}</p>
+          <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-neutral-500">
+            Primeira avaliação deste dia: o histórico de cada liga mapeada está a ser construido e guardado (só acontece uma
+            vez por dia). Os jogos aparecem no próximo recarregar — parciais tal como completos.
+          </p>
+        </div>
+      ) : shown.length === 0 ? (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
           {diretos ? "Nenhum jogo a decorrer agora nos filtros escolhidos." : "Sem jogos para a matriz neste dia e filtros."}
         </p>

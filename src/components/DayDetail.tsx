@@ -430,7 +430,7 @@ export default async function DayDetail({
     // Primeira avaliação nunca vista — não bloqueia o render (igual à
     // matriz: navegar abortaria_minutes de computação). O recarregar
     // encontra a tabela parcial ou completa em cache.
-    primeiraAviso = "A avaliar em segundo plano — recarrega daqui a ~1–2 min.";
+    primeiraAviso = "A avaliar pela primeira vez neste dia — recarrega em ~1–2 min.";
     kickRecompute(cacheKey, compute);
   }
 
@@ -490,7 +490,15 @@ export default async function DayDetail({
           </span>
         )}
       </div>
-      {shown.length === 0 ? (
+      {primeiraAviso ? (
+        <div className="max-w-4xl rounded-xl border border-dashed border-emerald-700/40 bg-neutral-900 px-4 py-10 text-center">
+          <p className="text-sm font-medium text-neutral-200">{primeiraAviso}</p>
+          <p className="mx-auto mt-2 max-w-2xl text-xs leading-relaxed text-neutral-500">
+            A avaliação detalhada deste dia corre em segundo plano — a janela Compacta tem dados já no próximo recarregar, e a
+            Detalhada entra em seguida.
+          </p>
+        </div>
+      ) : shown.length === 0 ? (
         <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
           {diretos ? "Nenhum jogo a decorrer agora nos filtros escolhidos." : "Sem jogos para a detalhada neste dia e filtros."}
         </p>
