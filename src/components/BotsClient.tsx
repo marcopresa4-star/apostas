@@ -116,6 +116,8 @@ export default function BotsClient({
   const [passing, setPassing] = useState<Record<string, { checked: number; passing: number }>>({});
   const [diag, setDiag] = useState<Record<string, DiagRow[]>>({});
   const [sort, setSort] = useState("padrao");
+  // Alerts panel filter: which bots' alerts are shown ("all" or one bot id).
+  const [botFilter, setBotFilter] = useState("all");
   // "denied" until mounted: Notification only exists in the browser, and
   // reading it during hydration would mismatch the server render for users
   // who already granted permission.
@@ -210,6 +212,15 @@ export default function BotsClient({
   };
 
   const all = [...extra, ...alerts].filter((a, i, arr) => arr.findIndex((x) => x.id === a.id) === i).slice(0, 40);
+  const shown = botFilter === "all" ? all : all.filter((a) => a.bot_id === botFilter);
+  // Bot names come from the bots list; late-fired rows carry theirs too (the
+  // toast event may name a bot that no longer exists — still label it).
+  const botName = (id: string): string => {
+    const b = bots.find((x) => x.id === id);
+    if (b) return b.name;
+    const fired = extra.find((x) => x.bot_id === id);
+    return fired && "bot_name" in fired ? (fired as { bot_name?: string }).bot_name ?? "" : "";
+  };
   const byBot = new Map<string, AlertRow[]>();
   for (const a of [...extra, ...alerts]) {
     const list = byBot.get(a.bot_id) ?? [];
@@ -396,27 +407,51 @@ export default function BotsClient({
 
       <div className="glass p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-neutral-200">Alertas dos bots · {all.length}</h2>
-          <button
-            type="button"
-            onClick={() => {
-              if (all.length > 0 && confirm("Limpar todos os alertas?")) clearAlertsAction();
-            }}
-            className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
-          >
-            Limpar
-          </button>
+          <h2 className="text-sm font-semibold text-neutral-200">
+            Alertas dos bots · {botFilter === "all" ? all.length : shown.length}
+          </h2>
+          <span className="flex items-center gap-2">
+            <select
+              value={botFilter}
+              onChange={(e) => setBotFilter(e.target.value)}
+              className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-300 outline-none"
+              title="Escolhe de que bots ver os alertas"
+            >
+              <option value="all">Todos os bots</option>
+              {bots.map((b) => (
+                <option key={b.id} value={b.id}>
+                  Só {b.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                if (all.length > 0 && confirm("Limpar todos os alertas?")) clearAlertsAction();
+              }}
+              className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
+            >
+              Limpar
+            </button>
+          </span>
         </div>
         {all.length === 0 ? (
           <p className="py-6 text-center text-xs text-neutral-500">Os alertas dos bots aparecem aqui.</p>
+        ) : shown.length === 0 ? (
+          <p className="py-6 text-center text-xs text-neutral-500">Sem alertas deste bot — vê «Todos os bots».</p>
         ) : (
           <div className="space-y-1.5 text-sm">
-            {all.map((a) => (
+            {shown.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2">
                 <p className="min-w-0 truncate text-neutral-200">
                   <span className={a.hit === true ? "font-bold text-emerald-400" : a.hit === false ? "font-bold text-red-400" : "text-neutral-500"}>
                     {a.hit === true ? "✓ " : a.hit === false ? "✗ " : ""}
                   </span>
+                  {botFilter === "all" && botName(a.bot_id) && (
+                    <span className="mr-1.5 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-neutral-300">
+                      {botName(a.bot_id)}
+                    </span>
+                  )}
                   {a.text}
                 </p>
                 <span className="shrink-0 text-[11px] text-neutral-500">
