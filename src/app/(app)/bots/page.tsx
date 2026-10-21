@@ -32,6 +32,21 @@ export default async function BotsPage() {
     .order("created_at", { ascending: false })
     .limit(40)
     .returns<AlertRow[]>();
+  // Per-bot totals across the WHOLE alert history (the list above is capped
+  // at 40 for showing): only two light columns, grouped here.
+  const { data: tally } = await supabase
+    .from("bot_alerts")
+    .select("bot_id, hit")
+    .eq("user_id", user.id)
+    .returns<{ bot_id: string; hit: boolean | null }[]>();
+  const alertStats: Record<string, { total: number; hits: number; reds: number; pending: number }> = {};
+  for (const t of tally ?? []) {
+    const s = (alertStats[t.bot_id] ??= { total: 0, hits: 0, reds: 0, pending: 0 });
+    s.total++;
+    if (t.hit === true) s.hits++;
+    else if (t.hit === false) s.reds++;
+    else s.pending++;
+  }
 
   return (
     <div data-wide>
@@ -41,7 +56,7 @@ export default async function BotsPage() {
         com um separador aberto. De browser fechado nada corre (não há servidor sempre-ligado), nem há push para o
         telemóvel: o alerta é do browser.
       </p>
-      <BotsClient bots={bots ?? []} alerts={alerts ?? []} leagues={leagues} />
+      <BotsClient bots={bots ?? []} alerts={alerts ?? []} alertStats={alertStats} leagues={leagues} />
     </div>
   );
 }

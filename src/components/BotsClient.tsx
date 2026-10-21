@@ -100,10 +100,12 @@ function AlertTime({ iso }: { iso: string }) {
 export default function BotsClient({
   bots,
   alerts,
+  alertStats,
   leagues,
 }: {
   bots: BotRow[];
   alerts: AlertRow[];
+  alertStats: Record<string, { total: number; hits: number; reds: number; pending: number }>;
   leagues: { code: string; label: string }[];
 }) {
   const router = useRouter();
@@ -221,19 +223,22 @@ export default function BotsClient({
     const fired = extra.find((x) => x.bot_id === id);
     return fired && "bot_name" in fired ? (fired as { bot_name?: string }).bot_name ?? "" : "";
   };
-  const byBot = new Map<string, AlertRow[]>();
-  for (const a of [...extra, ...alerts]) {
-    const list = byBot.get(a.bot_id) ?? [];
-    list.push(a);
-    byBot.set(a.bot_id, list);
-  }
-  const hitRate = (id: string): string | null => {
-    const list = (byBot.get(id) ?? []).filter((a) => a.hit !== null);
-    if (list.length === 0) return null;
-    return `${Math.round((list.filter((a) => a.hit).length / list.length) * 100)}% (${list.length})`;
+  // Full-history totals per bot come from the server (page.tsx) and grow
+  // live as fired alerts land: merge the session's extras on top.
+  const statOf = (id: string): { total: number; hits: number; reds: number; pending: number } => {
+    const base = { ...(alertStats[id] ?? { total: 0, hits: 0, reds: 0, pending: 0 }) };
+    for (const e of extra) {
+      if (e.bot_id !== id) continue;
+      if (all.some((a) => a.id === e.id)) continue; // already counted (persisted + refetch)
+      base.total++;
+      if (e.hit === true) base.hits++;
+      else if (e.hit === false) base.reds++;
+      else base.pending++;
+    }
+    return base;
   };
   const ordered = [...bots].sort((a, b) => {
-    if (sort === "alertas") return (byBot.get(b.id)?.length ?? 0) - (byBot.get(a.id)?.length ?? 0);
+    if (sort === "alertas") return statOf(b.id).total - statOf(a.id).total;
     return 0;
   });
 
@@ -334,7 +339,9 @@ export default function BotsClient({
         ) : (
           <div className="space-y-2">
             {ordered.map((b) => {
-              const rate = hitRate(b.id);
+              const st = statOf(b.id);
+              const done = st.hits + st.reds;
+              const rate = done > 0 ? `${Math.round((st.hits / done) * 100)}%` : null;
               const pass = passing[b.id];
               const rows = diag[b.id] ?? [];
               return (
@@ -346,10 +353,22 @@ export default function BotsClient({
                         {b.name}
                         {b.silent && <span className="ml-2 text-[11px] font-normal text-neutral-500">silencioso</span>}
                       </p>
-                      <p className="text-[11px] text-neutral-500">
-                        {(byBot.get(b.id)?.length ?? 0)} alertas
-                        {rate !== null && ` · acerto ${rate}`}
-                        {pass !== undefined && ` · ${pass.passing}/${pass.checked} jogos cumprem agora`}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 font-semibold text-emerald-300" title="Alertas que acertaram">
+                          ✓ {st.hits}
+                        </span>
+                        <span className="rounded-md bg-red-500/12 px-1.5 py-0.5 font-semibold text-red-300" title="Alertas que falharam">
+                          ✗ {st.reds}
+                        </span>
+                        {st.pending > 0 && (
+                          <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-semibold text-neutral-400" title="Ainda sem resultado (jogo a decorrer)">
+                            ⏳ {st.pending}
+                          </span>
+                        )}
+                        <span className="text-neutral-400">
+                          {st.total} alertas{rate !== null && ` · taxa ${rate}`}
+                        </span>
+                        {pass !== undefined && <span className="text-neutral-500">· {pass.passing}/{pass.checked} jogos cumprem agora</span>}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">
