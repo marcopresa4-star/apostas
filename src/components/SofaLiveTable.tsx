@@ -140,7 +140,14 @@ const PINNED_ORDER_KEY = "apostas:pinnedOrder";
 // board refreshes every 60s, so without this the score lags the bars, which
 // poll on their own. Falls back to the board values between polls.
 function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null }) {
-  const [live, setLive] = useState<{ minute: number | null; phase: string; hg: number | null; ag: number | null } | null>(null);
+  const [live, setLive] = useState<{
+    minute: number | null;
+    phase: string;
+    hg: number | null;
+    ag: number | null;
+    reds: { home: number | null; away: number | null } | null;
+    yellows: { home: number | null; away: number | null } | null;
+  } | null>(null);
   // Baseline score: only increases after the first reading toast.
   const prevScore = useRef<{ hg: number; ag: number } | null>(null);
   useEffect(() => {
@@ -156,17 +163,27 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
         const res = await fetch(`/api/sofascore/event?id=${g.id}&light=1`);
         if (!res.ok || stop) return;
         const body = (await res.json()) as {
-          state?: { minute?: unknown; phase?: unknown; homeGoals?: unknown; awayGoals?: unknown };
+          state?: { minute?: unknown; phase?: unknown; homeGoals?: unknown; awayGoals?: unknown; reds?: unknown; yellows?: unknown };
         };
         const st = body?.state;
         if (!st || stop) return;
         const hg = num(st.homeGoals);
         const ag = num(st.awayGoals);
+        const side = (v: unknown): { home: number | null; away: number | null } | null => {
+          const o = v && typeof v === "object" ? (v as Record<string, unknown>) : null;
+          if (!o) return null;
+          return {
+            home: num(o.home),
+            away: num(o.away),
+          };
+        };
         setLive({
           minute: num(st.minute),
           phase: typeof st.phase === "string" ? st.phase : g.phase,
           hg,
           ag,
+          reds: side(st.reds),
+          yellows: side(st.yellows),
         });
         // Goal since the last reading: toast it in the corner (global). A step
         // back (1-0 -> 0-0: disallowed goal) toasts a correction instead —
@@ -237,16 +254,54 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
         )}
       </div>
       <div className="mb-3 flex items-baseline gap-x-2">
-        <span className="min-w-0 flex-1 truncate text-sm text-neutral-200">{g.home}</span>
+        <span className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-sm text-neutral-200">
+          {g.home}
+          <CardBits home reds={live?.reds} yellows={live?.yellows} />
+        </span>
         <span className="shrink-0 text-2xl font-bold tabular-nums text-emerald-400">
           {hg ?? "?"}–{ag ?? "?"}
         </span>
         {ht && <span className="shrink-0 text-xs tabular-nums text-neutral-500">({ht[0]}–{ht[1]})</span>}
-        <span className="min-w-0 flex-1 truncate text-right text-sm text-neutral-200">{g.away}</span>
+        <span className="flex min-w-0 flex-1 items-baseline justify-end gap-1 truncate text-right text-sm text-neutral-200">
+          <CardBits home={false} reds={live?.reds} yellows={live?.yellows} />
+          {g.away}
+        </span>
       </div>
     </>
   );
 }
+// Card markers beside the team names in the pinned cards: which side is
+// playing shorthanded (🟥) and how many bookings each has (🟨). Only shown
+// when nonzero, so clean sheets of cards stay visually quiet. Reads the
+// state already fetched by the 30 s poll — no extra request.
+function CardBits({
+  home,
+  reds,
+  yellows,
+}: {
+  home: boolean;
+  reds?: { home: number | null; away: number | null } | null;
+  yellows?: { home: number | null; away: number | null } | null;
+}) {
+  const r = home ? (reds?.home ?? null) : (reds?.away ?? null);
+  const y = home ? (yellows?.home ?? null) : (yellows?.away ?? null);
+  if ((!r || r === 0) && (!y || y === 0)) return null;
+  return (
+    <span className="flex shrink-0 gap-0.5 text-[10px] leading-none" title={home ? "Cartões da casa" : "Cartões de fora"}>
+      {y !== null && y > 0 && (
+        <span className="tabular-nums text-amber-300">
+          {y > 1 ? `🟨${y}` : "🟨"}
+        </span>
+      )}
+      {r !== null && r > 0 && (
+        <span className="tabular-nums text-red-400">
+          {r > 1 ? `🟥${r}` : "🟥"}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function loadSet(key: string): Set<string> {
   try {
     const raw = localStorage.getItem(key);
