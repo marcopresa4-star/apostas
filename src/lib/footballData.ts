@@ -66,6 +66,7 @@ export const LEAGUES = [
   { code: "eu.1", fd: "", label: "Europa · UEFA Champions League" },
   { code: "eu.2", fd: "", label: "Europa · UEFA Europa League" },
   { code: "eu.3", fd: "", label: "Europa · UEFA Conference League" },
+  { code: "eu.4", fd: "", label: "Europa · UEFA Youth League" },
   { code: "am.1", fd: "", label: "América · CONMEBOL Sudamericana" },
   { code: "am.2", fd: "", label: "América · CONMEBOL Libertadores" },
   { code: "br.2", fd: "", label: "Brasil · Série B" },
