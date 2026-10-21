@@ -1,9 +1,28 @@
-// Local replacement for the Supabase SSR client: same createClient() call
-// sites, now backed by the SQLite shim (dbShim) + cookie session (session.ts).
-// No cloud dependency: queries run against data/app.db, auth is one admin
-// password from .env.local.
-import { createDbClient } from "@/lib/dbShim";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function createClient() {
-  return createDbClient();
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch {
+            // Called from a Server Component that can't set cookies.
+            // Safe to ignore because the middleware refreshes sessions.
+          }
+        },
+      },
+    }
+  );
 }

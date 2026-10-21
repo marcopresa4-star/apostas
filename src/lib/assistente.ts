@@ -85,13 +85,14 @@ export interface JogoResposta {
 export interface RespostaAssistente {
   resumo: string;
   jogos: JogoResposta[];
-  links?: { label: string; href: string }[];
+  links: { label: string; href: string }[];
 }
 
 // Site pages the assistant can point at (navigation questions).
 const NAV: { match: RegExp; label: string; href: string }[] = [
   { match: /multipla/, label: "Múltiplas", href: "/multiplas" },
   { match: /jornada/, label: "Jogos da jornada", href: "/estatisticas/jornada" },
+  { match: /jogos.?dia|jogos de hoje/, label: "Jogos por dia", href: "/estatisticas/jogos-dia" },
   { match: /classifica/, label: "Classificação e força", href: "/estatisticas/classificacao" },
   { match: /comparar|analise/, label: "Comparar equipas", href: "/estatisticas" },
   { match: /mapa|mapear|ligar/, label: "Mapa SofaScore", href: "/estatisticas/mapa" },

@@ -8,7 +8,6 @@ interface EntityRow {
   id: string;
   name: string;
   aliases?: string | null;
-  country_id?: string | null;
   country: { name: string } | null;
 }
 
@@ -21,21 +20,9 @@ function toItem(row: EntityRow): ComboItem {
   };
 }
 
-// Plain columns now that the DB is local SQLite — the team/competition→
-// country name is resolved with one extra .in() read below (the Supabase
-// FK-embed "country:countries(name)" has no shim equivalent).
+// Only teams have other names; competitions have no aliases column.
 const columnsFor = (table: EntityTable) =>
-  table === "teams" ? "id, name, aliases, country_id" : "id, name, country_id";
-
-async function withCountries(client: Client, rows: EntityRow[]): Promise<ComboItem[]> {
-  const ids = [...new Set(rows.map((r) => r.country_id).filter((c): c is string => typeof c === "string" && c !== ""))];
-  const names = new Map<string, string>();
-  if (ids.length > 0) {
-    const { data: countries } = await client.from("countries").select("id, name").in("id", ids);
-    for (const c of countries ?? []) names.set(c.id, c.name);
-  }
-  return rows.map((row) => toItem({ ...row, country: row.country_id ? { name: names.get(row.country_id) ?? "" } : null }));
-}
+  table === "teams" ? "id, name, aliases, country:countries(name)" : "id, name, country:countries(name)";
 
 // The teams / competitions already used in your games, most recent first.
 // This is what a search box offers before you type anything: the base holds
@@ -62,7 +49,7 @@ export async function fetchUsedEntities(client: Client, table: EntityTable): Pro
     .in("id", ids)
     .order("name")
     .returns<EntityRow[]>();
-  return withCountries(client, data ?? []);
+  return (data ?? []).map(toItem);
 }
 
 // Search by name, every word has to be in it ("brighton hove" finds
@@ -97,12 +84,12 @@ export async function searchEntityRows(
   const [starts, contains] = await Promise.all([build("starts"), build("contains")]);
 
   const seen = new Set<string>();
-  const merged: EntityRow[] = [];
+  const out: ComboItem[] = [];
   for (const row of [...(starts.data ?? []), ...(contains.data ?? [])]) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
-    merged.push(row);
-    if (merged.length >= 30) break;
+    out.push(toItem(row));
+    if (out.length >= 30) break;
   }
-  return withCountries(client, merged);
+  return out;
 }

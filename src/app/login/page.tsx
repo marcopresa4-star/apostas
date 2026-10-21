@@ -18,6 +18,20 @@ export default function LoginPage() {
 
         <form action={formAction} className="space-y-4">
           <div>
+            <label htmlFor="email" className="mb-1 block text-sm text-neutral-300">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
             <label htmlFor="password" className="mb-1 block text-sm text-neutral-300">
               Palavra-passe
             </label>
