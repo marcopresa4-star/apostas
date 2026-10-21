@@ -177,7 +177,7 @@ export default async function AoVivoPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os jogos em direto agora nas tuas ligas mapeadas — e qualquer jogo estrelado ou que sigas pelo link do SofaScore
         (cola lá em baixo) — via SofaScore. Ligas fora do mapa não aparecem: o mundo tem 500+ em direto nas horas de

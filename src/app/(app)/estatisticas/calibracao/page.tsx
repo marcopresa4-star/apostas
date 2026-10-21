@@ -93,7 +93,7 @@ export default async function CalibracaoPage() {
   if (error) {
     return (
       <div>
-        <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+        <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
         <EstatisticasTabs />
         <p className="max-w-4xl rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Não consegui ler as sugestões registadas ({error.message}). Se a tabela ainda não existe, corre a migração 0038 no Supabase.
@@ -133,7 +133,7 @@ export default async function CalibracaoPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Acerto real das sugestões do Comparar: o que o modelo disse contra o que aconteceu, por família de mercado.
       </p>

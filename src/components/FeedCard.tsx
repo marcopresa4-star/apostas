@@ -66,9 +66,9 @@ export default function FeedCard({
   };
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass-accent p-4">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <p className="truncate text-[11px] text-neutral-500">{meta?.tournament || tournament}</p>
+        <p className="truncate text-[11px] font-medium uppercase tracking-wide text-emerald-300/70">{meta?.tournament || tournament}</p>
         <button
           type="button"
           onClick={() => {
@@ -95,16 +95,16 @@ export default function FeedCard({
             </span>
           </p>
         ) : (
-          <p className="text-sm text-neutral-500">Por começar</p>
+          <p className="text-sm text-neutral-400">Por começar</p>
         )}
-        <Link href={`/estatisticas/live?${new URLSearchParams({ sofascore: `id:${eventId}` })}`} className="text-xs font-medium text-emerald-400 hover:underline">
+        <Link href={`/estatisticas/live?${new URLSearchParams({ sofascore: `id:${eventId}` })}`} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 hover:underline">
           Abrir na calculadora →
         </Link>
       </div>
       {snaps.length > 0 ? (
         <LiveEvolutionChart snaps={snaps} modelAt={modelAt} homeName={homeName} awayName={awayName} showBreak={live?.phase === "halftime" || live?.phase === "finished"} />
       ) : (
-        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+        <p className="rounded-xl border border-dashed border-white/[0.08] bg-white/[0.02] px-4 py-6 text-center text-xs text-neutral-400">
           {live ? "A acumular leituras (1/min)…" : "O gráfico começa ao apito inicial."}
         </p>
       )}

@@ -99,7 +99,7 @@ export default async function EstatisticasPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 text-sm text-neutral-500">
         Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
         enfrentassem.

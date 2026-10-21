@@ -46,7 +46,7 @@ export default async function JornadaPage({
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 text-sm text-neutral-500">
         Os próximos jogos de uma liga, cada um com a probabilidade de cada resultado e a aposta que o modelo sugeriria.
       </p>

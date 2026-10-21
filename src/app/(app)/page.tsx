@@ -29,13 +29,15 @@ export default async function DashboardPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">⚽ Jogos</h1>
-      <p className="mb-4 max-w-4xl text-sm text-neutral-500">
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">
+        ⚽ <span className="title-glow">Jogos</span>
+      </h1>
+      <p className="mb-4 max-w-4xl text-sm text-neutral-400">
         Jogos para acompanhar em direto: adiciona-os e o widget aparece aqui à hora do jogo.
       </p>
 
       {(favs ?? []).length > 0 && (
-        <div className="mb-4 max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="glass mb-4 max-w-4xl p-4">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
             A seguir ★ · afixam sozinhos no Ao vivo ao apito
           </p>
@@ -46,7 +48,7 @@ export default async function DashboardPage() {
               const home = typeof g.home === "string" ? g.home : "";
               const away = typeof g.away === "string" ? g.away : "";
               return (
-                <div key={g.event_id} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                <div key={g.event_id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
                   <span className="min-w-0 flex-1 truncate text-neutral-200">
                     <span className="mr-1.5 text-amber-300">★</span>
                     {home} <span className="text-neutral-500">vs</span> {away}

@@ -51,7 +51,7 @@ export default async function JogosDiaPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os jogos do dia das ligas mapeadas. Quando um jogo está a decorrer, aparece o minuto e abre direto na
         calculadora live.

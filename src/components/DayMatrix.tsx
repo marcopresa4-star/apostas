@@ -343,18 +343,18 @@ export default async function DayMatrix({
         (isso é uma leitura por jogo: vai ao Value ou ao Comparar).
       </p>
       {shown.length === 0 ? (
-        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="glass max-w-4xl px-4 py-10 text-center text-sm text-neutral-400">
           {diretos ? "Nenhum jogo a decorrer agora nos filtros escolhidos." : "Sem jogos para a matriz neste dia e filtros."}
         </p>
       ) : (
         shown.map((l) => (
-          <div key={l.code} className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
-            <p className="border-b border-neutral-800 bg-neutral-800/40 px-4 py-2 text-sm font-semibold text-neutral-200">
+          <div key={l.code} className="overflow-x-auto rounded-2xl border border-white/[0.08] bg-[#0a0f18]/60 shadow-[0_12px_32px_-16px_rgba(0,0,0,0.7)] backdrop-blur-sm">
+            <p className="border-b border-white/[0.06] bg-white/[0.04] px-4 py-2 text-sm font-semibold text-neutral-200">
               {l.label} · {l.rows.length} {l.rows.length === 1 ? "jogo" : "jogos"}
             </p>
             <table className="w-full min-w-[52rem] text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-wide text-neutral-500">
+                <tr className="border-b border-white/[0.05] text-[10px] uppercase tracking-wide text-neutral-500">
                   <th className="px-4 py-2 text-left font-semibold">Jogo</th>
                   {COLS.map((c) => (
                     <th key={c.key} className="px-2 py-2 text-center font-semibold">
@@ -365,7 +365,7 @@ export default async function DayMatrix({
               </thead>
               <tbody className="divide-y divide-neutral-800/60">
                 {l.rows.map((r) => (
-                  <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
+                  <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-white/[0.04] ${r.fragile ? "opacity-55" : ""}`}>
                     <td className="min-w-52 px-4 py-2">
                       <span className="mr-2 tabular-nums text-neutral-500">{r.time ? r.time.slice(0, 5) : "—"}</span>
                       {r.eventId !== null && r.eventId > 0 && (

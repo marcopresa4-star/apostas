@@ -188,11 +188,18 @@ export default function Sidebar({
     "flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium whitespace-nowrap transition";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-neutral-800/80 bg-neutral-900/80 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#060a11]/75 backdrop-blur-xl">
       <div className="mx-auto flex h-14 w-full max-w-[96rem] items-center gap-3 px-4">
-        <Link href="/" className="flex shrink-0 items-center gap-2 text-lg font-semibold text-neutral-100">
-          <span aria-hidden className="text-xl">⚽</span>
-          <span className="hidden whitespace-nowrap sm:inline">Apostas</span>
+        <Link href="/" className="group flex shrink-0 items-center gap-2.5 text-lg font-semibold text-neutral-100">
+          <span
+            aria-hidden
+            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm shadow-lg shadow-emerald-600/25 transition-transform group-hover:scale-105"
+          >
+            ⚽
+          </span>
+          <span className="hidden whitespace-nowrap sm:inline">
+            <span className="title-glow font-bold">Apostas</span>
+          </span>
         </Link>
         <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {visible.map((item) => {
@@ -203,7 +210,7 @@ export default function Sidebar({
                   key={item.href}
                   href={item.href}
                   className={`${pill} ${
-                    active ? `${item.active} text-white` : "text-neutral-400 hover:bg-neutral-800/80 hover:text-white"
+                    active ? `${item.active} text-white` : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
                   <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs ${active ? "bg-white/15" : item.chip}`}>
@@ -227,7 +234,7 @@ export default function Sidebar({
                   className={`${pill} ${
                     active || isOpen
                       ? `${item.active} text-white`
-                      : "text-neutral-400 hover:bg-neutral-800/80 hover:text-white"
+                      : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
                   <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs ${active || isOpen ? "bg-white/15" : item.chip}`}>
@@ -238,7 +245,7 @@ export default function Sidebar({
                 </button>
                 {isOpen && pos && (
                   <div
-                    className="fixed z-50 w-60 overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950/98 py-1 shadow-2xl backdrop-blur-md"
+                    className="fixed z-50 w-60 overflow-hidden rounded-xl border border-white/[0.09] bg-[#0a0f18]/95 py-1 shadow-2xl backdrop-blur-xl"
                     style={{ left: pos.left, top: pos.top }}
                   >
                     {item.items.map((s) => {
@@ -248,7 +255,7 @@ export default function Sidebar({
                           key={s.href}
                           href={s.href}
                           className={`flex items-center gap-2.5 px-3 py-2 text-sm transition ${
-                            sub ? "bg-emerald-500/15 font-medium text-emerald-300" : "text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                            sub ? "bg-emerald-500/15 font-medium text-emerald-300" : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                           }`}
                         >
                           <span aria-hidden className="text-sm">{s.icon}</span>

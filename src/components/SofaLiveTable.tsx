@@ -244,11 +244,14 @@ function PinnedHead({ g, ht }: { g: SofaLiveEntry; ht?: [number, number] | null 
   const ag = live?.ag ?? g.awayGoals;
   return (
     <>
-      <div className="mb-2">
+      <div className="mb-2 flex items-center">
         {phase === "halftime" ? (
-          <span className="text-xs font-semibold text-emerald-400">● Intervalo</span>
+          <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 ring-1 ring-emerald-500/25">Intervalo</span>
         ) : minute !== null ? (
-          <span className="text-xs font-semibold text-red-400">● {minute}&apos; AO VIVO</span>
+          <span className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-400 ring-1 ring-red-500/25">
+            <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+            {minute}&apos;
+          </span>
         ) : (
           <PeriodLabel g={g} />
         )}
@@ -549,7 +552,7 @@ export default function SofaLiveTable({
     const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
     const isPinned = pinned.has(String(g.id));
     return (
-      <tr key={g.id} className={`transition-colors hover:bg-neutral-800/40 ${isPinned ? "bg-emerald-500/[0.04]" : ""}`}>
+      <tr key={g.id} className={`transition-colors hover:bg-white/[0.04] ${isPinned ? "bg-emerald-500/[0.05]" : ""}`}>
         <td className="py-3 pr-0 pl-4">
           <button
             type="button"
@@ -648,7 +651,7 @@ export default function SofaLiveTable({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Filtrar por liga ou equipa…"
-          className="w-64 max-w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
+          className="w-64 max-w-full rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-sm text-neutral-100 outline-none transition-colors placeholder:text-neutral-500 focus:border-emerald-500/60"
         />
         <button
           type="button"
@@ -657,7 +660,7 @@ export default function SofaLiveTable({
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             favOnly
               ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-              : "border border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200"
+              : "border border-white/[0.09] bg-white/[0.04] text-neutral-400 hover:text-neutral-200"
           }`}
         >
           ★ Favoritas{favLeagues.size > 0 ? ` (${favLeagues.size})` : ""}
@@ -677,7 +680,7 @@ export default function SofaLiveTable({
           className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
             auto
               ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-              : "border border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200"
+              : "border border-white/[0.09] bg-white/[0.04] text-neutral-400 hover:text-neutral-200"
           }`}
         >
           {auto ? "● Auto" : "○ Auto"}
@@ -689,7 +692,7 @@ export default function SofaLiveTable({
           </span>
         )}
       </div>
-      <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
+      <div className="max-h-[75vh] overflow-auto rounded-2xl border border-white/[0.08] bg-[#0a0f18]/60 shadow-[0_12px_32px_-16px_rgba(0,0,0,0.7)] backdrop-blur-sm">
         {pinnedRows.length > 0 && (
           <div className="border-b border-neutral-800 p-4">
             <div className="mb-2 flex items-center gap-1.5">
@@ -716,9 +719,9 @@ export default function SofaLiveTable({
               const f = form[g.id];
               const href = `/estatisticas/live?${new URLSearchParams({ sofascore: `id:${g.id}` })}`;
               return (
-                <div key={g.id} className="min-w-0 rounded-xl border border-emerald-800/40 bg-neutral-950 p-4">
+                <div key={g.id} className="min-w-0 glass-accent p-4">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="truncate text-[11px] text-neutral-500">{leagueOf(g)}</p>
+                    <p className="truncate text-[11px] font-medium uppercase tracking-wide text-emerald-300/60">{leagueOf(g)}</p>
                     <span className="flex shrink-0 items-center gap-1">
                       {autoSet.has(String(g.id)) && !pinned.has(String(g.id)) && (
                         <span title="Afixado automático: jogo seguido, em direto" className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
@@ -822,7 +825,7 @@ export default function SofaLiveTable({
           </div>
         )}
         <table className="w-full min-w-[64rem] text-sm">
-          <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
+          <thead className="sticky top-0 z-10 bg-[#0a0f18]/95 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
             <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="px-2 py-2.5 font-semibold"></th>
               <th className="px-3 py-2.5 text-left font-semibold">Minuto</th>
@@ -845,10 +848,10 @@ export default function SofaLiveTable({
               <th className="px-3 py-2.5 font-semibold"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-800/70">
+          <tbody className="divide-y divide-white/[0.05]">
             {groups.map((grp, gi) => (
               <Fragment key={`g${gi}`}>
-                <tr className="bg-neutral-800/40">
+                <tr className="bg-white/[0.04]">
                   <td colSpan={compact ? 5 : 14} className="px-4 py-2 text-xs">
                     <button
                       type="button"

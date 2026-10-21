@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #04070d;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,18 +12,60 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
   font-feature-settings: "cv11", "ss01";
+}
+
+/* Ambient backdrop of the whole app: a very deep base with a fixed aurora of
+   emerald and cool-blue glows. Purely decorative, pointer-transparent and
+   behind everything, so it never affects layout or clicks. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background:
+    radial-gradient(56rem 30rem at 12% -8%, rgba(16, 185, 129, 0.09), transparent 62%),
+    radial-gradient(48rem 28rem at 88% -12%, rgba(56, 130, 246, 0.07), transparent 60%),
+    radial-gradient(64rem 40rem at 50% 118%, rgba(16, 185, 129, 0.05), transparent 65%);
+}
+
+/* The one card treatment used across the app: slightly translucent panels
+   that float on the ambient backdrop with a hairline edge and a soft cast
+   shadow. Rounder, softer and lighter than the old hard neutral-900 boxes. */
+.glass {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px -16px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(14px);
+}
+
+/* Same panel, livelier: for the highlighted pieces (pinned live cards). */
+.glass-accent {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background:
+    radial-gradient(14rem 6rem at 0% 0%, rgba(16, 185, 129, 0.09), transparent 70%),
+    linear-gradient(180deg, rgba(10, 15, 24, 0.88), rgba(6, 10, 17, 0.92));
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+    0 16px 44px -18px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(14px);
+}
+
+/* Gradient accent for one highlighted word or number in a heading. */
+.title-glow {
+  background: linear-gradient(90deg, #6ee7b7, #34d399 55%, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 ::selection {

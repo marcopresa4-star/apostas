@@ -293,7 +293,7 @@ export default async function LivePage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🧮 Estatísticas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Um jogo a decorrer: cola o link do jogo no SofaScore (lido pelo scraper local, de minuto a minuto) ou escolhe um
         dos teus jogos, e vê o que ainda pode acontecer, com a odd justa para comparares com a odd live da
