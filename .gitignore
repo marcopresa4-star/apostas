@@ -44,3 +44,9 @@ scraper/.cloak-profile/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Base SQLite local + backups (nunca entrar em git)
+data/
+
+# Log do scraper em fundo
+scraper.log
