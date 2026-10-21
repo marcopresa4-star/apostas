@@ -96,7 +96,7 @@ export default function ForecastDashboard({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <Title>Resultado do jogo (1X2)</Title>
         <div className="grid grid-cols-3 gap-2 text-center">
           {(
@@ -117,7 +117,7 @@ export default function ForecastDashboard({
             </div>
           ))}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3 text-center">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.07] pt-3 text-center">
           <div>
             <p className="mb-1 text-[11px] uppercase tracking-wide text-neutral-500">1ª parte</p>
             <div className="grid grid-cols-3 gap-1">
@@ -147,7 +147,7 @@ export default function ForecastDashboard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <Title>Golos esperados</Title>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
@@ -175,7 +175,7 @@ export default function ForecastDashboard({
             </p>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-3">
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/[0.07] pt-3">
           {(
             [
               { team: home, l1: lh1, l2: lh2, over05: ht.homeOver05, over15: ht.homeOver15 },
@@ -203,7 +203,7 @@ export default function ForecastDashboard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <Title>Mais / Menos</Title>
         <div className="grid grid-cols-3 gap-3">
           {[1.5, 2.5, 3.5].map((line) => {
@@ -220,14 +220,14 @@ export default function ForecastDashboard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <Title>Ambas marcam</Title>
         <div className="grid grid-cols-3 gap-3 text-center">
           <Cell big={pct1(prediction.bothScore)} sub="P(Ambas marcam Sim)" delta={{ p: prediction.bothScore, base: base.btts }} />
           <Cell big={pct1(1 - prediction.bothScore)} sub="P(Ambas marcam Não)" delta={{ p: 1 - prediction.bothScore, base: 1 - base.btts }} />
           <Cell big={pct1(base.btts)} sub="Histórico Ambas marcam" />
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-neutral-800 pt-2 text-center">
+        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-white/[0.07] pt-2 text-center">
           <p className="text-[11px] text-neutral-500">
             1ª parte ~ {pct1(bttsHt)} <span className="text-neutral-600">(aprox.)</span>
           </p>
@@ -237,7 +237,7 @@ export default function ForecastDashboard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <Title>Golos da equipa — Mais / Menos</Title>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {(
@@ -252,14 +252,14 @@ export default function ForecastDashboard({
                 const over = poissonOver(s.mu, line);
                 const hist = teamHist(s.team, line);
                 return (
-                  <div key={line} className="grid grid-cols-3 gap-1 border-t border-neutral-800/60 py-1.5 text-center">
+                  <div key={line} className="grid grid-cols-3 gap-1 border-t border-white/[0.07] py-1.5 text-center">
                     <Cell big={pct1(over)} sub={`P(Over ${String(line).replace(".", ",")})`} delta={{ p: over, base: hist }} />
                     <Cell big={pct1(1 - over)} sub={`P(Under ${String(line).replace(".", ",")})`} delta={{ p: 1 - over, base: 1 - hist }} />
                     <Cell big={pct1(hist)} sub={`Histórico over ${String(line).replace(".", ",")}`} />
                   </div>
                 );
               })}
-              <div className="grid grid-cols-2 gap-1 border-t border-neutral-800/60 py-1.5 text-center">
+              <div className="grid grid-cols-2 gap-1 border-t border-white/[0.07] py-1.5 text-center">
                 <p className="text-[11px] text-neutral-500">
                   1ª parte: Over 0.5 {pct1(teamHt(s.team).over05)} · Over 1.5 {pct1(teamHt(s.team).over15)}
                 </p>

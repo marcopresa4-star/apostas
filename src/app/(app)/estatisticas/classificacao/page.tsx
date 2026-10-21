@@ -107,7 +107,7 @@ export default async function ClassificacaoPage({
       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
         order === value
           ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-          : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+          : "bg-neutral-900 text-neutral-400 hover:bg-white/[0.06]"
       }`}
     >
       {label}
@@ -121,7 +121,7 @@ export default async function ClassificacaoPage({
       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
         activeTable?.name === name || (!activeTable && tables[0]?.name === name)
           ? "bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/40"
-          : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+          : "bg-neutral-900 text-neutral-400 hover:bg-white/[0.06]"
       }`}
     >
       {name}
@@ -143,7 +143,7 @@ export default async function ClassificacaoPage({
         keep={{ ordem: order }}
       />
       {league && !tournamentMap && (
-        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
           <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore

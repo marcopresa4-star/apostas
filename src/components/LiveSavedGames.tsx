@@ -161,7 +161,7 @@ export default function LiveSavedGames() {
   };
 
   return (
-    <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+    <section className="mb-4 max-w-4xl glass p-5 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-neutral-300">Jogos que estavas a ver</h2>
         <button
@@ -175,7 +175,7 @@ export default function LiveSavedGames() {
           Limpar tudo
         </button>
       </div>
-      <ul className="divide-y divide-neutral-800">
+      <ul className="divide-y divide-white/[0.05]">
         {games.map((g) => {
           const minute = now ? clockMinute(g, now.getTime()) : g.minute;
           const lv = live[g.key];
@@ -232,7 +232,7 @@ export default function LiveSavedGames() {
                     setVersion((v) => v + 1);
                   }}
                   title="Esquecer este jogo"
-                  className="rounded p-1 text-neutral-600 hover:bg-neutral-800 hover:text-neutral-300"
+                  className="rounded p-1 text-neutral-600 hover:bg-white/[0.06] hover:text-neutral-300"
                 >
                   ✕
                 </button>

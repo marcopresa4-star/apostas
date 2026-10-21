@@ -54,7 +54,7 @@ export default async function PlaneamentoPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🗂️ Planeamento Live</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🗂️ <span className="title-glow">Planeamento Live</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Tabelas com os jogos que encaixam nos teus filtros — para preparar o live. Cada tabela vai buscar os jogos de
         hoje e amanhã das ligas e fica só com os que cumprem o padrão.

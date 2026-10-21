@@ -284,7 +284,7 @@ export default async function LivePage({
         ? { key: `m:${liga}|${casa}|${fora}`, href: `/estatisticas/live?${new URLSearchParams({ liga, casa, fora, ...extra })}` }
         : null;
   const field =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
+    "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 
   // Leagues for the hand picker: mapped clubs plus internationals when linked.
   const intlForm = intlAvailable ? LEAGUES.filter((l) => isInternational(l.code)) : [];
@@ -303,7 +303,7 @@ export default async function LivePage({
       <EstatisticasTabs />
 
       {dashGames.length > 0 && (
-        <section className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+        <section className="mb-4 max-w-4xl glass p-5 shadow-sm">
           <h2 className="mb-2 text-sm font-semibold text-neutral-300">Os teus jogos</h2>
           <div className="flex flex-wrap gap-2">
             {dashGames.map((g) => (
@@ -313,7 +313,7 @@ export default async function LivePage({
                 className={`rounded-xl border px-3 py-2 transition ${
                   dash?.id === g.id
                     ? "border-emerald-500/60 bg-emerald-500/10"
-                    : "border-neutral-800 bg-neutral-950 hover:border-neutral-600"
+                    : "border-white/[0.07] bg-white/[0.03] hover:border-white/[0.15]"
                 }`}
               >
                 <p className="text-sm font-medium text-neutral-100">
@@ -337,7 +337,7 @@ export default async function LivePage({
         </p>
       )}
 
-      <form method="get" action="/estatisticas/live" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+      <form method="get" action="/estatisticas/live" className="mb-4 max-w-4xl glass p-5 shadow-sm">
         <label className="mb-1 block text-sm text-neutral-300">Link do jogo no SofaScore</label>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
@@ -414,7 +414,7 @@ export default async function LivePage({
       )}
 
       {!showCalculator && (
-        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-sm leading-relaxed text-neutral-500">
+        <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-sm leading-relaxed text-neutral-500">
           Ainda não escolheste nenhum jogo. Cola em cima o link do SofaScore, escolhe um dos teus jogos ou escolhe as
           equipas à mão. Se só quiseres experimentar, podes abrir{" "}
           <Link href="/estatisticas/live?tipico=1" className="text-emerald-400 hover:underline">

@@ -64,7 +64,7 @@ import {
   type TeamGame,
 } from "@/lib/footballModel";
 
-const CARD = "rounded-xl border border-neutral-800 bg-neutral-900 p-4";
+const CARD = "glass p-4";
 
 function pct(p: number): string {
   return p < 0.1 ? `${(p * 100).toFixed(1).replace(".", ",")}%` : `${Math.round(p * 100)}%`;
@@ -168,7 +168,7 @@ function ResultChip({ game, name }: { game: TeamGame; name: string }) {
       </span>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
       >
         <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
           {shortDate(game.date)} · {game.competition ? `${game.competition} · ` : ""}
@@ -232,7 +232,7 @@ function TeamCard({
             </span>
             <span
               role="tooltip"
-              className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
+              className="pointer-events-none absolute bottom-full left-0 z-20 mb-2 hidden w-max max-w-[18rem] rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block"
             >
               <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
                 {shortDate(f.date)} · {f.team1 === name ? "em casa" : "fora"}
@@ -359,7 +359,7 @@ function TeamSeason({
       {last.length === 0 ? (
         <p className="text-xs text-neutral-500">Ainda sem jogos esta época.</p>
       ) : (
-        <div className="divide-y divide-neutral-800/60">
+        <div className="divide-y divide-white/[0.05]">
           {last.map((f) => (
             <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
           ))}
@@ -378,7 +378,7 @@ function TeamSeason({
           {international ? "Não há jogos marcados nos dados." : "Sem mais jogos da liga nos dados."}
         </p>
       ) : (
-        <div className="divide-y divide-neutral-800/60">
+        <div className="divide-y divide-white/[0.05]">
           {next.map((f) => (
             <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
           ))}
@@ -389,7 +389,7 @@ function TeamSeason({
         <summary className="cursor-pointer text-xs font-medium text-emerald-400 hover:underline">
           {international ? "Ver todos os jogos dos últimos 12 meses" : "Ver todos os jogos da época"} ({all.length})
         </summary>
-        <div className="mt-2 divide-y divide-neutral-800/60">
+        <div className="mt-2 divide-y divide-white/[0.05]">
           {all.map((f) => (
             <GameRow key={`${f.date}-${f.team1}`} fixture={f} team={team} today={today} />
           ))}

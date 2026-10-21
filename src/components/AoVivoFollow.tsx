@@ -87,7 +87,7 @@ export default function AoVivoFollow({ chips }: { chips: Chip[] }) {
         </button>
       </div>
       {open && (
-        <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+        <div className="mt-2 glass p-3">
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
               type="url"
@@ -97,7 +97,7 @@ export default function AoVivoFollow({ chips }: { chips: Chip[] }) {
                 setError(null);
               }}
               placeholder="https://www.sofascore.com/.../id:12345678"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none transition-colors focus:border-sky-500"
+              className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-sm text-neutral-100 outline-none transition-colors focus:border-sky-500"
             />
             <button
               type="button"

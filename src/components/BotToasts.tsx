@@ -132,7 +132,7 @@ export default function BotToasts() {
         return (
         <div
           key={t.id}
-          className={`pointer-events-auto rounded-xl border ${border} bg-neutral-950/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur`}
+          className={`pointer-events-auto rounded-xl border ${border} bg-white/[0.03]/95 px-3 py-2.5 text-xs shadow-2xl backdrop-blur`}
         >
           <div className="flex items-start justify-between gap-2">
             <p className={`font-semibold ${title}`}>🤖 {t.bot}</p>

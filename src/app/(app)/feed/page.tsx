@@ -37,7 +37,7 @@ export default async function FeedPage() {
       </p>
       <FeedAdd count={rows.length} />
       {rows.length === 0 ? (
-        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           Ainda sem jogos. Cola em cima o link de um jogo no SofaScore.
         </p>
       ) : (

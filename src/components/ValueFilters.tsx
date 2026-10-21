@@ -80,16 +80,16 @@ export default function ValueFilters({
   };
 
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const chip =
-    "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-neutral-600";
+    "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-white/[0.15]";
   const toggle = (list: string[], v: string, set: (l: string[]) => void) =>
     set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   const groups = ["Resultado", "Golos", "Por equipa"] as const;
 
   return (
-    <form method="get" action="/value" className="mb-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+    <form method="get" action="/value" className="mb-4 glass p-5">
       <input type="hidden" name="analisar" value="1" />
       <div className="space-y-5">
         <div>
@@ -112,7 +112,7 @@ export default function ValueFilters({
             )}
           </div>
           {openComp && (
-            <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+            <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
               {leagues.map((l) => (
                 <label key={l.code} className={chip}>
                   <input
@@ -154,7 +154,7 @@ export default function ValueFilters({
                     <span
                       key={m.key}
                       title={m.disabled}
-                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-neutral-800/60 px-2.5 py-1.5 text-xs text-neutral-600"
+                      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-xs text-neutral-600"
                     >
                       {m.label} · {m.disabled}
                     </span>
@@ -241,7 +241,7 @@ export default function ValueFilters({
           </p>
           <div className="flex flex-wrap items-center gap-1.5">
             {presets.map((p, i) => (
-              <span key={p.name} className="inline-flex items-center gap-1 rounded-lg border border-neutral-800 px-2 py-1 text-xs">
+              <span key={p.name} className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] px-2 py-1 text-xs">
                 <button type="button" onClick={() => applyPreset(i)} className="text-neutral-200 hover:text-white" title="Aplicar estes filtros">
                   {p.name}
                 </button>
@@ -256,13 +256,13 @@ export default function ValueFilters({
               onChange={(e) => setPresetName(e.target.value)}
               placeholder="Nome para guardar os atuais…"
               maxLength={30}
-              className="w-52 max-w-full rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+              className="w-52 max-w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
             />
             <button
               type="button"
               onClick={savePreset}
               disabled={presetName.trim() === ""}
-              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:border-neutral-500 disabled:opacity-50"
+              className="rounded-lg border border-white/[0.09] px-2 py-1 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
             >
               Guardar
             </button>

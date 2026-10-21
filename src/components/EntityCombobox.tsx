@@ -171,11 +171,11 @@ export default function EntityCombobox({
           if (value) onSelect({ id: "", name: "", countryName: "" });
         }}
         onFocus={() => setOpen(true)}
-        className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+        className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
       />
 
       {open && (
-        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 shadow-xl">
+        <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-white/[0.09] bg-white/[0.04] shadow-xl">
           {!creating ? (
             <>
               <ul className="max-h-56 overflow-y-auto">
@@ -185,7 +185,7 @@ export default function EntityCombobox({
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => selectItem(item)}
-                      className="flex min-w-0 flex-1 items-center justify-between px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-800"
+                      className="flex min-w-0 flex-1 items-center justify-between px-3 py-2 text-left text-sm text-neutral-200 hover:bg-white/[0.06]"
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="ml-2 shrink-0 text-xs text-neutral-500">
@@ -213,7 +213,7 @@ export default function EntityCombobox({
                 )}
               </ul>
               {error && (
-                <p className="border-t border-neutral-800 px-3 py-2 text-xs text-red-400">
+                <p className="border-t border-white/[0.07] px-3 py-2 text-xs text-red-400">
                   {error}
                 </p>
               )}
@@ -225,7 +225,7 @@ export default function EntityCombobox({
                     setCreating(true);
                     setError(null);
                   }}
-                  className="w-full border-t border-neutral-800 px-3 py-2 text-left text-sm font-medium text-emerald-400 hover:bg-neutral-800"
+                  className="w-full border-t border-white/[0.07] px-3 py-2 text-left text-sm font-medium text-emerald-400 hover:bg-white/[0.06]"
                 >
                   + {createLabel} &ldquo;{query.trim()}&rdquo;
                 </button>
@@ -240,7 +240,7 @@ export default function EntityCombobox({
                 value={newCountryId}
                 onMouseDown={(e) => e.stopPropagation()}
                 onChange={(e) => setNewCountryId(e.target.value)}
-                className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+                className="mb-2 w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500"
               >
                 <option value="">Seleciona o país...</option>
                 {countries.map((c) => (

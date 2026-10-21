@@ -16,7 +16,7 @@ import {
 // No LLM: the API route parses with rules and answers with real numbers only.
 function GameRow({ g }: { g: JogoResposta }) {
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">
+    <div className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2">
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 flex-1 truncate text-[13px] font-medium text-neutral-100">
           {g.live && g.minute !== null && g.minute !== undefined && (
@@ -101,8 +101,8 @@ export default function Assistente() {
         {aberto ? "✕" : "◔"}
       </button>
       {aberto && (
-        <div className="mt-2 flex max-h-[75vh] w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl shadow-black/60">
-          <p className="border-b border-neutral-800 px-4 py-2.5 text-[13px] font-semibold text-neutral-200">
+        <div className="mt-2 flex max-h-[75vh] w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-white/[0.04] shadow-2xl shadow-black/60">
+          <p className="border-b border-white/[0.07] px-4 py-2.5 text-[13px] font-semibold text-neutral-200">
             Assistente <span className="font-normal text-neutral-500">· jogos e modelo</span>
           </p>
           <div className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
@@ -113,7 +113,7 @@ export default function Assistente() {
                     key={s}
                     type="button"
                     onClick={() => perguntar(s)}
-                    className="rounded-full border border-neutral-700 px-2.5 py-1 text-xs text-neutral-300 transition hover:border-emerald-500 hover:text-neutral-100"
+                    className="rounded-full border border-white/[0.09] px-2.5 py-1 text-xs text-neutral-300 transition hover:border-emerald-500 hover:text-neutral-100"
                   >
                     {s}
                   </button>
@@ -131,7 +131,7 @@ export default function Assistente() {
                     <p className="rounded-xl bg-red-950 px-3 py-2 text-[13px] text-red-300">{m.erro}</p>
                   ) : (
                     <>
-                      <p className="rounded-xl bg-neutral-950 px-3 py-2 text-[13px] leading-relaxed text-neutral-200">
+                      <p className="rounded-xl bg-white/[0.03] px-3 py-2 text-[13px] leading-relaxed text-neutral-200">
                         {m.resposta?.resumo}
                       </p>
                       {m.resposta?.jogos.map((g, j) => <GameRow key={`${g.eventId ?? j}|${g.home}|${g.away}`} g={g} />)}
@@ -156,7 +156,7 @@ export default function Assistente() {
             {aCarregar && <p className="text-xs text-neutral-500">A pensar…</p>}
           </div>
           <form
-            className="flex gap-2 border-t border-neutral-800 p-2"
+            className="flex gap-2 border-t border-white/[0.07] p-2"
             onSubmit={(e) => {
               e.preventDefault();
               perguntar(q);
@@ -166,7 +166,7 @@ export default function Assistente() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Pergunta-me por jogos…"
-              className="min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+              className="min-w-0 flex-1 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
             />
             <button
               type="submit"

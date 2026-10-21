@@ -196,7 +196,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
       </div>
 
       {open && (
-        <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900 p-3">
+        <div className="mb-4 glass p-3">
           <label className="mb-1 block text-sm text-neutral-300">Link do jogo no SofaScore</label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
@@ -208,7 +208,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
                 void lookup(e.target.value);
               }}
               placeholder="https://www.sofascore.com/.../id:12345678"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-sky-500"
+              className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-sky-500"
             />
             <button
               type="button"
@@ -250,7 +250,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
               <div key={key} style={{ order: pos }}>
                 <div className="mb-1.5 flex items-center justify-between">
                   {watched.length > 1 ? (
-                    <div className="flex overflow-hidden rounded-full border border-neutral-800 bg-neutral-900 text-sm text-neutral-400">
+                    <div className="flex overflow-hidden rounded-full border border-white/[0.07] bg-neutral-900 text-sm text-neutral-400">
                       <button
                         type="button"
                         disabled={pos === 0}
@@ -301,7 +301,7 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
                     onFinished={(id) => setGone((prev) => new Set(prev).add(id))}
                   />
                 ) : (
-                  <div className="w-full rounded-xl border border-dashed border-neutral-800 bg-neutral-900 px-4 py-8 text-center">
+                  <div className="w-full rounded-xl border border-dashed border-white/[0.07] bg-neutral-900 px-4 py-8 text-center">
                     <p className="text-sm font-medium text-neutral-200">
                       {w.home_team} <span className="text-neutral-500">vs</span> {w.away_team}
                     </p>

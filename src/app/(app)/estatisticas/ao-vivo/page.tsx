@@ -188,7 +188,7 @@ export default async function AoVivoPage() {
 
       <Suspense
         fallback={
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
             A procurar jogos em direto… (a primeira vez demora, depois é cache)
           </p>
         }
@@ -343,12 +343,12 @@ async function AoVivoBoard() {
       {statsAviso && <p className="mb-3 text-xs text-sky-300">{statsAviso}</p>}
 
       {offline ? (
-        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           O scraper local do SofaScore está desligado. Liga-o com <code className="text-neutral-300">cd scraper {"&&"} npm start</code> e
           atualiza — sem ele não há de onde ler o direto.
         </p>
       ) : kept.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           {games.length === 0
             ? "Não encontrei nenhum jogo em direto agora. Ou não há mesmo nenhum a decorrer, ou a fonte não o mostrou desta vez — tenta atualizar daqui a pouco."
             : `Há ${n(games.length)} no mundo, mas nenhum nas tuas ligas mapeadas, estrelado ou seguido — cola o link ao lado de cima se quiseres acompanhar um deles.`}

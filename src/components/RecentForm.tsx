@@ -24,10 +24,10 @@ export function TeamForm({ team, matches }: { team: string; matches: PlayedMatch
     { key: "A", label: "Fora" },
   ];
   return (
-    <div className="min-w-0 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="min-w-0 glass p-4">
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="truncate text-sm font-semibold text-neutral-100">{team}</p>
-        <div className="flex shrink-0 gap-1 rounded-lg bg-neutral-950 p-0.5">
+        <div className="flex shrink-0 gap-1 rounded-lg bg-white/[0.03] p-0.5">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -60,7 +60,7 @@ export function TeamForm({ team, matches }: { team: string; matches: PlayedMatch
       ) : (
         <p className="mb-3 text-xs text-neutral-500">Ainda sem jogos.</p>
       )}
-      <div className="divide-y divide-neutral-800/60">
+      <div className="divide-y divide-white/[0.05]">
         {rows.map((r: FormRow) => {
           const ft = resultOf(r.gf, r.ga);
           const ht = r.hh !== null && r.ha !== null ? resultOf(r.venue === "H" ? r.hh : r.ha, r.venue === "H" ? r.ha : r.hh) : null;
@@ -70,7 +70,7 @@ export function TeamForm({ team, matches }: { team: string; matches: PlayedMatch
               <span className="shrink-0 text-neutral-500">{r.date}</span>
               <span
                 title={r.venue === "H" ? "Em casa" : "Fora"}
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-neutral-700 text-[10px] font-semibold text-neutral-400"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/[0.09] text-[10px] font-semibold text-neutral-400"
               >
                 {r.venue}
               </span>

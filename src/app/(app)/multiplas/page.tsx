@@ -21,7 +21,7 @@ export default async function MultiplasPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🎲 Múltiplas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🎲 <span className="title-glow">Múltiplas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Gerador de acumuladas para as tuas ligas mapeadas: escolhe dias, ligas, tipos de aposta com intervalo de odd
         e quantidade de jogos. Só entram pernas com odd real da casa, escolhidas por valor (modelo vs casa), uma por

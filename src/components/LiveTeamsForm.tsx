@@ -3,7 +3,7 @@
 import { useRef } from "react";
 
 const SELECT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
+  "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 
 // League and the two teams of the game being watched. Picking a league loads
 // its teams at once; the teams are used when the button is pressed.
@@ -37,7 +37,7 @@ export default function LiveTeamsForm({
       ref={formRef}
       method="get"
       action="/estatisticas/live"
-      className="mb-5 space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm"
+      className="mb-5 space-y-4 glass p-5 shadow-sm"
     >
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Liga (opcional)</label>

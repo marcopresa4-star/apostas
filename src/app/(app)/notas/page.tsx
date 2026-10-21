@@ -22,7 +22,7 @@ export default async function NotasPage() {
   }
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">📝 Notas</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">📝 <span className="title-glow">Notas</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Bloco de notas para jogos a seguir, ideias de apostas e lembretes. Guarda sozinho enquanto escreves — sem
         quadro táctico, só notas.

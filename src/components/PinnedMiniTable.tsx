@@ -114,7 +114,7 @@ export default function PinnedMiniTable({
   const shown = top;
 
   return (
-    <div className="mt-2 border-t border-neutral-800 pt-2">
+    <div className="mt-2 border-t border-white/[0.07] pt-2">
       <div className="flex gap-2">
         {card(homeName, hm, formHome, "text-sky-300")}
         <div className="flex shrink-0 flex-col items-center justify-center px-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -138,7 +138,7 @@ export default function PinnedMiniTable({
               <th className="px-2 py-1 text-right font-semibold">Pts</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-800/60">
+          <tbody className="divide-y divide-white/[0.05]">
             {shown.map((r) => {
               const hl = (hm && r.team === hm.team) || (am && r.team === am.team);
               return (

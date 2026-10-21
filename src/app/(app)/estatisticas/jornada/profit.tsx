@@ -50,7 +50,7 @@ export default async function CheckedProfit({
   const fmt = (n: number) => `${n > 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}u`;
 
   return (
-    <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
+    <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
       <p className="text-sm text-neutral-200">
         Lucro às odds reais:{" "}
         <span className={`font-bold ${profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmt(profit)}</span>{" "}

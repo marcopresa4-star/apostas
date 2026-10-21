@@ -110,14 +110,14 @@ export default async function EstatisticasPage({
       <form
         method="get"
         action="/estatisticas"
-        className="mb-4 flex max-w-4xl flex-col gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm sm:flex-row"
+        className="mb-4 flex max-w-4xl flex-col gap-2 glass p-4 shadow-sm sm:flex-row"
       >
         <input
           type="text"
           name="analisar"
           defaultValue={first(params.analisar)}
           placeholder="Ou cola o link do jogo no SofaScore (mesmo por começar)…"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
+          className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
         />
         <button
           type="submit"
@@ -136,7 +136,7 @@ export default async function EstatisticasPage({
       )}
 
       {league && !useSofa && !useSofaIntl && (
-        <p className="mb-3 rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+        <p className="mb-3 rounded-xl border border-dashed border-white/[0.07] px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
           <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore
@@ -148,7 +148,7 @@ export default async function EstatisticasPage({
       <Suspense
         key={`${liga}|${casa}|${fora}|${useSofa}|${useSofaIntl}|${askedDate}|${neutral}|${weightsKey}|${first(params.analisar)}`}
         fallback={
-          <p className="mt-4 rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="mt-4 rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
             A carregar os jogos… (a primeira vez em modo SofaScore demora vários minutos; depois é cache)
           </p>
         }
@@ -193,7 +193,7 @@ async function RecentAnalyses({ userId }: { userId: string }) {
   }
   if (games.length === 0) return null;
   return (
-    <div className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="mb-4 max-w-4xl glass p-4">
       <h2 className="mb-2 text-sm font-semibold text-neutral-300">Últimas análises</h2>
       <div className="flex flex-wrap gap-2">
         {games.map((g) => {
@@ -203,7 +203,7 @@ async function RecentAnalyses({ userId }: { userId: string }) {
             <Link
               key={`${g.league}|${g.home}|${g.away}`}
               href={href}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 transition hover:border-neutral-600"
+              className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 transition hover:border-white/[0.15]"
             >
               <p className="text-sm font-medium text-neutral-100">
                 {g.home} <span className="text-neutral-500">vs</span> {g.away}

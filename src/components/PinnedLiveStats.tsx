@@ -167,10 +167,10 @@ function Lances({ incidents }: { incidents: GameIncident[] }) {
   return (
     <div className="mt-2 overflow-hidden rounded-lg bg-neutral-900">
       <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Lances do jogo</p>
-      <div className="divide-y divide-neutral-800/60">
+      <div className="divide-y divide-white/[0.05]">
         {second.map(row)}
         {second.length > 0 && first.length > 0 && (
-          <p className="bg-neutral-800/50 px-3 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+          <p className="bg-white/[0.05] px-3 py-1 text-center text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
             Intervalo
           </p>
         )}
@@ -256,19 +256,19 @@ export default function PinnedLiveStats({
   const fouls = stats["Faltas"] ?? { home: null, away: null };
 
   return (
-    <div className="mt-3 border-t border-neutral-800 pt-2">
+    <div className="mt-3 border-t border-white/[0.07] pt-2">
       <MomentumBars points={momentum} incidents={incidents} home={homeName} away={awayName} />
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-        <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Remates casa–fora">
+        <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Remates casa–fora">
           🎯 {pair(shots)}
         </span>
-        <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Cantos casa–fora">
+        <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Cantos casa–fora">
           ⛳ {pair(corners)}
         </span>
-        <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Amarelos casa–fora">
+        <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Amarelos casa–fora">
           🟨 {pair(yellows)}
         </span>
-        <span className="rounded-full border border-neutral-800 px-2 py-0.5 tabular-nums text-neutral-300" title="Faltas casa–fora">
+        <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Faltas casa–fora">
           ⛔ {pair(fouls)}
         </span>
       </div>

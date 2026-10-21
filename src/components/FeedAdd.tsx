@@ -37,7 +37,7 @@ export default function FeedAdd({ count }: { count: number }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder="Cola o link do jogo no SofaScore (mesmo por começar)…"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
+          className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
         />
         <button
           type="submit"

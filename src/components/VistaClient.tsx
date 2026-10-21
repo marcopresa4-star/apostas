@@ -33,14 +33,14 @@ function Panel({
   // (Jogos por dia takes minutes on cold cache), so nothing loads unasked.
   const view = VIEWS.find((v) => v.href === value) ?? null;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden glass">
+      <div className="flex items-center gap-2 border-b border-white/[0.07] px-3 py-2">
         <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{side}</span>
         <select
           value={view?.href ?? ""}
           onChange={(e) => onChange(e.target.value)}
           title={`Conteúdo do painel ${side}`}
-          className="min-w-0 flex-1 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
+          className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-200 outline-none"
         >
           <option value="">Escolher o que vai aqui…</option>
           {VIEWS.map((v) => (
@@ -55,7 +55,7 @@ function Panel({
             target="_blank"
             rel="noreferrer"
             title={`Abrir ${view.label} num separador`}
-            className="shrink-0 rounded-lg border border-neutral-700 px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
+            className="shrink-0 rounded-lg border border-white/[0.09] px-2 py-1.5 text-xs text-neutral-400 hover:text-neutral-200"
           >
             ↗
           </a>
@@ -100,7 +100,7 @@ export default function VistaClient() {
             setRight(left);
           }}
           title="Trocar os painéis"
-          className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 hover:text-white"
+          className="rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] hover:text-white"
         >
           ⇄
         </button>

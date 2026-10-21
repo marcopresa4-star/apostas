@@ -363,7 +363,7 @@ export default async function DayMatrix({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/60">
+              <tbody className="divide-y divide-white/[0.05]">
                 {l.rows.map((r) => (
                   <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-white/[0.04] ${r.fragile ? "opacity-55" : ""}`}>
                     <td className="min-w-52 px-4 py-2">

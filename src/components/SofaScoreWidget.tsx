@@ -257,7 +257,7 @@ function GoalAlert({
   if (!pre.fromModel) reasons.push("Sem dados destas equipas: base em valores típicos");
 
   return (
-    <div className={`border-b border-neutral-800 px-4 py-3 ${hot ? "bg-red-950/30" : ""}`}>
+    <div className={`border-b border-white/[0.07] px-4 py-3 ${hot ? "bg-red-950/30" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-neutral-300">
           {hot ? `🔥 Alerta de golo (${hotSide})` : "⚽ Quem marca"}
@@ -511,7 +511,7 @@ function Lineups({
   const missingHome = missing.filter((m) => m.home).map((m) => m.name);
   const missingAway = missing.filter((m) => !m.home).map((m) => m.name);
   return (
-    <details className="border-t border-neutral-800 px-4 py-2.5">
+    <details className="border-t border-white/[0.07] px-4 py-2.5">
       <summary className="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-neutral-500 hover:text-neutral-300">
         Onzes e notas
       </summary>
@@ -1088,8 +1088,8 @@ export default function SofaScoreWidget({
             : state.raw.statusText || "";
 
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-neutral-800 bg-gradient-to-b from-neutral-800/50 to-transparent px-4 py-2.5">
+    <div className="w-full overflow-hidden glass">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-white/[0.07] bg-gradient-to-b from-neutral-800/50 to-transparent px-4 py-2.5">
         <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
           {homeName}
           {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
@@ -1145,7 +1145,7 @@ export default function SofaScoreWidget({
       )}
 
       {hasTracker !== false && showMap && (
-        <div className="relative overflow-hidden border-b border-neutral-800 bg-black" style={{ perspective: "1100px" }}>
+        <div className="relative overflow-hidden border-b border-white/[0.07] bg-black" style={{ perspective: "1100px" }}>
           <iframe
             src={`https://www.sofascore.com/api/v1/event/${eventId}/live-match-tracker/en/invert-teams/false`}
             loading="lazy"
@@ -1208,7 +1208,7 @@ export default function SofaScoreWidget({
       )}
 
       {hasTracker !== false && !showMap && (
-        <div className="border-b border-neutral-800 px-4 py-2 text-center">
+        <div className="border-b border-white/[0.07] px-4 py-2 text-center">
           <button
             type="button"
             onClick={() => {
@@ -1236,7 +1236,7 @@ export default function SofaScoreWidget({
         </div>
       )}
       {xg !== null && xg.length > 0 && (
-        <div className="border-t border-neutral-800">
+        <div className="border-t border-white/[0.07]">
           <XgChart
             shots={xg}
             home={homeName}
@@ -1259,7 +1259,7 @@ export default function SofaScoreWidget({
       )}
 
       {recent.length > 0 && (
-        <div className="border-t border-neutral-800 px-4 py-2.5">
+        <div className="border-t border-white/[0.07] px-4 py-2.5">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Últimos eventos</p>
           <ul className="space-y-1">
             {recent.map((inc, i) => (
@@ -1277,7 +1277,7 @@ export default function SofaScoreWidget({
       )}
 
       {stats && stats.length > 0 && (
-        <div className="border-t border-neutral-800 px-4 py-2.5">
+        <div className="border-t border-white/[0.07] px-4 py-2.5">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Estatísticas</p>
           <dl className="space-y-1">
             {stats.map((row) => (
@@ -1291,7 +1291,7 @@ export default function SofaScoreWidget({
         </div>
       )}
 
-      <div className="border-t border-neutral-800 px-4 py-2.5 text-center">
+      <div className="border-t border-white/[0.07] px-4 py-2.5 text-center">
         <a
           href={`https://www.sofascore.com/football/match/#/id:${eventId}`}
           target="_blank"

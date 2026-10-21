@@ -28,7 +28,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
   const groups = [...new Set(eligible.map((m) => m.group))];
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Múltipla do mesmo jogo</h3>
       <p className="mb-3 text-xs text-neutral-500">Escolhe 2 a 4 pernas deste jogo para combinar.</p>
 
@@ -68,7 +68,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
       </div>
 
       {legs.length >= 2 ? (
-        <div className="mt-3 border-t border-neutral-800 pt-3 text-sm text-neutral-300">
+        <div className="mt-3 border-t border-white/[0.07] pt-3 text-sm text-neutral-300">
           <p>
             Modelo: <span className="font-medium text-neutral-100">{percent(p)}</span> · odd justa{" "}
             <span className="font-medium text-emerald-300">{formatOdd(fair)}</span>{" "}
@@ -82,7 +82,7 @@ export default function MultipleBuilder({ markets }: { markets: OddMarket[] }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Odd combinada da casa (ex: 3,50)"
-            className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+            className="mt-2 w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
           />
           {valid && value !== null && (
             <>

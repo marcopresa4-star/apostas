@@ -26,10 +26,10 @@ function Grid({ title, table, lines }: { title: string; table: ComboTable; lines
   return (
     <div className="mb-5 last:mb-0">
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{title}</p>
-      <div className="overflow-hidden rounded-xl border border-neutral-800">
+      <div className="overflow-hidden rounded-xl border border-white/[0.07]">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-neutral-800">
+            <tr className="border-b border-white/[0.07]">
               <th className="w-36 px-4 py-2 text-left font-normal" />
               {lines.map((line) => (
                 <th key={line} className="px-4 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -40,7 +40,7 @@ function Grid({ title, table, lines }: { title: string; table: ComboTable; lines
           </thead>
           <tbody>
             {table.rows.map((r) => (
-              <tr key={r.key} className="border-b border-neutral-800/60 last:border-0">
+              <tr key={r.key} className="border-b border-white/[0.07] last:border-0">
                 <td className="px-4 py-2.5 text-neutral-200">{r.label}</td>
                 {r.cells.map((c, i) => {
                   const pp = ppText(c.pp);
@@ -80,7 +80,7 @@ export default function ComboGrids({
     [lambdaHome, lambdaAway, matches]
   );
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
+    <div className="glass p-4 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-neutral-300">Combinação</h3>
       <Grid title="Vencedor & mais golos" table={t1} lines={COMBO_LINES} />
       <Grid title="Dupla hipótese & mais golos" table={t2} lines={COMBO_LINES} />

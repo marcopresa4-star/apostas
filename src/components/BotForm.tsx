@@ -200,20 +200,20 @@ export default function BotForm({
     onClose();
   };
 
-  const field = "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500";
+  const field = "w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500";
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-black/70 p-4" onClick={onClose}>
       <div
-        className="mx-auto my-8 max-w-2xl space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
+        className="mx-auto my-8 max-w-2xl space-y-5 glass p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-neutral-100">🤖 {initial ? "Editar bot" : "Criar novo bot"}</h2>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-xl text-neutral-400 hover:bg-neutral-800" aria-label="Fechar">
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-xl text-neutral-400 hover:bg-white/[0.06]" aria-label="Fechar">
             ✕
           </button>
         </div>
@@ -235,7 +235,7 @@ export default function BotForm({
           <p className="mt-1 text-[11px] text-neutral-500">Aparece nos alertas: “ALERTA {d.name || "BotOverHT"} — …”</p>
         </div>
 
-        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
           <input type="checkbox" checked={d.silent} onChange={(e) => set("silent", e.target.checked)} className="mt-1 accent-emerald-500" />
           <span className="text-xs text-neutral-300">
             <span className="font-semibold">Modo silencioso</span> — regista o alerta e mostra na lista, mas não envia
@@ -247,9 +247,9 @@ export default function BotForm({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
             Competições ({d.leagues.length === 0 ? `todas (${leagues.length})` : d.leagues.length})
           </p>
-          <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+          <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
             {leagues.map((l) => (
-              <label key={l.code} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2 py-1 text-xs text-neutral-300">
+              <label key={l.code} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.07] px-2 py-1 text-xs text-neutral-300">
                 <input
                   type="checkbox"
                   checked={d.leagues.includes(l.code)}
@@ -275,7 +275,7 @@ export default function BotForm({
             Aplica-se só às estatísticas abaixo. Minuto, marcador e período continuam sempre obrigatórios.
           </p>
 
-          <div className="space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="text-sm font-medium text-neutral-200">⏱ Minuto do jogo</p>
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -309,7 +309,7 @@ export default function BotForm({
             </div>
           </div>
 
-          <div className="mt-3 space-y-2 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
               <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
@@ -327,7 +327,7 @@ export default function BotForm({
             )}
           </div>
 
-          <div className="mt-3 space-y-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <label className="flex cursor-pointer items-start gap-2">
               <input type="checkbox" checked={d.pre.on} onChange={(e) => set("pre", { ...d.pre, on: e.target.checked })} className="mt-0.5 accent-emerald-500" />
               <span className="text-xs text-neutral-300">
@@ -390,7 +390,7 @@ export default function BotForm({
             )}
           </div>
 
-          <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+          <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
             <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-emerald-500" />
             <span className="text-xs text-neutral-300">
               <span className="font-semibold">Re-disparo no mesmo jogo</span> — permite disparar mais de uma vez se as
@@ -398,7 +398,7 @@ export default function BotForm({
             </span>
           </label>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-2 text-sm font-medium text-neutral-200">⚽ Condição de marcador</p>
             <div className="flex flex-wrap gap-1.5">
               {BOT_SCORES.map((s) => (
@@ -409,7 +409,7 @@ export default function BotForm({
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-1 text-sm font-medium text-neutral-200">📊 Gatilhos estatísticos ao vivo</p>
             <p className="mb-2 text-[11px] text-neutral-500">Marca os que contam; a barra do valor só aparece depois de marcares.</p>
             <div className="space-y-2">
@@ -438,7 +438,7 @@ export default function BotForm({
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-2 text-sm font-medium text-neutral-200">🎯 Mercado a alertar</p>
             <select value={d.market} onChange={(e) => set("market", e.target.value as BotMarket)} className={field}>
               {BOT_MARKETS.map((m) => (
@@ -449,7 +449,7 @@ export default function BotForm({
             </select>
           </div>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Preview do alerta</p>
             <p className="font-mono text-sm font-bold text-emerald-400">🤖 ALERTA {d.name || "MeuBot"}</p>
             <p className="font-mono text-sm text-neutral-200">
@@ -460,14 +460,14 @@ export default function BotForm({
             </p>
           </div>
 
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-200">🧪 Backtest (últimos terminados)</p>
               <button
                 type="button"
                 onClick={runBacktest}
                 disabled={testing}
-                className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500 disabled:opacity-50"
+                className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
               >
                 {testing ? "A testar…" : "Testar"}
               </button>
@@ -487,7 +487,7 @@ export default function BotForm({
 
         {error && <p className="rounded-lg bg-red-950 px-4 py-2.5 text-sm text-red-300">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:border-neutral-500">
+          <button type="button" onClick={onClose} className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]">
             Cancelar
           </button>
           <button

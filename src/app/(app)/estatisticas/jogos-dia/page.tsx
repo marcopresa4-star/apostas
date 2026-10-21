@@ -62,19 +62,19 @@ export default async function JogosDiaPage({
       <div className="mb-4 flex max-w-4xl flex-wrap items-center gap-2">
         <Link
           href={`/estatisticas/jogos-dia?${new URLSearchParams({ data: shift(day, -1) })}`}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500"
+          className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-sm text-neutral-300 hover:border-white/[0.18]"
         >
           ‹
         </Link>
         <Link
           href="/estatisticas/jogos-dia"
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500"
+          className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-sm text-neutral-300 hover:border-white/[0.18]"
         >
           Hoje
         </Link>
         <Link
           href={`/estatisticas/jogos-dia?${new URLSearchParams({ data: shift(day, 1) })}`}
-          className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:border-neutral-500"
+          className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-sm text-neutral-300 hover:border-white/[0.18]"
         >
           ›
         </Link>
@@ -83,7 +83,7 @@ export default async function JogosDiaPage({
             type="date"
             name="data"
             defaultValue={day}
-            className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
+            className="rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500"
           />
           <button type="submit" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">
             Ver
@@ -102,7 +102,7 @@ export default async function JogosDiaPage({
       <Suspense
         key={`${day}|${pais}|${ligaSel}|${equipa}|${refresh ? "r" : ""}|${diretos ? "d" : ""}|${detalhada ? "D" : "c"}`}
         fallback={
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
             {detalhada
               ? "A calcular a detalhada… (históricos + odds por jogo: demora minutos à primeira, depois é cache)"
               : "A calcular a matriz… (carrega os históricos das ligas: demora minutos à primeira, depois é cache)"}

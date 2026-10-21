@@ -40,7 +40,7 @@ const chip = (on: boolean) =>
   }`;
 
 const field =
-  "rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500";
+  "rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-sm text-neutral-100 outline-none focus:border-emerald-500";
 
 const num = (v: string, fb: number): number => {
   const n = Number(v.replace(",", "."));
@@ -59,7 +59,7 @@ function CriterionRow({
   const setPreset = (from: number, to: number): void => onChange({ ...c, from, to });
   const isPreset = (from: number, to: number): boolean => c.from === from && c.to === to;
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-neutral-950 p-3">
+    <div className="rounded-xl border border-amber-500/30 bg-white/[0.03] p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex gap-1.5">
           {(["cantos", "golos", "amarelos"] as LiveMetric[]).map((m) => (
@@ -205,7 +205,7 @@ export default function PlaneamentoEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-neutral-700 bg-neutral-900 p-5"
+        className="w-full max-w-xl rounded-2xl border border-white/[0.09] bg-white/[0.04] p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -247,11 +247,11 @@ export default function PlaneamentoEditor({
           ))}
         </div>
         {pickLeagues && (
-          <div className="mb-4 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950 p-3">
+          <div className="mb-4 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
             {leagues.map((l) => (
               <label
                 key={l.code}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-neutral-800 px-2.5 py-1.5 text-xs text-neutral-300 hover:border-neutral-600"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-xs text-neutral-300 hover:border-white/[0.15]"
               >
                 <input
                   type="checkbox"
@@ -301,7 +301,7 @@ export default function PlaneamentoEditor({
           <button
             type="button"
             onClick={() => setForm((f) => ({ ...f, criteria: [...f.criteria, blankCriterion()] }))}
-            className="mt-2 rounded-lg border border-dashed border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-emerald-500"
+            className="mt-2 rounded-lg border border-dashed border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-emerald-500"
           >
             + Adicionar critério
           </button>
@@ -316,7 +316,7 @@ export default function PlaneamentoEditor({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:border-neutral-500"
+            className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]"
           >
             Cancelar
           </button>

@@ -36,7 +36,7 @@ export default function VenueStandings({
   return (
     <div>
       {hasVenue && (
-        <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-neutral-800 bg-neutral-900 p-1">
+        <div className="mb-2 inline-flex items-center gap-1 rounded-full border border-white/[0.07] bg-neutral-900 p-1">
           {btn("home", "Casa")}
           {btn("global", "Global")}
           {btn("away", "Fora")}

@@ -68,7 +68,7 @@ export default async function MapaPage({
   const intlResults = selecoes && tq3 ? await searchTeams(tq3).catch(() => []) : [];
 
   const field =
-    "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
+    "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
   const mapped = maps.length;
 
   return (
@@ -81,7 +81,7 @@ export default async function MapaPage({
 
       <EstatisticasTabs />
 
-      <div className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+      <div className="mb-4 max-w-4xl glass p-5">
         <div className="flex flex-wrap gap-2">
           {mapped < leagues.length && <AutoMapAllButton />}
           {mapped > 0 && <AutoAlignAllTeamsButton />}
@@ -108,7 +108,7 @@ export default async function MapaPage({
         <p className="mb-4 max-w-4xl rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">{test.error}</p>
       )}
 
-      <form method="get" action="/estatisticas/mapa" className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+      <form method="get" action="/estatisticas/mapa" className="mb-4 max-w-4xl glass p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_16rem_auto]">
           <input type="text" name="q" defaultValue={q} placeholder="Procurar competição no SofaScore (ex: Liga Portugal)" className={field} />
           <select name="liga" defaultValue={liga} className={field}>
@@ -131,7 +131,7 @@ export default async function MapaPage({
       {results.length > 0 && (
         <div className="mb-4 max-w-4xl space-y-2">
           {results.map((r) => (
-            <div key={`${r.kind}:${r.id}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2.5">
+            <div key={`${r.kind}:${r.id}`} className="flex flex-wrap items-center justify-between gap-2 glass px-4 py-2.5">
               <div>
                 <p className="text-sm font-medium text-neutral-100">{r.name}</p>
                 <p className="text-[11px] text-neutral-500">
@@ -149,20 +149,20 @@ export default async function MapaPage({
         </div>
       )}
 
-      <div className="max-w-4xl max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
+      <div className="max-w-4xl max-h-[75vh] overflow-auto glass">
         <table className="w-full min-w-[40rem] text-sm">
           <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
-            <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
+            <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="px-3 py-2 font-semibold">Liga</th>
               <th className="px-3 py-2 font-semibold">SofaScore</th>
               <th className="px-3 py-2 text-right font-semibold"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-800/70">
+          <tbody className="divide-y divide-white/[0.05]">
             {leagues.map((l) => {
               const m = byCode.get(l.code);
               return (
-                <tr key={l.code} className="transition-colors hover:bg-neutral-800/40">
+                <tr key={l.code} className="transition-colors hover:bg-white/[0.06]/40">
                   <td className="px-3 py-2.5 text-neutral-200">{l.label}</td>
                   <td className="px-3 py-2.5 text-xs text-neutral-400">
                     {m ? (
@@ -215,7 +215,7 @@ export default async function MapaPage({
               fechar
             </a>
           </h2>
-          <div className="mb-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <div className="mb-3 glass p-5">
             <AlignTeamsButton leagueCode={teamsLeague.code} />
             <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
               Liga as grafias locais às do SofaScore (ex: Sporting ↔ Sporting CP). O que ficar por ligar liga-se à mão
@@ -223,7 +223,7 @@ export default async function MapaPage({
             </p>
           </div>
 
-          <form method="get" action="/estatisticas/mapa" className="mb-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <form method="get" action="/estatisticas/mapa" className="mb-3 glass p-5">
             <input type="hidden" name="equipas" value={teamsLeague.code} />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_16rem_auto]">
               <input type="text" name="tq" defaultValue={tq} placeholder="Procurar equipa no SofaScore" className={field} />
@@ -244,7 +244,7 @@ export default async function MapaPage({
           {teamResults.length > 0 && (
             <div className="mb-3 space-y-2">
               {teamResults.map((r) => (
-                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2.5">
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 glass px-4 py-2.5">
                   <div>
                     <p className="text-sm font-medium text-neutral-100">{r.name}</p>
                     <p className="text-[11px] text-neutral-500">id {r.id}</p>
@@ -263,20 +263,20 @@ export default async function MapaPage({
             </div>
           )}
 
-          <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
+          <div className="max-h-[75vh] overflow-auto glass">
             <table className="w-full min-w-[36rem] text-sm">
               <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
-                <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
+                <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2 font-semibold">Equipa (ficheiros)</th>
                   <th className="px-3 py-2 font-semibold">SofaScore</th>
                   <th className="px-3 py-2 text-right font-semibold"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/70">
+              <tbody className="divide-y divide-white/[0.05]">
                 {localTeams.map((t) => {
                   const m = teamBySlug.get(slugify(t));
                   return (
-                    <tr key={t} className="transition-colors hover:bg-neutral-800/40">
+                    <tr key={t} className="transition-colors hover:bg-white/[0.06]/40">
                       <td className="px-3 py-2 text-neutral-200">{t}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400">
                         {m ? <span className="font-medium text-emerald-400">{m.name}</span> : <span className="text-neutral-600">por ligar</span>}
@@ -299,7 +299,7 @@ export default async function MapaPage({
 
       {selecoes && (
         <section className="mt-2 max-w-4xl">
-          <div className="mb-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <div className="mb-3 glass p-5">
             <div className="flex flex-wrap gap-2">
               <BootstrapIntlButton />
               <RepairWrongIntlButton />
@@ -311,7 +311,7 @@ export default async function MapaPage({
             </p>
           </div>
 
-          <form method="get" action="/estatisticas/mapa" className="mb-3 rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <form method="get" action="/estatisticas/mapa" className="mb-3 glass p-5">
             <input type="hidden" name="selecoes" value="1" />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_16rem_auto]">
               <input type="text" name="tq3" defaultValue={tq3} placeholder="Procurar seleção no SofaScore" className={field} />
@@ -334,7 +334,7 @@ export default async function MapaPage({
               {intlResults
                 .filter((r) => r.national)
                 .map((r) => (
-                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2.5">
+                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 glass px-4 py-2.5">
                     <div>
                       <p className="text-sm font-medium text-neutral-100">{r.name}</p>
                       <p className="text-[11px] text-neutral-500">id {r.id}</p>
@@ -353,20 +353,20 @@ export default async function MapaPage({
             </div>
           )}
 
-          <div className="max-h-[75vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900">
+          <div className="max-h-[75vh] overflow-auto glass">
             <table className="w-full min-w-[36rem] text-sm">
               <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
-                <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
+                <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2 font-semibold">Seleção (ficheiros)</th>
                   <th className="px-3 py-2 font-semibold">SofaScore</th>
                   <th className="px-3 py-2 text-right font-semibold"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/70">
+              <tbody className="divide-y divide-white/[0.05]">
                 {intlTeams.map((t) => {
                   const m = intlBySlug.get(`int:${slugify(t)}`);
                   return (
-                    <tr key={t} className="transition-colors hover:bg-neutral-800/40">
+                    <tr key={t} className="transition-colors hover:bg-white/[0.06]/40">
                       <td className="px-3 py-2 text-neutral-200">{t}</td>
                       <td className="px-3 py-2 text-xs text-neutral-400">
                         {m ? <span className="font-medium text-emerald-400">{m.name}</span> : <span className="text-neutral-600">por ligar</span>}

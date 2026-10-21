@@ -16,7 +16,7 @@ export default function EstatisticasTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="sticky top-14 z-10 -mx-4 mb-6 flex gap-2 overflow-x-auto bg-neutral-950/90 px-4 py-2 backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <nav className="sticky top-14 z-10 -mx-4 mb-6 flex gap-2 overflow-x-auto bg-white/[0.03]/90 px-4 py-2 backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {TABS.map((tab) => {
         const active = pathname === tab.href;
         return (
@@ -26,7 +26,7 @@ export default function EstatisticasTabs() {
             className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
               active
                 ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-                : "text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200"
+                : "text-neutral-400 hover:bg-white/[0.06] hover:text-neutral-200"
             }`}
           >
             {tab.label}

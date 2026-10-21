@@ -7,7 +7,7 @@ import type { ExtraGame } from "@/lib/extraGames";
 import ExtraGames from "./ExtraGames";
 
 const SELECT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
+  "w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 
 export interface AdjustValues {
   lesoes_casa: string;
@@ -154,7 +154,7 @@ export default function MatchupForm({
       ref={formRef}
       method="get"
       action="/estatisticas"
-      className="space-y-4 rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm"
+      className="space-y-4 glass p-5 shadow-sm"
     >
       <div>
         <label className="mb-1 block text-sm text-neutral-300">Liga</label>
@@ -221,7 +221,7 @@ export default function MatchupForm({
               </span>
             </label>
           )}
-          <details open={hasAdjust} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
+          <details open={hasAdjust} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium text-emerald-400">
               Ajustes (opcional): lesões, castigos, descanso e motivação
             </summary>
@@ -353,7 +353,7 @@ export default function MatchupForm({
             </div>
 
             {!international && (
-              <div className="mt-5 space-y-5 border-t border-neutral-800 pt-4">
+              <div className="mt-5 space-y-5 border-t border-white/[0.07] pt-4">
                 <p className="text-sm font-medium text-neutral-200">Pesos do modelo</p>
                 <p className="-mt-3 text-[11px] leading-relaxed text-neutral-500">
                   Afinam os golos esperados depois do ajuste. Em neutro, a previsão sai exatamente igual à de
@@ -468,7 +468,7 @@ export default function MatchupForm({
               </div>
             )}
 
-            <div className="mt-5 space-y-4 border-t border-neutral-800 pt-4">
+            <div className="mt-5 space-y-4 border-t border-white/[0.07] pt-4">
               <div>
                 <p className="text-sm font-medium text-neutral-300">Outros jogos das equipas</p>
                 <p className="text-[11px] leading-relaxed text-neutral-500">

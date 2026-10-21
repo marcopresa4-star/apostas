@@ -23,7 +23,7 @@ export default function DayFilters({
   const [vista, setVista] = useState(initial.vista === "detalhada" ? "detalhada" : "compacta");
   const formRef = useRef<HTMLFormElement>(null);
   const field =
-    "rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500";
+    "rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-sm text-neutral-100 outline-none focus:border-emerald-500";
   const visibleLeagues = leagues.filter((l) => pais === "" || l.country === pais);
   return (
     <form
@@ -40,7 +40,7 @@ export default function DayFilters({
       <input type="hidden" name="data" value={day} />
       <input type="hidden" name="diretos" value={diretos} />
       <input type="hidden" name="vista" value={vista} />
-      <span className="flex overflow-hidden rounded-lg border border-neutral-700">
+      <span className="flex overflow-hidden rounded-lg border border-white/[0.09]">
         <button
           type="button"
           onClick={() => {
@@ -64,7 +64,7 @@ export default function DayFilters({
           ● Em direto
         </button>
       </span>
-      <span className="flex overflow-hidden rounded-lg border border-neutral-700">
+      <span className="flex overflow-hidden rounded-lg border border-white/[0.09]">
         <button
           type="button"
           onClick={() => {

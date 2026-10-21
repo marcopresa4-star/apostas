@@ -28,15 +28,15 @@ export default function TeamSearch({
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Procurar equipa…"
-        className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
+        className="w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors placeholder:text-neutral-600 focus:border-emerald-500"
       />
       {hits.length > 0 && (
-        <div className="mt-2 divide-y divide-neutral-800/60 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900">
+        <div className="mt-2 divide-y divide-white/[0.05] overflow-hidden glass">
           {hits.map((h) => (
             <Link
               key={`${h.league}|${h.team}`}
               href={`${base}?${new URLSearchParams({ liga: h.league, [teamKey]: h.team })}`}
-              className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm transition hover:bg-neutral-800/60"
+              className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm transition hover:bg-white/[0.06]/60"
             >
               <span className="font-medium text-neutral-100">{h.team}</span>
               <span className="shrink-0 text-[11px] text-neutral-500">{h.leagueLabel}</span>

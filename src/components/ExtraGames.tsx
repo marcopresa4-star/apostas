@@ -27,7 +27,7 @@ const toRow = (g: ExtraGame): Row => ({
 });
 
 const INPUT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-emerald-500";
+  "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-emerald-500";
 
 // A team's games that the free data does not have (cups, Europe, friendlies).
 // Each complete row travels in the form as one hidden field, so an unfinished
@@ -45,7 +45,7 @@ export default function ExtraGames({ name, initial }: { name: string; initial: E
           [row.date, cleanText(row.competition), cleanText(row.opponent), row.home, row.gf, row.ga].join("|")
         );
         return (
-          <div key={row.id} className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-2">
+          <div key={row.id} className="glass-sm/60 p-2">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-[8rem_1fr_1fr]">
               <input
                 type="date"

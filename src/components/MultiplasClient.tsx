@@ -228,27 +228,27 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Dias</p>
         <div className="mb-2 flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => setDays([today])}
-            className="rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+            className="rounded-full border border-white/[0.09] px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/[0.06]"
           >
             Hoje
           </button>
           <button
             type="button"
             onClick={() => setDays([shiftDay(today, 1)])}
-            className="rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+            className="rounded-full border border-white/[0.09] px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/[0.06]"
           >
             Amanhã
           </button>
           <button
             type="button"
             onClick={() => setDays(Array.from({ length: 7 }, (_, i) => shiftDay(today, i)))}
-            className="rounded-full border border-neutral-700 px-3 py-1 text-xs text-neutral-300 transition hover:bg-neutral-800"
+            className="rounded-full border border-white/[0.09] px-3 py-1 text-xs text-neutral-300 transition hover:bg-white/[0.06]"
           >
             Próximos 7 dias
           </button>
@@ -257,7 +257,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
               type="date"
               value={customDay}
               onChange={(e) => setCustomDay(e.target.value)}
-              className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-200 outline-none"
+              className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1 text-xs text-neutral-200 outline-none"
             />
             <button
               type="button"
@@ -285,7 +285,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
         </div>
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Ligas mapeadas</p>
           <span className="flex gap-2">
@@ -309,7 +309,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                 className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
                   ligas.includes(l.code)
                     ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                    : "border-neutral-800 text-neutral-500"
+                    : "border-white/[0.07] text-neutral-500"
                 }`}
               >
                 {l.label}
@@ -319,24 +319,24 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
         )}
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Tipos de aposta e intervalo de odd (odd real)</p>
         <p className="mb-2 text-[11px] text-neutral-500">Linhas asiáticas fracionadas (1,25…) ficam de fora — meia-devolução não cabe numa múltipla.</p>
         <div className="space-y-1.5">
           {MULTI_FAMILIES.map((f) => (
-            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+            <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
               {f.covered ? (
                 <button
                   type="button"
                   onClick={() => setFamField(f.id, "on", !(fam[f.id]?.on ?? false))}
                   className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-                    fam[f.id]?.on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-500"
+                    fam[f.id]?.on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-500"
                   }`}
                 >
                   {f.label}
                 </button>
               ) : (
-                <span className="rounded-full border border-neutral-800 px-2 py-0.5 text-[11px] text-neutral-600" title={f.whyDisabled}>
+                <span className="rounded-full border border-white/[0.07] px-2 py-0.5 text-[11px] text-neutral-600" title={f.whyDisabled}>
                   {f.label} · {f.whyDisabled}
                 </span>
               )}
@@ -348,7 +348,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     onChange={(e) => setFamField(f.id, "min", e.target.value)}
                     placeholder="min"
                     inputMode="decimal"
-                    className="w-16 rounded-md border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[11px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+                    className="w-16 rounded-md border border-white/[0.09] bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
                   />
                   –
                   <input
@@ -356,7 +356,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     onChange={(e) => setFamField(f.id, "max", e.target.value)}
                     placeholder="max"
                     inputMode="decimal"
-                    className="w-16 rounded-md border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[11px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+                    className="w-16 rounded-md border border-white/[0.09] bg-white/[0.04] px-1.5 py-0.5 text-[11px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
                   />
                   {status === "done" && (
                     <span className="text-[11px] text-neutral-500">{famCounts[f.id] ?? 0} pernas</span>
@@ -373,7 +373,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
               value={legsN}
               onChange={(e) => setLegsN(e.target.value)}
               inputMode="numeric"
-              className="w-14 rounded-md border border-neutral-700 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
+              className="w-14 rounded-md border border-white/[0.09] bg-white/[0.03] px-1.5 py-1 text-xs text-neutral-200 outline-none focus:border-emerald-500"
             />
             <span className="text-neutral-500">por boletim</span>
           </label>
@@ -392,7 +392,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
         {status === "error" && <p className="mt-2 text-xs text-red-300">{error}</p>}
       </div>
 
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="glass p-4">
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Filtros guardados</p>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <input
@@ -400,7 +400,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             onChange={(e) => setPresetName(e.target.value)}
             placeholder="Nome do filtro…"
             maxLength={30}
-            className="w-48 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+            className="w-48 rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
           />
           <button
             type="button"
@@ -417,7 +417,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
         ) : (
           <div className="space-y-1.5">
             {presets.map((p) => (
-              <div key={p.name} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+              <div key={p.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
                 <span className="min-w-0 flex-1 truncate text-neutral-200">
                   {p.name}
                   {p.name === defPreset && <span className="ml-1 text-neutral-500">★</span>}
@@ -458,16 +458,16 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             {meta.truncated ? " · limite de 60 leituras: alarga em fatias menores" : ""} · {priced.length} pernas com odd real
           </p>
           {tickets.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+            <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-neutral-500">
               Nenhuma perna cumpre os intervalos de odd. Alarga os intervalos.
             </p>
           ) : (
             <>
-              <p className="rounded-lg bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
+              <p className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-neutral-400">
                 {placedLegs} perna{placedLegs === 1 ? "" : "s"} em {tickets.length} boletim{tickets.length === 1 ? "" : "s"} de {nLegs}.
               </p>
               {view.map((v, idx) => (
-                <div key={idx} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                <div key={idx} className="glass p-4">
                   <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-neutral-300">
                       Múltipla {idx + 1} · {v.active.length} perna{v.active.length === 1 ? "" : "s"}
@@ -486,12 +486,12 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     </span>
                   </div>
                   {v.active.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+                    <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-neutral-500">
                       Todas as pernas estão fora. Repõe alguma em baixo.
                     </p>
                   ) : (
                     <>
-                      <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2">
+                      <div className="mb-3 flex flex-wrap items-baseline gap-x-5 gap-y-1 rounded-lg bg-white/[0.03] px-3 py-2">
                         <p className="text-lg font-bold text-emerald-300">Odd {odd2(v.totals.odd)}</p>
                         <p className="text-xs text-neutral-400">
                           Modelo: <span className="font-medium text-neutral-200">{pct1(v.totals.p)}</span> · justa{" "}
@@ -500,7 +500,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                       </div>
                       <div className="space-y-1.5">
                         {v.active.map((l) => (
-                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
                             <span className="shrink-0 text-neutral-500">
                               {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
                             </span>
@@ -523,7 +523,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                           </div>
                         ))}
                         {v.ghosts.map((l) => (
-                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashed border-neutral-800 px-3 py-2 text-xs opacity-40">
+                          <div key={`${l.eventId}:${l.key}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-dashed border-white/[0.07] px-3 py-2 text-xs opacity-40">
                             <span className="shrink-0 text-neutral-500">
                               {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""}
                             </span>
@@ -556,7 +556,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="glass p-4">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Boletins guardados</p>
             <button
@@ -573,7 +573,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
           </div>
           <div className="space-y-1.5">
             {saved.map((s) => (
-              <details key={s.id} className="rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+              <details key={s.id} className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
                 <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-neutral-500">
                     {new Date(s.savedAt).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" })}
@@ -614,7 +614,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                     Apagar
                   </button>
                 </summary>
-                <div className="mt-2 space-y-1 border-t border-neutral-800 pt-2">
+                <div className="mt-2 space-y-1 border-t border-white/[0.07] pt-2">
                   {s.legs.map((l) => (
                     <p key={`${l.eventId}:${l.key}`} className="text-neutral-300">
                       {l.date.slice(8, 10)}/{l.date.slice(5, 7)}{l.time ? ` ${l.time.slice(0, 5)}` : ""} · {l.home} vs {l.away} —{" "}

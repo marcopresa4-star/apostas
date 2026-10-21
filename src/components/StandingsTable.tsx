@@ -25,7 +25,7 @@ function FormChip({ game, team, below }: { game: FormGame; team: string; below: 
       </span>
       <span
         role="tooltip"
-        className={`pointer-events-none absolute left-0 z-30 hidden w-max max-w-[18rem] rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block ${
+        className={`pointer-events-none absolute left-0 z-30 hidden w-max max-w-[18rem] rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left shadow-xl group-focus-within:block group-hover:block ${
           below ? "top-full mt-1.5" : "bottom-full mb-1.5"
         }`}
       >
@@ -58,10 +58,10 @@ export default function StandingsTable({
   highlight?: { home: string; away: string };
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="overflow-x-auto glass">
       <table className="w-full min-w-[52rem] text-sm">
         <thead>
-          <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
+          <tr className="border-b border-white/[0.07] text-[11px] uppercase tracking-wide text-neutral-500">
             <th className="px-2 py-2 text-left font-semibold">#</th>
             <th className="px-2 py-2 text-left font-semibold">Equipa</th>
             <th className="px-2 py-2 text-right font-semibold">J</th>
@@ -83,7 +83,7 @@ export default function StandingsTable({
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-neutral-800/70">
+        <tbody className="divide-y divide-white/[0.05]">
           {lines.map(({ standing: s, rating: r }, i) => {
             const side = highlight?.home === s.team ? "home" : highlight?.away === s.team ? "away" : null;
             return (

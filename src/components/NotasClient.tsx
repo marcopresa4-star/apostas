@@ -93,7 +93,7 @@ export default function NotasClient({ initial }: { initial: string }) {
           type="button"
           onClick={() => void saveNow()}
           title="Guardar já"
-          className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
+          className="shrink-0 rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-emerald-500 hover:text-emerald-300"
         >
           Guardar
         </button>
@@ -104,7 +104,7 @@ export default function NotasClient({ initial }: { initial: string }) {
         maxLength={MAX}
         spellCheck
         placeholder="Escreve aqui as tuas notas: jogos a seguir, ideias de apostas, lembretes…"
-        className="min-h-[38rem] w-full flex-1 resize-y rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+        className="min-h-[38rem] w-full flex-1 resize-y rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
       />
       {state === "falhou" && (
         <button

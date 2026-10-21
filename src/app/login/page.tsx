@@ -9,9 +9,11 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(signIn, initialState);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-8 shadow-xl">
-        <h1 className="mb-1 text-xl font-semibold text-neutral-100">Apostas</h1>
+    <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="w-full max-w-sm glass p-8 shadow-xl">
+        <h1 className="mb-1 text-2xl font-bold tracking-tight text-neutral-100">
+          <span className="title-glow">Apostas</span>
+        </h1>
         <p className="mb-6 text-sm text-neutral-400">
           Inicia sessão para gerir as tuas apostas.
         </p>
@@ -27,7 +29,7 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
             />
           </div>
 
@@ -41,7 +43,7 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+              className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
             />
           </div>
 

@@ -243,7 +243,7 @@ export default function BotsClient({
           type="button"
           onClick={check}
           disabled={checking}
-          className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:border-neutral-500 disabled:opacity-50"
+          className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] disabled:opacity-50"
         >
           {checking ? "A verificar…" : "Verificar agora"}
         </button>
@@ -285,7 +285,7 @@ export default function BotsClient({
           <button
             type="button"
             onClick={askPerm}
-            className="rounded-lg border border-neutral-700 px-4 py-2 text-sm text-neutral-300 transition hover:border-neutral-500"
+            className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18]"
           >
             Ativar notificações
           </button>
@@ -300,7 +300,7 @@ export default function BotsClient({
         <WatchHeartbeat />
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+      <div className="glass p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-neutral-200">
             Os teus bots · {bots.filter((b) => b.enabled).length} ativos
@@ -308,7 +308,7 @@ export default function BotsClient({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-300 outline-none"
+            className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-300 outline-none"
           >
             <option value="padrao">Ordenar: padrão</option>
             <option value="alertas">Ordenar: mais alertas</option>
@@ -327,7 +327,7 @@ export default function BotsClient({
               const pass = passing[b.id];
               const rows = diag[b.id] ?? [];
               return (
-                <div key={b.id} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-3">
+                <div key={b.id} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-neutral-100">
@@ -348,14 +348,14 @@ export default function BotsClient({
                         setEditing(b);
                         setFormOpen(true);
                       }}
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
+                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
                     >
                       Editar
                     </button>
                     <button
                       type="button"
                       onClick={() => toggleBotAction(b.id, !b.enabled)}
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
+                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
                     >
                       {b.enabled ? "Pausar" : "Ativar"}
                     </button>
@@ -364,14 +364,14 @@ export default function BotsClient({
                       onClick={() => {
                         if (confirm(`Apagar "${b.name}" e os seus alertas?`)) deleteBotAction(b.id);
                       }}
-                      className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-red-300 hover:border-red-800"
+                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-red-300 hover:border-red-800"
                     >
                       Apagar
                     </button>
                     </div>
                   </div>
                   {rows.length > 0 && (
-                    <details className="mt-2 border-t border-neutral-800/60 pt-2">
+                    <details className="mt-2 border-t border-white/[0.07] pt-2">
                       <summary className="cursor-pointer text-[11px] font-medium text-neutral-400 hover:text-neutral-200">
                         Ver jogos ({rows.length}) — porque cumprem ou não
                       </summary>
@@ -394,7 +394,7 @@ export default function BotsClient({
         )}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+      <div className="glass p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-neutral-200">Alertas dos bots · {all.length}</h2>
           <button
@@ -402,7 +402,7 @@ export default function BotsClient({
             onClick={() => {
               if (all.length > 0 && confirm("Limpar todos os alertas?")) clearAlertsAction();
             }}
-            className="rounded-lg border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-neutral-500"
+            className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
           >
             Limpar
           </button>
@@ -412,7 +412,7 @@ export default function BotsClient({
         ) : (
           <div className="space-y-1.5 text-sm">
             {all.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2">
+              <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2">
                 <p className="min-w-0 truncate text-neutral-200">
                   <span className={a.hit === true ? "font-bold text-emerald-400" : a.hit === false ? "font-bold text-red-400" : "text-neutral-500"}>
                     {a.hit === true ? "✓ " : a.hit === false ? "✗ " : ""}

@@ -60,6 +60,13 @@ body::before {
   backdrop-filter: blur(14px);
 }
 
+/* Small inner panel: chips rails, sub-cards inside a glass panel. */
+.glass-sm {
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.03);
+}
+
 /* Gradient accent for one highlighted word or number in a heading. */
 .title-glow {
   background: linear-gradient(90deg, #6ee7b7, #34d399 55%, #22d3ee);

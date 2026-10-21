@@ -140,7 +140,7 @@ export default async function CalibracaoPage() {
 
       <EstatisticasTabs />
 
-      <div className="mb-4 max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+      <div className="mb-4 max-w-4xl glass p-5">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
             <p className="text-2xl font-bold text-neutral-100">{decided.length}</p>
@@ -166,7 +166,7 @@ export default async function CalibracaoPage() {
         {groups.map((g) => {
           const a = agg(decided.filter((r) => r.pick_group === g));
           return (
-            <div key={g} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+            <div key={g} className="glass p-4">
               <h3 className="mb-2 text-sm font-semibold text-neutral-300">{groupName[g]}</h3>
               {a.n === 0 ? (
                 <p className="text-xs text-neutral-500">Ainda sem casos decididos.</p>
@@ -182,7 +182,7 @@ export default async function CalibracaoPage() {
       </div>
 
       {leagueRows.length > 0 && (
-        <div className="mb-4 max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="mb-4 max-w-4xl glass p-4">
           <h3 className="mb-2 text-sm font-semibold text-neutral-300">Por liga</h3>
           <div className="space-y-1 text-xs tabular-nums">
             {leagueRows.map((l) => (
@@ -202,7 +202,7 @@ export default async function CalibracaoPage() {
       )}
 
       {recent.length > 0 && (
-        <div className="max-w-4xl rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="max-w-4xl glass p-4">
           <h3 className="mb-2 text-sm font-semibold text-neutral-300">Últimas decididas</h3>
           <div className="space-y-1 text-xs tabular-nums">
             {recent.map((r) => (

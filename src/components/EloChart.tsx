@@ -38,7 +38,7 @@ export default function EloChart({
     );
   };
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Elo das equipas (últimos {n} jogos)</h3>
       <CurveChart
         aria={`Elo de ${home} e ${away}`}

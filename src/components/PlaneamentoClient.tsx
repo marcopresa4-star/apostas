@@ -116,7 +116,7 @@ export default function PlaneamentoClient({
       </div>
 
       {tables.length === 0 && (
-        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           Ainda não tens tabelas. Cria a primeira: nome, padrão (cantos/golos/amarelos por intervalo) e as competições —
           eu vou buscar os jogos de hoje e amanhã que encaixem.
         </p>
@@ -128,7 +128,7 @@ export default function PlaneamentoClient({
           const data = scanState.data;
           const c0 = t.criteria[0];
           return (
-            <section key={t.id} className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
+            <section key={t.id} className="glass p-4">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-100">
                   {t.name}{" "}
@@ -194,14 +194,14 @@ export default function PlaneamentoClient({
               </div>
 
               {!min.has(t.id) && scanState.status === "idle" && (
-                <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+                <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-neutral-500">
                   <button type="button" onClick={() => scan(t)} className="underline">
                     Analisar
                   </button>
                 </p>
               )}
               {!min.has(t.id) && scanState.status === "loading" && (
-                <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-8 text-center text-xs text-neutral-500">
+                <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-8 text-center text-xs text-neutral-500">
                   A analisar os jogos… (a primeira vez demora: lê os lances dos jogos recentes)
                 </p>
               )}
@@ -213,7 +213,7 @@ export default function PlaneamentoClient({
               {!min.has(t.id) && scanState.status === "ok" && data && (
                 <>
                   {data.jogos.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-xs text-neutral-500">
+                    <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-neutral-500">
                       Nenhum jogo de hoje/amanhã cumpre o padrão.
                     </p>
                   ) : (
@@ -231,7 +231,7 @@ export default function PlaneamentoClient({
                         return (
                           <li
                             key={`${g.eventId}`}
-                            className="flex items-center gap-3 rounded-xl border border-neutral-800/70 bg-neutral-950 px-3 py-2"
+                            className="flex items-center gap-3 rounded-xl border border-white/[0.07]/70 bg-white/[0.03] px-3 py-2"
                           >
                             <span className="w-10 shrink-0 text-xs tabular-nums text-neutral-400">
                               {g.time ? g.time.slice(0, 5) : "—"}

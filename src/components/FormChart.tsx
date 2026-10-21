@@ -68,7 +68,7 @@ export default function FormChart({ name, games }: { name: string; games: TeamGa
               <div
                 key={t}
                 aria-hidden
-                className="absolute inset-x-0 border-t border-neutral-800"
+                className="absolute inset-x-0 border-t border-white/[0.07]"
                 style={{ bottom: `${(t / top) * 100}%` }}
               />
             ))}
@@ -85,7 +85,7 @@ export default function FormChart({ name, games }: { name: string; games: TeamGa
                   />
                   <span
                     role="tooltip"
-                    className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-left shadow-xl group-hover:block"
+                    className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left shadow-xl group-hover:block"
                   >
                     <span className="block text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
                       {dayMonth(g.date)} · {g.competition ? `${g.competition} · ` : ""}

@@ -60,7 +60,7 @@ export default async function EquipaPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🔍 Análise Equipa</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🔍 <span className="title-glow">Análise Equipa</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Escolhe uma equipa das ligas mapeadas e vê a época, a forma e quando marca e sofre.
       </p>
@@ -104,7 +104,7 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
   }
   if (!data.teams.includes(team)) {
     return (
-      <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-6 text-center text-sm text-neutral-500">
+      <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-sm text-neutral-500">
         "{equipa}" não está nos dados ({league.label}).{" "}
         <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
           Ver no Mapa
@@ -126,7 +126,7 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 shadow-sm">
+      <div className="glass p-4 shadow-sm">
         <p className="text-[11px] uppercase tracking-wide text-neutral-500">{league.label}</p>
         <h2 className="text-lg font-semibold text-neutral-100">{team}</h2>
         <p className="mt-1 text-sm text-neutral-300">
@@ -149,12 +149,12 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
         <TeamForm team={team} matches={data.matches} />
         <div className="space-y-4">
           <GoalTimingCard home={team} away="" timing={{ home: timing, away: null }} />
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+          <div className="glass p-4">
             <h3 className="mb-2 text-sm font-semibold text-neutral-300">Próximos jogos</h3>
             {next.length === 0 ? (
               <p className="text-xs text-neutral-500">Sem jogos marcados nos dados.</p>
             ) : (
-              <div className="divide-y divide-neutral-800/60">
+              <div className="divide-y divide-white/[0.05]">
                 {next.map((f) => (
                   <div key={`${f.date}-${f.team1}`} className="flex items-center justify-between gap-2 py-1.5 text-xs">
                     <span className="text-neutral-500">

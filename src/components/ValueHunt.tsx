@@ -19,7 +19,7 @@ export default function ValueHunt({ items }: { items: ValueItem[] }) {
     .sort((a, b) => b.real / b.minOdd - a.real / a.minOdd);
   if (hits.length === 0) return null;
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Caça-valor (≥1,65)</h3>
       <p className="mb-2 text-[11px] text-neutral-500">
         Mercados com odd real a 1,65 ou acima e ≥35% do modelo. Só o que tem preço.

@@ -433,7 +433,7 @@ export default function LiveEvolutionChart({
   };
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-neutral-300">Evolução ao vivo</h3>
         <select
@@ -443,7 +443,7 @@ export default function LiveEvolutionChart({
             setHidden(new Set());
           }}
           title="Filtro de legenda"
-          className="max-w-56 truncate rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-200 outline-none"
+          className="max-w-56 truncate rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-200 outline-none"
         >
           <option value={DEFAULT_NAME}>{DEFAULT_NAME}</option>
           <option value={ALL_NAME}>{ALL_NAME}</option>
@@ -551,7 +551,7 @@ export default function LiveEvolutionChart({
             </svg>
             {hov && hovModel && (
               <div
-                className="pointer-events-none absolute z-10 min-w-40 max-w-60 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
+                className="pointer-events-none absolute z-10 min-w-40 max-w-60 rounded-lg border border-white/[0.09] bg-white/[0.03]/95 px-3 py-2 text-xs shadow-xl"
                 style={{ left: `${Math.min(70, (x(plotMinute(hov)) / W) * 100)}%`, top: "4%" }}
               >
                 <p className="font-semibold text-neutral-100">
@@ -583,7 +583,7 @@ export default function LiveEvolutionChart({
           {goals.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {goals.map((gl, i) => (
-                <span key={i} className="rounded-full border border-neutral-800 bg-neutral-950 px-2 py-0.5 text-[11px] text-neutral-300">
+                <span key={i} className="rounded-full border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[11px] text-neutral-300">
                   ⚽ {gl.minute}&apos; ({gl.home ? homeName : awayName})
                 </span>
               ))}
@@ -612,7 +612,7 @@ export default function LiveEvolutionChart({
                     }
                     title={off ? "Mostrar série" : empty ? "Sem leituras neste jogo" : "Esconder série (não mexe no filtro)"}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] transition ${
-                      off ? "border-neutral-800 text-neutral-600" : "border-neutral-700 text-neutral-300"
+                      off ? "border-white/[0.07] text-neutral-600" : "border-white/[0.09] text-neutral-300"
                     }`}
                   >
                     <svg width="18" height="8" aria-hidden className="shrink-0">
@@ -630,7 +630,7 @@ export default function LiveEvolutionChart({
           Filtros de legenda
         </summary>
         <div className="mt-2 space-y-1.5">
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
             <span className="text-neutral-200">
               {DEFAULT_NAME} <span className="ml-1 rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">Padrão</span>
             </span>
@@ -646,7 +646,7 @@ export default function LiveEvolutionChart({
             </button>
           </div>
           {filters.map((f) => (
-            <div key={f.name} className="flex items-center justify-between gap-2 rounded-lg bg-neutral-950 px-3 py-2 text-xs">
+            <div key={f.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
               <span className="min-w-0 flex-1 truncate text-neutral-200">
                 {f.name}
                 {f.name === defName && <span className="ml-1 text-neutral-500">★</span>}
@@ -721,13 +721,13 @@ export default function LiveEvolutionChart({
             + Novo filtro
           </button>
           {formOpen && (
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+            <div className="rounded-lg border border-white/[0.07] bg-white/[0.03] p-3">
               <input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="Nome do filtro…"
                 maxLength={30}
-                className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
+                className="mb-2 w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-2 py-1.5 text-xs text-neutral-100 outline-none placeholder:text-neutral-600 focus:border-emerald-500"
               />
               {cats.map((cat) => (
                 <div key={cat} className="mb-1.5">
@@ -743,7 +743,7 @@ export default function LiveEvolutionChart({
                           className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
                             formSet.has(d.id)
                               ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                              : "border-neutral-800 text-neutral-500"
+                              : "border-white/[0.07] text-neutral-500"
                           }`}
                         >
                           {d.label}

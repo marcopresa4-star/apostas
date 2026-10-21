@@ -452,18 +452,18 @@ export default async function DayDetail({
         )}
       </div>
       {shown.length === 0 ? (
-        <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           {diretos ? "Nenhum jogo a decorrer agora nos filtros escolhidos." : "Sem jogos para a detalhada neste dia e filtros."}
         </p>
       ) : (
         shown.map((lg) => (
-          <div key={lg.code} className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
-            <p className="border-b border-neutral-800 bg-neutral-800/40 px-4 py-2 text-sm font-semibold text-neutral-200">
+          <div key={lg.code} className="overflow-x-auto glass">
+            <p className="border-b border-white/[0.07] bg-white/[0.05] px-4 py-2 text-sm font-semibold text-neutral-200">
               {lg.label} · {lg.rows.length} {lg.rows.length === 1 ? "jogo" : "jogos"}
             </p>
             <table className="w-full min-w-[64rem] text-sm">
               <thead>
-                <tr className="border-b border-neutral-800 text-[10px] uppercase tracking-wide text-neutral-500">
+                <tr className="border-b border-white/[0.07] text-[10px] uppercase tracking-wide text-neutral-500">
                   <th className="px-4 py-2 text-left font-semibold">Hora</th>
                   <th className="px-2 py-2 text-left font-semibold">Liga</th>
                   <th className="px-2 py-2 text-left font-semibold">Jogo</th>
@@ -480,12 +480,12 @@ export default async function DayDetail({
                   <th className="px-2 py-2 text-right font-semibold" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800/60">
+              <tbody className="divide-y divide-white/[0.05]">
                 {lg.rows.map((r) => {
                   const gl = r.lg;
                   const isLive = gl !== undefined && (gl.phase === "live" || gl.phase === "halftime");
                   return (
-                    <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-neutral-800/40 ${r.fragile ? "opacity-55" : ""}`}>
+                    <tr key={`${r.eventId ?? "x"}|${r.home}|${r.away}|${r.time ?? ""}`} className={`transition-colors hover:bg-white/[0.06]/40 ${r.fragile ? "opacity-55" : ""}`}>
                       <td className="whitespace-nowrap px-4 py-2.5 tabular-nums">
                         {isLive && gl !== undefined ? (
                           <span className="font-semibold text-red-400">

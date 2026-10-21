@@ -141,7 +141,7 @@ export default function PinnedLineups({
   if (failed) return <p className="mt-2 text-[11px] text-neutral-500">Sem onzes para este jogo.</p>;
   if (!sides) return <p className="mt-2 text-[11px] text-neutral-500">A ler os onzes…</p>;
   return (
-    <div className="mt-2 border-t border-neutral-800 pt-2">
+    <div className="mt-2 border-t border-white/[0.07] pt-2">
       <div className="flex flex-col gap-3 sm:flex-row">
         {sides.home ? (
           <Pitch side={sides.home} team={homeName} color="#0284c7" />

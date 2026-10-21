@@ -73,7 +73,7 @@ export default async function ValuePage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">💎 Value Bets</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">💎 <span className="title-glow">Value Bets</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Compara a odd da casa com a probabilidade do modelo: só aparece onde a odd paga acima do justo (valor
         esperado positivo). Valor não é garantia — é vantagem a longo prazo. Gere a banca com responsabilidade.
@@ -88,7 +88,7 @@ export default async function ValuePage({
         <Suspense
           key={`${ligas.join(",")}|${mercados.join(",")}|${edgeMin}|${oddMax ?? "x"}|${conf}|${datas}`}
           fallback={
-            <p className="max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+            <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
               A analisar os jogos… (a primeira vez demora minutos: é uma leitura de odds por jogo)
             </p>
           }
@@ -257,29 +257,29 @@ async function ValueResults({
   return (
     <div>
       <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-center">
+        <div className="glass p-4 text-center">
           <p className="text-2xl font-bold text-emerald-400">{picks.length}</p>
           <p className="text-[11px] uppercase tracking-wide text-neutral-500">value bets</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-center">
+        <div className="glass p-4 text-center">
           <p className="text-2xl font-bold text-emerald-400">{picks.length > 0 ? `+${Math.round(avgEdge * 100)}%` : "—"}</p>
           <p className="text-[11px] uppercase tracking-wide text-neutral-500">edge médio</p>
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-center">
+        <div className="glass p-4 text-center">
           <p className="truncate text-sm font-bold text-neutral-100">{best ? `${best.home} (${best.market})` : "—"}</p>
           <p className="text-[11px] uppercase tracking-wide text-neutral-500">melhor ({best ? `+${Math.round(best.edge * 100)}%` : "—"})</p>
         </div>
       </div>
 
       {picks.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+        <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           Sem valor com estes filtros: {fixturesTotal} jogos no período, {oddsTotal} com odds reais. Alarga as datas,
           baixa o edge ou inclui mais ligas.
         </p>
       ) : (
         <div className="space-y-3">
           {picks.map((p) => (
-            <div key={`${p.league}|${p.home}|${p.away}|${p.market}`} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+            <div key={`${p.league}|${p.home}|${p.away}|${p.market}`} className="glass p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-neutral-100">

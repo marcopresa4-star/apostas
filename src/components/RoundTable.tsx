@@ -32,10 +32,10 @@ export default function RoundTable({
   matches?: PlayedMatch[];
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900">
+    <div className="overflow-x-auto glass">
       <table className="w-full min-w-[46rem] text-sm">
         <thead>
-          <tr className="border-b border-neutral-800 text-left text-[11px] uppercase tracking-wide text-neutral-500">
+          <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
             <th className="px-3 py-2 font-semibold">Jogo</th>
             <th className="px-3 py-2 font-semibold">Casa · Empate · Fora</th>
             <th className="px-3 py-2 text-right font-semibold">Golos</th>
@@ -44,7 +44,7 @@ export default function RoundTable({
             <th className="px-3 py-2 font-semibold">Aposta sugerida</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-neutral-800/70">
+        <tbody className="divide-y divide-white/[0.05]">
           {rows.map(({ fixture: f, status, prediction: p, pick, fragile }, i) => (
             <tr key={`${f.date}-${f.team1}-${f.team2}-${i}`} className="align-top">
               <td className="px-3 py-2.5">

@@ -83,7 +83,7 @@ export default async function PrevisoesPage({
       key={label}
       href={href}
       className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-        on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-neutral-800 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+        on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"
       }`}
     >
       {label}
@@ -92,7 +92,7 @@ export default async function PrevisoesPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-xl font-semibold">🔮 Previsões do dia</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">🔮 <span className="title-glow">Previsões do dia</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         O que é mais provável acontecer hoje, mercado a mercado · {dayLabel}
       </p>
@@ -107,7 +107,7 @@ export default async function PrevisoesPage({
       <Suspense
         key={`${today}|${cat.id}|${market.key}`}
         fallback={
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
             A calcular as probabilidades de hoje…
           </p>
         }
@@ -211,7 +211,7 @@ async function PrevisoesBoard({
 
   if (ranked.length === 0) {
     return (
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-12 text-center">
+      <div className="glass px-4 py-12 text-center">
         <p className="text-3xl">⭐</p>
         <p className="mt-2 text-sm font-semibold text-neutral-200">Sem jogos por começar hoje nas ligas mapeadas</p>
         <p className="mt-1 text-xs text-neutral-500">
@@ -226,7 +226,7 @@ async function PrevisoesBoard({
   return (
     <div className="space-y-2.5 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
       {ranked.map((r, i) => (
-        <div key={`${r.league}|${r.home}|${r.away}|${r.title}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+        <div key={`${r.league}|${r.home}|${r.away}|${r.title}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 glass px-4 py-3">
           <span className="w-7 shrink-0 text-lg font-bold tabular-nums text-neutral-600">{i + 1}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium text-neutral-100">

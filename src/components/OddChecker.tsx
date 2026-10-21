@@ -50,7 +50,7 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
   const percent = (p: number) => `${(p * 100).toFixed(1).replace(".", ",")}%`;
 
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">Comparar com a odd da casa</h3>
       <p className="mb-3 text-xs text-neutral-500">
         {realByKey && Object.keys(realByKey).length > 0
@@ -62,7 +62,7 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
         <select
           value={index}
           onChange={(e) => setChosen(`${markets[Number(e.target.value)].group}|${markets[Number(e.target.value)].label}`)}
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+          className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
         >
           {groups.map((group) => (
             <optgroup key={group} label={group}>
@@ -82,7 +82,7 @@ export default function OddChecker({ markets, realByKey, realOpenByKey }: { mark
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Ex: 1.85"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
+          className="w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500"
         />
       </div>
 

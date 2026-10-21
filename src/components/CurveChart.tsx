@@ -189,7 +189,7 @@ export default function CurveChart({
       </svg>
       {hov !== null && (
         <div
-          className="pointer-events-none absolute z-10 min-w-44 max-w-60 rounded-lg border border-neutral-700 bg-neutral-950/95 px-3 py-2 text-xs shadow-xl"
+          className="pointer-events-none absolute z-10 min-w-44 max-w-60 rounded-lg border border-white/[0.09] bg-white/[0.03]/95 px-3 py-2 text-xs shadow-xl"
           style={{ left: `${Math.min(70, Math.max(0, (x(hov) / W) * 100 - 6))}%`, top: "4%" }}
         >
           <p className="mb-1 font-semibold text-neutral-100">{dayMonth(dates[hov]?.date ?? "")}</p>

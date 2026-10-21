@@ -250,17 +250,17 @@ export function AuditIntlButton() {
             setRows(result.rows);
           })
         }
-        className="rounded-lg border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm font-medium text-neutral-200 transition hover:bg-neutral-800 disabled:opacity-60"
+        className="rounded-lg border border-white/[0.09] bg-white/[0.04] px-4 py-2 text-sm font-medium text-neutral-200 transition hover:bg-white/[0.06] disabled:opacity-60"
       >
         {isPending ? "A auditar… (vários minutos)" : "Auditar ligações"}
       </button>
       {rows && (
-        <span className="mt-2 block max-w-3xl rounded-xl border border-neutral-800 bg-neutral-950 p-3 text-xs leading-relaxed">
+        <span className="mt-2 block max-w-3xl rounded-xl border border-white/[0.07] bg-white/[0.03] p-3 text-xs leading-relaxed">
           {rows.length === 0 ? (
             <span className="text-emerald-400">Nenhuma ligação suspeita: tudo a seleções principais.</span>
           ) : (
             rows.map((r) => (
-              <span key={`${r.local}-${r.id}`} className="block border-b border-neutral-800/50 py-1 text-neutral-300">
+              <span key={`${r.local}-${r.id}`} className="block border-b border-white/[0.07]/50 py-1 text-neutral-300">
                 <span className="font-medium text-red-300">{r.local}</span> → {r.sofa} (id {r.id}) · {r.flag}
                 {r.tournaments.length > 0 && <span className="text-neutral-500"> · {r.tournaments.join(" · ")}</span>}
               </span>

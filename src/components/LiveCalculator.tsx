@@ -16,7 +16,7 @@ import { formatOdd } from "@/lib/multiples";
 import LiveEvolutionChart, { parseStatRows, saneEvo, type EvoSnap } from "./LiveEvolutionChart";
 
 const INPUT =
-  "w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
+  "w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
 const dot = (n: number) => n.toFixed(1).replace(".", ",");
 // Quarter lines need both decimals ("1,75", not "1,8").
 const qdot = (n: number) => n.toFixed(2).replace(".", ",");
@@ -68,7 +68,7 @@ function H2HCard({ meetings, home, away }: { meetings: PlayedMatch[]; home: stri
   const btts = Math.round((meetings.filter((m) => m.ft[0] > 0 && m.ft[1] > 0).length / meetings.length) * 100);
   const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-1 text-sm font-semibold text-neutral-300">
         Confrontos diretos · {meetings.length} {meetings.length === 1 ? "jogo" : "jogos"}
       </h3>
@@ -105,7 +105,7 @@ function FinalScoresChart({ scores }: { scores: { home: number; away: number; p:
   if (scores.length === 0) return null;
   const max = Math.max(...scores.map((s) => s.p), 0.01);
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-2 text-sm font-semibold text-neutral-300">Finais mais prováveis</h3>
       <div className="space-y-1.5 text-sm">
         {scores.map((s) => (
@@ -126,7 +126,7 @@ function FinalScoresChart({ scores }: { scores: { home: number; away: number; p:
 
 function Table({ title, rows }: { title: string; rows: Row[] }) {
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h3 className="mb-2 text-sm font-semibold text-neutral-300">{title}</h3>
       <div className="space-y-1.5 text-sm">
         {rows.map((row) => (
@@ -859,7 +859,7 @@ function Calculator({
   return (
     <div className="space-y-4">
       {hasSync && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3 text-xs">
+        <div className="glass px-4 py-3 text-xs">
           <label className="flex cursor-pointer items-center gap-2 text-neutral-300">
             <input type="checkbox" checked={syncOn} onChange={(e) => setSyncOn(e.target.checked)} className="accent-emerald-500" />
             Ler o resultado, o minuto e os cartões do {sourceName}, sozinho (de minuto a minuto)
@@ -916,7 +916,7 @@ function Calculator({
             </p>
           )}
           {syncOn && liveState && liveState.stats.length > 0 && (
-            <div className="mt-2 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">
+            <div className="mt-2 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
                 Estatísticas do jogo ({homeName} – {awayName})
               </p>
@@ -953,7 +953,7 @@ function Calculator({
           </p>
         </div>
       )}
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 shadow-sm">
+      <div className="glass p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_2fr]">
           <div>
             <label className="mb-1 block text-sm text-neutral-300">Minuto</label>
@@ -1099,7 +1099,7 @@ function Calculator({
         </details>
 
         {sourceLines.length > 0 && (
-          <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2">
+          <div className="mt-3 rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
               De onde vêm os golos esperados
             </p>
@@ -1134,7 +1134,7 @@ function Calculator({
             <select
               value={minOdd}
               onChange={(e) => setMinOdd(e.target.value)}
-              className="rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-neutral-100 outline-none focus:border-emerald-500"
+              className="rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1 text-neutral-100 outline-none focus:border-emerald-500"
             >
               {["1.3", "1.5", "1.8", "2"].map((v) => (
                 <option key={v} value={v}>
@@ -1256,7 +1256,7 @@ function Calculator({
       </div>
 
       {scorers && (scorers.home.length > 0 || scorers.away.length > 0) && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="glass p-4">
           <h3 className="mb-1 text-sm font-semibold text-neutral-300">Marca a qualquer altura</h3>
           <p className="mb-2 text-[11px] text-neutral-500">
             Titulares prováveis (85'), pelo ritmo de golos/xG da época. Sem penáltis designados.

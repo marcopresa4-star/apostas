@@ -669,7 +669,7 @@ export default function SofaLiveTable({
           type="button"
           onClick={() => setCompact((v) => !v)}
           title={compact ? "Ver com estatísticas" : "Ver só resultado"}
-          className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-400 transition hover:text-neutral-200"
+          className="rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-sm text-neutral-400 transition hover:text-neutral-200"
         >
           {compact ? "▦ Compacta" : "☰ Detalhada"}
         </button>
@@ -694,7 +694,7 @@ export default function SofaLiveTable({
       </div>
       <div className="max-h-[75vh] overflow-auto rounded-2xl border border-white/[0.08] bg-[#0a0f18]/60 shadow-[0_12px_32px_-16px_rgba(0,0,0,0.7)] backdrop-blur-sm">
         {pinnedRows.length > 0 && (
-          <div className="border-b border-neutral-800 p-4">
+          <div className="border-b border-white/[0.07] p-4">
             <div className="mb-2 flex items-center gap-1.5">
               <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Afixados por linha</span>
               {([1, 2, 3] as const).map((n) => (
@@ -706,7 +706,7 @@ export default function SofaLiveTable({
                   className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
                     pinnedCols === n
                       ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-                      : "border border-neutral-700 text-neutral-400 hover:text-neutral-200"
+                      : "border border-white/[0.09] text-neutral-400 hover:text-neutral-200"
                   }`}
                 >
                   {n}
@@ -826,7 +826,7 @@ export default function SofaLiveTable({
         )}
         <table className="w-full min-w-[64rem] text-sm">
           <thead className="sticky top-0 z-10 bg-[#0a0f18]/95 shadow-[0_1px_0_0_rgba(255,255,255,0.08)]">
-            <tr className="border-b border-neutral-800 text-[11px] uppercase tracking-wide text-neutral-500">
+            <tr className="border-b border-white/[0.07] text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="px-2 py-2.5 font-semibold"></th>
               <th className="px-3 py-2.5 text-left font-semibold">Minuto</th>
               <th className="px-3 py-2.5 text-left font-semibold">Jogo</th>

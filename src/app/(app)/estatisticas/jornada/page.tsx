@@ -62,7 +62,7 @@ export default async function JornadaPage({
         action="/estatisticas/jornada"
       />
       {league && !mapped && !intlLinked && (
-        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-neutral-800 px-4 py-3 text-xs leading-relaxed text-neutral-400">
+        <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-3 text-xs leading-relaxed text-neutral-400">
           Sem dados desta liga no SofaScore.{" "}
           <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
             Mapear no Mapa SofaScore
@@ -73,7 +73,7 @@ export default async function JornadaPage({
 
       <Suspense
         fallback={
-          <p className="rounded-xl border border-dashed border-neutral-800 px-4 py-10 text-center text-sm text-neutral-500">
+          <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
             A carregar os jogos… (seleções e primeiras cargas demoram; depois é cache)
           </p>
         }
@@ -305,7 +305,7 @@ async function JornadaBody({
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                     r.name === chosen.name
                       ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
-                      : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800"
+                      : "bg-neutral-900 text-neutral-400 hover:bg-white/[0.06]"
                   }`}
                 >
                   {label}
@@ -322,7 +322,7 @@ async function JornadaBody({
           />
 
           {checked.length > 0 && (
-            <details className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+            <details className="mt-4 glass px-4 py-3">
               <summary className="cursor-pointer text-sm font-medium text-neutral-200 hover:text-neutral-100">
                 Conferido esta época: {checkedWon} em {checked.length} sugestões certas (
                 {Math.round((checkedWon / checked.length) * 100)}

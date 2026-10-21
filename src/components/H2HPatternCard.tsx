@@ -14,7 +14,7 @@ const CHIP = {
 // One way round: the team at home, with how those games went.
 function VenueBlock({ host, guest, split }: { host: string; guest: string; split: VenueSplit | null }) {
   return (
-    <div className="rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+    <div className="rounded-lg border border-white/[0.07] bg-white/[0.03] p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
         Com {host} em casa {split ? `· ${split.games} ${split.games === 1 ? "jogo" : "jogos"}` : ""}
       </p>
@@ -69,7 +69,7 @@ export default function H2HPatternCard({
   if (pattern.total === 0) return null;
   const s = pattern.homeAtHome;
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+    <div className="glass p-4">
       <h2 className="text-sm font-semibold text-neutral-300">Padrão dos confrontos diretos</h2>
       <p className="mb-3 text-xs text-neutral-500">
         {pattern.total} {pattern.total === 1 ? "jogo" : "jogos"} {international ? "entre seleções" : "nesta liga"}
@@ -83,7 +83,7 @@ export default function H2HPatternCard({
         <VenueBlock host={away} guest={home} split={pattern.awayAtHome} />
       </div>
       {pattern.neutral && (
-        <div className="mt-3 rounded-lg border border-neutral-800 bg-neutral-950 p-3">
+        <div className="mt-3 rounded-lg border border-white/[0.07] bg-white/[0.03] p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
             Em campo neutro · {pattern.neutral.games} {pattern.neutral.games === 1 ? "jogo" : "jogos"}
           </p>
