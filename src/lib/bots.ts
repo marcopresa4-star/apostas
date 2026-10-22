@@ -16,11 +16,41 @@ export type PregameSide = "home" | "away" | "either";
 export type PregameMetric = "total_over15" | "total_over25" | "btts" | "sh_over05" | "sh_over15" | "fh_over05" | "fh_over15";
 
 export interface PregameRule {
+  kind?: "hist";
   side: PregameSide;
   metric: PregameMetric;
   n: number;
   pct: number;
 }
+
+// Section «Antes do jogo» (form) — three criteria kinds. Old rows (from
+// before the redesign) come without `kind` and stay hist. All rules must
+// pass (AND) before the bot watches a game live.
+export type PregameAvgStat = "corners_total" | "corners_fh" | "corners_sh" | "goals_total" | "goals_fh" | "goals_sh";
+export type PregameOddWhich = "fav" | "home" | "away";
+export type PregameFavState = "any" | "winning" | "drawing" | "losing" | "not_winning";
+
+export interface AvgRule {
+  kind: "avg";
+  side: PregameSide;
+  metric: PregameAvgStat;
+  n: number; // fixed 10 in the form
+  cmp: "gte" | "lte"; // ≥ no mínimo / ≤ no máximo
+  v: number;
+}
+
+export interface OddRule {
+  kind: "odd";
+  which: PregameOddWhich; // side whose pre-match odd the check uses
+  cmp: "gte" | "lte";
+  v: number; // pre-match 1X2 odd
+  favState: PregameFavState; // live state of the pre-match favourite
+}
+
+export type PregameRow = (PregameRule & { kind?: "hist" }) | AvgRule | OddRule;
+
+export const isAvgRow = (r: PregameRow): r is AvgRule => r.kind === "avg";
+export const isOddRow = (r: PregameRow): r is OddRule => r.kind === "odd";
 
 export interface Bot {
   id: string;
@@ -37,7 +67,7 @@ export interface Bot {
   min_prob: number | null;
   min_odd: number | null;
   stats: BotStat[];
-  pregame: PregameRule[];
+  pregame: PregameRow[];
   refire: boolean;
   goals: GoalRules;
 }
@@ -243,8 +273,7 @@ export function secondHalfShares(games: PlayedMatch[], team: string, n: number):
 // One pre-game rule over league history (home/away = that side's last n;
 // either = at least one side passes). No history, or too few games with
 // half-time scores for a second-half metric, fails closed.
-export function pregameOk(
-  rule: PregameRule,
+export function pregameOk(  rule: PregameRule,
   pool: PlayedMatch[],
   home: string,
   away: string
@@ -270,6 +299,107 @@ export function pregameOk(
   if (results.some((r) => r === null)) return false;
   return rule.side === "either" ? results.some((r) => r === true) : results.every((r) => r === true);
 }
+
+// Mean goals a team scored in its last n games of the pool — `total` from
+// the final score; the halves need half-time scores (fewer than 5 games with
+// HT = no data, fails closed). Real history only, like the rest of the model.
+export function goalAvg(pool: PlayedMatch[], team: string, part: "total" | "fh" | "sh", n = 10): number | null {
+  const last = pool
+    .filter((m) => m.team1 === team || m.team2 === team)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, Math.max(1, n));
+  const vals: number[] = [];
+  for (const m of last) {
+    const i = m.team1 === team ? 0 : 1;
+    if (part === "total") vals.push(m.ft[i]);
+    else if (m.ht) vals.push(part === "fh" ? m.ht[i] : m.ft[i] - m.ht[i]);
+  }
+  if (vals.length < 5) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+export const cmpGteLte = (cmp: "gte" | "lte", want: number, got: number): boolean =>
+  cmp === "gte" ? got >= want : got <= want;
+
+// «Média estatística» rule over the history pool (goals only — corners need
+// the event reads, which the check route performs).
+export function goalAvgOk(rule: AvgRule, pool: PlayedMatch[], home: string, away: string): boolean {
+  const part: "total" | "fh" | "sh" = rule.metric === "goals_total" ? "total" : rule.metric === "goals_fh" ? "fh" : "sh";
+  const sides = rule.side === "home" ? [home] : rule.side === "away" ? [away] : [home, away];
+  const results = sides.map((team) => {
+    const avg = goalAvg(pool, team, part, rule.n);
+    return avg !== null && cmpGteLte(rule.cmp, rule.v, avg);
+  });
+  // missing data on any chosen side fails closed (either = any side passing)
+  return rule.side === "either" ? results.some(Boolean) : results.every(Boolean);
+}
+
+export interface Pre1x2 {
+  home: number;
+  away: number;
+}
+
+// Live state of the pre-match favourite against the current score.
+export function favStateOk(state: PregameFavState, fav: "home" | "away", hg: number, ag: number): boolean {
+  const favAhead = fav === "home" ? hg > ag : ag > hg;
+  const favBehind = fav === "home" ? hg < ag : ag < hg;
+  switch (state) {
+    case "any":
+      return true;
+    case "winning":
+      return favAhead;
+    case "losing":
+      return favBehind;
+    case "drawing":
+      return hg === ag;
+    case "not_winning":
+      return !favAhead;
+  }
+}
+
+// «Odd pré-jogo» rule: pre-match 1X2 prices pick the favourite; the threshold
+// applies to the chosen side's odd, the state to the favourite's live score.
+// No pre-match 1X2 available = the game sits out (fail closed), per the form.
+export function oddPregameOk(rule: OddRule, pre: Pre1x2 | null, hg: number, ag: number): boolean {
+  if (!pre) return false;
+  const fav: "home" | "away" = pre.home <= pre.away ? "home" : "away";
+  const odd = rule.which === "home" ? pre.home : rule.which === "away" ? pre.away : fav === "home" ? pre.home : pre.away;
+  if (!cmpGteLte(rule.cmp, rule.v, odd)) return false;
+  return favStateOk(rule.favState, fav, hg, ag);
+}
+
+export const PREGAME_AVG_STATS: { key: PregameAvgStat; label: string }[] = [
+  { key: "corners_total", label: "Média de cantos no jogo" },
+  { key: "corners_fh", label: "Média de cantos na 1.ª parte" },
+  { key: "corners_sh", label: "Média de cantos na 2.ª parte" },
+  { key: "goals_total", label: "Média de golos no jogo" },
+  { key: "goals_fh", label: "Média de golos na 1.ª parte" },
+  { key: "goals_sh", label: "Média de golos na 2.ª parte" },
+];
+
+export const PREGAME_AVG_CMP: { key: "gte" | "lte"; label: string }[] = [
+  { key: "gte", label: "≥ no mínimo" },
+  { key: "lte", label: "≤ no máximo" },
+];
+
+export const PREGAME_ODD_CMP: { key: "gte" | "lte"; label: string }[] = [
+  { key: "lte", label: "≤ no máximo" },
+  { key: "gte", label: "≥ no mínimo" },
+];
+
+export const PREGAME_ODD_WHICH: { key: PregameOddWhich; label: string }[] = [
+  { key: "fav", label: "Favorito" },
+  { key: "home", label: "Casa" },
+  { key: "away", label: "Fora" },
+];
+
+export const PREGAME_FAV_STATES: { key: PregameFavState; label: string }[] = [
+  { key: "any", label: "Qualquer" },
+  { key: "losing", label: "A perder" },
+  { key: "drawing", label: "A empatar" },
+  { key: "not_winning", label: "Sem ganhar" },
+  { key: "winning", label: "A ganhar" },
+];
 
 // Settles a fired alert once the game finishes. Second-half markets need to
 // know when the alert fired: before the break the 2nd-half score is

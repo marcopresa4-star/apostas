@@ -75,8 +75,7 @@ function choiceKey(group: string, period: string, line: string | null, name: str
   return `${group}:${line ?? ""}:${n}`.toLowerCase();
 }
 
-export function parseOddsMarkets(body: unknown, eventId: number): ParsedOdds | null {
-  const markets = obj(body)?.markets;
+export function parseOddsMarkets(body: unknown, eventId: number): ParsedOdds | null {  const markets = obj(body)?.markets;
   if (!Array.isArray(markets)) return null;
   const out: RealMarket[] = [];
   for (const item of markets) {
@@ -146,6 +145,23 @@ export function oddsKeyFor(marketKey: string, home: string, away: string): strin
 // Our key -> the bookmaker's odd, tolerating name suffixes ("Seattle
 // Sounders" vs "Seattle Sounders FC" on the handicap lines). Exact match
 // first, containment after.
+// Pre-match 1X2 (not-live market, period ALL): the form's «Odd pré-jogo»
+// card. Requires home+draw+away prices in the same market packet.
+export function preMatch1x2(pack: { eventId: number; live: boolean; markets: { group: string; period: string; live: boolean; suspended: boolean; choices: { key: string; odd: number }[] }[] } | null): { home: number; away: number } | null {
+  if (!pack) return null;
+  for (const m of pack.markets) {
+    if (m.live || m.suspended) continue;
+    if (m.group.toLowerCase() !== "1x2") continue;
+    if (m.period.toLowerCase() !== "all") continue;
+    const pick = (k: string): number | null => m.choices.find((c) => c.key === k)?.odd ?? null;
+    const home = pick("ft:home");
+    const draw = pick("ft:draw");
+    const away = pick("ft:away");
+    if (home !== null && draw !== null && away !== null) return { home, away };
+  }
+  return null;
+}
+
 export function findRealOdd(
   byKey: Record<string, number>,
   marketKey: string,

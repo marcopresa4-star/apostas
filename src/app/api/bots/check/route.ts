@@ -13,26 +13,69 @@ import { loadMaps } from "@/lib/sofaHistory";
 import { resolveSofaLink } from "@/lib/sofaLeague";
 import { prematchFor } from "@/lib/sofaPrematch";
 import { eventOdds } from "@/lib/sofaOdds";
-import { findRealOdd } from "@/lib/oddsParse";
+import { findRealOdd, preMatch1x2 } from "@/lib/oddsParse";
 import { predictLive } from "@/lib/liveModel";
 import { leagueRates } from "@/lib/footballModel";
 import {
   BOT_MARKETS,
   BOT_SCORES,
+  cmpGteLte,
+  goalAvgOk,
   goalRulesOk,
   goalsNeutral,
+  oddPregameOk,
   pregameOk,
   scoreOk,
   settleAlert,
   snapMinute,
   statsOk,
   type Bot,
-  type PregameMetric,
+  type PregameAvgStat,
   type StatValues,
 } from "@/lib/bots";
+import { eventCorners, cachedRead, sofaTeamIdFor, teamEvents } from "@/lib/sofaHistory";
 
 const MAX_GAMES = 12;
 const MAX_SETTLE = 20;
+
+// Mean corners a team kept in its last n finished games («Média estatística»).
+// Team's last-events read is cached 1 h; per-event statistics 30 days.
+async function teamCornerAvg(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  teamId: number,
+  stat: PregameAvgStat,
+  n: number
+): Promise<number | null> {
+  const rows = await cachedRead<{ id: number; homeId: number }[]>(
+    supabase,
+    userId,
+    `teamlast:${teamId}`,
+    3_600_000,
+    async () => {
+      const { events } = await teamEvents(teamId, "last", 0);
+      return events.flatMap((e): { id: number; homeId: number }[] => {
+        const status = e.status as { type?: unknown } | null | undefined;
+        if (status?.type !== "finished") return [];
+        const id = num(e.id);
+        const homeId = num((e.homeTeam as { id?: unknown } | undefined)?.id);
+        return id !== null && homeId !== null ? [{ id, homeId }] : [];
+      });
+    },
+    undefined,
+    (v: unknown): boolean => Array.isArray(v)
+  );  if (!Array.isArray(rows)) return null;
+  const side = stat === "corners_total" ? "all" : stat === "corners_fh" ? "first" : "second";
+  const vals: number[] = [];
+  for (const r of rows) {
+    if (vals.length >= n) break;
+    const c = await eventCorners(supabase, userId, r.id);
+    if (!c) continue;
+    vals.push(r.homeId === teamId ? c[side][0] : c[side][1]);
+  }
+  if (vals.length < 5) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
 
 const num = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -440,17 +483,45 @@ export async function POST() {
         nope(fhTot === null && (gh.fh !== "any" || gh.sh !== "any") ? "golos (sem HT ainda)" : "golos (filtros)");
         continue;
       }
-      // Pre-game history filter (all rules required).
+      // Pre-game criteria («Antes do jogo»): EVERY rule must pass — hist
+      // rules over league history, médias de golos/cantos, odd pré-jogo.
       let ok = true;
       if (b.pregame.length > 0) {
         const league = await leagueOf(leagueCode);
         const pool = league?.data ? [...league.data.history, ...league.data.matches] : [];
         for (const rule of b.pregame) {
-          const r = rule as { side: "home" | "away" | "either"; metric: PregameMetric; n: number; pct: number };
-          if (!pregameOk(r, pool, casa, fora)) {
+          if (rule.kind === "avg") {
+            // Goals read straight from history; corners come from the teams'
+            // last finished events (statistics endpoint, cached 30 days).
+            if (rule.metric.startsWith("corners")) {
+              const teamNames = rule.side === "home" ? [casa] : rule.side === "away" ? [fora] : [casa, fora];
+              for (const name of teamNames) {
+                const teamId = await sofaTeamIdFor(supabase, user.id, name);
+                if (teamId === null) {
+                  ok = false;
+                  break;
+                }
+                const avg = await teamCornerAvg(supabase, user.id, teamId, rule.metric, rule.n);
+                if (avg === null || !cmpGteLte(rule.cmp, rule.v, avg)) {
+                  ok = false;
+                  break;
+                }
+              }
+            } else if (!goalAvgOk(rule, pool, casa, fora)) ok = false;
+          } else if (rule.kind === "odd") {
+            // Pre-match 1X2: from the same odds packet the live odd check uses;
+            // without pre-match prices the game sits out, como diz o form.
+            let pre: { home: number; away: number } | null = null;
+            try {
+              pre = preMatch1x2(await eventOdds(supabase, user.id, g.id, 60_000));
+            } catch {
+              pre = null;
+            }
+            if (!oddPregameOk(rule, pre, snap.hg, snap.ag)) ok = false;
+          } else if (!pregameOk(rule, pool, casa, fora)) {
             ok = false;
-            break;
           }
+          if (!ok) break;
         }
       }
       if (!ok) {

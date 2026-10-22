@@ -3,9 +3,13 @@ import { describe, it, expect } from "vitest";
 import {
   GOALS_NEUTRAL,
   firstHalfShares,
+  favStateOk,
   gatesOk,
+  goalAvg,
+  goalAvgOk,
   goalRulesOk,
   historyShares,
+  oddPregameOk,
   pregameOk,
   scoreOk,
   secondHalfShares,
@@ -134,6 +138,68 @@ describe("pregameOk", () => {
     expect(pregameOk({ side: "home", metric: "total_over15", n: 10, pct: 50 }, pool, "A", "B")).toBe(true);
     expect(pregameOk({ side: "home", metric: "total_over15", n: 10, pct: 80 }, pool, "A", "B")).toBe(false);
   });
+  it("avgs golos: média da equipa nos últimos jogos (≥/≤, falha sem dados)", () => {
+    const avgPool: PlayedMatch[] = [
+      M("A", "B", [2, 1], [1, 0], "2026-09-01"),
+      M("C", "A", [0, 3], [0, 1], "2026-09-03"),
+      M("A", "D", [1, 0], [0, 0], "2026-09-05"),
+      M("E", "A", [1, 2], [1, 1], "2026-09-07"),
+      M("A", "F", [0, 0], [0, 0], "2026-09-09"),
+    ];
+    // A: golos no jogo = 2+3+1+2+0 = 1,6 de média; 1ª parte = 0,6; 2ª = 1,0
+    expect(goalAvg(avgPool, "A", "total")).toBeCloseTo(1.6, 9);
+    expect(goalAvg(avgPool, "A", "fh")).toBeCloseTo(0.6, 9);
+    expect(goalAvg(avgPool, "A", "sh")).toBeCloseTo(1.0, 9);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_total", n: 10, cmp: "gte", v: 1 }, avgPool, "A", "B")).toBe(true);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_total", n: 10, cmp: "gte", v: 2 }, avgPool, "A", "B")).toBe(false);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_total", n: 10, cmp: "lte", v: 1.6 }, avgPool, "A", "B")).toBe(true);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_fh", n: 10, cmp: "gte", v: 0.5 }, avgPool, "A", "B")).toBe(true);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_sh", n: 10, cmp: "lte", v: 1 }, avgPool, "A", "B")).toBe(true);
+    // sem historial → fail closed
+    expect(goalAvgOk({ kind: "avg", side: "away", metric: "goals_total", n: 10, cmp: "gte", v: 1 }, avgPool, "A", "Z")).toBe(false);
+  });
+  it("avg golos por parte precisa de HT em 5 jogos", () => {
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_fh", n: 10, cmp: "gte", v: 0.5 }, pool, "A", "B")).toBe(false);
+    const noHt: PlayedMatch[] = [
+      M("A", "B", [2, 1], null, "2026-09-01"),
+      M("C", "A", [0, 2], null, "2026-09-03"),
+      M("A", "D", [1, 0], null, "2026-09-05"),
+      M("E", "A", [1, 1], null, "2026-09-07"),
+      M("A", "F", [0, 1], null, "2026-09-09"),
+    ];
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_fh", n: 10, cmp: "gte", v: 0.5 }, noHt, "A", "B")).toBe(false);
+    expect(goalAvgOk({ kind: "avg", side: "home", metric: "goals_total", n: 10, cmp: "gte", v: 1 }, noHt, "A", "B")).toBe(true);
+  });
+});
+
+describe("oddPregameOk / favStateOk", () => {
+  const pre = { home: 1.5, away: 6.0 }; // favorito = casa
+  it("favStateOk lê o placar ao vivo do lado favorito", () => {
+    expect(favStateOk("winning", "home", 1, 0)).toBe(true);
+    expect(favStateOk("winning", "home", 1, 1)).toBe(false);
+    expect(favStateOk("drawing", "away", 0, 0)).toBe(true);
+    expect(favStateOk("losing", "away", 2, 0)).toBe(true);
+    expect(favStateOk("not_winning", "home", 1, 1)).toBe(true);
+    expect(favStateOk("not_winning", "home", 2, 0)).toBe(false);
+    expect(favStateOk("any", "home", 0, 3)).toBe(true);
+  });
+  it("limiar aplica-se ao lado escolhido (fav = odd mais baixa)", () => {
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 2, favState: "any" }, pre, 0, 0)).toBe(true);
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 1.2, favState: "any" }, pre, 0, 0)).toBe(false);
+    expect(oddPregameOk({ kind: "odd", which: "home", cmp: "gte", v: 1.5, favState: "any" }, pre, 0, 0)).toBe(true);
+    expect(oddPregameOk({ kind: "odd", which: "away", cmp: "lte", v: 2, favState: "any" }, pre, 0, 0)).toBe(false);
+  });
+  it("estado do favorito conta no resultado", () => {
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 2, favState: "winning" }, pre, 1, 0)).toBe(true);
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 2, favState: "winning" }, pre, 0, 0)).toBe(false);
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 2, favState: "losing" }, pre, 0, 1)).toBe(true);
+  });
+  it("sem odds pré-jogo o jogo fica de fora (fail closed)", () => {
+    expect(oddPregameOk({ kind: "odd", which: "fav", cmp: "lte", v: 2, favState: "any" }, null, 0, 0)).toBe(false);
+  });
+});
+
+describe("pregameOk (multi-kinds)", () => {
   it("either needs one side, thin second-half history fails", () => {
     expect(pregameOk({ side: "either", metric: "btts", n: 10, pct: 50 }, pool, "A", "B")).toBe(true);
     expect(pregameOk({ side: "home", metric: "sh_over15", n: 10, pct: 10 }, pool, "A", "B")).toBe(false);

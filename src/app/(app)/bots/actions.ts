@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { BotMarket, BotMode, BotPeriod, BotStat, GoalCmp, GoalRules, PregameRule } from "@/lib/bots";
-import { BOT_MARKETS, BOT_SCORES, BOT_STATS, PREGAME_METRICS } from "@/lib/bots";
+import type { BotMarket, BotMode, BotPeriod, BotStat, GoalCmp, GoalRules, PregameAvgStat, PregameFavState, PregameRow, PregameRule, PregameSide } from "@/lib/bots";
+import { BOT_MARKETS, BOT_SCORES, BOT_STATS, PREGAME_AVG_STATS, PREGAME_FAV_STATES, PREGAME_METRICS } from "@/lib/bots";
 
 async function authed() {
   const supabase = await createClient();
@@ -36,7 +36,7 @@ interface CleanBot {
   min_prob: number | null;
   min_odd: number | null;
   stats: BotStat[];
-  pregame: PregameRule[];
+  pregame: PregameRow[];
   goal_rules: GoalRules;
   silent: boolean;
   refire: boolean;
@@ -70,15 +70,51 @@ function clean(input: Record<string, unknown>): CleanBot | { error: string } {
       }).slice(0, 14)
     : [];
   const metrics = new Set<string>(PREGAME_METRICS.map((m) => m.key));
-  const pregame: PregameRule[] = Array.isArray(input.pregame)
-    ? (input.pregame as unknown[]).flatMap((r): PregameRule[] => {
+  // «Antes do jogo»: hist rows (old bots, no kind), avg and odd rules.
+  // Malformed rows drop out instead of failing the whole save.
+  const sideOf = (v: unknown): PregameSide | null =>
+    v === "home" || v === "away" || v === "either" ? v : null;
+  const avgStats = new Set<string>(PREGAME_AVG_STATS.map((m) => m.key));
+  const floatOf = (v: unknown, lo: number, hi: number, fb: number): number => {
+    const n = num(v);
+    return n === null ? fb : Math.min(hi, Math.max(lo, Math.round(n * 100) / 100));
+  };
+  const pregame: PregameRow[] = Array.isArray(input.pregame)
+    ? (input.pregame as unknown[]).flatMap((r): PregameRow[] => {
         if (typeof r !== "object" || r === null) return [];
         const q = r as Record<string, unknown>;
-        if (q.side !== "home" && q.side !== "away" && q.side !== "either") return [];
-        if (typeof q.metric !== "string" || !metrics.has(q.metric)) return [];
-        const n = q.n === 5 || q.n === 20 ? q.n : 10;
-        return [{ side: q.side, metric: q.metric as PregameRule["metric"], n, pct: int(q.pct, 10, 100, 60) }];
-      }).slice(0, 4)
+        if (q.kind === "avg") {
+          const side = sideOf(q.side);
+          if (!side || typeof q.metric !== "string" || !avgStats.has(q.metric)) return [];
+          return [{
+            kind: "avg",
+            side,
+            metric: q.metric as PregameAvgStat,
+            n: 10,
+            cmp: q.cmp === "lte" ? "lte" : "gte",
+            v: floatOf(q.v, 0, 40, 5),
+          }];
+        }
+        if (q.kind === "odd") {
+          const which = q.which === "home" || q.which === "away" || q.which === "fav" ? q.which : null;
+          if (!which) return [];
+          const states = new Set<string>(PREGAME_FAV_STATES.map((s) => s.key));
+          return [{
+            kind: "odd",
+            which,
+            cmp: q.cmp === "gte" ? "gte" : "lte",
+            v: floatOf(q.v, 1, 20, 1.6),
+            favState: states.has(String(q.favState)) ? (q.favState as PregameFavState) : "any",
+          }];
+        }
+        if (typeof r === "object" && r !== null) {
+          const side = sideOf((r as Record<string, unknown>).side);
+          if (!side || typeof (r as Record<string, unknown>).metric !== "string" || !metrics.has((r as Record<string, unknown>).metric as string)) return [];
+          const n = (r as Record<string, unknown>).n === 5 || (r as Record<string, unknown>).n === 20 ? (r as Record<string, unknown>).n as number : 10;
+          return [{ side, metric: (r as Record<string, unknown>).metric as PregameRule["metric"], n, pct: int((r as Record<string, unknown>).pct, 10, 100, 60) }];
+        }
+        return [];
+      }).slice(0, 6)
     : [];
   // The 4 goal filters (total, difference, per half): unknown or malformed
   // keys fall back to neutral, so old drafts keep firing as before.
