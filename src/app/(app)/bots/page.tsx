@@ -3,6 +3,7 @@ import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import BotsClient, { type BotRow, type AlertRow } from "@/components/BotsClient";
+import { goalsNeutral } from "@/lib/bots";
 
 export default async function BotsPage() {
   await requireAdmin();
@@ -19,12 +20,14 @@ export default async function BotsPage() {
     label: l.label as string,
   }));
 
-  const { data: bots } = await supabase
+  const { data: botsRaw } = await supabase
     .from("bots")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: true })
-    .returns<BotRow[]>();
+    .returns<(Omit<BotRow, "goals"> & { goal_rules?: unknown })[]>();
+  // DB column is goal_rules; the Bot type calls it goals.
+  const bots = (botsRaw ?? []).map((b) => ({ ...b, goals: goalsNeutral(b.goal_rules) }));
   const { data: alerts } = await supabase
     .from("bot_alerts")
     .select("id, bot_id, market, text, minute, home, away, hg, ag, hit, created_at")

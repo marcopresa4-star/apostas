@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { BotMarket, BotMode, BotPeriod, BotStat, PregameRule } from "@/lib/bots";
+import type { BotMarket, BotMode, BotPeriod, BotStat, GoalCmp, GoalRules, PregameRule } from "@/lib/bots";
 import { BOT_MARKETS, BOT_SCORES, BOT_STATS, PREGAME_METRICS } from "@/lib/bots";
 
 async function authed() {
@@ -37,6 +37,7 @@ interface CleanBot {
   min_odd: number | null;
   stats: BotStat[];
   pregame: PregameRule[];
+  goal_rules: GoalRules;
   silent: boolean;
   refire: boolean;
   enabled: boolean;
@@ -79,6 +80,22 @@ function clean(input: Record<string, unknown>): CleanBot | { error: string } {
         return [{ side: q.side, metric: q.metric as PregameRule["metric"], n, pct: int(q.pct, 10, 100, 60) }];
       }).slice(0, 4)
     : [];
+  // The 4 goal filters (total, difference, per half): unknown or malformed
+  // keys fall back to neutral, so old drafts keep firing as before.
+  const goalsRaw = typeof input.goals === "object" && input.goals !== null ? (input.goals as Record<string, unknown>) : null;
+  const cmpOf = (v: unknown, allowed: GoalCmp[], fb: GoalCmp): GoalCmp =>
+    allowed.includes(String(v) as GoalCmp) ? (v as GoalCmp) : fb;
+  const valOf = (v: unknown, fb: number): number => (num(v) === null ? fb : Math.min(20, Math.max(0, Math.trunc(num(v) as number))));
+  const goal_rules: GoalRules = {
+      total: cmpOf(goalsRaw?.total, ["any", "lt", "gte"], "any"),
+      totalV: valOf(goalsRaw?.totalV, 3),
+      diff: cmpOf(goalsRaw?.diff, ["any", "lt", "gte"], "any"),
+      diffV: valOf(goalsRaw?.diffV, 3),
+      fh: cmpOf(goalsRaw?.fh, ["any", "exact", "lt", "gte"], "any"),
+      fhV: valOf(goalsRaw?.fhV, 1),
+      sh: cmpOf(goalsRaw?.sh, ["any", "exact", "lt", "gte"], "any"),
+      shV: valOf(goalsRaw?.shV, 0),
+    };
   return {
     name,
     mode,
@@ -92,6 +109,7 @@ function clean(input: Record<string, unknown>): CleanBot | { error: string } {
     min_odd,
     stats,
     pregame,
+    goal_rules,
     silent: input.silent === true,
     refire: input.refire === true,
     enabled: input.enabled !== false,

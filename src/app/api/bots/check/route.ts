@@ -19,6 +19,8 @@ import { leagueRates } from "@/lib/footballModel";
 import {
   BOT_MARKETS,
   BOT_SCORES,
+  goalRulesOk,
+  goalsNeutral,
   pregameOk,
   scoreOk,
   settleAlert,
@@ -170,8 +172,9 @@ export async function POST() {
     .eq("user_id", user.id)
     .eq("enabled", true)
     .order("created_at", { ascending: true })
-    .returns<Bot[]>();
-  const active = bots ?? [];
+    .returns<(Bot & { goal_rules?: unknown })[]>();
+  // DB column is goal_rules; the Bot type calls it goals.
+  const active = (bots ?? []).map((b) => ({ ...b, goals: goalsNeutral(b.goal_rules) }));
   if (active.length === 0) return Response.json({ fired: [], stats: {}, games: 0 });
 
   // Settle open alerts first (bounded): finished games get their hit.
@@ -299,7 +302,17 @@ export async function POST() {
     if (mine.length === 0) return;
 
     // One event read serves score, minute, phase and cards for every bot.
-    let snap: { minute: number; phase: "live" | "halftime"; hg: number; ag: number; rh: number; ra: number; yh: number } | null = null;
+    let snap: {
+      minute: number;
+      phase: "live" | "halftime";
+      hg: number;
+      ag: number;
+      rh: number;
+      ra: number;
+      yh: number;
+      hth: number | null;
+      hta: number | null;
+    } | null = null;
     try {
       const body = read;
       const event = obj((body as Record<string, unknown> | null)?.event ?? body) ?? {};
@@ -329,7 +342,7 @@ export async function POST() {
           else if (type.includes("yellow")) home ? yh++ : ya++;
         }
       }
-      snap = { minute, phase, hg, ag, rh, ra, yh: yh + ya };
+      snap = { minute, phase, hg, ag, rh, ra, yh: yh + ya, hth: num(hs?.period1), hta: num(as?.period1) };
     } catch (err) {
       if (err instanceof ScraperOffline) return; // transient: next minute retries
       return;
@@ -417,6 +430,14 @@ export async function POST() {
       }
       if (!scoreOk(b.score, snap.hg, snap.ag)) {
         nope(`marcador (pede ${BOT_SCORES.find((s) => s.key === b.score)?.label ?? b.score})`);
+        continue;
+      }
+      // Fire-time goal filters: totals, difference, per half (post-interval).
+      const gh = goalsNeutral(b.goals);
+      const fhTot = snap.hth !== null && snap.hta !== null ? snap.hth + snap.hta : null;
+      const shTot = fhTot !== null ? Math.max(0, snap.hg + snap.ag - fhTot) : null;
+      if (!goalRulesOk(gh, { total: snap.hg + snap.ag, diff: Math.abs(snap.hg - snap.ag), fh: fhTot, sh: shTot })) {
+        nope(fhTot === null && (gh.fh !== "any" || gh.sh !== "any") ? "golos (sem HT ainda)" : "golos (filtros)");
         continue;
       }
       // Pre-game history filter (all rules required).

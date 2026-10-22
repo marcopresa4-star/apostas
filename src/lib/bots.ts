@@ -39,13 +39,77 @@ export interface Bot {
   stats: BotStat[];
   pregame: PregameRule[];
   refire: boolean;
+  goals: GoalRules;
 }
+
+// Fire-time goal filters ("Onde e quando" section): total goals on the
+// pitch, score difference (any side, absolute) and goals per half. "any" is
+// neutral. First/second-half comparisons only know their values from the
+// interval on: before that the filter holds the alert back (fail closed).
+export type GoalCmp = "any" | "exact" | "lt" | "gte";
+
+export interface GoalRules {
+  total: GoalCmp;
+  totalV: number;
+  diff: GoalCmp;
+  diffV: number;
+  fh: GoalCmp;
+  fhV: number;
+  sh: GoalCmp;
+  shV: number;
+}
+
+export const GOALS_NEUTRAL: GoalRules = {
+  total: "any",
+  totalV: 0,
+  diff: "any",
+  diffV: 0,
+  fh: "any",
+  fhV: 0,
+  sh: "any",
+  shV: 0,
+};
+
+export const goalsNeutral = (g: unknown): GoalRules =>
+  typeof g === "object" && g !== null
+    ? { ...GOALS_NEUTRAL, ...(g as Partial<GoalRules>) }
+    : { ...GOALS_NEUTRAL };
+
+// One comparison against a measured value; null measured = fail (except the
+// neutral "any", which never looks at the value).
+const cmpOk = (cmp: GoalCmp, want: number, got: number | null): boolean => {
+  if (cmp === "any" || got === null) return cmp === "any";
+  return cmp === "exact" ? got === want : cmp === "lt" ? got < want : got >= want;
+};
+
+export function goalRulesOk(
+  rules: GoalRules,
+  vals: { total: number; diff: number; fh: number | null; sh: number | null }
+): boolean {
+  return (
+    cmpOk(rules.total, rules.totalV, vals.total) &&
+    cmpOk(rules.diff, rules.diffV, vals.diff) &&
+    cmpOk(rules.fh, rules.fhV, vals.fh) &&
+    cmpOk(rules.sh, rules.shV, vals.sh)
+  );
+}
+
+export const GOAL_CMP_LABELS: Record<GoalCmp, string> = {
+  any: "Qualquer",
+  exact: "Exatamente",
+  lt: "Menos de",
+  gte: "Pelo menos",
+};
 
 export interface LiveSnapshot {
   minute: number;
   phase: "live" | "halftime";
   hg: number;
   ag: number;
+  // Full-time... no: current half-time totals straight from the event's
+  // period1 (null until the interval). The goal-per-half filters read them.
+  hth?: number | null;
+  hta?: number | null;
 }
 
 // Minute from a status description ("63'", "45+2'"): ordinals ("2nd half")
@@ -84,14 +148,18 @@ export function scoreOk(score: string, hg: number, ag: number): boolean {
 // Required gates: minute window + period + score. Always all mandatory,
 // whatever the E/OU mode (which only governs the stat triggers).
 export function gatesOk(
-  bot: Pick<Bot, "minute_from" | "minute_to" | "period" | "score">,
+  bot: Pick<Bot, "minute_from" | "minute_to" | "period" | "score" | "goals">,
   snap: LiveSnapshot
 ): boolean {
   if (snap.minute < bot.minute_from || snap.minute > bot.minute_to) return false;
   if (bot.period === "first" && !(snap.phase === "live" && snap.minute < 45)) return false;
   if (bot.period === "second" && !(snap.phase === "live" && snap.minute >= 45)) return false;
   if (bot.period === "half" && snap.phase !== "halftime") return false;
-  return scoreOk(bot.score, snap.hg, snap.ag);
+  if (!scoreOk(bot.score, snap.hg, snap.ag)) return false;
+  const goals = goalsNeutral(bot.goals);
+  const fh = snap.hth != null && snap.hta != null ? snap.hth + snap.hta : null;
+  const sh = fh !== null ? Math.max(0, snap.hg + snap.ag - fh) : null;
+  return goalRulesOk(goals, { total: snap.hg + snap.ag, diff: Math.abs(snap.hg - snap.ag), fh, sh });
 }
 
 export interface StatValues {

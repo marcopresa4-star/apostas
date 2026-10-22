@@ -1,8 +1,10 @@
 // Evaluators of the live-monitoring bots (pure functions in bots.ts).
 import { describe, it, expect } from "vitest";
 import {
+  GOALS_NEUTRAL,
   firstHalfShares,
   gatesOk,
+  goalRulesOk,
   historyShares,
   pregameOk,
   scoreOk,
@@ -39,7 +41,7 @@ describe("scoreOk", () => {
 });
 
 describe("gatesOk", () => {
-  const bot = { minute_from: 30, minute_to: 90, period: "any" as const, score: "any" };
+  const bot = { minute_from: 30, minute_to: 90, period: "any" as const, score: "any", goals: GOALS_NEUTRAL };
   it("minute window is mandatory", () => {
     expect(gatesOk(bot, { minute: 29, phase: "live", hg: 0, ag: 0 })).toBe(false);
     expect(gatesOk(bot, { minute: 30, phase: "live", hg: 0, ag: 0 })).toBe(true);
@@ -55,6 +57,34 @@ describe("gatesOk", () => {
   it("score gate composes", () => {
     expect(gatesOk({ ...bot, score: "0-0" }, { minute: 30, phase: "live", hg: 0, ag: 0 })).toBe(true);
     expect(gatesOk({ ...bot, score: "0-0" }, { minute: 30, phase: "live", hg: 1, ag: 0 })).toBe(false);
+  });
+});
+
+describe("goalRulesOk", () => {
+  it("any is neutral even when half goals are unknown", () => {
+    expect(goalRulesOk(GOALS_NEUTRAL, { total: 5, diff: 4, fh: null, sh: null })).toBe(true);
+  });
+  it("total: lt / gte against gols on the pitch", () => {
+    const r = { ...GOALS_NEUTRAL, total: "lt" as const, totalV: 3 };
+    expect(goalRulesOk(r, { total: 2, diff: 0, fh: 1, sh: 1 })).toBe(true);
+    expect(goalRulesOk(r, { total: 3, diff: 0, fh: 1, sh: 2 })).toBe(false);
+    const g = { ...GOALS_NEUTRAL, total: "gte" as const, totalV: 2 };
+    expect(goalRulesOk(g, { total: 2, diff: 0, fh: 1, sh: 1 })).toBe(true);
+    expect(goalRulesOk(g, { total: 1, diff: 0, fh: 1, sh: 0 })).toBe(false);
+  });
+  it("difference is absolute and holds both losing sides", () => {
+    const r = { ...GOALS_NEUTRAL, diff: "lt" as const, diffV: 3 };
+    expect(goalRulesOk(r, { total: 3, diff: 3, fh: 1, sh: 2 })).toBe(false);
+    expect(goalRulesOk(r, { total: 3, diff: 2, fh: 1, sh: 2 })).toBe(true);
+  });
+  it("per-half: exact counts; unknown half goals fail closed", () => {
+    const r = { ...GOALS_NEUTRAL, fh: "exact" as const, fhV: 1, sh: "exact" as const, shV: 0 };
+    expect(goalRulesOk(r, { total: 1, diff: 1, fh: 1, sh: 0 })).toBe(true);
+    expect(goalRulesOk(r, { total: 3, diff: 1, fh: 2, sh: 1 })).toBe(false);
+    expect(goalRulesOk(r, { total: 1, diff: 1, fh: null, sh: null })).toBe(false);
+  });
+  it("unknown half goals pass when the half filters are neutral", () => {
+    expect(goalRulesOk({ ...GOALS_NEUTRAL, total: "gte" as const, totalV: 2 }, { total: 3, diff: 1, fh: null, sh: null })).toBe(true);
   });
 });
 

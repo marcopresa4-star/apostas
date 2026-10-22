@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import type { BotMarket, BotMode, BotPeriod, BotStat, PregameMetric, PregameRule, PregameSide } from "@/lib/bots";
-import { BOT_MARKETS, BOT_SCORES, BOT_STATS, PREGAME_METRICS } from "@/lib/bots";
+import { useRef, useState } from "react";
+import type {
+  BotMarket,
+  BotMode,
+  BotPeriod,
+  BotStat,
+  GoalCmp,
+  GoalRules,
+  PregameMetric,
+  PregameRule,
+  PregameSide,
+} from "@/lib/bots";
+import { BOT_MARKETS, BOT_SCORES, BOT_STATS, GOAL_CMP_LABELS, GOALS_NEUTRAL, goalsNeutral, PREGAME_METRICS } from "@/lib/bots";
 import { saveBotAction } from "@/app/(app)/bots/actions";
 import type { BotRow } from "@/components/BotsClient";
 
@@ -56,6 +66,105 @@ function Ticks({ items }: { items: string[] }) {
   );
 }
 
+const MIN_MINUTE = 1;
+const MAX_MINUTE = 120;
+
+// Dual-thumb minute slider (pointer-drag), like the mock: one track, two
+// thumbs, filled span between them. lo/hi clamp to the period chosen.
+function RangeDual({
+  from,
+  to,
+  lo = MIN_MINUTE,
+  hi = MAX_MINUTE,
+  onFrom,
+  onTo,
+}: {
+  from: number;
+  to: number;
+  lo?: number;
+  hi?: number;
+  onFrom: (v: number) => void;
+  onTo: (v: number) => void;
+}) {
+  const track = useRef<HTMLDivElement | null>(null);
+  const pct = (v: number): string => `${((v - MIN_MINUTE) / (MAX_MINUTE - MIN_MINUTE)) * 100}%`;
+  const drag = (kind: "from" | "to") => (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: React.PointerEvent<HTMLDivElement>): void => {
+      const box = track.current?.getBoundingClientRect();
+      if (!box) return;
+      const t = Math.min(1, Math.max(0, (ev.clientX - box.left) / box.width));
+      const v = Math.round(MIN_MINUTE + t * (MAX_MINUTE - MIN_MINUTE));
+      if (kind === "from") onFrom(Math.min(v, to, hi));
+      else onTo(Math.max(v, from, lo));
+    };
+    return move(e);
+  };
+  return (
+    <div className="px-1 py-2">
+      <div className="relative h-4" ref={track}>
+        <div className="absolute inset-x-0 top-1.5 h-1 rounded-full bg-white/10" />
+        <div
+          className="absolute top-1.5 h-1 rounded-full bg-sky-400"
+          style={{ left: pct(Math.max(from, lo)), width: `calc(${pct(Math.min(to, hi))} - ${pct(Math.max(from, lo))})` }}
+        />
+        <div
+          role="slider"
+          aria-label="Do minuto"
+          aria-valuenow={from}
+          tabIndex={0}
+          onPointerDown={drag("from")}
+          onPointerMove={(e) => e.buttons === 1 && drag("from")(e)}
+          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border-2 border-sky-400 bg-white shadow active:scale-110"
+          style={{ left: pct(Math.max(from, lo)) }}
+        />
+        <div
+          role="slider"
+          aria-label="Até ao minuto"
+          aria-valuenow={to}
+          tabIndex={0}
+          onPointerDown={drag("to")}
+          onPointerMove={(e) => e.buttons === 1 && drag("to")(e)}
+          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none rounded-full border-2 border-sky-400 bg-white shadow active:scale-110"
+          style={{ left: pct(Math.min(to, hi)) }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Section header of the numbered redesign: chip + title + subtitle.
+function Section({ n, title, sub, children }: { n: number; title: string; sub: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/15 text-xs font-bold text-sky-300">
+          {n}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-neutral-100">{title}</p>
+          <p className="text-[11px] text-neutral-500">{sub}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const CMP_FULL: { v: GoalCmp; l: string }[] = [
+  { v: "any", l: GOAL_CMP_LABELS.any },
+  { v: "lt", l: GOAL_CMP_LABELS.lt },
+  { v: "gte", l: GOAL_CMP_LABELS.gte },
+];
+const CMP_HALF: { v: GoalCmp; l: string }[] = [
+  { v: "any", l: GOAL_CMP_LABELS.any },
+  { v: "exact", l: GOAL_CMP_LABELS.exact },
+  { v: "lt", l: GOAL_CMP_LABELS.lt },
+  { v: "gte", l: GOAL_CMP_LABELS.gte },
+];
+
 const PRE_LABELS: Record<PregameMetric, string> = {
   total_over15: "Over 1.5 — jogo",
   total_over25: "Over 2.5 — jogo",
@@ -74,6 +183,7 @@ interface Draft {
   minute_to: number;
   period: BotPeriod;
   score: string;
+  goals: GoalRules;
   market: BotMarket;
   min_odd: number;
   stats: Record<string, number>;
@@ -90,6 +200,7 @@ const fromRow = (b: BotRow): Draft => ({
   minute_to: b.minute_to,
   period: b.period,
   score: b.score,
+  goals: goalsNeutral(b.goals),
   market: b.market,
   min_odd: b.min_odd !== null ? Math.min(6, b.min_odd) : 1,
   stats: Object.fromEntries(b.stats.map((s) => [s.k, s.v])),
@@ -112,6 +223,8 @@ const blank: Draft = {
   minute_to: 90,
   period: "any",
   score: "any",
+  // mock defaults pre-seeded, so switching a filter off «Qualquer» shows 3/3/1/0
+  goals: { ...GOALS_NEUTRAL, totalV: 3, diffV: 3, fhV: 1 },
   market: "mais1",
   min_odd: 1,
   stats: {},
@@ -133,6 +246,7 @@ export default function BotForm({
   const [saving, setSaving] = useState(false);
   const [test, setTest] = useState<{ tested: number; passed: number } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [leaguesOpen, setLeaguesOpen] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => {
     setD((prev) => ({ ...prev, [k]: v }));
     setError(null);
@@ -188,6 +302,7 @@ export default function BotForm({
       min_odd: d.min_odd > 1 ? Math.round(d.min_odd * 100) / 100 : null,
       stats,
       pregame: d.pre.on ? [{ side: d.pre.side, n: d.pre.n, metric: d.pre.metric, pct: d.pre.pct }] : [],
+      goals: d.goals,
       refire: d.refire,
       enabled: initial?.enabled ?? true,
     };
@@ -203,7 +318,30 @@ export default function BotForm({
   const field = "w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500";
   const pill = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
+  // Section 1 ("Onde e quando") uses the mock's sky accent.
+  const pillSky = (on: boolean) =>
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-sky-500/50 bg-sky-500/15 text-sky-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
+
+  // Period bounds the slider so the window can't point to a half the bot
+  // can't see: 1.ª parte → até 44', 2.ª parte → a partir de 45', intervalo → 45'.
+  const setPeriod = (v: Draft["period"]): void =>
+    setD((prev) => {
+      let { minute_from: f, minute_to: t } = prev;
+      if (v === "first") {
+        f = Math.min(f, 44);
+        t = Math.min(t, 44);
+      } else if (v === "second") {
+        f = Math.max(f, 45);
+        t = Math.max(t, 45);
+      } else if (v === "half") {
+        f = 45;
+        t = 45;
+      }
+      return { ...prev, period: v, minute_from: f, minute_to: t };
+    });
+  const sliderLo = d.period === "second" || d.period === "half" ? 45 : MIN_MINUTE;
+  const sliderHi = d.period === "first" || d.period === "half" ? 45 : MAX_MINUTE;
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-black/70 p-4" onClick={onClose}>
@@ -243,25 +381,190 @@ export default function BotForm({
           </span>
         </label>
 
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-            Competições ({d.leagues.length === 0 ? `todas (${leagues.length})` : d.leagues.length})
-          </p>
-          <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-            {leagues.map((l) => (
-              <label key={l.code} className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.07] px-2 py-1 text-xs text-neutral-300">
-                <input
-                  type="checkbox"
-                  checked={d.leagues.includes(l.code)}
-                  onChange={() => set("leagues", d.leagues.includes(l.code) ? d.leagues.filter((x) => x !== l.code) : [...d.leagues, l.code])}
-                  className="accent-emerald-500"
-                />
-                {l.label}
-              </label>
-            ))}
+        {/* ——— Secção 1 · Onde e quando ——— */}
+        <Section n={1} title="Onde e quando" sub="Competições, minutos, período e marcador em que o bot vigia os jogos">
+          {/* Competições: dropdown estilo mock */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setLeaguesOpen((o) => !o)}
+              className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left text-sm text-neutral-100 outline-none hover:border-white/[0.18]"
+            >
+              <span>
+                🏆{" "}
+                {d.leagues.length === 0 ? (
+                  <span className="text-neutral-300">Todas as ligas ({leagues.length})</span>
+                ) : (
+                  <>
+                    <span className="text-sky-300">{d.leagues.length}</span>
+                    <span className="text-neutral-300"> liga{d.leagues.length > 1 ? "s" : ""} escolhida{d.leagues.length > 1 ? "s" : ""}</span>
+                    <span className="text-neutral-500"> · {d.leagues.map((c) => leagues.find((l) => l.code === c)?.label ?? c).slice(0, 2).join(", ")}{d.leagues.length > 2 ? "…" : ""}</span>
+                  </>
+                )}
+              </span>
+              <span className={`text-neutral-500 transition ${leaguesOpen ? "rotate-180" : ""}`}>▾</span>
+            </button>
+            {leaguesOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setLeaguesOpen(false)} />
+                <div className="absolute z-30 mt-1 max-h-56 w-full space-y-0.5 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl">
+                  {leagues.map((l) => {
+                    const on = d.leagues.includes(l.code);
+                    return (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => set("leagues", on ? d.leagues.filter((x) => x !== l.code) : [...d.leagues, l.code])}
+                        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs transition ${on ? "bg-sky-500/15 text-sky-200" : "text-neutral-300 hover:bg-white/[0.05]"}`}
+                      >
+                        <span className={`grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] ${on ? "border-sky-400 bg-sky-500/30 text-sky-200" : "border-white/[0.15]"}`}>{on ? "✓" : ""}</span>
+                        {l.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <p className="mt-1 text-[11px] text-neutral-500">Nada escolhido = todas as ligas mapeadas vigiam.</p>
           </div>
-          <p className="mt-1 text-[11px] text-neutral-500">Nada marcado = todas as ligas mapeadas.</p>
-        </div>
+
+          {/* Período + minuto dual-slider */}
+          <div>
+            <p className="mb-1.5 text-xs text-neutral-400">Período</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { v: "any", l: "Qualquer" },
+                { v: "first", l: "1ª Parte" },
+                { v: "half", l: "Intervalo" },
+                { v: "second", l: "2ª Parte" },
+              ].map((p) => (
+                <button key={p.v} type="button" onClick={() => setPeriod(p.v as Draft["period"])} className={pillSky(d.period === p.v)}>
+                  {p.l}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 grid grid-cols-3 items-center gap-2">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Do minuto</p>
+                <p className="text-lg font-bold tabular-nums leading-tight text-sky-300">{d.minute_from}&apos;</p>
+              </div>
+              <div className="justify-self-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-medium tabular-nums text-sky-300">
+                {Math.max(0, d.minute_to - d.minute_from)} min
+              </div>
+              <div className="justify-self-end text-right">
+                <p className="text-[10px] uppercase tracking-wide text-neutral-500">Ao minuto</p>
+                <p className="text-lg font-bold tabular-nums leading-tight text-sky-300">{d.minute_to}&apos;</p>
+              </div>
+            </div>
+            <RangeDual
+              from={d.minute_from}
+              to={d.minute_to}
+              lo={sliderLo}
+              hi={sliderHi}
+              onFrom={(v) => set("minute_from", Math.min(v, d.minute_to))}
+              onTo={(v) => set("minute_to", Math.max(v, d.minute_from))}
+            />
+            <Ticks items={["1'", "45'", "90'", "120'"]} />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { l: "20'–40'", f: 20, t: 40 },
+                { l: "60'–80'", f: 60, t: 80 },
+                { l: "Reta final 75–90", f: 75, t: 90 },
+                { l: "Jogo todo 1–120", f: 1, t: 120 },
+              ].map((pr) => (
+                <button
+                  key={pr.l}
+                  type="button"
+                  onClick={() => setD((prev) => {
+                    // presets respect the period bounds too
+                    let f = pr.f;
+                    let t = pr.t;
+                    if (prev.period === "first") { f = Math.min(f, 44); t = Math.min(t, 44); }
+                    if (prev.period === "second") { f = Math.max(f, 45); t = Math.max(t, 45); }
+                    if (prev.period === "half") { f = 45; t = 45; }
+                    return { ...prev, minute_from: f, minute_to: t };
+                  })}
+                  className={`${pillSky(d.minute_from === pr.f && d.minute_to === pr.t)} tabular-nums`}
+                >
+                  {pr.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Marcador: as 8 condições */}
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-neutral-300">Marcador</p>
+            <div className="flex flex-wrap gap-1.5">
+              {BOT_SCORES.map((s) => (
+                <button key={s.key} type="button" onClick={() => set("score", s.key)} className={pillSky(d.score === s.key)}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Filtros de golos ao disparar */}
+          <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+            {(
+              [
+                { label: "Golos no jogo", ck: "total" as const, vk: "totalV" as const, opts: CMP_FULL },
+                { label: "Diferença no marcador", ck: "diff" as const, vk: "diffV" as const, opts: CMP_FULL },
+                { label: "Golos na 1.ª parte", ck: "fh" as const, vk: "fhV" as const, opts: CMP_HALF },
+                { label: "Golos na 2.ª parte", ck: "sh" as const, vk: "shV" as const, opts: CMP_HALF },
+              ]
+            ).map((row) => {
+              const cmp = d.goals[row.ck];
+              return (
+                <div key={row.ck} className="flex flex-wrap items-center gap-2">
+                  <span className="w-44 shrink-0 text-xs text-neutral-400">{row.label}</span>
+                  <select
+                    value={cmp}
+                    onChange={(e) => {
+                      const v = e.target.value as GoalCmp;
+                      setD((prev) => {
+                        // leaving «Qualquer»: seed the mock default so the number isn't 0
+                        const bump = row.ck === "total" || row.ck === "diff" ? 3 : 1;
+                        const keep = v !== "any" && prev.goals[row.vk] === 0 && row.ck !== "sh" ? bump : prev.goals[row.vk];
+                        return { ...prev, goals: { ...prev.goals, [row.ck]: v, [row.vk]: keep } };
+                      });
+                    }}
+                    className="cursor-pointer rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
+                  >
+                    {row.opts.map((o) => (
+                      <option key={o.v} value={o.v}>
+                        {o.l}
+                      </option>
+                    ))}
+                  </select>
+                  {cmp !== "any" ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={20}
+                        value={d.goals[row.vk]}
+                        onChange={(e) => set("goals", { ...d.goals, [row.vk]: Math.min(20, Math.max(0, Number(e.target.value))) })}
+                        className="w-14 rounded-lg border border-sky-600/50 bg-neutral-900 px-2 py-1.5 text-right text-xs font-medium tabular-nums text-sky-300 outline-none"
+                      />
+                      <span className="text-[11px] text-neutral-500">golos</span>
+                    </div>
+                  ) : (
+                    <span className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-right text-xs tabular-nums text-neutral-600">—</span>
+                  )}
+                </div>
+              );
+            })}
+            <p className="text-[11px] leading-relaxed text-neutral-500">
+              Verificados no minuto do disparo. «Qualquer» fica neutro. Os filtros por parte ficam por confirmar antes
+              do intervalo (o placar da 1.ª parte ainda não existe) — nesse caso o bot continua a vigiar e aplica-os
+              quando houver. Exemplo: menos de 3 golos + diferença de menos de 3 + exatamente 1 golo na 1.ª parte e 0 na
+              2.ª = só jogos em 1×0 ou 0×1 ao intervalo.
+            </p>
+          </div>
+        </Section>
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
@@ -272,44 +575,11 @@ export default function BotForm({
             </div>
           </div>
           <p className="mb-3 text-[11px] text-neutral-500">
-            Aplica-se só às estatísticas abaixo. Minuto, marcador e período continuam sempre obrigatórios.
+            Aplica-se só às condições abaixo. Minuto, período, marcador e filtros de golos (secção 1) continuam sempre
+            obrigatórios.
           </p>
 
           <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <p className="text-sm font-medium text-neutral-200">⏱ Minuto do jogo</p>
-            <div>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-xs text-neutral-400">A partir do minuto</span>
-                <span className="text-base font-bold tabular-nums text-emerald-400">{d.minute_from}&apos;</span>
-              </div>
-              <Slider value={d.minute_from} min={1} max={120} step={1} onChange={(v) => set("minute_from", Math.min(v, d.minute_to))} />
-            </div>
-            <div>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-xs text-neutral-400">Até ao minuto</span>
-                <span className="text-base font-bold tabular-nums text-emerald-400">{d.minute_to}&apos;</span>
-              </div>
-              <Slider value={d.minute_to} min={1} max={120} step={1} onChange={(v) => set("minute_to", Math.max(v, d.minute_from))} />
-            </div>
-            <Ticks items={["1'", "45'", "90'", "120'"]} />
-            <div>
-              <p className="mb-1.5 text-xs text-neutral-400">Período do jogo</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { v: "any", l: "Qualquer" },
-                  { v: "first", l: "1ª Parte" },
-                  { v: "second", l: "2ª Parte" },
-                  { v: "half", l: "Intervalo" },
-                ].map((p) => (
-                  <button key={p.v} type="button" onClick={() => set("period", p.v as Draft["period"])} className={pill(d.period === p.v)}>
-                    {p.l}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
               <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
@@ -397,17 +667,6 @@ export default function BotForm({
               condições voltarem a acontecer.
             </span>
           </label>
-
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <p className="mb-2 text-sm font-medium text-neutral-200">⚽ Condição de marcador</p>
-            <div className="flex flex-wrap gap-1.5">
-              {BOT_SCORES.map((s) => (
-                <button key={s.key} type="button" onClick={() => set("score", s.key)} className={pill(d.score === s.key)}>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-1 text-sm font-medium text-neutral-200">📊 Gatilhos estatísticos ao vivo</p>
