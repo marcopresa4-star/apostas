@@ -381,6 +381,35 @@ export default function BotForm({
           </span>
         </label>
 
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+            <p className="mb-2 text-sm font-medium text-neutral-200">🎯 Mercado a alertar</p>
+            <select value={d.market} onChange={(e) => set("market", e.target.value as BotMarket)} className={field}>
+              {BOT_MARKETS.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-3 space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
+              <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-neutral-400">Só alerta se a odd estiver acima de</p>
+            <Slider value={d.min_odd} min={1} max={6} step={0.05} onChange={(v) => set("min_odd", Math.round(v * 100) / 100)} />
+            <Ticks items={["1.00", "2.00", "3.00", "4.00", "6.00"]} />
+            <p className="text-[11px] leading-relaxed text-neutral-500">
+              Compara com a odd ao vivo do mercado escolhido acima. Se a API não tiver odds disponíveis para esse
+              mercado nesse instante, esta condição é ignorada só nesse disparo (não bloqueia as restantes).
+            </p>
+            <p className="text-[11px] text-neutral-500">Útil para filtrar mercados com odds muito baixas ao vivo que não têm valor real.</p>
+            {d.min_odd <= 1 && (
+              <p className="text-[11px] text-neutral-500">Em 1,00 a condição fica neutra: qualquer odd conta.</p>
+            )}
+          </div>
+
         {/* ——— Secção 1 · Onde e quando ——— */}
         <Section n={1} title="Onde e quando" sub="Competições, minutos, período e marcador em que o bot vigia os jogos">
           {/* Competições: dropdown estilo mock */}
@@ -575,29 +604,11 @@ export default function BotForm({
             </div>
           </div>
           <p className="mb-3 text-[11px] text-neutral-500">
-            Aplica-se só às condições abaixo. Minuto, período, marcador e filtros de golos (secção 1) continuam sempre
-            obrigatórios.
+            Aplica-se só ao critério pré-jogo e às estatísticas ao vivo abaixo. Minuto, período, marcador e filtros de
+            golos (secção 1) continuam sempre obrigatórios.
           </p>
 
           <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
-              <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
-            </div>
-            <p className="text-xs text-neutral-400">Só alerta se a odd estiver acima de</p>
-            <Slider value={d.min_odd} min={1} max={6} step={0.05} onChange={(v) => set("min_odd", Math.round(v * 100) / 100)} />
-            <Ticks items={["1.00", "2.00", "3.00", "4.00", "6.00"]} />
-            <p className="text-[11px] leading-relaxed text-neutral-500">
-              Compara com a odd ao vivo do mercado escolhido abaixo. Se a API não tiver odds disponíveis para esse
-              mercado nesse instante, esta condição é ignorada só nesse disparo (não bloqueia as restantes).
-            </p>
-            <p className="text-[11px] text-neutral-500">Útil para filtrar mercados com odds muito baixas ao vivo que não têm valor real.</p>
-            {d.min_odd <= 1 && (
-              <p className="text-[11px] text-neutral-500">Em 1,00 a condição fica neutra: qualquer odd conta.</p>
-            )}
-          </div>
-
-          <div className="mt-3 space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <label className="flex cursor-pointer items-start gap-2">
               <input type="checkbox" checked={d.pre.on} onChange={(e) => set("pre", { ...d.pre, on: e.target.checked })} className="mt-0.5 accent-emerald-500" />
               <span className="text-xs text-neutral-300">
@@ -695,17 +706,6 @@ export default function BotForm({
                 );
               })}
             </div>
-          </div>
-
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <p className="mb-2 text-sm font-medium text-neutral-200">🎯 Mercado a alertar</p>
-            <select value={d.market} onChange={(e) => set("market", e.target.value as BotMarket)} className={field}>
-              {BOT_MARKETS.map((m) => (
-                <option key={m.key} value={m.key}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
