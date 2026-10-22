@@ -387,8 +387,12 @@ export default function BotForm({
 
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5">
+        {/* ——— Secção 1 · Bot e mercado ——— */}
+        <Section n={1} title="Bot e mercado" sub="O nome, o que queres que o bot te diga para apostar e a odd mínima">
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Começar de um template (opcional)</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+              Começar de um modelo <span className="normal-case tracking-normal text-neutral-500">opcional</span>
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {TEMPLATES.map((t) => (
                 <button key={t.label} type="button" onClick={() => setD((prev) => ({ ...blank, ...t.fill(), stats: { ...(t.fill().stats ?? {}) } }))} className={pill(false)}>
@@ -398,11 +402,11 @@ export default function BotForm({
             </div>
           </div>
 
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Nome do bot</p>
-          <input value={d.name} onChange={(e) => set("name", e.target.value)} placeholder="ex: BotOverHT, CantosAlert" maxLength={40} className={field} />
-          <p className="mt-1 text-[11px] text-neutral-500">Aparece nos alertas: “ALERTA {d.name || "BotOverHT"} — …”</p>
-        </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Nome do bot</p>
+            <input value={d.name} onChange={(e) => set("name", e.target.value)} placeholder="ex: BotOverHT, CantosAlert" maxLength={40} className={field} />
+            <p className="mt-1 text-[11px] text-neutral-500">Aparece nos alertas: “ALERTA {d.name || "BotOverHT"} — …”</p>
+          </div>
 
         <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
           <input type="checkbox" checked={d.silent} onChange={(e) => set("silent", e.target.checked)} className="mt-1 accent-emerald-500" />
@@ -441,8 +445,10 @@ export default function BotForm({
             )}
           </div>
 
-        {/* ——— Secção 1 · Onde e quando ——— */}
-        <Section n={1} title="Onde e quando" sub="Competições, minutos, período e marcador em que o bot vigia os jogos">
+        </Section>
+
+        {/* ——— Secção 2 · Onde e quando ——— */}
+        <Section n={2} title="Onde e quando" sub="Competições, minutos, período e marcador em que o bot vigia os jogos">
           {/* Competições: dropdown estilo mock */}
           <div className="relative">
             <button
@@ -636,7 +642,7 @@ export default function BotForm({
           </div>
           <p className="mb-3 text-[11px] text-neutral-500">
             Aplica-se só ao critério pré-jogo e às estatísticas ao vivo abaixo. Minuto, período, marcador e filtros de
-            golos (secção 1) continuam sempre obrigatórios.
+            golos (secção 2) continuam sempre obrigatórios.
           </p>
 
           <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
