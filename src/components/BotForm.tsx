@@ -158,6 +158,19 @@ const CMP_FULL: { v: GoalCmp; l: string }[] = [
   { v: "lt", l: GOAL_CMP_LABELS.lt },
   { v: "gte", l: GOAL_CMP_LABELS.gte },
 ];
+
+// Sidebar summary row (the mock's «Resumo»): icon + quiet label + bold value.
+function ResumoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="flex min-w-0 items-center gap-2 text-xs text-neutral-400">
+        <span aria-hidden>{icon}</span>
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="shrink-0 text-right text-xs font-semibold text-neutral-100">{value}</span>
+    </div>
+  );
+}
 const CMP_HALF: { v: GoalCmp; l: string }[] = [
   { v: "any", l: GOAL_CMP_LABELS.any },
   { v: "exact", l: GOAL_CMP_LABELS.exact },
@@ -322,6 +335,17 @@ export default function BotForm({
   const pillSky = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-sky-500/50 bg-sky-500/15 text-sky-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
+  const scoreLabel = BOT_SCORES.find((s) => s.key === d.score)?.label ?? d.score;
+  // Resumo values (sidebar).
+  const resumoCompeticoes =
+    d.leagues.length === 0
+      ? "Todas as ligas"
+      : d.leagues.length === 1
+        ? leagues.find((l) => l.code === d.leagues[0])?.label ?? d.leagues[0]
+        : `${d.leagues.length} ligas`;
+  const nStats = Object.keys(d.stats).length;
+  const resumoAoVivo =
+    nStats === 0 ? "Só minuto e marcador" : nStats === 1 ? "1 estatística" : `${nStats} estatísticas`;
 
   // Period bounds the slider so the window can't point to a half the bot
   // can't see: 1.ª parte → até 44', 2.ª parte → a partir de 45', intervalo → 45'.
@@ -346,26 +370,33 @@ export default function BotForm({
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-black/70 p-4" onClick={onClose}>
       <div
-        className="mx-auto my-8 max-w-2xl space-y-5 glass p-5"
+        className="mx-auto my-6 max-w-6xl space-y-4 glass p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-100">🤖 {initial ? "Editar bot" : "Criar novo bot"}</h2>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-100">🤖 {initial ? "Editar bot" : "Criar novo bot"}</h2>
+            <p className="text-xs text-neutral-500">
+              Define o mercado, quando vigiar e o que tem de acontecer. O servidor verifica todos os minutos.
+            </p>
+          </div>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-xl text-neutral-400 hover:bg-white/[0.06]" aria-label="Fechar">
             ✕
           </button>
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Começar de um template (opcional)</p>
-          <div className="flex flex-wrap gap-1.5">
-            {TEMPLATES.map((t) => (
-              <button key={t.label} type="button" onClick={() => setD((prev) => ({ ...blank, ...t.fill(), stats: { ...(t.fill().stats ?? {}) } }))} className={pill(false)}>
-                {t.label}
-              </button>
-            ))}
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Começar de um template (opcional)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPLATES.map((t) => (
+                <button key={t.label} type="button" onClick={() => setD((prev) => ({ ...blank, ...t.fill(), stats: { ...(t.fill().stats ?? {}) } }))} className={pill(false)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Nome do bot</p>
@@ -707,8 +738,12 @@ export default function BotForm({
               })}
             </div>
           </div>
+        </div>
+        </div>
 
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+        {/* ——— Barra lateral: preview, resumo, backtest e guardar ——— */}
+        <aside className="space-y-4 lg:sticky lg:top-6">
+          <div className="space-y-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Preview do alerta</p>
             <p className="font-mono text-sm font-bold text-emerald-400">🤖 ALERTA {d.name || "MeuBot"}</p>
             <p className="font-mono text-sm text-neutral-200">
@@ -719,9 +754,21 @@ export default function BotForm({
             </p>
           </div>
 
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="space-y-0.5 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Resumo</p>
+            <ResumoRow icon="🎯" label="Mercado" value={marketLabel} />
+            <ResumoRow icon="📈" label="Odd mínima" value={d.min_odd > 1 ? d.min_odd.toFixed(2) : "Sem filtro"} />
+            <ResumoRow icon="🏆" label="Competições" value={resumoCompeticoes} />
+            <ResumoRow icon="⏱" label="Minutos" value={`${d.minute_from}'–${d.minute_to}'`} />
+            <ResumoRow icon="⚽" label="Marcador" value={scoreLabel} />
+            <ResumoRow icon="📊" label="Antes do jogo" value={d.pre.on ? `${PRE_LABELS[d.pre.metric]} ≥ ${d.pre.pct}%` : "Sem filtro"} />
+            <ResumoRow icon="⚡" label="Ao vivo" value={resumoAoVivo} />
+            <ResumoRow icon="🔔" label="Aviso" value={d.silent ? "Só na lista" : "Notificação"} />
+          </div>
+
+          <div className="space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-neutral-200">🧪 Backtest (últimos terminados)</p>
+              <p className="text-sm font-medium text-neutral-200">🧪 Backtest</p>
               <button
                 type="button"
                 onClick={runBacktest}
@@ -731,32 +778,34 @@ export default function BotForm({
                 {testing ? "A testar…" : "Testar"}
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-neutral-500">
-              Testa o filtro pré-jogo + marcador (ao intervalo ou no fim, como proxy do minuto) nos últimos terminados.
-              Minuto exato e estatísticas ao vivo não existem para jogos passados.
+            <p className="text-[11px] leading-relaxed text-neutral-500">
+              Testa o filtro pré-jogo + marcador (ao intervalo ou no fim, como proxy do minuto) nos últimos terminados
+              das ligas escolhidas. Minuto exato, estatísticas ao vivo e filtros de golos não existem para jogos
+              passados.
             </p>
             {test && (
-              <p className="mt-2 text-sm font-medium text-neutral-100">
+              <p className="text-sm font-medium text-neutral-100">
                 {test.passed} em {test.tested} jogos ({test.tested > 0 ? Math.round((test.passed / test.tested) * 100) : 0}%)
                 teriam passado o filtro.
               </p>
             )}
           </div>
-        </div>
 
-        {error && <p className="rounded-lg bg-red-950 px-4 py-2.5 text-sm text-red-300">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]">
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-          >
-            {saving ? "A guardar…" : initial ? "Guardar" : "✓ Criar bot"}
-          </button>
+          {error && <p className="rounded-lg bg-red-950 px-4 py-2.5 text-sm text-red-300">{error}</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {saving ? "A guardar…" : initial ? "Guardar" : "✓ Criar bot"}
+            </button>
+          </div>
+        </aside>
         </div>
       </div>
     </div>
