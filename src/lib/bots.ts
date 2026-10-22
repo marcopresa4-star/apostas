@@ -197,17 +197,26 @@ export interface StatValues {
   shots_home: number;
   shots_away: number;
   sot_total: number;
+  shots_off_total: number;
+  shots_blocked_total: number;
   corners_total: number;
   corners_home: number;
   corners_away: number;
   poss_home: number;
   poss_away: number;
+  goals_home: number;
+  goals_away: number;
+  offsides_total: number;
   fouls_total: number;
   saves_total: number;
   big_total: number;
   yellows_total: number;
   reds_total: number;
   pressure_recent: number;
+  pressure_recent5: number;
+  pressure_recent10: number;
+  pressure_recent15: number;
+  pressure_total: number;
 }
 
 // One trigger against the values (missing stat = trigger fails closed).
@@ -458,22 +467,35 @@ export const BOT_MARKETS: { key: BotMarket; label: string }[] = [
   { key: "fh_over05", label: "Over 0.5 — 1ª parte" },
 ];
 
-export const BOT_STATS: { k: string; label: string; unit: string }[] = [
+export const BOT_STATS: { k: string; label: string; unit: string; hidden?: boolean }[] = [
+  // Legacy per-side keys: still valid for old bots (validated + evaluated) but
+  // the «Ao vivo» form covers them under «equipa» rows with Casa/Fora pills.
+  { k: "shots_home", label: "Remates casa ≥", unit: "", hidden: true },
+  { k: "shots_away", label: "Remates fora ≥", unit: "", hidden: true },
+  { k: "corners_home", label: "Cantos casa ≥", unit: "", hidden: true },
+  { k: "corners_away", label: "Cantos fora ≥", unit: "", hidden: true },
+  { k: "poss_home", label: "Posse casa ≥", unit: "%", hidden: true },
+  { k: "poss_away", label: "Posse fora ≥", unit: "%", hidden: true },
+  { k: "pressure_recent", label: "Pressão recente (remates últ. 10′) ≥", unit: "", hidden: true },
+  { k: "big_total", label: "Grandes oportunidades ≥", unit: "", hidden: true },
+  // team-goals keys feed «Golos de uma equipa»; validation only (the form
+  // shows them under that row's Casa/Fora pills).
+  { k: "goals_home", label: "Golos casa ≥", unit: "", hidden: true },
+  { k: "goals_away", label: "Golos fora ≥", unit: "", hidden: true },
+  // «Ao vivo» (secção 4) — the mock's rows.
   { k: "shots_total", label: "Remates totais ≥", unit: "" },
-  { k: "shots_home", label: "Remates casa ≥", unit: "" },
-  { k: "shots_away", label: "Remates fora ≥", unit: "" },
-  { k: "sot_total", label: "Remates à baliza (total) ≥", unit: "" },
-  { k: "corners_total", label: "Cantos ≥", unit: "" },
-  { k: "corners_home", label: "Cantos casa ≥", unit: "" },
-  { k: "corners_away", label: "Cantos fora ≥", unit: "" },
-  { k: "poss_home", label: "Posse casa ≥", unit: "%" },
-  { k: "poss_away", label: "Posse fora ≥", unit: "%" },
-  { k: "pressure_recent", label: "Pressão recente (remates últ. 10′) ≥", unit: "" },
+  { k: "sot_total", label: "Remates à baliza ≥", unit: "" },
+  { k: "shots_off_total", label: "Remates para fora ≥", unit: "" },
+  { k: "shots_blocked_total", label: "Remates bloqueados ≥", unit: "" },
+  { k: "corners_total", label: "Cantos (total) ≥", unit: "" },
+  { k: "offsides_total", label: "Foras de jogo ≥", unit: "" },
+  { k: "pressure_total", label: "Pressão no jogo todo ≥", unit: "" },
+  { k: "pressure_recent5", label: "Pressão recente (últ. 5′) ≥", unit: "" },
+  { k: "pressure_recent15", label: "Pressão recente (últ. 15′) ≥", unit: "" },
   { k: "yellows_total", label: "Amarelos (total) ≥", unit: "" },
   { k: "reds_total", label: "Vermelhos (total) ≥", unit: "" },
   { k: "fouls_total", label: "Faltas (total) ≥", unit: "" },
-  { k: "saves_total", label: "Defesas (total) ≥", unit: "" },
-  { k: "big_total", label: "Grandes oportunidades ≥", unit: "" },
+  { k: "saves_total", label: "Defesas dos GR ≥", unit: "" },
 ];
 
 export const BOT_SCORES: { key: string; label: string }[] = [

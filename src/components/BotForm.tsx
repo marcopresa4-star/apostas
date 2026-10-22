@@ -18,7 +18,6 @@ import type {
 import {
   BOT_MARKETS,
   BOT_SCORES,
-  BOT_STATS,
   GOAL_CMP_LABELS,
   GOALS_NEUTRAL,
   goalsNeutral,
@@ -218,6 +217,57 @@ const PRE_SIDES: { v: PregameSide; l: string }[] = [
 // PT-PT decimals with a comma for the new cards' numeric readouts.
 const fmtPre = (v: number): string => String(v).replace(".", ",");
 
+// «Ao vivo» (secção 4): row defs per the mock. `sides` rows fold the old
+// casa/fora pairs into one row with Casa/Fora pills; `windows` rows pick the
+// pressure window. Hidden legacy keys keep firing without showing here.
+interface LiveRowDef {
+  id: string;
+  label: string;
+  homeKey?: string;
+  awayKey?: string;
+  def: number;
+  unit?: string;
+  sides?: boolean;
+  windows?: true;
+}
+
+const LIVE_ROWS: LiveRowDef[] = [
+  { id: "shots_total", label: "Remates totais", homeKey: "shots_total", awayKey: "shots_total", def: 4 },
+  { id: "sot", label: "Remates à baliza", homeKey: "sot_total", awayKey: "sot_total", def: 3 },
+  { id: "shots_off", label: "Remates para fora", homeKey: "shots_off_total", awayKey: "shots_off_total", def: 3 },
+  { id: "shots_blocked", label: "Remates bloqueados", homeKey: "shots_blocked_total", awayKey: "shots_blocked_total", def: 2 },
+  { id: "corners_total", label: "Cantos (total)", homeKey: "corners_total", awayKey: "corners_total", def: 3 },
+  { id: "corners_team", label: "Cantos de uma equipa", homeKey: "corners_home", awayKey: "corners_away", def: 2, sides: true },
+  { id: "poss_team", label: "Posse de uma equipa", homeKey: "poss_home", awayKey: "poss_away", def: 55, unit: "%", sides: true },
+  { id: "goals_team", label: "Golos de uma equipa", homeKey: "goals_home", awayKey: "goals_away", def: 2, sides: true },
+  { id: "offsides", label: "Foras de jogo", homeKey: "offsides_total", awayKey: "offsides_total", def: 2 },
+  { id: "pressure_all", label: "Pressão no jogo todo", homeKey: "pressure_total", awayKey: "pressure_total", def: 10 },
+  { id: "pressure_recent", label: "Pressão recente", def: 6, windows: true },
+  { id: "yellows", label: "Amarelos (total)", homeKey: "yellows_total", awayKey: "yellows_total", def: 3 },
+  { id: "reds", label: "Vermelhos (total)", homeKey: "reds_total", awayKey: "reds_total", def: 1 },
+  { id: "fouls", label: "Faltas (total)", homeKey: "fouls_total", awayKey: "fouls_total", def: 15 },
+  { id: "saves", label: "Defesas dos GR", homeKey: "saves_total", awayKey: "saves_total", def: 3 },
+];
+
+const LIVE_GROUPS: { name: string; rows: LiveRowDef[] }[] = [
+  {
+    name: "Remates",
+    rows: LIVE_ROWS.filter((r) => ["shots_total", "sot", "shots_off", "shots_blocked"].includes(r.id)),
+  },
+  {
+    name: "Cantos, posse e golos",
+    rows: LIVE_ROWS.filter((r) => ["corners_total", "corners_team", "poss_team", "goals_team", "offsides"].includes(r.id)),
+  },
+  {
+    name: "Pressão (remates + cantos)",
+    rows: LIVE_ROWS.filter((r) => ["pressure_all", "pressure_recent"].includes(r.id)),
+  },
+  {
+    name: "Disciplina e guarda-redes",
+    rows: LIVE_ROWS.filter((r) => ["yellows", "reds", "fouls", "saves"].includes(r.id)),
+  },
+];
+
 interface Draft {
   name: string;  silent: boolean;
   leagues: string[];
@@ -230,30 +280,42 @@ interface Draft {
   market: BotMarket;
   min_odd: number;
   stats: Record<string, number>;
+  // Which Casa/Fora side the team rows point at; pressure window per row.
+  statSides: Record<string, "home" | "away">;
+  statWindows: Record<string, number>;
   preRules: PreRuleDraft[];
   refire: boolean;
 }
 
-const fromRow = (b: BotRow): Draft => ({
-  name: b.name,
-  silent: b.silent,
-  leagues: b.leagues,
-  mode: b.mode,
-  minute_from: b.minute_from,
-  minute_to: b.minute_to,
-  period: b.period,
-  score: b.score,
-  goals: goalsNeutral(b.goals),
-  market: b.market,
-  min_odd: b.min_odd !== null ? Math.min(6, b.min_odd) : 1,
-  stats: Object.fromEntries(b.stats.map((s) => [s.k, s.v])),
-  preRules: b.pregame.map((r) =>
-    r.kind === "avg" || r.kind === "odd"
-      ? r
-      : { side: r.side, n: r.n === 5 || r.n === 20 ? r.n : 10, metric: r.metric, pct: r.pct ?? 60 }
-  ),
-  refire: b.refire,
-});
+const fromRow = (b: BotRow): Draft => {
+  const stats: Record<string, number> = Object.fromEntries(b.stats.map((s) => [s.k, s.v]));
+  return {
+    name: b.name,
+    silent: b.silent,
+    leagues: b.leagues,
+    mode: b.mode,
+    minute_from: b.minute_from,
+    minute_to: b.minute_to,
+    period: b.period,
+    score: b.score,
+    goals: goalsNeutral(b.goals),
+    market: b.market,
+    min_odd: b.min_odd !== null ? Math.min(6, b.min_odd) : 1,
+    stats,
+    statSides: {
+      corners_team: "corners_away" in stats ? "away" : "home",
+      poss_team: "poss_away" in stats ? "away" : "home",
+      goals_team: "goals_away" in stats ? "away" : "home",
+    },
+    statWindows: { pressure_recent: "pressure_recent15" in stats ? 15 : "pressure_recent5" in stats ? 5 : 10 },
+    preRules: b.pregame.map((r) =>
+      r.kind === "avg" || r.kind === "odd"
+        ? r
+        : { side: r.side, n: r.n === 5 || r.n === 20 ? r.n : 10, metric: r.metric, pct: r.pct ?? 60 }
+    ),
+    refire: b.refire,
+  } satisfies Draft;
+};
 
 const blank: Draft = {
   name: "",
@@ -269,6 +331,8 @@ const blank: Draft = {
   market: "mais1",
   min_odd: 1,
   stats: {},
+  statSides: {},
+  statWindows: { pressure_recent: 10 },
   preRules: [],
   refire: false,
 };
@@ -312,12 +376,47 @@ export default function BotForm({
     }));
   };
 
-  const toggleStat = (k: string): void => {
+  // «Ao vivo» (secção 4): key a row points at, on/off, side and window edits.
+  const liveKey = (row: LiveRowDef, sides: Record<string, "home" | "away">, windows: Record<string, number>): string => {
+    if (row.windows) return `pressure_recent${windows[row.id] ?? 10}`;
+    return (sides[row.id] ?? "home") === "away" ? (row.awayKey ?? "") : (row.homeKey ?? "");
+  };
+
+  const toggleRow = (row: LiveRowDef): void => {
     setD((prev) => {
+      const key = liveKey(row, prev.statSides, prev.statWindows);
       const stats = { ...prev.stats };
-      if (k in stats) delete stats[k];
-      else stats[k] = k.startsWith("poss_") ? 55 : k === "pressure_recent" ? 6 : k === "corners_total" ? 5 : k === "big_total" ? 2 : 3;
+      if (key in stats) delete stats[key];
+      else stats[key] = row.def;
       return { ...prev, stats };
+    });
+  };
+
+  const setRowSide = (row: LiveRowDef, side: "home" | "away"): void => {
+    setD((prev) => {
+      const prevKey = liveKey(row, prev.statSides, prev.statWindows);
+      const sides = { ...prev.statSides, [row.id]: side };
+      const stats = { ...prev.stats };
+      const newKey = liveKey(row, sides, prev.statWindows);
+      if (prevKey !== newKey && prevKey in stats && row.homeKey !== row.awayKey) {
+        stats[newKey] = stats[prevKey];
+        delete stats[prevKey];
+      }
+      return { ...prev, statSides: sides, stats };
+    });
+  };
+
+  const setRowWindow = (row: LiveRowDef, w: number): void => {
+    setD((prev) => {
+      const prevKey = liveKey(row, prev.statSides, prev.statWindows);
+      const windows = { ...prev.statWindows, [row.id]: w };
+      const stats = { ...prev.stats };
+      const newKey = liveKey(row, prev.statSides, windows);
+      if (prevKey !== newKey && prevKey in stats) {
+        stats[newKey] = stats[prevKey];
+        delete stats[prevKey];
+      }
+      return { ...prev, statWindows: windows, stats };
     });
   };
 
@@ -384,6 +483,9 @@ export default function BotForm({
   // «Odd pré-jogo» cards use the mock's pink accent.
   const pillPink = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-fuchsia-500/50 bg-fuchsia-500/15 text-fuchsia-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
+  // «Ao vivo» (secção 4) uses the mock's violet accent.
+  const pillViolet = (on: boolean) =>
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-violet-500/60 bg-violet-500/15 text-violet-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
   const scoreLabel = BOT_SCORES.find((s) => s.key === d.score)?.label ?? d.score;
   // Resumo values (sidebar).
@@ -393,9 +495,10 @@ export default function BotForm({
       : d.leagues.length === 1
         ? leagues.find((l) => l.code === d.leagues[0])?.label ?? d.leagues[0]
         : `${d.leagues.length} ligas`;
-  const nStats = Object.keys(d.stats).length;
+  // Visible «Ao vivo» rows that are on (hidden legacy keys don't count).
+  const nStats = LIVE_ROWS.filter((r) => liveKey(r, d.statSides, d.statWindows) in d.stats).length + Object.keys(d.stats).filter((k) => !LIVE_ROWS.some((r) => [r.homeKey, r.awayKey].includes(k))).length;
   const resumoAoVivo =
-    nStats === 0 ? "Só minuto e marcador" : nStats === 1 ? "1 estatística" : `${nStats} estatísticas`;
+    nStats === 0 ? "Só minuto e marcador" : nStats === 1 ? "1 gatilho" : `${nStats} gatilhos`;
 
   // «Antes do jogo» summary: single criterion described, several counted.
   const preResumo =
@@ -877,56 +980,110 @@ export default function BotForm({
           </p>
         </Section>
 
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Condições de disparo</p>
+        {/* ——— Secção 4 · Ao vivo ——— */}
+        <Section n={4} title="Ao vivo" sub="O que tem de estar a acontecer no jogo para o bot apitar.">
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-neutral-100">Como juntar as condições</p>
+              <p className="text-[11px] text-neutral-500">(todas têm de ser cumpridas)</p>
+            </div>
             <div className="flex gap-1.5">
-              <button type="button" onClick={() => set("mode", "and")} className={pill(d.mode === "and")}>E (todas)</button>
-              <button type="button" onClick={() => set("mode", "or")} className={pill(d.mode === "or")}>OU (uma)</button>
+              <button type="button" onClick={() => set("mode", "and")} className={pillViolet(d.mode === "and")}>E (todas)</button>
+              <button type="button" onClick={() => set("mode", "or")} className={pillViolet(d.mode === "or")}>OU (uma)</button>
             </div>
           </div>
-          <p className="mb-3 text-[11px] text-neutral-500">
-            Aplica-se só às estatísticas ao vivo abaixo. Minuto, período, marcador e filtros de golos (secção 2) e
-            critérios pré-jogo (secção 3) continuam sempre obrigatórios.
+
+          {LIVE_GROUPS.map((grp) => (
+            <div key={grp.name} className="mt-3">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-neutral-500">{grp.name}</p>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {grp.rows.map((row) => {
+                  const key = liveKey(row, d.statSides, d.statWindows);
+                  const on = key in d.stats;
+                  return (
+                    <div
+                      key={row.id}
+                      className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition ${
+                        on ? "border-violet-500/40 bg-violet-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleRow(row)}
+                        aria-pressed={on}
+                        className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-violet-600" : "bg-white/[0.09]"}`}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+                      </button>
+                      <span className="min-w-0 flex-1 text-[13px] leading-tight text-neutral-200">{row.label}</span>
+                      {row.sides && (
+                        <span className="flex shrink-0 gap-1">
+                          {(["home", "away"] as const).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setRowSide(row, s)}
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
+                                (d.statSides[row.id] ?? "home") === s
+                                  ? "bg-violet-500/25 text-violet-300"
+                                  : "text-neutral-500 hover:text-neutral-300"
+                              }`}
+                            >
+                              {s === "home" ? "Casa" : "Fora"}
+                            </button>
+                          ))}
+                        </span>
+                      )}
+                      {row.windows && (
+                        <select
+                          value={d.statWindows[row.id] ?? 10}
+                          onChange={(e) => setRowWindow(row, Number(e.target.value))}
+                          className="shrink-0 rounded-lg border border-white/[0.09] bg-white/[0.03] px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-violet-500"
+                        >
+                          {[5, 10, 15].map((m) => (
+                            <option key={m} value={m}>
+                              {m}'
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {on ? (
+                        <span className="flex shrink-0 items-center gap-1 text-xs">
+                          <span className="text-violet-400">≥</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={200}
+                            value={d.stats[key]}
+                            onChange={(e) => set("stats", { ...d.stats, [key]: Number(e.target.value) })}
+                            className="w-11 rounded-md border border-violet-700/60 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-medium text-violet-300 outline-none"
+                          />
+                          {row.unit && <span className="text-[10px] text-neutral-500">{row.unit}</span>}
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-[11px] tabular-nums text-neutral-500">≥ {row.def}{row.unit}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">
+            Verificadas no minuto do disparo. Pressão = remates + cantos; a recente conta só os últimos minutos. Uma
+            estatística sem dados nesse instante falha (o bot não apita às cegas). Minuto, período, marcador e filtros de
+            golos (secção 2) e critérios pré-jogo (secção 3) continuam sempre obrigatórios.
           </p>
 
           <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-            <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-emerald-500" />
+            <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-violet-500" />
             <span className="text-xs text-neutral-300">
               <span className="font-semibold">Re-disparo no mesmo jogo</span> — permite disparar mais de uma vez se as
               condições voltarem a acontecer.
             </span>
           </label>
-
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <p className="mb-1 text-sm font-medium text-neutral-200">📊 Gatilhos estatísticos ao vivo</p>
-            <p className="mb-2 text-[11px] text-neutral-500">Marca os que contam; a barra do valor só aparece depois de marcares.</p>
-            <div className="space-y-2">
-              {BOT_STATS.map((s) => {
-                const on = s.k in d.stats;
-                return (
-                  <div key={s.k} className="flex items-center gap-2">
-                    <input type="checkbox" checked={on} onChange={() => toggleStat(s.k)} className="accent-emerald-500" />
-                    <span className="min-w-0 flex-1 text-xs text-neutral-300">{s.label}</span>
-                    {on && (
-                      <span className="flex shrink-0 items-center gap-1">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={d.stats[s.k]}
-                          onChange={(e) => set("stats", { ...d.stats, [s.k]: Number(e.target.value) })}
-                          className="w-16 rounded-lg border border-emerald-700/60 bg-neutral-900 px-2 py-1 text-right text-xs font-medium text-emerald-300 outline-none"
-                        />
-                        <span className="text-[11px] text-neutral-500">{s.unit}</span>
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        </Section>
         </div>
 
         {/* ——— Barra lateral: preview, resumo, backtest e guardar ——— */}

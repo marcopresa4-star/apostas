@@ -129,6 +129,15 @@ function parseStats(body: unknown): Partial<StatValues> {
   put("Shots on target", (v) => {
     out.sot_total = v.home + v.away;
   });
+  put("Shots off target", (v) => {
+    out.shots_off_total = v.home + v.away;
+  });
+  put("Blocked shots", (v) => {
+    out.shots_blocked_total = v.home + v.away;
+  });
+  put("Offsides", (v) => {
+    out.offsides_total = v.home + v.away;
+  });
   put("Corner kicks", (v) => {
     out.corners_home = v.home;
     out.corners_away = v.away;
@@ -395,8 +404,11 @@ export async function POST() {
     // Shared per-game reads, once: stats, shots, pre-match expectation, odds.
     // Independent of each other, so they go together (Supabase cache hits
     // resolve without touching the serial scraper).
-    const needStats = mine.some((b) => b.stats.some((s) => !["yellows_total", "reds_total", "pressure_recent"].includes(s.k)));
-    const needShots = mine.some((b) => b.stats.some((s) => ["shots_total", "shots_home", "shots_away", "pressure_recent"].includes(s.k)));
+    const PRESSURE_KEYS = ["pressure_recent", "pressure_recent5", "pressure_recent10", "pressure_recent15"];
+    const needStats = mine.some((b) => b.stats.some((s) => !["yellows_total", "reds_total"].includes(s.k)));
+    // The shot timeline feeds the moving pressure windows; everything else
+    // comes from the statistics packet.
+    const needShots = mine.some((b) => b.stats.some((s) => PRESSURE_KEYS.includes(s.k)));
     const needModel = mine.some((b) => b.min_prob !== null && b.min_prob !== undefined);
     const needOdds = mine.some((b) => b.min_odd !== null && b.min_odd !== undefined);
     // The prematch league is the same loader the pregame rules use below:
@@ -440,10 +452,19 @@ export async function POST() {
       vals.shots_home = shots.filter((s) => s.home).length;
       vals.shots_away = shots.filter((s) => !s.home).length;
       vals.shots_total = shots.length;
-      vals.pressure_recent = shots.filter((s) => s.minute > snap.minute - 10 && s.minute <= snap.minute).length;
+      vals.pressure_recent5 = shots.filter((s) => s.minute > snap.minute - 5 && s.minute <= snap.minute).length;
+      vals.pressure_recent10 = shots.filter((s) => s.minute > snap.minute - 10 && s.minute <= snap.minute).length;
+      vals.pressure_recent15 = shots.filter((s) => s.minute > snap.minute - 15 && s.minute <= snap.minute).length;
+      // pressure_recent (legacy key) stays the 10-minute window.
+      vals.pressure_recent = vals.pressure_recent10;
     }
     vals.yellows_total = snap.yh;
     vals.reds_total = snap.rh + snap.ra;
+    // Team goals come from the score itself, no extra fetch.
+    vals.goals_home = snap.hg;
+    vals.goals_away = snap.ag;
+    // «Pressão no jogo todo» = remates + cantos do jogo, como diz a secção.
+    if (vals.shots_total !== undefined && vals.corners_total !== undefined) vals.pressure_total = vals.shots_total + vals.corners_total;
 
     const pre = preRes?.v ?? null;
     const byKey = oddRes?.v ?? null;
