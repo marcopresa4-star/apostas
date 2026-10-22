@@ -233,6 +233,7 @@ interface LiveRowDef {
 
 const LIVE_ROWS: LiveRowDef[] = [
   { id: "shots_total", label: "Remates totais", homeKey: "shots_total", awayKey: "shots_total", def: 4 },
+  { id: "shots_team", label: "Remates de uma equipa", homeKey: "shots_home", awayKey: "shots_away", def: 3, sides: true },
   { id: "sot", label: "Remates à baliza", homeKey: "sot_total", awayKey: "sot_total", def: 3 },
   { id: "shots_off", label: "Remates para fora", homeKey: "shots_off_total", awayKey: "shots_off_total", def: 3 },
   { id: "shots_blocked", label: "Remates bloqueados", homeKey: "shots_blocked_total", awayKey: "shots_blocked_total", def: 2 },
@@ -247,12 +248,13 @@ const LIVE_ROWS: LiveRowDef[] = [
   { id: "reds", label: "Vermelhos (total)", homeKey: "reds_total", awayKey: "reds_total", def: 1 },
   { id: "fouls", label: "Faltas (total)", homeKey: "fouls_total", awayKey: "fouls_total", def: 15 },
   { id: "saves", label: "Defesas dos GR", homeKey: "saves_total", awayKey: "saves_total", def: 3 },
+  { id: "big", label: "Grandes oportunidades", homeKey: "big_total", awayKey: "big_total", def: 2 },
 ];
 
 const LIVE_GROUPS: { name: string; rows: LiveRowDef[] }[] = [
   {
     name: "Remates",
-    rows: LIVE_ROWS.filter((r) => ["shots_total", "sot", "shots_off", "shots_blocked"].includes(r.id)),
+    rows: LIVE_ROWS.filter((r) => ["shots_total", "shots_team", "sot", "shots_off", "shots_blocked"].includes(r.id)),
   },
   {
     name: "Cantos, posse e golos",
@@ -265,6 +267,10 @@ const LIVE_GROUPS: { name: string; rows: LiveRowDef[] }[] = [
   {
     name: "Disciplina e guarda-redes",
     rows: LIVE_ROWS.filter((r) => ["yellows", "reds", "fouls", "saves"].includes(r.id)),
+  },
+  {
+    name: "Oportunidades",
+    rows: LIVE_ROWS.filter((r) => ["big"].includes(r.id)),
   },
 ];
 
