@@ -149,6 +149,15 @@ describe("settleAlert", () => {
     expect(settleAlert("fh_over05", 0, 0, 2, 1, 30, null, null)).toBeNull();
     expect(settleAlert("fh_over05", 0, 0, 0, 0, 30)).toBeNull();
   });
+  it("judges mais1 against HT when the bot lives in the 1st half", () => {
+    // Fired at 25' in a 0-0 game: a first-half bot needs a goal BEFORE the
+    // break — 0-0 HT is a miss even if the game goes on to 2-1 final.
+    expect(settleAlert("mais1", 0, 0, 2, 1, 25, 0, 0, true)).toBe(false);
+    expect(settleAlert("mais1", 0, 0, 2, 1, 25, 1, 0, true)).toBe(true);
+    expect(settleAlert("mais1", 0, 0, 1, 0, 25, null, null, true)).toBeNull();
+    // Same game, final-horizon bot (period second/full): final decides.
+    expect(settleAlert("mais1", 0, 0, 2, 1, 70, 0, 0, false)).toBe(true);
+  });
 });
 
 describe("snapMinute", () => {

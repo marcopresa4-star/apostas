@@ -195,6 +195,9 @@ export async function POST() {
       if (fhg === null || fag === null) return;
       const hthg = num(hs?.period1);
       const htag = num(as?.period1);
+      // A bot scoped to the first half promises a goal BEFORE the break:
+      // judge mais1 against HT, not the final score.
+      const settleBot = active.find((b) => b.id === a.bot_id);
       const hit = settleAlert(
         a.market as Bot["market"],
         a.hg,
@@ -203,7 +206,8 @@ export async function POST() {
         fag,
         typeof (a as { minute?: unknown }).minute === "number" ? (a as { minute: number }).minute : null,
         hthg,
-        htag
+        htag,
+        settleBot?.period === "first"
       );
       if (hit === null) return;
       await supabase.from("bot_alerts").update({ hit }).eq("id", a.id);

@@ -207,7 +207,10 @@ export function pregameOk(
 // know when the alert fired: before the break the 2nd-half score is
 // unknowable from (alert, final) alone, so they stay undecided (null). The
 // 1st-half market needs the half-time score instead: pass it when known,
-// else undecided too.
+// else undecided too. `horizonFirst` narrows a total-goals market (mais1) to
+// the FIRST HALF: a bot scoped to "period first" promises a goal before the
+// break — goals after it are irrelevant, so the HT score decides, not the
+// final one. (Final-only markets like home/draw/away/over25/btts ignore it.)
 export function settleAlert(
   market: BotMarket,
   alertHg: number,
@@ -216,8 +219,14 @@ export function settleAlert(
   finalAg: number,
   alertMinute: number | null = null,
   htHg: number | null = null,
-  htAg: number | null = null
+  htAg: number | null = null,
+  horizonFirst = false
 ): boolean | null {
+  // markets whose horizon is the interval when the bot lives in the 1st half
+  if (horizonFirst && market === "mais1") {
+    if (htHg === null || htAg === null) return null;
+    return htHg + htAg > alertHg + alertAg;
+  }
   switch (market) {
     case "mais1":
       return finalHg + finalAg > alertHg + alertAg;
