@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MomentumPoint } from "./SofaScoreWidget";
 import { parseStatRows } from "./LiveEvolutionChart";
 import type { GameIncident } from "@/app/api/sofascore/incidents/route";
+import { pressureSummary, type PressureShot, type PressureSummary } from "@/lib/livePressure";
 
 // Expandable live-stats panel for a pinned game (Ao vivo board): momentum
 // bars with goal/card markers and series toggles, key-stat chips, the
@@ -70,11 +71,13 @@ function BarRow({ home, away, label, pct }: { home: number | null; away: number 
 function MomentumBars({
   points,
   incidents,
+  shots,
   home,
   away,
 }: {
   points: MomentumPoint[];
   incidents: GameIncident[];
+  shots: PressureShot[];
   home: string;
   away: string;
 }) {
@@ -82,8 +85,9 @@ function MomentumBars({
   const [showAway, setShowAway] = useState(true);
   const [showGoals, setShowGoals] = useState(true);
   const [showCards, setShowCards] = useState(true);
+  const [showShots, setShowShots] = useState(true);
   const W = 640;
-  const H = 150;
+  const H = 168;
   const PADX = 10;
   const mid = H / 2;
   const shown = useMemo(() => points.filter((p) => (p.value >= 0 ? showHome : showAway) || p.value === 0), [points, showHome, showAway]);
@@ -94,6 +98,9 @@ function MomentumBars({
   const bw = Math.max(1.5, ((W - PADX * 2) / Math.max(1, maxMinute)) * 0.62);
   const goals = showGoals ? incidents.filter((i) => i.kind === "goal") : [];
   const cards = showCards ? incidents.filter((i) => i.kind === "yellow" || i.kind === "red") : [];
+  // Shots without a goal marker: each is a dot on its side's strip, the dot
+  // grows with the chance's xG (plain small dot where the shotmap has none).
+  const shotDots = showShots ? shots.filter((s) => !s.goal) : [];
   const toggle = (on: boolean) =>
     `rounded-full border px-2 py-0.5 text-[11px] transition ${on ? "border-neutral-600 text-neutral-200" : "text-neutral-600 line-through"}`;
   if (points.length === 0) return null;
@@ -115,6 +122,11 @@ function MomentumBars({
         <button type="button" onClick={() => setShowCards((v) => !v)} className={toggle(showCards)} title="Marcadores de cartão">
           🟨 Cartões
         </button>
+        {shots.some((s) => !s.goal) && (
+          <button type="button" onClick={() => setShowShots((v) => !v)} className={toggle(showShots)} title="Remates no minuto em que aconteceram">
+            • Remates
+          </button>
+        )}
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`Momentum de ${home} contra ${away}`}>
         <line x1={PADX} x2={W - PADX} y1={mid} y2={mid} stroke="#3f3f46" strokeWidth="1" />
@@ -131,10 +143,25 @@ function MomentumBars({
           const h = Math.max(1, Math.abs(y(p.value) - mid));
           return <rect key={i} x={x(p.minute) - bw / 2} y={top} width={bw} height={h} rx="1" fill={up ? "#38bdf8" : "#fb923c"} opacity="0.85" />;
         })}
+        {shotDots.map((s, i) => {
+          const r = s.xg === null ? 1.8 : Math.min(4.2, 2 + s.xg * 5);
+          return (
+            <circle
+              key={`s${i}`}
+              cx={x(s.minute)}
+              cy={s.home ? 8 : H - 8}
+              r={r}
+              fill={s.home ? "#38bdf8" : "#fb923c"}
+              opacity="0.9"
+            >
+              <title>{`${s.minute}' — remate de ${s.home ? home : away}${s.xg !== null ? ` · xG ${s.xg.toFixed(2).replace(".", ",")}` : ""}`}</title>
+            </circle>
+          );
+        })}
         {goals.map((g, i) => (
           <g key={`g${i}`}>
             <title>{`${g.minute}' — ${g.text}`}</title>
-            <text x={x(g.minute)} y={g.home ? 14 : H - 18} textAnchor="middle" fontSize="11">
+            <text x={x(g.minute)} y={g.home ? 20 : H - 20} textAnchor="middle" fontSize="11">
               ⚽
             </text>
           </g>
@@ -142,12 +169,50 @@ function MomentumBars({
         {cards.map((c, i) => (
           <g key={`c${i}`}>
             <title>{`${c.minute}' — ${c.text}`}</title>
-            <text x={x(c.minute)} y={c.home ? 28 : H - 32} textAnchor="middle" fontSize="11">
+            <text x={x(c.minute)} y={c.home ? 32 : H - 32} textAnchor="middle" fontSize="11">
               {c.kind === "red" ? "🟥" : "🟨"}
             </text>
           </g>
         ))}
       </svg>
+    </div>
+  );
+}
+
+// xG / L15 / L15' above the chart: the numbers the CornerPro mock shows, from
+// the game's own shotmap (our definitions, see livePressure.ts). One row per
+// metric; a metric with no data on either side is not rendered (silence, not
+// zeros). xG is SofaScore's, not CornerPro's proprietary split.
+function PressureValues({ p, home, away }: { p: PressureSummary; home: string; away: string }) {
+  const fmt = (v: number | null): string => (v === null ? "—" : v.toFixed(2).replace(".", ","));
+  const rows = [
+    { label: "xG", title: "Golos esperados acumulados (shotmap do SofaScore)", home: p.home.xg, away: p.away.xg },
+    { label: "L15", title: "Últimos 15': xG criado (remates quando a competição não tem xG)", home: p.home.l15, away: p.away.l15 },
+    { label: "L15'", title: "Próximos 15': ritmo recente ajustado à média do jogo", home: p.home.l15p, away: p.away.l15p },
+  ].filter((r) => r.home !== null || r.away !== null);
+  if (rows.length === 0) return null;
+  return (
+    <div className="mb-2 rounded-lg bg-neutral-900 px-3 py-2">
+      <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1 text-xs">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">{p.hasXg ? "xG · L15" : "L15 · remates"}</span>
+        <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-sky-300/80">{home}</span>
+        <span className="text-right text-[10px] font-semibold uppercase tracking-wide text-orange-300/80">{away}</span>
+        {rows.map((r) => (
+          <div key={r.label} className="contents">
+            <span className="font-medium text-neutral-500" title={r.title}>
+              {r.label}
+            </span>
+            <span className="text-right font-semibold tabular-nums text-sky-300">{fmt(r.home)}</span>
+            <span className="text-right font-semibold tabular-nums text-orange-300">{fmt(r.away)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] leading-relaxed text-neutral-600">
+        {p.hasXg
+          ? `L15 = xG dos últimos 15' · remates ${p.home.shots15}–${p.away.shots15}.`
+          : `Sem xG nesta competição: L15 conta os remates dos últimos 15' (${p.home.shots15}–${p.away.shots15}).`}{" "}
+        L15&apos; projeta esse ritmo nos próximos 15&apos;.
+      </p>
     </div>
   );
 }
@@ -203,15 +268,19 @@ export default function PinnedLiveStats({
   const [momentum, setMomentum] = useState<MomentumPoint[]>([]);
   const [incidents, setIncidents] = useState<GameIncident[]>([]);
   const [yellows, setYellows] = useState<StatVals>({ home: null, away: null });
+  // Shotmap: xG per shot, the source of xG / L15 above the chart.
+  const [shots, setShots] = useState<PressureShot[]>([]);
+  const [minute, setMinute] = useState<number | null>(null);
 
   useEffect(() => {
     let stop = false;
     const poll = async (): Promise<void> => {
-      const [statBody, graphBody, eventBody, incBody] = await Promise.all([
+      const [statBody, graphBody, eventBody, incBody, shotBody] = await Promise.all([
         readJson(`/api/sofascore/statistics?id=${eventId}`),
         readJson(`/api/sofascore/graph?id=${eventId}`),
         readJson(`/api/sofascore/event?id=${eventId}&light=1`),
         readJson(`/api/sofascore/incidents?id=${eventId}`),
+        readJson(`/api/sofascore/shotmap?id=${eventId}`),
       ]);
       if (stop) return;
       const rows = (statBody as { stats?: { name?: unknown; home?: unknown; away?: unknown }[] } | null)?.stats;
@@ -226,14 +295,17 @@ export default function PinnedLiveStats({
       }
       const st = (
         eventBody as {
-          state?: { yellows?: { home?: unknown; away?: unknown } };
+          state?: { yellows?: { home?: unknown; away?: unknown }; minute?: unknown };
         } | null
       )?.state;
       const yh = st?.yellows && typeof st.yellows.home === "number" ? st.yellows.home : null;
       const ya = st?.yellows && typeof st.yellows.away === "number" ? st.yellows.away : null;
       setYellows({ home: yh, away: ya });
+      setMinute(typeof st?.minute === "number" && Number.isFinite(st.minute) ? st.minute : null);
       const inc = (incBody as { incidents?: GameIncident[] } | null)?.incidents;
       if (Array.isArray(inc)) setIncidents(inc);
+      const shotList = (shotBody as { shots?: PressureShot[] } | null)?.shots;
+      if (Array.isArray(shotList)) setShots(shotList);
     };
     void poll();
     const id = setInterval(() => void poll(), 60_000);
@@ -251,16 +323,18 @@ export default function PinnedLiveStats({
   const val = (key: string): StatVals =>
     key === "__yellows" ? yellows : (stats[key] ?? { home: null, away: null });
   const pair = (s: StatVals): string => `${s.home ?? 0}–${s.away ?? 0}`;
-  const shots = stats["Remates"] ?? { home: null, away: null };
+  const shotStats = stats["Remates"] ?? { home: null, away: null };
   const corners = stats["Cantos"] ?? { home: null, away: null };
   const fouls = stats["Faltas"] ?? { home: null, away: null };
+  const pressure = useMemo(() => pressureSummary(shots, minute), [shots, minute]);
 
   return (
     <div className="mt-3 border-t border-white/[0.07] pt-2">
-      <MomentumBars points={momentum} incidents={incidents} home={homeName} away={awayName} />
+      {pressure && <PressureValues p={pressure} home={homeName} away={awayName} />}
+      <MomentumBars points={momentum} incidents={incidents} shots={shots} home={homeName} away={awayName} />
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
         <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Remates casa–fora">
-          🎯 {pair(shots)}
+          🎯 {pair(shotStats)}
         </span>
         <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Cantos casa–fora">
           ⛳ {pair(corners)}
