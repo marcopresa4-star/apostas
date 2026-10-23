@@ -575,15 +575,7 @@ export default function BotForm({
             <p className="mt-1 text-[11px] text-neutral-500">Aparece nos alertas: “ALERTA {d.name || "BotOverHT"} — …”</p>
           </div>
 
-        <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-          <input type="checkbox" checked={d.silent} onChange={(e) => set("silent", e.target.checked)} className="mt-1 accent-emerald-500" />
-          <span className="text-xs text-neutral-300">
-            <span className="font-semibold">Modo silencioso</span> — regista o alerta e mostra na lista, mas não envia
-            notificação. Útil para testar um bot novo sem spam.
-          </span>
-        </label>
-
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="mt-1 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
             <p className="mb-2 text-sm font-medium text-neutral-200">🎯 Mercado a alertar</p>
             <select value={d.market} onChange={(e) => set("market", e.target.value as BotMarket)} className={field}>
               {BOT_MARKETS.map((m) => (
@@ -1081,14 +1073,53 @@ export default function BotForm({
             estatística sem dados nesse instante falha (o bot não apita às cegas). Minuto, período, marcador e filtros de
             golos (secção 2) e critérios pré-jogo (secção 3) continuam sempre obrigatórios.
           </p>
+        </Section>
 
-          <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
-            <input type="checkbox" checked={d.refire} onChange={(e) => set("refire", e.target.checked)} className="mt-1 accent-violet-500" />
-            <span className="text-xs text-neutral-300">
-              <span className="font-semibold">Re-disparo no mesmo jogo</span> — permite disparar mais de uma vez se as
-              condições voltarem a acontecer.
-            </span>
-          </label>
+        {/* ——— Secção 5 · Notificação ——— */}
+        <Section n={5} title="Notificação" sub="Como o bot te avisa quando apita.">
+          <div className="space-y-2.5">
+            <div className={`flex items-start gap-3 rounded-xl border p-4 transition ${!d.silent ? "border-emerald-500/40 bg-emerald-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"}`}>
+              <button
+                type="button"
+                onClick={() => set("silent", !d.silent)}
+                aria-pressed={!d.silent}
+                className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition ${!d.silent ? "bg-emerald-600" : "bg-white/[0.09]"}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${!d.silent ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-neutral-100">🔔 Notificação do browser</p>
+                <p className="text-[11px] leading-relaxed text-neutral-500">
+                  {d.silent
+                    ? "Desligada (modo silencioso): o alerta fica registado na lista, sem notificação. Bom para testar um bot novo sem spam."
+                    : "Ligada: cada disparo envia uma notificação do browser — além de ficar na lista de alertas."}
+                </p>
+              </div>
+            </div>
+
+            <div className={`flex items-start gap-3 rounded-xl border p-4 transition ${d.refire ? "border-emerald-500/40 bg-emerald-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"}`}>
+              <button
+                type="button"
+                onClick={() => set("refire", !d.refire)}
+                aria-pressed={d.refire}
+                className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition ${d.refire ? "bg-emerald-600" : "bg-white/[0.09]"}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${d.refire ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-neutral-100">🔁 Re-disparo no mesmo jogo</p>
+                <p className="text-[11px] leading-relaxed text-neutral-500">
+                  {d.refire
+                    ? "Ligado: pode disparar mais de uma vez no mesmo jogo, desde que as condições voltem a acontecer."
+                    : "Desligado: no máximo um alerta por jogo, mesmo que as condições se repitam."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+            Os avisos são do browser: com o site fechado nada corre nem notifica.
+          </p>
         </Section>
         </div>
 
