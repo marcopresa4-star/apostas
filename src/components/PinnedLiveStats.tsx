@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MomentumPoint } from "./SofaScoreWidget";
 import { parseStatRows } from "./LiveEvolutionChart";
 import type { GameIncident } from "@/app/api/sofascore/incidents/route";
-import { l15Reading, pressureSummary, type PressureShot, type PressureSummary } from "@/lib/livePressure";
+import { l15Reading, modelNext15, pressureSummary, type PressureShot, type PressureSummary } from "@/lib/livePressure";
 
 // Expandable live-stats panel for a pinned game (Ao vivo board): momentum
 // bars with goal/card markers and series toggles, key-stat chips, the
@@ -188,7 +188,15 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
   const rows = [
     { label: "xG", title: "Golos esperados acumulados (shotmap do SofaScore)", home: p.home.xg, away: p.away.xg },
     { label: "L15", title: "Últimos 15': xG criado (remates quando a competição não tem xG)", home: p.home.l15, away: p.away.l15 },
-    { label: "L15'", title: "Próximos 15': pressão ofensiva esperada pelo ritmo recente de xG", home: p.home.l15p, away: p.away.l15p },
+    {
+      label: "L15'",
+      title:
+        p.l15pSource === "model"
+          ? "Próximos 15': xG esperado pelo modelo live (pré-jogo, resultado, vermelhos e xG)"
+          : "Próximos 15': pressão ofensiva esperada pelo ritmo recente de xG",
+      home: p.home.l15p,
+      away: p.away.l15p,
+    },
   ].filter((r) => r.home !== null || r.away !== null);
   if (rows.length === 0) return null;
   const reading = l15Reading(p.home.l15p, p.away.l15p, home, away);
@@ -212,9 +220,47 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
         {p.hasXg
           ? `L15 = xG dos últimos 15' · remates ${p.home.shots15}–${p.away.shots15}.`
           : `Sem xG nesta competição: L15 conta os remates dos últimos 15' (${p.home.shots15}–${p.away.shots15}).`}{" "}
-        L15&apos; = pressão ofensiva esperada para os próximos 15&apos;
+        {p.l15pSource === "model"
+          ? "L15' = modelo live (pré-jogo, resultado, vermelhos, xG)"
+          : "L15' = ritmo recente de xG"}
         {reading ? ` — ${reading}.` : "."}
       </p>
+    </div>
+  );
+}
+
+// Score / possession / reds alongside the xG panel: the context that explains
+// why L15' reads the way it does. L15 stays pure shotmap; score and reds reach
+// L15' through modelNext15 (a separate input), not through this display line.
+function MatchContext({
+  score,
+  reds,
+  possession,
+}: {
+  score: { home: number | null; away: number | null };
+  reds: { home: number; away: number };
+  possession: StatVals;
+}) {
+  const hasScore = score.home !== null || score.away !== null;
+  const hasPossession = possession.home !== null || possession.away !== null;
+  const hasReds = reds.home > 0 || reds.away > 0;
+  if (!hasScore && !hasPossession && !hasReds) return null;
+  const pill = "rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300";
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+      {hasScore && (
+        <span className={pill} title="Resultado atual">
+          Resultado <b className="text-neutral-100">{score.home ?? "—"}–{score.away ?? "—"}</b>
+        </span>
+      )}
+      {hasPossession && (
+        <span className={pill} title="Posse de bola casa–fora">
+          Posse <b className="text-neutral-100">{fmt(possession.home, true)}–{fmt(possession.away, true)}</b>
+        </span>
+      )}
+      <span className={pill} title="Cartões vermelhos casa–fora">
+        🟥 <b className="text-neutral-100">{reds.home}–{reds.away}</b>
+      </span>
     </div>
   );
 }
@@ -273,9 +319,49 @@ export default function PinnedLiveStats({
   // Shotmap: xG per shot, the source of xG / L15 above the chart.
   const [shots, setShots] = useState<PressureShot[]>([]);
   const [minute, setMinute] = useState<number | null>(null);
+  // Live context for the model: score and reds from the event, pre-match
+  // lambdas from the app's model. None of this feeds L15 (pure shotmap).
+  const [score, setScore] = useState<{ home: number | null; away: number | null }>({ home: null, away: null });
+  const [reds, setReds] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
+  const [prematch, setPrematch] = useState<{ home: number; away: number; firstHalfShare: number } | null>(null);
+
+  // Pre-match expectation does not change during the game: one read per event.
+  // Failure (scraper offline, unmapped data) leaves L15' on the rate fallback.
+  useEffect(() => {
+    let stop = false;
+    setPrematch(null);
+    void readJson(`/api/sofascore/prematch?id=${eventId}`).then((body) => {
+      if (stop) return;
+      const p = body as { home?: unknown; away?: unknown; firstHalfShare?: unknown; fromModel?: unknown } | null;
+      // Only a real model prior feeds L15'. The route falls back to typical
+      // figures for unmapped leagues and flags them fromModel=false: using
+      // those would be inventing a pre-match read, so the rate fallback wins.
+      if (
+        p?.fromModel === true &&
+        typeof p.home === "number" &&
+        typeof p.away === "number" &&
+        typeof p.firstHalfShare === "number"
+      ) {
+        setPrematch({ home: p.home, away: p.away, firstHalfShare: p.firstHalfShare });
+      }
+    });
+    return () => {
+      stop = true;
+    };
+  }, [eventId]);
 
   useEffect(() => {
     let stop = false;
+    // New pinned game: never show the previous game's readings while the
+    // first poll is in flight.
+    setStats({});
+    setMomentum([]);
+    setIncidents([]);
+    setYellows({ home: null, away: null });
+    setShots([]);
+    setMinute(null);
+    setScore({ home: null, away: null });
+    setReds({ home: 0, away: 0 });
     const poll = async (): Promise<void> => {
       const [statBody, graphBody, eventBody, incBody, shotBody] = await Promise.all([
         readJson(`/api/sofascore/statistics?id=${eventId}`),
@@ -297,13 +383,27 @@ export default function PinnedLiveStats({
       }
       const st = (
         eventBody as {
-          state?: { yellows?: { home?: unknown; away?: unknown }; minute?: unknown };
+          state?: {
+            yellows?: { home?: unknown; away?: unknown };
+            minute?: unknown;
+            homeGoals?: unknown;
+            awayGoals?: unknown;
+            reds?: { home?: unknown; away?: unknown };
+          };
         } | null
       )?.state;
       const yh = st?.yellows && typeof st.yellows.home === "number" ? st.yellows.home : null;
       const ya = st?.yellows && typeof st.yellows.away === "number" ? st.yellows.away : null;
       setYellows({ home: yh, away: ya });
       setMinute(typeof st?.minute === "number" && Number.isFinite(st.minute) ? st.minute : null);
+      setScore({
+        home: typeof st?.homeGoals === "number" ? st.homeGoals : null,
+        away: typeof st?.awayGoals === "number" ? st.awayGoals : null,
+      });
+      setReds({
+        home: st?.reds && typeof st.reds.home === "number" ? st.reds.home : 0,
+        away: st?.reds && typeof st.reds.away === "number" ? st.reds.away : 0,
+      });
       const inc = (incBody as { incidents?: GameIncident[] } | null)?.incidents;
       if (Array.isArray(inc)) setIncidents(inc);
       const shotList = (shotBody as { shots?: PressureShot[] } | null)?.shots;
@@ -328,10 +428,26 @@ export default function PinnedLiveStats({
   const shotStats = stats["Remates"] ?? { home: null, away: null };
   const corners = stats["Cantos"] ?? { home: null, away: null };
   const fouls = stats["Faltas"] ?? { home: null, away: null };
-  const pressure = useMemo(() => pressureSummary(shots, minute), [shots, minute]);
+  const possession = stats["Posse de bola"] ?? { home: null, away: null };
+  const pressure = useMemo(() => {
+    const model =
+      prematch && minute !== null && score.home !== null && score.away !== null
+        ? modelNext15(shots, minute, {
+            lambdaHome: prematch.home,
+            lambdaAway: prematch.away,
+            firstHalfShare: prematch.firstHalfShare,
+            homeGoals: score.home,
+            awayGoals: score.away,
+            redsHome: reds.home,
+            redsAway: reds.away,
+          })
+        : null;
+    return pressureSummary(shots, minute, model);
+  }, [shots, minute, prematch, score, reds]);
 
   return (
     <div className="mt-3 border-t border-white/[0.07] pt-2">
+      <MatchContext score={score} reds={reds} possession={possession} />
       {pressure && <PressureValues p={pressure} home={homeName} away={awayName} />}
       <MomentumBars points={momentum} incidents={incidents} shots={shots} home={homeName} away={awayName} />
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">

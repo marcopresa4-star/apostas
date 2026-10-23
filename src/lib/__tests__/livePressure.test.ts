@@ -1,8 +1,18 @@
 // xG / L15 / L15' from the shotmap (pure functions in livePressure.ts).
 import { describe, it, expect } from "vitest";
-import { l15Reading, pressureSummary, type PressureShot } from "../livePressure";
+import { l15Reading, modelNext15, pressureSummary, type LiveModelContext, type PressureShot } from "../livePressure";
+import { predictLive } from "../liveModel";
 
 const shot = (minute: number, home: boolean, xg: number | null): PressureShot => ({ minute, home, xg });
+const ctx: LiveModelContext = {
+  lambdaHome: 1.5,
+  lambdaAway: 1.1,
+  firstHalfShare: 0.44,
+  homeGoals: 0,
+  awayGoals: 0,
+  redsHome: 0,
+  redsAway: 0,
+};
 
 describe("pressureSummary", () => {
   it("is silent without a shotmap", () => {
@@ -62,6 +72,54 @@ describe("pressureSummary", () => {
     const p = pressureSummary([shot(40, true, 0.1), shot(80, false, 0.3)], 45)!;
     expect(p.away.xg).toBe(0);
     expect(p.away.shots).toBe(0);
+  });
+
+  it("uses the live model for L15' when the shotmap has xG", () => {
+    const shots = [shot(10, true, 0.1), shot(30, true, 0.2), shot(50, true, 0.3), shot(55, false, 0.4)];
+    const p = pressureSummary(shots, 60, { home: 0.8, away: 0.25 })!;
+    expect(p.l15pSource).toBe("model");
+    expect(p.home.l15p).toBeCloseTo(0.8);
+    expect(p.away.l15p).toBeCloseTo(0.25);
+    // L15 itself is untouched by the model.
+    expect(p.home.l15).toBeCloseTo(0.3);
+  });
+
+  it("keeps the rate fallback without xG even when a model is given", () => {
+    const shots = [shot(8, true, null), shot(12, true, null), shot(20, false, null)];
+    const p = pressureSummary(shots, 25, { home: 0.8, away: 0.2 })!;
+    expect(p.l15pSource).toBe("rate");
+    expect(p.home.l15p).toBeCloseTo(((1 + (2 / 25) * 5) / 20) * 15);
+  });
+
+  it("does not use the model before the projection gate", () => {
+    const p = pressureSummary([shot(2, true, 0.2)], 4, { home: 0.8, away: 0.2 })!;
+    expect(p.l15pSource).toBe("rate");
+    expect(p.home.l15p).toBeNull();
+  });
+});
+
+describe("modelNext15", () => {
+  it("projects the model's remaining xG onto the next 15 minutes", () => {
+    const shots = [shot(10, true, 0.3), shot(20, false, 0.2)];
+    const next = modelNext15(shots, 30, ctx)!;
+    const pred = predictLive({ ...ctx, minute: 30, homeXg: 0.3, awayXg: 0.2 });
+    // 60 minutes left, so the next 15 are a quarter of what remains.
+    expect(next.home).toBeCloseTo(pred.remainingHome * 0.25);
+    expect(next.away).toBeCloseTo(pred.remainingAway * 0.25);
+  });
+
+  it("is silent without xG or before the projection gate", () => {
+    expect(modelNext15([shot(10, true, null)], 20, ctx)).toBeNull();
+    expect(modelNext15([shot(2, true, 0.2)], 4, ctx)).toBeNull();
+  });
+
+  it("counts score and reds through the model", () => {
+    const shots = [shot(10, true, 0.3), shot(20, false, 0.2)];
+    const level = modelNext15(shots, 60, ctx)!;
+    const homeAhead = modelNext15(shots, 60, { ...ctx, homeGoals: 2 })!;
+    const homeRed = modelNext15(shots, 60, { ...ctx, redsHome: 1 })!;
+    expect(homeAhead.home).not.toBeCloseTo(level.home);
+    expect(homeRed.home).toBeLessThan(level.home);
   });
 });
 
