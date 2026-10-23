@@ -254,6 +254,13 @@ describe("settleAlert", () => {
     // Same game, final-horizon bot (period second/full): final decides.
     expect(settleAlert("mais1", 0, 0, 2, 1, 70, 0, 0, false)).toBe(true);
   });
+  it("does not settle a penalty shootout as goals", () => {
+    // Flamengo–Estudiantes: 0-0 after 90', 2-3 on penalties. The caller
+    // passes the regulation score (matchGoals), never `current` (2-3).
+    expect(settleAlert("mais1", 0, 0, 0, 0, 70)).toBe(false);
+    expect(settleAlert("sh_over15", 0, 0, 0, 0, 45)).toBe(false);
+    expect(settleAlert("draw", 0, 0, 0, 0)).toBe(true);
+  });
 });
 
 describe("snapMinute", () => {

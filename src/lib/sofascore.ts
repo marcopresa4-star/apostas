@@ -84,6 +84,34 @@ const num = (value: unknown): number | null => {
 const str = (value: unknown): string =>
   typeof value === "string" ? value : value === null || value === undefined ? "" : String(value);
 
+// Goals for a 90-minute market/model. SofaScore's `current` adds the penalty
+// shootout once a knockout tie is decided there (Flamengo–Estudiantes ended
+// 0–0 but `current` read 2–3), so a finished match must read `normaltime`
+// (the regulation score) and only fall back to `display`. Live games still
+// use `current` — it is the field that moves.
+export function matchGoals(score: unknown, finished: boolean): number | null {
+  const s = obj(score);
+  if (!finished) return num(s?.current) ?? num(s?.display);
+  return num(s?.normaltime) ?? num(s?.display) ?? num(s?.current);
+}
+
+// Goals shown on the board for a finished match: `display` is the UI score —
+// it keeps extra-time goals but leaves the shootout out.
+export function displayGoals(score: unknown, finished: boolean): number | null {
+  const s = obj(score);
+  if (!finished) return num(s?.current) ?? num(s?.display);
+  return num(s?.display) ?? num(s?.normaltime) ?? num(s?.current);
+}
+
+// A shootout is not live play for match markets: SofaScore keeps `current`
+// moving with the kicks. The status text says "Penalties" and/or the score
+// grows a `penalties` field; either is enough to stop reading `current`.
+export function isShootout(status: unknown, ...scores: unknown[]): boolean {
+  const s = obj(status);
+  if (/penalt/i.test(str(s?.description)) || /penalt/i.test(str(s?.type))) return true;
+  return scores.some((score) => (num(obj(score)?.penalties) ?? 0) > 0);
+}
+
 // SofaScore status.type values seen in the wild: notstarted, inprogress,
 // finished, canceled, postponed, interrupted. The human description carries
 // the half-time detail ("Halftime", "Half time", "Intervalo").
@@ -212,10 +240,9 @@ export function parseSofascoreEvent(
   const minute = phase === "halftime" ? 45 : minuteOf(event, incidents, now);
   const { reds, yellows, lastIncident } = cardsOf(incidents);
 
-  const homeScore = obj(event.homeScore);
-  const awayScore = obj(event.awayScore);
-  const homeGoals = num(homeScore?.current) ?? num(homeScore?.display);
-  const awayGoals = num(awayScore?.current) ?? num(awayScore?.display);
+  const settled = phase === "finished" || isShootout(status, event.homeScore, event.awayScore);
+  const homeGoals = displayGoals(event.homeScore, settled);
+  const awayGoals = displayGoals(event.awayScore, settled);
 
   // Some finished events carry the sending-offs as fields instead of incidents.
   const fieldReds = {
@@ -306,8 +333,9 @@ export function parseSofascoreLiveList(payload: unknown, now = Date.now()): Sofa
     const category = obj(tournament?.category);
     const competition = str(tournament?.name) || str(category?.name);
     const uniqueId = num(obj(tournament?.uniqueTournament)?.id);
-    const homeGoals = num(obj(e.homeScore)?.current) ?? num(obj(e.homeScore)?.display);
-    const awayGoals = num(obj(e.awayScore)?.current) ?? num(obj(e.awayScore)?.display);
+    const settled = phase === "finished" || isShootout(e.status, e.homeScore, e.awayScore);
+    const homeGoals = displayGoals(e.homeScore, settled);
+    const awayGoals = displayGoals(e.awayScore, settled);
     const homeHt = num(obj(e.homeScore)?.period1);
     const awayHt = num(obj(e.awayScore)?.period1);
     const minute =

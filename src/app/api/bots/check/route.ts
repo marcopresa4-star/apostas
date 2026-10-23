@@ -4,6 +4,7 @@
 // at most MAX_GAMES live games per run, odds only read when a bot needs them.
 import { createClient } from "@/lib/supabase/server";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
+import { isShootout, matchGoals } from "@/lib/sofascore";
 import { sofaRaw, ScraperOffline } from "@/lib/sofaRaw";
 
 const obj = (x: unknown): Record<string, unknown> | null =>
@@ -245,8 +246,10 @@ export async function POST() {
       if (!finished) return;
       const hs = obj(event?.homeScore);
       const as = obj(event?.awayScore);
-      const fhg = num(hs?.current) ?? num(hs?.display);
-      const fag = num(as?.current) ?? num(as?.display);
+      // `current` adds the penalty shootout: settle a 0–0 decided on penalties
+      // as 0–0, never 2–3.
+      const fhg = matchGoals(hs, true);
+      const fag = matchGoals(as, true);
       if (fhg === null || fag === null) return;
       const hthg = num(hs?.period1);
       const htag = num(as?.period1);
@@ -372,6 +375,9 @@ export async function POST() {
       const phase = String(st?.type ?? "").toLowerCase() === "halftime" || /halftime|break/i.test(String(st?.description ?? "")) ? "halftime" : "live";
       const hs = obj(event.homeScore);
       const as = obj(event.awayScore);
+      // A shootout is not live play: `current` would read 2-3 on a 0-0 game
+      // and fire match markets that can no longer be settled.
+      if (isShootout(st, hs, as)) return;
       const hg = num(hs?.current) ?? num(hs?.display) ?? g.homeGoals;
       const ag = num(as?.current) ?? num(as?.display) ?? g.awayGoals;
       const desc = String(st?.description ?? "");

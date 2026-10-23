@@ -9,7 +9,7 @@ import { slugify } from "./slugify";
 import { sideTokensIn } from "./sportscoreSlug";
 import { tokens } from "./teamNames";
 import { sofaRaw, ScraperOffline } from "./sofaRaw";
-import { incidentIsGoal, parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
+import { incidentIsGoal, matchGoals, parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
 import { cacheGet, cacheGetAny, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
 export type { StaleTracker } from "./sofaCache";
 
@@ -363,8 +363,8 @@ function toFixture(e: Json, round: number): SofaFixture | null {
   const finished = str(obj(e.status)?.type) === "finished";
   const hs = obj(e.homeScore);
   const as = obj(e.awayScore);
-  const hg = num(hs?.current) ?? num(hs?.display);
-  const ag = num(as?.current) ?? num(as?.display);
+  const hg = matchGoals(hs, finished);
+  const ag = matchGoals(as, finished);
   const h1 = num(hs?.period1);
   const a1 = num(as?.period1);
   const { date, time } = lisbonParts(start);
@@ -1149,7 +1149,7 @@ export interface SlimEvent {
   tournament: string; // tournament.name
   uniqueId: number | null;
   seasonId: number | null;
-  hg: number | null; // homeScore.current ?? display
+  hg: number | null; // regulation score (matchGoals: no shootout goals)
   ag: number | null;
 }
 
@@ -1161,17 +1161,18 @@ export function slimEvent(e: Json): SlimEvent | null {
   if (id === null || !home || !away || start === null) return null;
   const hs = obj(e.homeScore);
   const as = obj(e.awayScore);
+  const status = str(obj(e.status)?.type);
   return {
     id,
     home,
     away,
     start,
-    status: str(obj(e.status)?.type),
+    status,
     tournament: str(obj(e.tournament)?.name),
     uniqueId: num(obj(obj(e.tournament)?.uniqueTournament)?.id),
     seasonId: num(obj(e.season)?.id),
-    hg: num(hs?.current) ?? num(hs?.display),
-    ag: num(as?.current) ?? num(as?.display),
+    hg: matchGoals(hs, status === "finished"),
+    ag: matchGoals(as, status === "finished"),
   };
 }
 
