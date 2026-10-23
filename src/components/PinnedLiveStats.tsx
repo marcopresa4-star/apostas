@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MomentumPoint } from "./SofaScoreWidget";
 import { parseStatRows } from "./LiveEvolutionChart";
 import type { GameIncident } from "@/app/api/sofascore/incidents/route";
-import { pressureSummary, type PressureShot, type PressureSummary } from "@/lib/livePressure";
+import { l15Reading, pressureSummary, type PressureShot, type PressureSummary } from "@/lib/livePressure";
 
 // Expandable live-stats panel for a pinned game (Ao vivo board): momentum
 // bars with goal/card markers and series toggles, key-stat chips, the
@@ -188,9 +188,10 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
   const rows = [
     { label: "xG", title: "Golos esperados acumulados (shotmap do SofaScore)", home: p.home.xg, away: p.away.xg },
     { label: "L15", title: "Últimos 15': xG criado (remates quando a competição não tem xG)", home: p.home.l15, away: p.away.l15 },
-    { label: "L15'", title: "Próximos 15': ritmo recente ajustado à média do jogo", home: p.home.l15p, away: p.away.l15p },
+    { label: "L15'", title: "Próximos 15': pressão ofensiva esperada pelo ritmo recente de xG", home: p.home.l15p, away: p.away.l15p },
   ].filter((r) => r.home !== null || r.away !== null);
   if (rows.length === 0) return null;
+  const reading = l15Reading(p.home.l15p, p.away.l15p, home, away);
   return (
     <div className="mb-2 rounded-lg bg-neutral-900 px-3 py-2">
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1 text-xs">
@@ -211,7 +212,8 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
         {p.hasXg
           ? `L15 = xG dos últimos 15' · remates ${p.home.shots15}–${p.away.shots15}.`
           : `Sem xG nesta competição: L15 conta os remates dos últimos 15' (${p.home.shots15}–${p.away.shots15}).`}{" "}
-        L15&apos; projeta esse ritmo nos próximos 15&apos;.
+        L15&apos; = pressão ofensiva esperada para os próximos 15&apos;
+        {reading ? ` — ${reading}.` : "."}
       </p>
     </div>
   );

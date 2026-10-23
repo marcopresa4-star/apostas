@@ -45,6 +45,27 @@ export interface PressureSummary {
   away: SidePressure;
 }
 
+// How the two L15' projections read together, in the terms the metric is used
+// for: one-way game (one side high, the other low), open game (both high) or
+// closed game (both low). Thresholds are in xG-per-15' terms: about 0.22 is
+// the league-average side, so 0.30 is above average and 0.15 well below.
+export function l15Reading(
+  home: number | null,
+  away: number | null,
+  homeName: string,
+  awayName: string
+): string | null {
+  if (home === null || away === null) return null;
+  const hi = Math.max(home, away);
+  const lo = Math.min(home, away);
+  if (hi < 0.15) return "jogo fechado";
+  if (lo >= 0.3) return "jogo aberto";
+  if (hi >= 0.35 && (lo < 0.2 || hi >= 2.5 * lo)) {
+    return `sentido único (${home > away ? homeName : awayName})`;
+  }
+  return "equilibrado";
+}
+
 const WINDOW = 15;
 // Minutes of the game's average mixed into the recent rate (shrinks small
 // samples; 5' of average keeps an early 15' burst honest).

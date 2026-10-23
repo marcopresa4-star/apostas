@@ -1,6 +1,6 @@
 // xG / L15 / L15' from the shotmap (pure functions in livePressure.ts).
 import { describe, it, expect } from "vitest";
-import { pressureSummary, type PressureShot } from "../livePressure";
+import { l15Reading, pressureSummary, type PressureShot } from "../livePressure";
 
 const shot = (minute: number, home: boolean, xg: number | null): PressureShot => ({ minute, home, xg });
 
@@ -62,5 +62,19 @@ describe("pressureSummary", () => {
     const p = pressureSummary([shot(40, true, 0.1), shot(80, false, 0.3)], 45)!;
     expect(p.away.xg).toBe(0);
     expect(p.away.shots).toBe(0);
+  });
+});
+
+describe("l15Reading", () => {
+  it("reads both projections together", () => {
+    expect(l15Reading(0.5, 0.95, "Casa", "Fora")).toBe("jogo aberto");
+    expect(l15Reading(0.07, 0.9, "Casa", "Fora")).toBe("sentido único (Fora)");
+    expect(l15Reading(0.9, 0.07, "Casa", "Fora")).toBe("sentido único (Casa)");
+    expect(l15Reading(0.05, 0.1, "Casa", "Fora")).toBe("jogo fechado");
+    expect(l15Reading(0.2, 0.25, "Casa", "Fora")).toBe("equilibrado");
+  });
+
+  it("is silent without both projections", () => {
+    expect(l15Reading(0.4, null, "Casa", "Fora")).toBeNull();
   });
 });
