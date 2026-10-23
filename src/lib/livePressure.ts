@@ -14,12 +14,14 @@
 //    towards the game's own average with a 5-minute prior — the formula that
 //    shipped before the model. Needs at least 5 minutes played.
 //
-// The model won the shotmap backtest at every minute (MAE 0.247 vs 0.314 for
-// persistence and 0.294 for the old L15'; 918 samples / 72 games), so the
+// The model won the shotmap backtest at every minute (MAE 0.228 vs 0.281 for
+// persistence and 0.264 for the old L15'; 4684 samples / 380 games), so the
 // best blend is 100% model. Replaying the app's own prematchFor prior
-// point-in-time (66 of those games) gives 0.251 vs the same 0.314 / 0.294:
-// the odds proxy used in the first run did not flatter the model. The
-// backtest is scripts/backtest-l15.ts.
+// point-in-time (336 of those games) gives 0.236 against the same 0.281 /
+// 0.264: the closing-odds proxy used in the first run is a little sharper
+// (0.228), as a market prior usually is, but the app prior still wins clearly
+// and is the one production actually has. The backtest is
+// scripts/backtest-l15.ts.
 //
 // This is OUR definition (documented here and shown in the UI), not
 // CornerProBet's proprietary L15/L15' algorithm. Corners have no per-minute

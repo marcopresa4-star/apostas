@@ -40,22 +40,79 @@ import { prematchFromMatches } from "../src/lib/sofaPrematch";
 
 const SCRAPER = process.env.SOFASCORE_SCRAPER_URL ?? "http://127.0.0.1:9323";
 const CACHE = join(tmpdir(), "apostas-l15-backtest");
+// Ten clubs per mapped league (SofaScore ids from the current season's team
+// list). More clubs widen the sample; more games per club deepen it. Cups and
+// second divisions still enter through a club's last events, but only the
+// mapped league gives the real prior (see priorContext).
 const TEAMS = [
+  // Liga Portugal
   { id: 3006, name: "Benfica" },
   { id: 3002, name: "FC Porto" },
   { id: 3001, name: "Sporting CP" },
+  { id: 2999, name: "Sporting Braga" },
+  { id: 3009, name: "Vitória SC" },
+  { id: 49531, name: "Famalicão" },
+  { id: 3014, name: "Moreirense" },
+  { id: 3011, name: "Santa Clara" },
+  { id: 4500, name: "Estoril Praia" },
+  { id: 3010, name: "Gil Vicente" },
+  // Premier League
   { id: 17, name: "Manchester City" },
   { id: 44, name: "Liverpool" },
   { id: 42, name: "Arsenal" },
+  { id: 33, name: "Tottenham" },
+  { id: 38, name: "Chelsea" },
+  { id: 39, name: "Newcastle" },
+  { id: 40, name: "Aston Villa" },
+  { id: 30, name: "Brighton" },
+  { id: 35, name: "Manchester United" },
+  { id: 7, name: "Crystal Palace" },
+  // LaLiga
   { id: 2829, name: "Real Madrid" },
   { id: 2817, name: "Barcelona" },
+  { id: 2836, name: "Atlético Madrid" },
+  { id: 2825, name: "Athletic Club" },
+  { id: 2824, name: "Real Sociedad" },
+  { id: 2819, name: "Villarreal" },
+  { id: 2816, name: "Real Betis" },
+  { id: 2833, name: "Sevilla" },
+  { id: 2828, name: "Valencia" },
+  { id: 2821, name: "Celta Vigo" },
+  // Bundesliga
   { id: 2672, name: "Bayern" },
+  { id: 2673, name: "Dortmund" },
+  { id: 2681, name: "Leverkusen" },
+  { id: 36360, name: "RB Leipzig" },
+  { id: 2677, name: "Stuttgart" },
+  { id: 2674, name: "Eintracht Frankfurt" },
+  { id: 2538, name: "Freiburg" },
+  { id: 2547, name: "Union Berlin" },
+  { id: 2556, name: "Mainz" },
+  { id: 2569, name: "Hoffenheim" },
+  // Ligue 1
   { id: 1644, name: "PSG" },
+  { id: 1641, name: "Marseille" },
+  { id: 1653, name: "Monaco" },
+  { id: 1643, name: "Lille" },
+  { id: 1649, name: "Lyon" },
+  { id: 1661, name: "Nice" },
+  { id: 1658, name: "Rennes" },
+  { id: 1648, name: "Lens" },
+  { id: 1659, name: "Strasbourg" },
+  { id: 1715, name: "Brest" },
+  // Serie A
   { id: 2697, name: "Inter" },
   { id: 2692, name: "Milan" },
   { id: 2687, name: "Juventus" },
+  { id: 2714, name: "Napoli" },
+  { id: 2702, name: "Roma" },
+  { id: 2699, name: "Lazio" },
+  { id: 2686, name: "Atalanta" },
+  { id: 2693, name: "Fiorentina" },
+  { id: 2685, name: "Bologna" },
+  { id: 2696, name: "Torino" },
 ];
-const GAMES_PER_TEAM = 6;
+const GAMES_PER_TEAM = 8;
 const FIRST_HALF_SHARE = 0.44;
 const MINUTES = [15, 25, 35, 45, 55, 65, 75];
 const WINDOW = 15;
