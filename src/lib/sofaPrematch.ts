@@ -6,7 +6,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadMaps } from "./sofaHistory";
 import { loadSofaLeague } from "./sofaLeague";
-import { leagueRates, predict } from "./footballModel";
+import { leagueRates, predict, type PlayedMatch } from "./footballModel";
 import { sofaRaw } from "./sofaRaw";
 
 export interface PrematchExpectation {
@@ -26,6 +26,29 @@ const TYPICAL: PrematchExpectation = {
   fromModel: false,
   league: null,
 };
+
+// The model maths itself, separated from the reads so a backtest can replay
+// it point-in-time: same `predict`/`leagueRates` calls production makes, with
+// only the matches known before kick-off and `now` set to kick-off. Production
+// passes the full loaded season and the current clock.
+export function prematchFromMatches(
+  matches: PlayedMatch[],
+  home: string,
+  away: string,
+  now: Date,
+  league: string
+): PrematchExpectation {
+  const prediction = predict(matches, home, away, now);
+  const rates = leagueRates(matches, now);
+  return {
+    home: prediction.lambdaHome,
+    away: prediction.lambdaAway,
+    firstHalfShare: rates.firstHalfShare,
+    avgGoals: Math.round(rates.perTeam * 2 * 100) / 100,
+    fromModel: true,
+    league,
+  };
+}
 
 export async function prematchFor(
   supabase: SupabaseClient,
@@ -69,15 +92,5 @@ export async function prematchFor(
   const casa = toLocal.get(homeSofa) ?? homeSofa;
   const fora = toLocal.get(awaySofa) ?? awaySofa;
   if (!loaded.data.teams.includes(casa) || !loaded.data.teams.includes(fora)) return TYPICAL;
-  const now = new Date();
-  const prediction = predict(loaded.data.matches, casa, fora, now);
-  const rates = leagueRates(loaded.data.matches, now);
-  return {
-    home: prediction.lambdaHome,
-    away: prediction.lambdaAway,
-    firstHalfShare: rates.firstHalfShare,
-    avgGoals: Math.round(rates.perTeam * 2 * 100) / 100,
-    fromModel: true,
-    league: code,
-  };
+  return prematchFromMatches(loaded.data.matches, casa, fora, new Date(), code);
 }

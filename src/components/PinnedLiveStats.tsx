@@ -183,7 +183,7 @@ function MomentumBars({
 // the game's own shotmap (our definitions, see livePressure.ts). One row per
 // metric; a metric with no data on either side is not rendered (silence, not
 // zeros). xG is SofaScore's, not CornerPro's proprietary split.
-function PressureValues({ p, home, away }: { p: PressureSummary; home: string; away: string }) {
+function PressureValues({ p, home, away, finished }: { p: PressureSummary; home: string; away: string; finished: boolean }) {
   const fmt = (v: number | null): string => (v === null ? "—" : v.toFixed(2).replace(".", ","));
   const rows = [
     { label: "xG", title: "Golos esperados acumulados (shotmap do SofaScore)", home: p.home.xg, away: p.away.xg },
@@ -196,10 +196,13 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
           : "Próximos 15': pressão ofensiva esperada pelo ritmo recente de xG",
       home: p.home.l15p,
       away: p.away.l15p,
+      // Says where the number comes from, so the reader knows whether it is
+      // the model or the fallback without opening the tooltip.
+      source: p.l15pSource,
     },
   ].filter((r) => r.home !== null || r.away !== null);
   if (rows.length === 0) return null;
-  const reading = l15Reading(p.home.l15p, p.away.l15p, home, away);
+  const reading = finished ? null : l15Reading(p.home.l15p, p.away.l15p, home, away);
   return (
     <div className="mb-2 rounded-lg bg-neutral-900 px-3 py-2">
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1 text-xs">
@@ -210,6 +213,15 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
           <div key={r.label} className="contents">
             <span className="font-medium text-neutral-500" title={r.title}>
               {r.label}
+              {"source" in r && r.source && (
+                <span
+                  className={`ml-1 inline-block rounded px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide ${
+                    r.source === "model" ? "bg-sky-500/10 text-sky-300/90" : "bg-neutral-800 text-neutral-400"
+                  }`}
+                >
+                  {r.source === "model" ? "modelo" : "ritmo"}
+                </span>
+              )}
             </span>
             <span className="text-right font-semibold tabular-nums text-sky-300">{fmt(r.home)}</span>
             <span className="text-right font-semibold tabular-nums text-orange-300">{fmt(r.away)}</span>
@@ -220,10 +232,12 @@ function PressureValues({ p, home, away }: { p: PressureSummary; home: string; a
         {p.hasXg
           ? `L15 = xG dos últimos 15' · remates ${p.home.shots15}–${p.away.shots15}.`
           : `Sem xG nesta competição: L15 conta os remates dos últimos 15' (${p.home.shots15}–${p.away.shots15}).`}{" "}
-        {p.l15pSource === "model"
-          ? "L15' = modelo live (pré-jogo, resultado, vermelhos, xG)"
-          : "L15' = ritmo recente de xG"}
-        {reading ? ` — ${reading}.` : "."}
+        {finished
+          ? "Jogo terminado: L15' não se aplica."
+          : p.l15pSource === "model"
+            ? "L15' = modelo live (pré-jogo, resultado, vermelhos, xG)"
+            : "L15' = ritmo recente de xG"}
+        {reading ? ` — ${reading}.` : finished ? "" : "."}
       </p>
     </div>
   );
@@ -324,6 +338,8 @@ export default function PinnedLiveStats({
   const [score, setScore] = useState<{ home: number | null; away: number | null }>({ home: null, away: null });
   const [reds, setReds] = useState<{ home: number; away: number }>({ home: 0, away: 0 });
   const [prematch, setPrematch] = useState<{ home: number; away: number; firstHalfShare: number } | null>(null);
+  // Final whistle: L15' is a projection, so it stops making sense here.
+  const [finished, setFinished] = useState(false);
 
   // Pre-match expectation does not change during the game: one read per event.
   // Failure (scraper offline, unmapped data) leaves L15' on the rate fallback.
@@ -362,6 +378,7 @@ export default function PinnedLiveStats({
     setMinute(null);
     setScore({ home: null, away: null });
     setReds({ home: 0, away: 0 });
+    setFinished(false);
     const poll = async (): Promise<void> => {
       const [statBody, graphBody, eventBody, incBody, shotBody] = await Promise.all([
         readJson(`/api/sofascore/statistics?id=${eventId}`),
@@ -389,6 +406,7 @@ export default function PinnedLiveStats({
             homeGoals?: unknown;
             awayGoals?: unknown;
             reds?: { home?: unknown; away?: unknown };
+            phase?: unknown;
           };
         } | null
       )?.state;
@@ -404,6 +422,7 @@ export default function PinnedLiveStats({
         home: st?.reds && typeof st.reds.home === "number" ? st.reds.home : 0,
         away: st?.reds && typeof st.reds.away === "number" ? st.reds.away : 0,
       });
+      setFinished(st?.phase === "finished");
       const inc = (incBody as { incidents?: GameIncident[] } | null)?.incidents;
       if (Array.isArray(inc)) setIncidents(inc);
       const shotList = (shotBody as { shots?: PressureShot[] } | null)?.shots;
@@ -442,13 +461,13 @@ export default function PinnedLiveStats({
             redsAway: reds.away,
           })
         : null;
-    return pressureSummary(shots, minute, model);
-  }, [shots, minute, prematch, score, reds]);
+    return pressureSummary(shots, minute, model, finished);
+  }, [shots, minute, prematch, score, reds, finished]);
 
   return (
     <div className="mt-3 border-t border-white/[0.07] pt-2">
       <MatchContext score={score} reds={reds} possession={possession} />
-      {pressure && <PressureValues p={pressure} home={homeName} away={awayName} />}
+      {pressure && <PressureValues p={pressure} home={homeName} away={awayName} finished={finished} />}
       <MomentumBars points={momentum} incidents={incidents} shots={shots} home={homeName} away={awayName} />
       <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
         <span className="rounded-full border border-white/[0.07] px-2 py-0.5 tabular-nums text-neutral-300" title="Remates casa–fora">

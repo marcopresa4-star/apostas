@@ -16,7 +16,10 @@
 //
 // The model won the shotmap backtest at every minute (MAE 0.247 vs 0.314 for
 // persistence and 0.294 for the old L15'; 918 samples / 72 games), so the
-// best blend is 100% model. The backtest is scripts/backtest-l15.ts.
+// best blend is 100% model. Replaying the app's own prematchFor prior
+// point-in-time (66 of those games) gives 0.251 vs the same 0.314 / 0.294:
+// the odds proxy used in the first run did not flatter the model. The
+// backtest is scripts/backtest-l15.ts.
 //
 // This is OUR definition (documented here and shown in the UI), not
 // CornerProBet's proprietary L15/L15' algorithm. Corners have no per-minute
@@ -155,10 +158,14 @@ export function modelNext15(shots: PressureShot[], minute: number, ctx: LiveMode
 // game) the last shot's minute stands in. Empty shotmap -> null (silence, not
 // zeros). `model` is the optional next-15 projection from modelNext15: when
 // present (and the shotmap has xG) it replaces the rate-based L15'.
+// `finished` drops L15' (a projection for the next 15 minutes has no meaning
+// after the final whistle) while keeping xG and L15, which describe the game
+// that was played.
 export function pressureSummary(
   shots: PressureShot[],
   minute: number | null,
-  model?: Next15 | null
+  model?: Next15 | null,
+  finished = false
 ): PressureSummary | null {
   if (shots.length === 0) return null;
   const lastShot = Math.max(...shots.map((s) => s.minute));
@@ -178,6 +185,16 @@ export function pressureSummary(
       : null;
   const home = side(inPlay, true, hasXg, played);
   const away = side(inPlay, false, hasXg, played);
+  if (finished) {
+    return {
+      minute: played,
+      window: played - from,
+      hasXg,
+      l15pSource: useModel ? "model" : "rate",
+      home: { ...home, l15p: null },
+      away: { ...away, l15p: null },
+    };
+  }
   return {
     minute: played,
     window: played - from,

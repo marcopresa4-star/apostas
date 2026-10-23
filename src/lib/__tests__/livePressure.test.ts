@@ -96,6 +96,19 @@ describe("pressureSummary", () => {
     expect(p.l15pSource).toBe("rate");
     expect(p.home.l15p).toBeNull();
   });
+
+  it("drops L15' after the final whistle, keeping xG and L15", () => {
+    const shots = [shot(10, true, 0.1), shot(30, true, 0.2), shot(80, true, 0.3), shot(85, false, 0.4)];
+    const live = pressureSummary(shots, 90, { home: 0.8, away: 0.25 })!;
+    const done = pressureSummary(shots, 90, { home: 0.8, away: 0.25 }, true)!;
+    expect(done.home.l15p).toBeNull();
+    expect(done.away.l15p).toBeNull();
+    expect(done.home.xg).toBeCloseTo(live.home.xg!);
+    expect(done.away.xg).toBeCloseTo(live.away.xg!);
+    expect(done.home.l15).toBeCloseTo(live.home.l15!);
+    expect(done.away.l15).toBeCloseTo(live.away.l15!);
+    expect(l15Reading(done.home.l15p, done.away.l15p, "Casa", "Fora")).toBeNull();
+  });
 });
 
 describe("modelNext15", () => {

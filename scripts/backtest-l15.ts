@@ -6,28 +6,37 @@
 //                     shows), assumed to repeat;
 //   2. current L15' — persistence shrunk towards the game's average (the
 //                     formula that shipped before the model blend);
-//   3. model        — predictLive's remaining xG (pre-match prior from the
-//                     closing 1X2 odds, score, red cards, live xG form),
-//                     scaled to the next 15 minutes.
+//   3. model        — predictLive's remaining xG (pre-match prior, score, red
+//                     cards, live xG form), scaled to the next 15 minutes.
+//
+// Two priors feed the model:
+//   - odds: closing 1X2 de-margined and fitted to a Poisson (the proxy used
+//     in the first run, kept so the whole set stays comparable);
+//   - real: the app's own prematchFromMatches (the maths behind prematchFor),
+//     replayed point-in-time — only matches dated before kick-off and `now` at
+//     kick-off, so the event itself and anything after it cannot leak in.
+// The real prior needs the local Supabase + the league data the app already
+// loads; when it is unavailable the odds run still works.
 //
 // Plus a blend `w * model + (1 - w) * persistence` for w in 0..1. The weight
 // is picked on a train split and reported on the held-out events — weights
 // are chosen by data, not intuition.
 //
-// The production UI feeds prematchFor's lambdas; this backtest uses the
-// closing 1X2 odds de-margined and fitted to a Poisson as a proxy, because
-// the app model's historical pre-match snapshot is not available for these
-// events. The comparison is still model vs persistence on the same target.
-//
-// Run: npx tsx scripts/backtest-l15.ts
-// Needs the local SofaScore scraper on 127.0.0.1:9323. Raw responses are
-// cached in the OS temp dir so re-runs are instant.
+// Run: npx tsx --conditions=react-server scripts/backtest-l15.ts
+// (`react-server` is what lets server-only modules load outside Next.)
+// Needs the local SofaScore scraper on 127.0.0.1:9323 and, for the real
+// prior, SUPABASE_SERVICE_ROLE_KEY (local: `npx supabase status -o env`).
+// Raw responses are cached in the OS temp dir so re-runs are instant.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { predictLive } from "../src/lib/liveModel";
 import { pressureSummary, type PressureShot } from "../src/lib/livePressure";
+import { loadSofaLeague, type SofaLeague } from "../src/lib/sofaLeague";
+import { loadMaps } from "../src/lib/sofaHistory";
+import { prematchFromMatches } from "../src/lib/sofaPrematch";
 
 const SCRAPER = process.env.SOFASCORE_SCRAPER_URL ?? "http://127.0.0.1:9323";
 const CACHE = join(tmpdir(), "apostas-l15-backtest");
@@ -82,6 +91,10 @@ interface TeamEvent {
   finished: boolean;
   homeGoals: number | null;
   awayGoals: number | null;
+  // Point-in-time replay needs the kick-off clock and the league the event
+  // belongs to (unique tournament id -> app league code via sofascore_maps).
+  kickoff: number | null;
+  tournamentId: number | null;
 }
 
 async function teamEvents(teamId: number): Promise<TeamEvent[]> {
@@ -99,7 +112,20 @@ async function teamEvents(teamId: number): Promise<TeamEvent[]> {
     const hg = typeof homeScore.current === "number" ? homeScore.current : null;
     const ag = typeof awayScore.current === "number" ? awayScore.current : null;
     if (typeof e.id !== "number" || typeof home.name !== "string" || typeof away.name !== "string") continue;
-    events.push({ id: e.id, home: home.name, away: away.name, finished: true, homeGoals: hg, awayGoals: ag });
+    const kickoff = typeof e.startTimestamp === "number" ? e.startTimestamp : null;
+    const tournament = (e.tournament ?? {}) as Record<string, unknown>;
+    const unique = (tournament.uniqueTournament ?? {}) as Record<string, unknown>;
+    const tournamentId = typeof unique.id === "number" ? unique.id : null;
+    events.push({
+      id: e.id,
+      home: home.name,
+      away: away.name,
+      finished: true,
+      homeGoals: hg,
+      awayGoals: ag,
+      kickoff,
+      tournamentId,
+    });
   }
   return events.slice(-GAMES_PER_TEAM);
 }
@@ -223,6 +249,98 @@ async function lambdasFromOdds(eventId: number): Promise<Lambdas | null> {
   return best ? { home: best.home, away: best.away } : null;
 }
 
+// --- Real pre-match prior: the app's own model, replayed point-in-time ------
+
+interface Prior {
+  home: number;
+  away: number;
+  firstHalfShare: number;
+}
+
+interface PriorPair {
+  eventId: number;
+  oddsHome: number;
+  oddsAway: number;
+  realHome: number;
+  realAway: number;
+}
+
+interface PriorContext {
+  forEvent(event: TeamEvent): Promise<Prior | null>;
+}
+
+// Match dates in the app are Lisbon calendar days; use the same calendar so
+// the "< kick-off day" cutoff cannot include the event itself.
+const LISBON_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Lisbon",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const lisbonDate = (ts: number): string => LISBON_DATE.format(new Date(ts * 1000));
+
+async function firstUserId(sb: SupabaseClient): Promise<string | null> {
+  const { data, error } = await sb.from("sofascore_maps").select("user_id").limit(1);
+  if (error || !data || data.length === 0) return null;
+  const id = (data[0] as { user_id?: unknown }).user_id;
+  return typeof id === "string" ? id : null;
+}
+
+// Loads the same league data prematchFor loads (results only: history/shots/
+// fixtures add nothing to a goals prior) and replays the model as of kick-off.
+// Unmapped leagues or unknown teams return null: production would use TYPICAL
+// and the UI would keep L15' on the rate fallback, so there is nothing to test.
+async function priorContext(): Promise<PriorContext | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.log("Sem NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY: só o prior das odds.");
+    return null;
+  }
+  const sb = createClient(url, key, { auth: { persistSession: false } });
+  const userId = process.env.SUPABASE_USER_ID ?? (await firstUserId(sb));
+  if (!userId) {
+    console.log("Sem utilizador em sofascore_maps: só o prior das odds.");
+    return null;
+  }
+  const [tournaments, teams] = await Promise.all([
+    loadMaps(sb, userId, "tournament"),
+    loadMaps(sb, userId, "team"),
+  ]);
+  const toLocal = new Map(teams.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
+  const leagues = new Map<string, Promise<SofaLeague | null>>();
+  const league = (code: string): Promise<SofaLeague | null> => {
+    let pending = leagues.get(code);
+    if (!pending) {
+      pending = loadSofaLeague(sb, userId, code, { history: false, shots: false, fixtures: false }).catch(
+        () => null
+      );
+      leagues.set(code, pending);
+    }
+    return pending;
+  };
+  return {
+    async forEvent(event) {
+      if (event.kickoff === null || event.tournamentId === null) return null;
+      const code = tournaments.find((m) => m.sofascore_id === event.tournamentId)?.name_key;
+      if (!code) return null;
+      const loaded = await league(code);
+      if (!loaded) return null;
+      const casa = toLocal.get(event.home) ?? event.home;
+      const fora = toLocal.get(event.away) ?? event.away;
+      if (!loaded.data.teams.includes(casa) || !loaded.data.teams.includes(fora)) return null;
+      // Only days strictly before kick-off: a same-day earlier result is left
+      // out (conservative) and the event itself can never enter its own prior.
+      const before = loaded.data.matches.filter((m) => m.date < lisbonDate(event.kickoff!));
+      if (before.length < 20) return null;
+      const p = prematchFromMatches(before, casa, fora, new Date(event.kickoff * 1000), code);
+      if (!Number.isFinite(p.home) || !Number.isFinite(p.away) || p.home <= 0 || p.away <= 0) return null;
+      return { home: p.home, away: p.away, firstHalfShare: p.firstHalfShare };
+    },
+  };
+}
+
 interface Sample {
   eventId: number;
   minute: number;
@@ -232,6 +350,9 @@ interface Sample {
   current: number;
   // Model remaining xG scaled to 15' by the clock left (90 - minute).
   model: number;
+  // Same scale, but with the real prematchFor prior. Null when that prior is
+  // unavailable for the event.
+  modelReal: number | null;
   // Model remaining xG at M minus remaining xG at M+15: the model's own
   // time weighting over the window, stoppage included.
   modelDiff: number;
@@ -243,14 +364,23 @@ function sideShots(shots: PressureShot[], home: boolean, from: number, to: numbe
     .reduce((n, s) => n + (s.xg ?? 0), 0);
 }
 
-async function eventSamples(event: TeamEvent): Promise<Sample[]> {
-  if (event.homeGoals === null || event.awayGoals === null) return [];
-  const [shots, inc, lambdas] = await Promise.all([shotsOf(event.id), incidents(event.id), lambdasFromOdds(event.id)]);
-  if (shots.length < 8 || !lambdas) return [];
+async function eventSamples(
+  event: TeamEvent,
+  priors: PriorContext | null
+): Promise<{ samples: Sample[]; prior: PriorPair | null }> {
+  if (event.homeGoals === null || event.awayGoals === null) return { samples: [], prior: null };
+  const [shots, inc, odds, real] = await Promise.all([
+    shotsOf(event.id),
+    incidents(event.id),
+    lambdasFromOdds(event.id),
+    priors ? priors.forEvent(event) : Promise.resolve(null),
+  ]);
+  if (shots.length < 8 || !odds) return { samples: [], prior: null };
   const goals = inc.filter(isGoal);
   // The score context must agree with the incident timeline, otherwise the
   // red/goal state at minute M is unknown and the sample is useless.
-  if (goals.length !== event.homeGoals + event.awayGoals) return [];
+  if (goals.length !== event.homeGoals + event.awayGoals) return { samples: [], prior: null };
+  const oddsPrior: Prior = { ...odds, firstHalfShare: FIRST_HALF_SHARE };
   const samples: Sample[] = [];
   for (const minute of MINUTES) {
     const inPlay = shots.filter((s) => s.minute <= minute);
@@ -263,28 +393,34 @@ async function eventSamples(event: TeamEvent): Promise<Sample[]> {
     const redsAway = inc.filter((i) => i.minute <= minute && !i.home && /red/.test(i.cls)).length;
     const homeXg = sideShots(shots, true, -1, minute);
     const awayXg = sideShots(shots, false, -1, minute);
-    const pred = predictLive({
-      lambdaHome: lambdas.home,
-      lambdaAway: lambdas.away,
-      firstHalfShare: FIRST_HALF_SHARE,
-      minute,
-      homeGoals,
-      awayGoals,
-      redsHome,
-      redsAway,
-      homeXg,
-      awayXg,
-    });
+    const predictWith = (prior: Prior) =>
+      predictLive({
+        lambdaHome: prior.home,
+        lambdaAway: prior.away,
+        firstHalfShare: prior.firstHalfShare,
+        minute,
+        homeGoals,
+        awayGoals,
+        redsHome,
+        redsAway,
+        homeXg,
+        awayXg,
+      });
+    const pred = predictWith(oddsPrior);
+    const realPred = real ? predictWith(real) : null;
     const left = Math.max(1, 90 - minute);
-    const modelHome = (pred.remainingHome * Math.min(WINDOW, left)) / left;
-    const modelAway = (pred.remainingAway * Math.min(WINDOW, left)) / left;
+    const scale = Math.min(WINDOW, left) / left;
+    const modelHome = pred.remainingHome * scale;
+    const modelAway = pred.remainingAway * scale;
+    const realHome = realPred ? realPred.remainingHome * scale : null;
+    const realAway = realPred ? realPred.remainingAway * scale : null;
     // Same live state, clock 15 minutes later: the difference between the
     // two remaining expectations is what the model thinks falls in the
     // window (its own half/stoppage weights, not a flat division).
     const later = predictLive({
-      lambdaHome: lambdas.home,
-      lambdaAway: lambdas.away,
-      firstHalfShare: FIRST_HALF_SHARE,
+      lambdaHome: oddsPrior.home,
+      lambdaAway: oddsPrior.away,
+      firstHalfShare: oddsPrior.firstHalfShare,
       minute: minute + WINDOW,
       homeGoals,
       awayGoals,
@@ -304,11 +440,21 @@ async function eventSamples(event: TeamEvent): Promise<Sample[]> {
         persistence: home ? p.home.l15! : p.away.l15!,
         current: home ? p.home.l15p : p.away.l15p!,
         model: home ? modelHome : modelAway,
+        modelReal: home ? realHome : realAway,
         modelDiff: home ? diffHome : diffAway,
       });
     }
   }
-  return samples;
+  const prior = real
+    ? {
+        eventId: event.id,
+        oddsHome: odds.home,
+        oddsAway: odds.away,
+        realHome: real.home,
+        realAway: real.away,
+      }
+    : null;
+  return { samples, prior };
 }
 
 interface Metrics {
@@ -326,9 +472,31 @@ function metrics(rows: { pred: number; target: number }[]): Metrics {
 
 const fmt = (v: number) => v.toFixed(3).replace(".", ",");
 
+// .env.local is Next's file; a plain script does not get it for free. Existing
+// environment variables win (so CI/one-off overrides still work).
+function loadEnv(): void {
+  const file = join(process.cwd(), ".env.local");
+  if (!existsSync(file)) return;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const text = line.trim();
+    if (!text || text.startsWith("#")) continue;
+    const eq = text.indexOf("=");
+    if (eq <= 0) continue;
+    const key = text.slice(0, eq).trim();
+    if (process.env[key] !== undefined) continue;
+    let value = text.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
 async function main(): Promise<void> {
+  loadEnv();
   mkdirSync(CACHE, { recursive: true });
   console.log(`Cache: ${CACHE}`);
+  const priors = await priorContext();
   const events: TeamEvent[] = [];
   const seen = new Set<number>();
   for (const team of TEAMS) {
@@ -343,17 +511,22 @@ async function main(): Promise<void> {
   console.log(`\n${events.length} jogos únicos; a ler shotmaps/odds/incidentes...\n`);
 
   const samples: Sample[] = [];
+  const priorPairs: PriorPair[] = [];
   let skipped = 0;
   for (let i = 0; i < events.length; i += 2) {
     const chunk = events.slice(i, i + 2);
-    const results = await Promise.all(chunk.map((e) => eventSamples(e).catch(() => [] as Sample[])));
+    const results = await Promise.all(
+      chunk.map((e) => eventSamples(e, priors).catch(() => ({ samples: [] as Sample[], prior: null })))
+    );
     for (const r of results) {
-      if (r.length === 0) skipped++;
-      samples.push(...r);
+      if (r.samples.length === 0) skipped++;
+      samples.push(...r.samples);
+      if (r.prior) priorPairs.push(r.prior);
     }
     process.stdout.write(`\r${Math.min(i + 2, events.length)}/${events.length} jogos · ${samples.length} amostras`);
   }
   console.log(`\n\nAmostras: ${samples.length} (jogos sem xG/odds/score coerente: ${skipped})`);
+  console.log(`Prior real disponível: ${priorPairs.length} jogos`);
 
   // Deterministic split: even-indexed events train, odd-indexed test.
   const eventIds = [...new Set(samples.map((s) => s.eventId))].sort((a, b) => a - b);
@@ -433,6 +606,96 @@ async function main(): Promise<void> {
     const mean = rows.reduce((s, r) => s + r.target, 0) / rows.length;
     console.log(
       `  ${String(minute).padStart(2)}'  ${fmt(err((s) => s.persistence))} · ${fmt(err((s) => s.current))} · ${fmt(err((s) => s.model))} · ${fmt(err((s) => s.modelDiff))} · ${fmt(mean)}`
+    );
+  }
+
+  // --- Real prematchFor prior, on the games where it exists ----------------
+  // Same split as above, but every candidate is scored on the same subset, so
+  // the comparison is apples to apples: does the prior production actually
+  // uses beat the odds proxy and persistence?
+  if (priorPairs.length === 0) {
+    console.log("\nSem prior real: nada a comparar (ver SUPABASE_SERVICE_ROLE_KEY).");
+    return;
+  }
+  const meanAbs = (fn: (p: PriorPair) => number): number =>
+    priorPairs.reduce((n, p) => n + Math.abs(fn(p)), 0) / priorPairs.length;
+  const corr = (a: (p: PriorPair) => number, b: (p: PriorPair) => number): number => {
+    const ma = priorPairs.reduce((n, p) => n + a(p), 0) / priorPairs.length;
+    const mb = priorPairs.reduce((n, p) => n + b(p), 0) / priorPairs.length;
+    let num = 0;
+    let va = 0;
+    let vb = 0;
+    for (const p of priorPairs) {
+      const x = a(p) - ma;
+      const y = b(p) - mb;
+      num += x * y;
+      va += x * x;
+      vb += y * y;
+    }
+    return va > 0 && vb > 0 ? num / Math.sqrt(va * vb) : 0;
+  };
+  console.log(
+    `\nPrior real vs odds (${priorPairs.length} jogos): |Δ| casa ${fmt(meanAbs((p) => p.realHome - p.oddsHome))} · fora ${fmt(
+      meanAbs((p) => p.realAway - p.oddsAway)
+    )} golos · corr casa ${corr((p) => p.oddsHome, (p) => p.realHome).toFixed(2)} · fora ${corr(
+      (p) => p.oddsAway,
+      (p) => p.realAway
+    ).toFixed(2)}`
+  );
+
+  const realTrain = train.filter((s) => s.modelReal !== null);
+  const realTest = test.filter((s) => s.modelReal !== null);
+  if (realTrain.length === 0 || realTest.length === 0) {
+    console.log("Prior real só num dos lados do split: amostra insuficiente para holdout.");
+    return;
+  }
+  const realMethod = (rows: Sample[], fn: (s: Sample) => number) =>
+    metrics(rows.map((s) => ({ pred: fn(s), target: s.target })));
+  const count = (rows: Sample[]) => new Set(rows.map((s) => s.eventId)).size;
+  console.log(
+    `\nPrior real — treino ${realTrain.length} amostras / ${count(realTrain)} jogos · teste ${realTest.length} amostras / ${count(
+      realTest
+    )} jogos (MAE / RMSE):`
+  );
+  for (const [name, fn] of [
+    ["persistência", (s: Sample) => s.persistence],
+    ["L15' atual", (s: Sample) => s.current],
+    ["modelo odds", (s: Sample) => s.model],
+    ["modelo real", (s: Sample) => s.modelReal!],
+  ] as const) {
+    const tr = realMethod(realTrain, fn);
+    const te = realMethod(realTest, fn);
+    console.log(
+      `  ${name.padEnd(14)} treino ${fmt(tr.mae)} / ${fmt(tr.rmse)} · teste ${fmt(te.mae)} / ${fmt(te.rmse)}  (n=${te.n})`
+    );
+  }
+
+  let bestRealW = 0;
+  let bestReal = Number.POSITIVE_INFINITY;
+  for (let w = 0; w <= 1.0001; w += 0.05) {
+    const m = realMethod(realTrain, (s) => w * s.modelReal! + (1 - w) * s.persistence);
+    if (m.mae < bestReal) {
+      bestReal = m.mae;
+      bestRealW = Math.round(w * 100) / 100;
+    }
+  }
+  const realBlend = realMethod(realTest, (s) => bestRealW * s.modelReal! + (1 - bestRealW) * s.persistence);
+  console.log(
+    `  melhor mistura real no treino: ${Math.round(bestRealW * 100)}% modelo + ${Math.round(
+      (1 - bestRealW) * 100
+    )}% persistência (MAE ${fmt(bestReal)}) · no teste ${fmt(realBlend.mae)} / ${fmt(realBlend.rmse)}`
+  );
+
+  console.log("\nPrior real, por minuto (teste, MAE): persistência · L15' atual · modelo odds · modelo real · alvo médio");
+  for (const minute of MINUTES) {
+    const rows = realTest.filter((s) => s.minute === minute);
+    if (rows.length === 0) continue;
+    const err = (fn: (s: Sample) => number) => rows.reduce((s, r) => s + Math.abs(fn(r) - r.target), 0) / rows.length;
+    const mean = rows.reduce((s, r) => s + r.target, 0) / rows.length;
+    console.log(
+      `  ${String(minute).padStart(2)}'  ${fmt(err((s) => s.persistence))} · ${fmt(err((s) => s.current))} · ${fmt(
+        err((s) => s.model)
+      )} · ${fmt(err((s) => s.modelReal!))} · ${fmt(mean)}`
     );
   }
 }
