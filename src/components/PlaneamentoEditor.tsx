@@ -132,7 +132,7 @@ function CriterionRow({
         </button>
         <button
           type="button"
-          onClick={() => onChange({ ...c, agg: "pct" as LiveAgg })}
+          onClick={() => onChange({ ...c, agg: "pct" as LiveAgg, target: Math.max(1, Math.round(c.target)) })}
           className={chip(c.agg === "pct")}
         >
           % de jogos
@@ -140,10 +140,20 @@ function CriterionRow({
         <span className="text-neutral-500">≥</span>
         <input
           type="number"
-          min={1}
+          min={c.agg === "avg" ? 0.1 : 1}
           max={20}
+          step={c.agg === "avg" ? 0.1 : 1}
+          inputMode={c.agg === "avg" ? "decimal" : "numeric"}
           value={c.target}
-          onChange={(e) => onChange({ ...c, target: Math.max(1, Math.round(num(e.target.value, c.target))) })}
+          onFocus={(e) => e.currentTarget.select()}
+          onChange={(e) => {
+            const n = num(e.target.value, c.target);
+            const target =
+              c.agg === "avg"
+                ? Math.round(Math.min(20, Math.max(0.1, n)) * 10) / 10
+                : Math.min(20, Math.max(1, Math.round(n)));
+            onChange({ ...c, target });
+          }}
           className={`${field} w-16 py-1 text-xs`}
         />
         <span className="text-neutral-500">{METRIC_LABEL[c.metric].toLowerCase()}</span>
@@ -155,6 +165,7 @@ function CriterionRow({
               min={1}
               max={100}
               value={c.minPct}
+              onFocus={(e) => e.currentTarget.select()}
               onChange={(e) => onChange({ ...c, minPct: Math.min(100, Math.max(1, Math.round(num(e.target.value, c.minPct)))) })}
               className={`${field} w-16 py-1 text-xs`}
             />
@@ -205,7 +216,7 @@ export default function PlaneamentoEditor({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-xl rounded-2xl border border-white/[0.09] bg-white/[0.04] p-5"
+        className="w-full max-w-xl rounded-2xl border border-white/[0.12] bg-[#0a0f18] p-5 shadow-2xl shadow-black/60"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

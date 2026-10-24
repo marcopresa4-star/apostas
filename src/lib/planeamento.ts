@@ -18,7 +18,7 @@ export interface LiveCriterion {
   from: number; // minute (inclusive)
   to: number; // minute (exclusive)
   agg: LiveAgg;
-  target: number; // the "at least N" count
+  target: number; // "at least N" count; decimals allowed for expected averages
   minPct: number; // pass bar for agg "pct" (percentage points)
 }
 
@@ -52,9 +52,11 @@ export function intervalLabel(from: number, to: number): string {
 }
 
 // "Cantos 30–45′: ≥ 2 esperados" / "Amarelos 1ª parte: 70%+ com 1+".
+const fmtTarget = (n: number): string => String(n).replace(".", ",");
+
 export function criterionLabel(c: LiveCriterion): string {
   const what = `${METRIC_LABEL[c.metric]} ${intervalLabel(c.from, c.to)}`;
-  return c.agg === "avg" ? `${what}: ≥ ${c.target} esperados` : `${what}: ${c.minPct}%+ com ${c.target}+`;
+  return c.agg === "avg" ? `${what}: ≥ ${fmtTarget(c.target)} esperados` : `${what}: ${c.minPct}%+ com ${fmtTarget(c.target)}+`;
 }
 
 export interface CriterionEval {
@@ -110,14 +112,21 @@ export function sanitizeTable(t: LiveTableDef): LiveTableDef | null {
           to = 90;
         }
       }
+      const agg: LiveAgg = c.agg === "pct" ? "pct" : "avg";
+      // Expected averages can be decimals (1,5 golos); a % threshold is a
+      // count, so it stays an integer.
+      const target =
+        agg === "avg"
+          ? Math.round(num(c.target, 0.1, 20, 2) * 10) / 10
+          : Math.round(num(c.target, 1, 20, 2));
       return [
         {
           id: typeof c.id === "string" && c.id ? c.id.slice(0, 24) : Math.random().toString(36).slice(2, 10),
           metric,
           from,
           to,
-          agg: c.agg === "pct" ? "pct" : "avg",
-          target: num(c.target, 1, 20, 2),
+          agg,
+          target,
           minPct: num(c.minPct, 1, 100, 70),
         },
       ];

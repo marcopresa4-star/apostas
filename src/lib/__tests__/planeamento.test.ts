@@ -33,6 +33,26 @@ describe("planeamento", () => {
     );
   });
 
+  it("allows decimal expected averages but keeps % thresholds whole", () => {
+    expect(criterionLabel(crit({ metric: "golos", agg: "avg", target: 1.5 }))).toBe(
+      "Golos 1ª parte: ≥ 1,5 esperados"
+    );
+    const clean = sanitizeTable({
+      id: "",
+      name: "Golos",
+      leaguesMode: "all",
+      leagues: [],
+      sample: "last10",
+      venueSplit: false,
+      criteria: [
+        crit({ metric: "golos", agg: "avg", target: 1.5 }),
+        crit({ metric: "golos", agg: "pct", target: 1.5, minPct: 70 }),
+      ],
+    });
+    expect(clean?.criteria[0].target).toBe(1.5);
+    expect(clean?.criteria[1].target).toBe(2);
+  });
+
   it("counts minutes per interval", () => {
     expect(countIn([12, 30, 44, 48, 61], 0, 45)).toBe(3);
     expect(countIn([12, 30, 44, 45, 48, 61], 0, 45)).toBe(4); // 45' counts
