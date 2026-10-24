@@ -1,6 +1,7 @@
-// Planeamento Live scan: POST { table, favLabels? } -> games matching every
-// criterion, today + tomorrow, across the resolved leagues. Heavy on cold
-// cache (incident/statistics reads per sampled game), then cached 30 days.
+// Planeamento Live scan: POST { table, favLabels?, day?, includeFinished? } ->
+// games matching every criterion on the chosen day (yesterday/today/tomorrow),
+// across the resolved leagues. Heavy on cold cache (incident/statistics reads
+// per sampled game), then cached 30 minutes.
 import { createClient } from "@/lib/supabase/server";
 import { LEAGUES } from "@/lib/footballData";
 import { todayISO } from "@/lib/searchParams";
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { table?: unknown; favLabels?: unknown; refresh?: unknown };
+  let body: { table?: unknown; favLabels?: unknown; refresh?: unknown; day?: unknown; includeFinished?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -48,6 +49,11 @@ export async function POST(req: Request) {
   if (leagues.length === 0) return Response.json({ jogos: [], semDados: 0, truncated: false, stale: false });
 
   const today = todayISO(new Date());
+  const day = body.day === "yesterday" || body.day === "tomorrow" ? body.day : "today";
+  const date = day === "yesterday" ? shift(today, -1) : day === "tomorrow" ? shift(today, 1) : today;
+  // Yesterday is always finished and tomorrow never is; only «hoje» needs the
+  // user's «Ocultar terminados» choice.
+  const includeFinished = day === "yesterday" ? true : day === "tomorrow" ? false : body.includeFinished === true;
   // Repeat views reuse the verdict for 30 minutes (the pattern only shifts
   // as games finish): without this every page open re-reads everything.
   const hash = (): string => {
@@ -56,12 +62,12 @@ export async function POST(req: Request) {
     for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return h.toString(36);
   };
-  const cacheKey = `plan:${table.id || "new"}:${today}:${hash()}`;
+  const cacheKey = `plan:${table.id || "new"}:${date}:${includeFinished ? "all" : "open"}:${hash()}`;
   if (body.refresh !== true) {
     const hit = await cacheGet(supabase, user.id, cacheKey, SCAN_TTL_MS).catch(() => null);
     if (hit && typeof hit === "object" && !Array.isArray(hit)) return Response.json(hit);
   }
-  const out = await scanTable(supabase, user.id, table, leagues, today, shift(today, 1));
+  const out = await scanTable(supabase, user.id, table, leagues, today, date, includeFinished);
   await cacheSet(supabase, user.id, cacheKey, out).catch(() => {});
   return Response.json(out);
 }

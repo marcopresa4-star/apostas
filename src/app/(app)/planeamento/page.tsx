@@ -5,9 +5,10 @@ import { loadMaps } from "@/lib/sofaHistory";
 import type { LiveTableDef } from "@/lib/planeamento";
 import PlaneamentoClient from "@/components/PlaneamentoClient";
 
-// PRO page: user-defined pattern tables over the mapped leagues' upcoming
-// games (today + tomorrow), to prepare the live session. Each table scans on
-// its own (Suspense-like client fetch, cached reads behind it).
+// PRO page: user-defined pattern tables over the mapped leagues' games on the
+// chosen day (yesterday/today/tomorrow, today by default), to prepare the live
+// session. Each table scans on its own (Suspense-like client fetch, cached
+// reads behind it).
 export default async function PlaneamentoPage() {
   await requireAdmin();
   const supabase = await createClient();
@@ -56,8 +57,8 @@ export default async function PlaneamentoPage() {
     <div data-wide>
       <h1 className="mb-1 text-2xl font-bold tracking-tight">🗂️ <span className="title-glow">Planeamento Live</span></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Tabelas com os jogos que encaixam nos teus filtros — para preparar o live. Cada tabela vai buscar os jogos de
-        hoje e amanhã das ligas e fica só com os que cumprem o padrão.
+        Tabelas com os jogos que encaixam nos teus filtros — para preparar o live. Escolhe o dia (ontem, hoje ou
+        amanhã); cada tabela fica só com os jogos desse dia que cumprem o padrão.
       </p>
       <PlaneamentoClient tables={tables} leagues={leagues} favIds={[...favIds]} />
     </div>

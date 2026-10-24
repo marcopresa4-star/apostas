@@ -31,9 +31,26 @@ function loadFavLabels(): string[] {
   }
 }
 
-type ScanState = { status: "idle" | "loading" | "ok" | "error"; data?: ScanOutput };
+type PlanDay = "yesterday" | "today" | "tomorrow";
+type ScanState = {
+  status: "idle" | "loading" | "ok" | "error";
+  data?: ScanOutput;
+  day?: PlanDay;
+  includeFinished?: boolean;
+};
 
 const num1 = (v: number): string => v.toFixed(1).replace(".", ",");
+
+const DAYS: { v: PlanDay; l: string }[] = [
+  { v: "yesterday", l: "Ontem" },
+  { v: "today", l: "Hoje" },
+  { v: "tomorrow", l: "Amanhã" },
+];
+const DAY_LABEL: Record<PlanDay, string> = {
+  yesterday: "de ontem",
+  today: "de hoje",
+  tomorrow: "de amanhã",
+};
 
 export default function PlaneamentoClient({
   tables,
@@ -49,6 +66,12 @@ export default function PlaneamentoClient({
   // Ordenação por cartão: "valor" (padrão, do melhor padrão para o pior) ou
   // "hora" (por pontapé de saída, para preparar a sessão).
   const [sorts, setSorts] = useState<Record<string, "valor" | "hora">>({});
+  // The scan is per chosen day: «Hoje» is the default, so opening the page
+  // no longer mixes today with tomorrow. «Ocultar terminados» only makes a
+  // difference today (yesterday is always finished, tomorrow never is).
+  const [day, setDay] = useState<PlanDay>("today");
+  const [hideFinished, setHideFinished] = useState(true);
+  const includeFinished = day === "yesterday" ? true : day === "tomorrow" ? false : !hideFinished;
   // Cartões minimizados (persistente neste browser). Hidrata após o mount (o
   // servidor não vê o localStorage: ler aqui dava mismatch).
   const [min, setMin] = useState<Set<string>>(new Set());
@@ -78,22 +101,53 @@ export default function PlaneamentoClient({
   const [editing, setEditing] = useState<LiveTableDef | "new" | null>(null);
   const favSet = new Set(favIds);
 
+  const pickDay = (v: PlanDay): void => {
+    setDay(v);
+    setScans({});
+  };
+  const toggleFinished = (): void => {
+    setHideFinished((v) => !v);
+    setScans({});
+  };
+
   const scan = async (table: LiveTableDef, refresh = false) => {
-    setScans((s) => ({ ...s, [table.id]: { status: "loading" } }));
+    const requestDay = day;
+    const requestIncludeFinished = includeFinished;
+    setScans((s) => ({
+      ...s,
+      [table.id]: { status: "loading", day: requestDay, includeFinished: requestIncludeFinished },
+    }));
     try {
       const res = await fetch("/api/planeamento/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ table, favLabels: loadFavLabels(), ...(refresh ? { refresh: true } : {}) }),
+        body: JSON.stringify({
+          table,
+          favLabels: loadFavLabels(),
+          day: requestDay,
+          includeFinished: requestIncludeFinished,
+          ...(refresh ? { refresh: true } : {}),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ScanOutput;
       // Old cached scans may still carry the same fixture twice; dedupe here
       // too so the list keys stay unique even before the cache expires.
       const deduped = { ...data, jogos: uniqueByEventId(data.jogos) };
-      setScans((s) => ({ ...s, [table.id]: { status: "ok", data: deduped } }));
+      setScans((s) => ({
+        ...s,
+        [table.id]: {
+          status: "ok",
+          data: deduped,
+          day: requestDay,
+          includeFinished: requestIncludeFinished,
+        },
+      }));
     } catch {
-      setScans((s) => ({ ...s, [table.id]: { status: "error" } }));
+      setScans((s) => ({
+        ...s,
+        [table.id]: { status: "error", day: requestDay, includeFinished: requestIncludeFinished },
+      }));
     }
   };
 
@@ -108,7 +162,7 @@ export default function PlaneamentoClient({
 
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={() => setEditing("new")}
@@ -116,18 +170,68 @@ export default function PlaneamentoClient({
         >
           + Nova tabela
         </button>
+
+        <div className="flex rounded-lg border border-white/[0.09] bg-white/[0.03] p-0.5">
+          {DAYS.map((d) => (
+            <button
+              key={d.v}
+              type="button"
+              onClick={() => pickDay(d.v)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                day === d.v
+                  ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
+                  : "text-neutral-400 hover:text-neutral-200"
+              }`}
+            >
+              {d.l}
+            </button>
+          ))}
+        </div>
+
+        <label
+          title={
+            day === "today"
+              ? "Esconder os jogos que já terminaram"
+              : day === "yesterday"
+                ? "Ontem mostra sempre os jogos terminados"
+                : "Amanhã ainda não tem jogos terminados"
+          }
+          className={`flex items-center gap-2 text-xs ${
+            day === "today" ? "cursor-pointer text-neutral-300" : "cursor-not-allowed text-neutral-600"
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={day === "today" && hideFinished}
+            disabled={day !== "today"}
+            onChange={toggleFinished}
+            className="accent-emerald-500 disabled:opacity-40"
+          />
+          Ocultar terminados
+        </label>
+
+        <span
+          title="Cada tabela analisa só os jogos do dia escolhido. Os números vêm dos jogos recentes das duas equipas, antes desse dia."
+          className="ml-auto flex h-5 w-5 cursor-help items-center justify-center rounded-full border border-white/[0.12] text-[10px] text-neutral-500"
+        >
+          ?
+        </span>
       </div>
 
       {tables.length === 0 && (
         <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           Ainda não tens tabelas. Cria a primeira: nome, padrão (cantos/golos/amarelos por intervalo) e as competições —
-          eu vou buscar os jogos de hoje e amanhã que encaixem.
+          eu vou buscar os jogos do dia escolhido que encaixem.
         </p>
       )}
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-3">
         {tables.map((t) => {
-          const scanState = scans[t.id] ?? { status: "idle" as const };
+          const raw = scans[t.id];
+          // A scan still in flight for the previous day must not paint the
+          // new day's list: treat it as not analysed yet.
+          const stale = raw !== undefined && (raw.day !== day || raw.includeFinished !== includeFinished);
+          const scanState = !raw || stale ? { status: "idle" as const } : raw;
           const data = scanState.data;
           const c0 = t.criteria[0];
           return (
@@ -217,7 +321,7 @@ export default function PlaneamentoClient({
                 <>
                   {data.jogos.length === 0 ? (
                     <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-neutral-500">
-                      Nenhum jogo de hoje/amanhã cumpre o padrão.
+                      Nenhum jogo {DAY_LABEL[day]} cumpre o padrão.
                     </p>
                   ) : (
                     <ul className="space-y-1.5">
@@ -230,15 +334,28 @@ export default function PlaneamentoClient({
                         const e0 = g.evals[0];
                         const big = c0.agg === "avg" ? num1(e0.avg) : `${Math.round(e0.pct)}%`;
                         const sub =
-                          c0.agg === "avg" ? `${Math.round(e0.pct)}% ${g.target}+` : `média ${num1(e0.avg)}`;
+                          c0.agg === "avg"
+                            ? `${Math.round(e0.pct)}% ${String(g.target).replace(".", ",")}+`
+                            : `média ${num1(e0.avg)}`;
                         return (
                           <li
                             key={`${g.eventId}`}
                             className="flex items-center gap-3 rounded-xl border border-white/[0.07]/70 bg-white/[0.03] px-3 py-2"
                           >
                             <span className="w-10 shrink-0 text-xs tabular-nums text-neutral-400">
-                              {g.time ? g.time.slice(0, 5) : "—"}
-                              <span className="block text-[10px] text-neutral-600">{diaMes(g.date)}</span>
+                              {g.ft ? (
+                                <>
+                                  <span className="block text-[10px] font-semibold text-neutral-300">FT</span>
+                                  <span className="block text-[11px] font-medium text-neutral-400">
+                                    {g.ft[0]}–{g.ft[1]}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  {g.time ? g.time.slice(0, 5) : "—"}
+                                  <span className="block text-[10px] text-neutral-600">{diaMes(g.date)}</span>
+                                </>
+                              )}
                             </span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-[13px] font-medium text-neutral-100">
@@ -250,13 +367,15 @@ export default function PlaneamentoClient({
                               <span className="block text-base font-bold tabular-nums text-emerald-400">{big}</span>
                               <span className="block text-[10px] tabular-nums text-neutral-500">{sub}</span>
                             </span>
-                            <FavoriteButton
-                              eventId={g.eventId}
-                              home={g.home}
-                              away={g.away}
-                              tournament={g.league}
-                              initial={favSet.has(g.eventId)}
-                            />
+                            {!g.ft && (
+                              <FavoriteButton
+                                eventId={g.eventId}
+                                home={g.home}
+                                away={g.away}
+                                tournament={g.league}
+                                initial={favSet.has(g.eventId)}
+                              />
+                            )}
                           </li>
                         );
                       })}

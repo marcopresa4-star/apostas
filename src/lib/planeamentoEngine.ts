@@ -1,8 +1,8 @@
 // Planeamento Live scan engine (server only): for one pattern table, walk the
-// mapped leagues' upcoming games (today + tomorrow) and keep the ones whose
-// teams' recent games hit every criterion. Counts are GAME TOTALS in the
-// interval (both sides), pooled across the two teams' samples — the number a
-// live trader actually waits for.
+// mapped leagues' games on the chosen day and keep the ones whose teams'
+// recent games hit every criterion. Counts are GAME TOTALS in the interval
+// (both sides), pooled across the two teams' samples — the number a live
+// trader actually waits for.
 //
 // Reads piggyback the 30-day incident/statistics caches (same as the goal
 // timing), so only the first scan of a game is slow. Bounded: leagues go 4 at
@@ -35,7 +35,7 @@ function sampleGames(
   fixtures: Fixture[],
   team: string,
   isHome: boolean,
-  today: string,
+  cutoff: string,
   sample: LiveTableDef["sample"],
   venueSplit: boolean
 ): { id: number; team1: string; team2: string }[] {
@@ -43,7 +43,7 @@ function sampleGames(
     .filter(
       (f) =>
         f.ft &&
-        f.date < today &&
+        f.date < cutoff &&
         (f.team1 === team || f.team2 === team) &&
         (!venueSplit || (isHome ? f.team1 === team : f.team2 === team))
     )
@@ -86,6 +86,7 @@ export interface PlaneamentoJogo {
   away: string;
   date: string;
   time: string | null;
+  ft: [number, number] | null;
   eventId: number;
   evals: CriterionEval[];
   target: number; // first criterion's threshold, for the "% N+" sub-line
@@ -134,7 +135,8 @@ export async function scanTable(
   table: LiveTableDef,
   leagueCodes: string[],
   today: string,
-  tomorrow: string
+  date: string,
+  includeFinished: boolean
 ): Promise<ScanOutput> {
   const tracker: StaleTracker = { stale: false };
   const needGoals = table.criteria.some((c) => c.metric === "golos");
@@ -153,10 +155,13 @@ export async function scanTable(
     );
     if (!loaded) return;
     const label = LEAGUES.find((l) => l.code === code)?.label ?? code;
-    const upcoming = loaded.data.fixtures
-      .filter((f) => !f.ft && (f.date === today || f.date === tomorrow))
+    // Yesterday's games are already finished; when the user asks for them we
+    // include them, but the sample stays strictly before the target day.
+    const sampleCutoff = date < today ? date : today;
+    const targets = loaded.data.fixtures
+      .filter((f) => f.date === date && (includeFinished || !f.ft))
       .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
-    for (const f of upcoming) {
+    for (const f of targets) {
       if (jogos.length >= MAX_JOGOS) {
         truncated = true;
         return;
@@ -166,8 +171,8 @@ export async function scanTable(
         semDados++;
         continue;
       }
-      const homeSample = sampleGames(loaded.data.fixtures, f.team1, true, today, table.sample, table.venueSplit);
-      const awaySample = sampleGames(loaded.data.fixtures, f.team2, false, today, table.sample, table.venueSplit);
+      const homeSample = sampleGames(loaded.data.fixtures, f.team1, true, sampleCutoff, table.sample, table.venueSplit);
+      const awaySample = sampleGames(loaded.data.fixtures, f.team2, false, sampleCutoff, table.sample, table.venueSplit);
       const ids = [...new Set([...homeSample, ...awaySample].map((g) => g.id))];
       const data = new Map<number, GameData>();
       await pool(ids, 8, async (id) => {
@@ -206,6 +211,7 @@ export async function scanTable(
         away: f.team2,
         date: f.date,
         time: f.time ?? null,
+        ft: f.ft,
         eventId,
         evals,
         target: table.criteria[0].target,
