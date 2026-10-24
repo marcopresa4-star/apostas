@@ -163,11 +163,32 @@ function Section({ n, title, sub, children }: { n: number; title: string; sub: s
   );
 }
 
-const CMP_FULL: { v: GoalCmp; l: string }[] = [
+const CMP_ALL: { v: GoalCmp; l: string }[] = [
   { v: "any", l: GOAL_CMP_LABELS.any },
+  { v: "exact", l: GOAL_CMP_LABELS.exact },
   { v: "lt", l: GOAL_CMP_LABELS.lt },
   { v: "gte", l: GOAL_CMP_LABELS.gte },
 ];
+
+// The goal rows use quick pills for the common counts and «Outro…» for
+// anything else (menos de, pelo menos 4, exatamente 5…).
+const GOAL_PRESETS: { label: string; cmp: GoalCmp; v: number }[] = [
+  { label: "0", cmp: "exact", v: 0 },
+  { label: "1", cmp: "exact", v: 1 },
+  { label: "2", cmp: "exact", v: 2 },
+  { label: "1+", cmp: "gte", v: 1 },
+  { label: "2+", cmp: "gte", v: 2 },
+  { label: "3+", cmp: "gte", v: 3 },
+];
+
+const goalPresetLabel = (cmp: GoalCmp, v: number): string | null => {
+  if (cmp === "exact" && (v === 0 || v === 1 || v === 2)) return String(v);
+  if (cmp === "gte" && (v === 1 || v === 2 || v === 3)) return `${v}+`;
+  return null;
+};
+
+const isCustomGoal = (cmp: GoalCmp, v: number): boolean =>
+  cmp !== "any" && goalPresetLabel(cmp, v) === null;
 
 // Sidebar summary row (the mock's «Resumo»): icon + quiet label + bold value.
 function ResumoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -181,13 +202,6 @@ function ResumoRow({ icon, label, value }: { icon: string; label: string; value:
     </div>
   );
 }
-const CMP_HALF: { v: GoalCmp; l: string }[] = [
-  { v: "any", l: GOAL_CMP_LABELS.any },
-  { v: "exact", l: GOAL_CMP_LABELS.exact },
-  { v: "lt", l: GOAL_CMP_LABELS.lt },
-  { v: "gte", l: GOAL_CMP_LABELS.gte },
-];
-
 const PRE_LABELS: Record<PregameMetric, string> = {
   total_over15: "Over 1.5 — jogo",
   total_over25: "Over 2.5 — jogo",
@@ -358,6 +372,16 @@ export default function BotForm({
   const [test, setTest] = useState<{ tested: number; passed: number } | null>(null);
   const [testing, setTesting] = useState(false);
   const [leaguesOpen, setLeaguesOpen] = useState(false);
+  // «Outro…» stays open even when the typed value happens to match a pill
+  // (ex.: exact 1), so the editor doesn't vanish under the user's hands.
+  const [goalCustom, setGoalCustom] = useState<Record<"total" | "fh" | "sh", boolean>>(() => {
+    const g = initial ? goalsNeutral(initial.goals) : GOALS_NEUTRAL;
+    return {
+      total: isCustomGoal(g.total, g.totalV),
+      fh: isCustomGoal(g.fh, g.fhV),
+      sh: isCustomGoal(g.sh, g.shV),
+    };
+  });
   const set = <K extends keyof Draft>(k: K, v: Draft[K]): void => {
     setD((prev) => ({ ...prev, [k]: v }));
     setError(null);
@@ -533,6 +557,97 @@ export default function BotForm({
     });
   const sliderLo = d.period === "second" || d.period === "half" ? 45 : MIN_MINUTE;
   const sliderHi = d.period === "first" || d.period === "half" ? 45 : MAX_MINUTE;
+
+  // One goal-count row: quick pills for 0/1/2/1+/2+/3+ and an «Outro…»
+  // editor for the remaining comparisons (menos de, exatamente 4…).
+  const goalRow = (key: "total" | "fh" | "sh", label: string) => {
+    const ck = key;
+    const vk = key === "total" ? "totalV" : key === "fh" ? "fhV" : "shV";
+    const cmp = d.goals[ck];
+    const val = d.goals[vk];
+    const custom = goalCustom[key];
+    const activePreset = custom ? null : goalPresetLabel(cmp, val);
+    const seed = key === "total" ? 3 : 1;
+    return (
+      <div key={key}>
+        <p className="mb-1.5 text-xs text-neutral-400">{label}</p>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setGoalCustom((prev) => ({ ...prev, [key]: false }));
+              setD((prev) => ({ ...prev, goals: { ...prev.goals, [ck]: "any" } }));
+            }}
+            className={pillSky(cmp === "any")}
+          >
+            Qualquer
+          </button>
+          {GOAL_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => {
+                setGoalCustom((prev) => ({ ...prev, [key]: false }));
+                setD((prev) => ({ ...prev, goals: { ...prev.goals, [ck]: p.cmp, [vk]: p.v } }));
+              }}
+              className={pillSky(activePreset === p.label)}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setGoalCustom((prev) => ({ ...prev, [key]: true }));
+              setD((prev) =>
+                prev.goals[ck] === "any"
+                  ? { ...prev, goals: { ...prev.goals, [ck]: "exact", [vk]: seed } }
+                  : prev
+              );
+            }}
+            className={pillSky(custom)}
+          >
+            Outro…
+          </button>
+        </div>
+        {custom && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <select
+              value={cmp === "any" ? "exact" : cmp}
+              onChange={(e) =>
+                setD((prev) => ({
+                  ...prev,
+                  goals: { ...prev.goals, [ck]: e.target.value as GoalCmp },
+                }))
+              }
+              className="cursor-pointer rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
+            >
+              {CMP_ALL.filter((o) => o.v !== "any").map((o) => (
+                <option key={o.v} value={o.v}>
+                  {o.l}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0}
+              max={20}
+              value={val}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) =>
+                setD((prev) => ({
+                  ...prev,
+                  goals: { ...prev.goals, [vk]: Math.min(20, Math.max(0, Number(e.target.value))) },
+                }))
+              }
+              className="w-14 rounded-lg border border-sky-600/50 bg-neutral-900 px-2 py-1.5 text-right text-xs font-medium tabular-nums text-sky-300 outline-none"
+            />
+            <span className="text-[11px] text-neutral-500">golos</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-40 overflow-y-auto bg-black/70 p-4" onClick={onClose}>
@@ -732,56 +847,53 @@ export default function BotForm({
           </div>
 
           {/* Filtros de golos ao disparar */}
-          <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
-            {(
-              [
-                { label: "Golos no jogo", ck: "total" as const, vk: "totalV" as const, opts: CMP_FULL },
-                { label: "Diferença no marcador", ck: "diff" as const, vk: "diffV" as const, opts: CMP_FULL },
-                { label: "Golos na 1.ª parte", ck: "fh" as const, vk: "fhV" as const, opts: CMP_HALF },
-                { label: "Golos na 2.ª parte", ck: "sh" as const, vk: "shV" as const, opts: CMP_HALF },
-              ]
-            ).map((row) => {
-              const cmp = d.goals[row.ck];
-              return (
-                <div key={row.ck} className="flex flex-wrap items-center gap-2">
-                  <span className="w-44 shrink-0 text-xs text-neutral-400">{row.label}</span>
-                  <select
-                    value={cmp}
-                    onChange={(e) => {
-                      const v = e.target.value as GoalCmp;
-                      setD((prev) => {
+          <div className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+            {goalRow("total", "Golos no jogo")}
+
+            {/* Diferença: a comparison + number, always visible like the mock. */}
+            <div>
+              <p className="mb-1.5 text-xs text-neutral-400">Diferença no marcador</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <select
+                  value={d.goals.diff}
+                  onChange={(e) => {
+                    const v = e.target.value as GoalCmp;
+                    setD((prev) => ({
+                      ...prev,
+                      goals: {
+                        ...prev.goals,
+                        diff: v,
                         // leaving «Qualquer»: seed the mock default so the number isn't 0
-                        const bump = row.ck === "total" || row.ck === "diff" ? 3 : 1;
-                        const keep = v !== "any" && prev.goals[row.vk] === 0 && row.ck !== "sh" ? bump : prev.goals[row.vk];
-                        return { ...prev, goals: { ...prev.goals, [row.ck]: v, [row.vk]: keep } };
-                      });
-                    }}
-                    className="cursor-pointer rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
-                  >
-                    {row.opts.map((o) => (
-                      <option key={o.v} value={o.v}>
-                        {o.l}
-                      </option>
-                    ))}
-                  </select>
-                  {cmp !== "any" ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={0}
-                        max={20}
-                        value={d.goals[row.vk]}
-                        onChange={(e) => set("goals", { ...d.goals, [row.vk]: Math.min(20, Math.max(0, Number(e.target.value))) })}
-                        className="w-14 rounded-lg border border-sky-600/50 bg-neutral-900 px-2 py-1.5 text-right text-xs font-medium tabular-nums text-sky-300 outline-none"
-                      />
-                      <span className="text-[11px] text-neutral-500">golos</span>
-                    </div>
-                  ) : (
-                    <span className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-right text-xs tabular-nums text-neutral-600">—</span>
-                  )}
-                </div>
-              );
-            })}
+                        diffV: v !== "any" && prev.goals.diffV === 0 ? 3 : prev.goals.diffV,
+                      },
+                    }));
+                  }}
+                  className="cursor-pointer rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-xs text-neutral-100 outline-none focus:border-sky-500"
+                >
+                  {CMP_ALL.map((o) => (
+                    <option key={o.v} value={o.v}>
+                      {o.l}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  value={d.goals.diffV}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => setD((prev) => ({ ...prev, goals: { ...prev.goals, diffV: Math.min(20, Math.max(0, Number(e.target.value))) } }))}
+                  className={`w-14 rounded-lg border bg-neutral-900 px-2 py-1.5 text-right text-xs font-medium tabular-nums outline-none ${
+                    d.goals.diff === "any" ? "border-white/[0.09] text-neutral-500" : "border-sky-600/50 text-sky-300"
+                  }`}
+                />
+                <span className="text-[11px] text-neutral-500">golos</span>
+              </div>
+            </div>
+
+            {goalRow("fh", "Golos na 1.ª parte")}
+            {goalRow("sh", "Golos na 2.ª parte")}
+
             <p className="text-[11px] leading-relaxed text-neutral-500">
               Verificados no minuto do disparo. «Qualquer» fica neutro. Os filtros por parte ficam por confirmar antes
               do intervalo (o placar da 1.ª parte ainda não existe) — nesse caso o bot continua a vigiar e aplica-os
