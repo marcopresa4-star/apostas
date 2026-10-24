@@ -47,6 +47,62 @@ const num = (v: string, fb: number): number => {
   return Number.isFinite(n) ? n : fb;
 };
 
+// The target field keeps its raw text while the user types: a controlled
+// number input reformats "1," to "1" on every keystroke, so 1,5 never lands.
+const parseDecimal = (v: string): number => {
+  const t = v.trim();
+  return t === "" ? Number.NaN : Number(t.replace(",", "."));
+};
+const fmtDecimal = (n: number): string => String(n).replace(".", ",");
+
+function TargetInput({
+  value,
+  integer,
+  onChange,
+}: {
+  value: number;
+  integer: boolean;
+  onChange: (n: number) => void;
+}) {
+  const [text, setText] = useState(() => fmtDecimal(value));
+  const [seen, setSeen] = useState(value);
+  // Sync only when the criterion changes from outside (e.g. switching to
+  // "% de jogos"), never while the user is mid-typing "1,".
+  if (value !== seen) {
+    setSeen(value);
+    const parsed = parseDecimal(text);
+    if (!Number.isFinite(parsed) || parsed !== value) setText(fmtDecimal(value));
+  }
+
+  const clamp = (n: number): number => {
+    const lo = integer ? 1 : 0.1;
+    const v = Math.min(20, Math.max(lo, n));
+    return integer ? Math.round(v) : Math.round(v * 10) / 10;
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode={integer ? "numeric" : "decimal"}
+      value={text}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        const n = parseDecimal(raw);
+        if (Number.isFinite(n)) onChange(clamp(n));
+      }}
+      onBlur={() => {
+        const n = parseDecimal(text);
+        const next = clamp(Number.isFinite(n) ? n : value);
+        onChange(next);
+        setText(fmtDecimal(next));
+      }}
+      className={`${field} w-16 py-1 text-xs`}
+    />
+  );
+}
+
 function CriterionRow({
   c,
   onChange,
@@ -138,23 +194,10 @@ function CriterionRow({
           % de jogos
         </button>
         <span className="text-neutral-500">≥</span>
-        <input
-          type="number"
-          min={c.agg === "avg" ? 0.1 : 1}
-          max={20}
-          step={c.agg === "avg" ? 0.1 : 1}
-          inputMode={c.agg === "avg" ? "decimal" : "numeric"}
+        <TargetInput
           value={c.target}
-          onFocus={(e) => e.currentTarget.select()}
-          onChange={(e) => {
-            const n = num(e.target.value, c.target);
-            const target =
-              c.agg === "avg"
-                ? Math.round(Math.min(20, Math.max(0.1, n)) * 10) / 10
-                : Math.min(20, Math.max(1, Math.round(n)));
-            onChange({ ...c, target });
-          }}
-          className={`${field} w-16 py-1 text-xs`}
+          integer={c.agg === "pct"}
+          onChange={(target) => onChange({ ...c, target })}
         />
         <span className="text-neutral-500">{METRIC_LABEL[c.metric].toLowerCase()}</span>
         {c.agg === "pct" && (
