@@ -5,6 +5,7 @@ import {
   evaluateCriterion,
   intervalLabel,
   sanitizeTable,
+  uniqueByEventId,
   type LiveCriterion,
   type LiveTableDef,
 } from "../planeamento";
@@ -51,6 +52,19 @@ describe("planeamento", () => {
     });
     expect(clean?.criteria[0].target).toBe(1.5);
     expect(clean?.criteria[1].target).toBe(2);
+  });
+
+  it("dedupes the same fixture reached twice", () => {
+    expect(
+      uniqueByEventId([
+        { eventId: 15238200, home: "A" },
+        { eventId: 15238201, home: "B" },
+        { eventId: 15238200, home: "A (cached)" },
+      ])
+    ).toEqual([
+      { eventId: 15238200, home: "A" },
+      { eventId: 15238201, home: "B" },
+    ]);
   });
 
   it("counts minutes per interval", () => {

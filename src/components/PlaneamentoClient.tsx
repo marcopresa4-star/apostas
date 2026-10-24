@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FavoriteButton from "@/components/FavoriteButton";
-import { criterionLabel, type LiveTableDef } from "@/lib/planeamento";
+import { criterionLabel, uniqueByEventId, type LiveTableDef } from "@/lib/planeamento";
 import { diaMes } from "@/lib/assistente";
 import type { ScanOutput } from "@/lib/planeamentoEngine";
 import { deleteLiveTableAction } from "@/app/(app)/planeamento/actions";
@@ -88,7 +88,10 @@ export default function PlaneamentoClient({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ScanOutput;
-      setScans((s) => ({ ...s, [table.id]: { status: "ok", data } }));
+      // Old cached scans may still carry the same fixture twice; dedupe here
+      // too so the list keys stay unique even before the cache expires.
+      const deduped = { ...data, jogos: uniqueByEventId(data.jogos) };
+      setScans((s) => ({ ...s, [table.id]: { status: "ok", data: deduped } }));
     } catch {
       setScans((s) => ({ ...s, [table.id]: { status: "error" } }));
     }

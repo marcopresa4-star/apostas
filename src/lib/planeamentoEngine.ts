@@ -20,6 +20,7 @@ import {
 import {
   countIn,
   evaluateCriterion,
+  uniqueByEventId,
   type CriterionEval,
   type LiveTableDef,
 } from "./planeamento";
@@ -214,6 +215,7 @@ export async function scanTable(
     }
   });
 
-  jogos.sort((a, b) => b.sort - a.sort);
-  return { jogos, semDados, truncated, stale: tracker.stale };
+  const unique = uniqueByEventId(jogos);
+  unique.sort((a, b) => b.sort - a.sort);
+  return { jogos: unique, semDados, truncated, stale: tracker.stale };
 }

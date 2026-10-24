@@ -59,6 +59,17 @@ export function criterionLabel(c: LiveCriterion): string {
   return c.agg === "avg" ? `${what}: ≥ ${fmtTarget(c.target)} esperados` : `${what}: ${c.minPct}%+ com ${fmtTarget(c.target)}+`;
 }
 
+// The same fixture can be reached through two league loads (or repeated in
+// a cached scan); the event id is the identity, so keep the first one.
+export function uniqueByEventId<T extends { eventId: number }>(games: T[]): T[] {
+  const seen = new Set<number>();
+  return games.filter((g) => {
+    if (seen.has(g.eventId)) return false;
+    seen.add(g.eventId);
+    return true;
+  });
+}
+
 export interface CriterionEval {
   avg: number;
   pct: number; // 0-100 share of games with count >= target
