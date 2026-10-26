@@ -190,10 +190,11 @@ function PressureValues({ p, home, away, finished }: { p: PressureSummary; home:
     { label: "L15", title: "Últimos 15': xG criado (remates quando a competição não tem xG)", home: p.home.l15, away: p.away.l15 },
     {
       label: "L15'",
-      title:
-        p.l15pSource === "model"
+      title: p.hasXg
+        ? p.l15pSource === "model"
           ? "Próximos 15': xG esperado pelo modelo live (pré-jogo, resultado, vermelhos e xG)"
-          : "Próximos 15': pressão ofensiva esperada pelo ritmo recente de xG",
+          : "Próximos 15': xG esperado pelo ritmo recente"
+        : "Próximos 15': remates esperados pelo ritmo recente (sem xG nesta competição)",
       home: p.home.l15p,
       away: p.away.l15p,
       // Says where the number comes from, so the reader knows whether it is
@@ -202,7 +203,9 @@ function PressureValues({ p, home, away, finished }: { p: PressureSummary; home:
     },
   ].filter((r) => r.home !== null || r.away !== null);
   if (rows.length === 0) return null;
-  const reading = finished ? null : l15Reading(p.home.l15p, p.away.l15p, home, away);
+  // The open/one-way reading is calibrated in xG-per-15'; without xG the
+  // fallback counts shots, so the same thresholds would always read "open".
+  const reading = finished || !p.hasXg ? null : l15Reading(p.home.l15p, p.away.l15p, home, away);
   return (
     <div className="mb-2 rounded-lg bg-neutral-900 px-3 py-2">
       <div className="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-1 text-xs">
@@ -234,9 +237,11 @@ function PressureValues({ p, home, away, finished }: { p: PressureSummary; home:
           : `Sem xG nesta competição: L15 conta os remates dos últimos 15' (${p.home.shots15}–${p.away.shots15}).`}{" "}
         {finished
           ? "Jogo terminado: L15' não se aplica."
-          : p.l15pSource === "model"
-            ? "L15' = modelo live (pré-jogo, resultado, vermelhos, xG)"
-            : "L15' = ritmo recente de xG"}
+          : !p.hasXg
+            ? "L15' = ritmo recente de remates (sem xG nesta competição)."
+            : p.l15pSource === "model"
+              ? "L15' = modelo live (pré-jogo, resultado, vermelhos, xG)"
+              : "L15' = ritmo recente de xG"}
         {reading ? ` — ${reading}.` : finished ? "" : "."}
       </p>
     </div>
