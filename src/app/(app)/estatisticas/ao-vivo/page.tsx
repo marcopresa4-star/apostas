@@ -228,6 +228,16 @@ async function AoVivoBoard() {
   // they keep their row even though the board shows the mapped leagues only.
   const favorites = new Set(await feedPinned(games.map((g) => g.id)));
 
+  // Games already in Em direto: the board shows ✓ and does not offer to add
+  // them again (the same table the link form writes).
+  const feedRows = user
+    ? (await supabase.from("feed_games").select("event_id").eq("user_id", user.id)).data ?? []
+    : [];
+  const feedIds = feedRows.flatMap((r) => {
+    const id = (r as { event_id?: unknown }).event_id;
+    return typeof id === "number" ? [id] : [];
+  });
+
   // Games followed by SofaScore link (the Vista widgets share this table):
   // they join the board as their own rows even when no mapped league covers
   // them. One event read per followed game per refresh — few, and capped.
@@ -354,7 +364,7 @@ async function AoVivoBoard() {
             : `Há ${n(games.length)} no mundo, mas nenhum nas tuas ligas mapeadas, estrelado ou seguido — cola o link ao lado de cima se quiseres acompanhar um deles.`}
         </p>
       ) : (
-        <SofaLiveTable games={kept} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={[...favorites]} labels={labels} />
+        <SofaLiveTable games={kept} stats={stats} form={forms} rings={rings} detail={detail} autoPinned={[...favorites]} labels={labels} feedIds={feedIds} />
       )}
     </>
   );

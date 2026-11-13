@@ -47,6 +47,40 @@ export async function addFeedGameAction(input: string): Promise<{ ok: true } | {
   return { ok: true };
 }
 
+// Adds a game straight from the Ao vivo agora board. The board already has
+// the names, so this skips the /event read the paste-a-link flow needs; the
+// table and the 5-game cap are the same.
+export async function addLiveToFeedAction(input: {
+  eventId: number;
+  home: string;
+  away: string;
+  tournament: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, user } = await authed();
+  const eventId = input.eventId;
+  if (!Number.isInteger(eventId) || eventId <= 0) return { ok: false, error: "Jogo inválido." };
+  const home = input.home.trim().slice(0, 80);
+  const away = input.away.trim().slice(0, 80);
+  const tournament = input.tournament.trim().slice(0, 120);
+  if (!home || !away) return { ok: false, error: "Sem nomes das equipas." };
+  // Re-adding an existing game is a no-op, even with the feed full.
+  const { data: existing } = await supabase
+    .from("feed_games")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (existing) return { ok: true };
+  const { count } = await supabase.from("feed_games").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+  if ((count ?? 0) >= FEED_MAX) return { ok: false, error: `Máximo de ${FEED_MAX} jogos em direto de cada vez.` };
+  const { error } = await supabase
+    .from("feed_games")
+    .upsert({ user_id: user.id, event_id: eventId, home, away, tournament }, { onConflict: "user_id,event_id" });
+  if (error) return { ok: false, error: "Não foi possível guardar (migração 0040 corrida?)." };
+  revalidatePath("/feed");
+  return { ok: true };
+}
+
 export async function removeFeedGameAction(id: string): Promise<void> {
   const { supabase, user } = await authed();
   await supabase.from("feed_games").delete().eq("user_id", user.id).eq("id", id);

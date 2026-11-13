@@ -32,8 +32,9 @@ export default async function FeedPage() {
     <div data-wide>
       <h1 className="hero-title mb-3">📡 <span className="title-glow">Em direto</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
-        Os teus jogos com gráfico de evolução, resultado e minuto. Adiciona antes do apito inicial — a captura começa
-        sozinha e corre em qualquer página do site (de browser fechado nada corre).
+        Os teus jogos com gráfico de evolução, resultado e minuto. Adiciona antes do apito inicial — ou envia um jogo
+        do Ao vivo agora com o botão <span className="text-sky-300">📡 Em direto</span> — a captura começa sozinha e
+        corre em qualquer página do site (de browser fechado nada corre).
       </p>
       <FeedAdd count={rows.length} />
       {rows.length === 0 ? (

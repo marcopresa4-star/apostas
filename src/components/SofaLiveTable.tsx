@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { SofaLiveEntry } from "@/lib/sofascore";
 import { addWatchedMatch } from "@/app/(app)/actions";
+import { addLiveToFeedAction } from "@/app/(app)/feed/actions";
+import { FEED_MAX } from "@/lib/feed";
 import PinnedLiveStats from "./PinnedLiveStats";
 import PinnedMiniTable from "./PinnedMiniTable";
 import PinnedLineups from "./PinnedLineups";
@@ -323,6 +325,7 @@ export default function SofaLiveTable({
   detail,
   autoPinned = [],
   labels = {},
+  feedIds = [],
 }: {
   games: SofaLiveEntry[];
   stats: Record<number, SofaBoardStats>;
@@ -336,6 +339,9 @@ export default function SofaLiveTable({
   // match the history cache: they show score-only but must group under the
   // same mapped header as their league (not the raw competition string).
   labels?: Record<number, string>;
+  // Event ids already in the Em direto feed, so the board shows ✓ instead of
+  // offering to add the same game twice.
+  feedIds?: number[];
 }) {
   const router = useRouter();
   const [auto, setAuto] = useState(true);
@@ -344,6 +350,13 @@ export default function SofaLiveTable({
   const [compact, setCompact] = useState(false);
   const [added, setAdded] = useState<Set<number>>(new Set());
   const [pendingId, setPendingId] = useState<number | null>(null);
+  // Em direto: the board can send a live game straight to the feed without
+  // pasting a SofaScore link. `feedIds` comes from the server (already
+  // followed); `feedAdded` is the optimistic set for this session.
+  const [feedAdded, setFeedAdded] = useState<Set<number>>(new Set());
+  const [feedPending, setFeedPending] = useState<number | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const feedSet = useMemo(() => new Set([...feedIds, ...feedAdded]), [feedIds, feedAdded]);
   const [, startTransition] = useTransition();
   // Browser-only preferences hydrate after mount: reading them in the
   // initializer would disagree with the server and break hydration.
@@ -479,6 +492,58 @@ export default function SofaLiveTable({
     // explicit "+ Jogos" button below (or by hand on the Jogos page).
   };
 
+  // Sends the game to Em direto (same feed table as the link form, same cap).
+  const addToFeed = (game: SofaLiveEntry) => {
+    if (feedPending !== null || feedSet.has(game.id)) return;
+    if (feedSet.size >= FEED_MAX) {
+      setFeedError(`Máximo de ${FEED_MAX} jogos em Em direto. Remove um na página Em direto.`);
+      return;
+    }
+    setFeedPending(game.id);
+    setFeedError(null);
+    addLiveToFeedAction({
+      eventId: game.id,
+      home: game.home,
+      away: game.away,
+      tournament: leagueOf(game),
+    })
+      .then((r) => {
+        if (!r.ok) {
+          setFeedError(r.error);
+          return;
+        }
+        setFeedAdded((prev) => new Set(prev).add(game.id));
+        // Re-render the board so `feedIds` (server) matches the optimistic ✓.
+        router.refresh();
+      })
+      .catch(() => setFeedError("Não foi possível guardar o jogo em Em direto."))
+      .finally(() => setFeedPending(null));
+  };
+
+  // One control in both layouts: adds, shows the pending state, then turns
+  // into a link to Em direto once the game is there.
+  const feedAction = (game: SofaLiveEntry, extra: string) => {
+    if (feedSet.has(game.id)) {
+      return (
+        <Link href="/feed" title="Ver em Em direto" className={`${extra} text-emerald-400 hover:underline`}>
+          ✓ Em direto
+        </Link>
+      );
+    }
+    const full = feedSet.size >= FEED_MAX;
+    return (
+      <button
+        type="button"
+        disabled={feedPending === game.id || full}
+        onClick={() => addToFeed(game)}
+        title={full ? `Máximo de ${FEED_MAX} jogos em Em direto` : "Passar para Em direto"}
+        className={`${extra} text-sky-300 hover:underline disabled:opacity-50`}
+      >
+        {feedPending === game.id ? "…" : "📡 Em direto"}
+      </button>
+    );
+  };
+
   const q = query.trim().toLowerCase();
   const visible = games.filter((g) => {
     if (favOnly && !favLeagues.has(leagueOf(g))) return false;
@@ -610,6 +675,7 @@ export default function SofaLiveTable({
           </>
         )}
         <td className="px-4 py-3 text-right whitespace-nowrap">
+          {feedAction(g, "mr-2 text-xs font-medium")}
           {added.has(g.id) ? (
             <Link href="/" title="Ver nos Jogos" className="text-xs font-medium text-emerald-400 hover:underline">
               ✓ Nos Jogos
@@ -645,6 +711,9 @@ export default function SofaLiveTable({
 
   return (
     <div>
+      {feedError && (
+        <p className="mb-2 rounded-lg border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">{feedError}</p>
+      )}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           type="search"
@@ -756,9 +825,12 @@ export default function SofaLiveTable({
                   </div>
                   <PinnedHead g={g} ht={d?.ht} />
                   <div className="flex items-center justify-between gap-2">
-                    <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
-                      Analisar no live →
-                    </Link>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Link href={href} className="text-xs font-medium text-emerald-400 hover:underline">
+                        Analisar no live →
+                      </Link>
+                      {feedAction(g, "shrink-0 text-xs font-medium")}
+                    </span>
                     <span className="flex shrink-0 gap-2">
                       <button
                         type="button"
