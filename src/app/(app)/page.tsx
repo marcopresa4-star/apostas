@@ -29,10 +29,11 @@ export default async function DashboardPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">
+      <h1 className="hero-title">
         ⚽ <span className="title-glow">Jogos</span>
+        <span className="hero-underline" />
       </h1>
-      <p className="mb-4 max-w-4xl text-sm text-neutral-400">
+      <p className="mb-5 mt-3 max-w-4xl text-sm text-neutral-400">
         Jogos para acompanhar em direto: adiciona-os e o widget aparece aqui à hora do jogo.
       </p>
 

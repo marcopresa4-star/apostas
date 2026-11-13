@@ -221,7 +221,7 @@ export default function MatchupForm({
               </span>
             </label>
           )}
-          <details open={hasAdjust} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+          <details open={hasAdjust} className="card-row rounded-xl px-4 py-3">
             <summary className="cursor-pointer text-sm font-medium text-emerald-400">
               Ajustes (opcional): lesões, castigos, descanso e motivação
             </summary>
@@ -510,7 +510,7 @@ export default function MatchupForm({
 
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+            className="btn-glow px-4 py-2"
           >
             Calcular
           </button>

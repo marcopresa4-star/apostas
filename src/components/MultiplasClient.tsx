@@ -381,7 +381,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             type="button"
             onClick={generate}
             disabled={!canGenerate}
-            className="rounded-lg bg-emerald-600 px-4 py-1.5 font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
+            className="btn-glow px-4 py-1.5 disabled:opacity-50"
           >
             {status === "loading" ? `A gerar… ${elapsed}s` : "Gerar múltipla"}
           </button>
@@ -406,7 +406,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
             type="button"
             onClick={savePreset}
             disabled={presetName.trim() === ""}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="btn-glow px-3 py-1.5 text-xs disabled:opacity-50"
           >
             Guardar atuais
           </button>

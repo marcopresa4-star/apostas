@@ -120,7 +120,7 @@ export default function DayFilters({
         placeholder="Filtrar por equipa…"
         className={`${field} w-56 max-w-full placeholder:text-neutral-600`}
       />
-      <button type="submit" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">
+      <button type="submit" className="btn-glow px-3 py-1.5 text-sm">
         Filtrar
       </button>
     </form>

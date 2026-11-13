@@ -256,7 +256,7 @@ export default function EntityCombobox({
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={handleCreate}
                   disabled={saving}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
+                  className="btn-glow px-3 py-1.5 text-sm disabled:opacity-60"
                 >
                   {saving ? "A criar..." : "Criar e selecionar"}
                 </button>

@@ -92,7 +92,7 @@ export default async function PrevisoesPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🔮 <span className="title-glow">Previsões do dia</span></h1>
+      <h1 className="hero-title mb-3">🔮 <span className="title-glow">Previsões do dia</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         O que é mais provável acontecer hoje, mercado a mercado · {dayLabel}
       </p>

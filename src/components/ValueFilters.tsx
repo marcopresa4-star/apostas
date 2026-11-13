@@ -112,7 +112,7 @@ export default function ValueFilters({
             )}
           </div>
           {openComp && (
-            <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+            <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto card-row rounded-xl p-3">
               {leagues.map((l) => (
                 <label key={l.code} className={chip}>
                   <input
@@ -262,7 +262,7 @@ export default function ValueFilters({
               type="button"
               onClick={savePreset}
               disabled={presetName.trim() === ""}
-              className="rounded-lg border border-white/[0.09] px-2 py-1 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
+              className="btn-soft rounded-lg border border-white/[0.09] px-2 py-1 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
             >
               Guardar
             </button>
@@ -272,7 +272,7 @@ export default function ValueFilters({
         <div>
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+            className="btn-glow px-5 py-2 text-sm"
           >
             Analisar jogos
           </button>

@@ -148,7 +148,7 @@ function RangeDual({
 // Section header of the numbered redesign: chip + title + subtitle.
 function Section({ n, title, sub, children }: { n: number; title: string; sub: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+    <div className="space-y-3 card-row rounded-xl p-4">
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/15 text-xs font-bold text-sky-300">
           {n}
@@ -690,7 +690,7 @@ export default function BotForm({
             <p className="mt-1 text-[11px] text-neutral-500">Aparece nos alertas: “ALERTA {d.name || "BotOverHT"} — …”</p>
           </div>
 
-          <div className="mt-1 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="mt-1 card-row rounded-xl p-4">
             <p className="mb-2 text-sm font-medium text-neutral-200">🎯 Mercado a alertar</p>
             <select value={d.market} onChange={(e) => set("market", e.target.value as BotMarket)} className={field}>
               {BOT_MARKETS.map((m) => (
@@ -701,7 +701,7 @@ export default function BotForm({
             </select>
           </div>
 
-          <div className="mt-3 space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="mt-3 space-y-2 card-row rounded-xl p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-200">🎲 Odd mínima ao vivo</p>
               <span className="text-base font-bold tabular-nums text-amber-300">{d.min_odd.toFixed(2)}</span>
@@ -728,7 +728,7 @@ export default function BotForm({
             <button
               type="button"
               onClick={() => setLeaguesOpen((o) => !o)}
-              className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left text-sm text-neutral-100 outline-none hover:border-white/[0.18]"
+              className="btn-soft flex w-full cursor-pointer items-center justify-between rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-left text-sm text-neutral-100 outline-none hover:border-white/[0.18]"
             >
               <span>
                 🏆{" "}
@@ -1092,7 +1092,7 @@ export default function BotForm({
 
         {/* ——— Secção 4 · Ao vivo ——— */}
         <Section n={4} title="Ao vivo" sub="O que tem de estar a acontecer no jogo para o bot apitar.">
-          <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+          <div className="mb-3 flex items-center justify-between gap-2 card-row rounded-xl px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-neutral-100">Como juntar as condições</p>
               <p className="text-[11px] text-neutral-500">(todas têm de ser cumpridas)</p>
@@ -1237,7 +1237,7 @@ export default function BotForm({
 
         {/* ——— Barra lateral: preview, resumo, backtest e guardar ——— */}
         <aside className="space-y-4 lg:sticky lg:top-6">
-          <div className="space-y-1.5 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="space-y-1.5 card-row rounded-xl p-4">
             <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Preview do alerta</p>
             <p className="font-mono text-sm font-bold text-emerald-400">🤖 ALERTA {d.name || "MeuBot"}</p>
             <p className="font-mono text-sm text-neutral-200">
@@ -1248,7 +1248,7 @@ export default function BotForm({
             </p>
           </div>
 
-          <div className="space-y-0.5 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="space-y-0.5 card-row rounded-xl p-4">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Resumo</p>
             <ResumoRow icon="🎯" label="Mercado" value={marketLabel} />
             <ResumoRow icon="📈" label="Odd mínima" value={d.min_odd > 1 ? d.min_odd.toFixed(2) : "Sem filtro"} />
@@ -1260,14 +1260,14 @@ export default function BotForm({
             <ResumoRow icon="🔔" label="Aviso" value={d.silent ? "Só na lista" : "Notificação"} />
           </div>
 
-          <div className="space-y-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <div className="space-y-2 card-row rounded-xl p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-neutral-200">🧪 Backtest</p>
               <button
                 type="button"
                 onClick={runBacktest}
                 disabled={testing}
-                className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
+                className="btn-soft rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18] disabled:opacity-50"
               >
                 {testing ? "A testar…" : "Testar"}
               </button>
@@ -1287,14 +1287,14 @@ export default function BotForm({
 
           {error && <p className="rounded-lg bg-red-950 px-4 py-2.5 text-sm text-red-300">{error}</p>}
           <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]">
+            <button type="button" onClick={onClose} className="btn-soft flex-1 rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]">
               Cancelar
             </button>
             <button
               type="button"
               onClick={save}
               disabled={saving}
-              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              className="btn-glow flex-1 px-4 py-2 text-sm disabled:opacity-50"
             >
               {saving ? "A guardar…" : initial ? "Guardar" : "✓ Criar bot"}
             </button>

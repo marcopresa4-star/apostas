@@ -301,7 +301,7 @@ export default function PlaneamentoEditor({
           ))}
         </div>
         {pickLeagues && (
-          <div className="mb-4 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
+          <div className="mb-4 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto card-row rounded-xl p-3">
             {leagues.map((l) => (
               <label
                 key={l.code}
@@ -370,7 +370,7 @@ export default function PlaneamentoEditor({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]"
+            className="btn-soft rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 hover:border-white/[0.18]"
           >
             Cancelar
           </button>
@@ -378,7 +378,7 @@ export default function PlaneamentoEditor({
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="btn-glow px-4 py-2 text-sm disabled:opacity-50"
           >
             {saving ? "A guardar…" : "Guardar tabela"}
           </button>

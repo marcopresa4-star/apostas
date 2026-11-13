@@ -251,7 +251,7 @@ export default function BotsClient({
             setEditing(null);
             setFormOpen(true);
           }}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+          className="btn-glow px-4 py-2 text-sm"
         >
           + Novo bot
         </button>
@@ -259,7 +259,7 @@ export default function BotsClient({
           type="button"
           onClick={check}
           disabled={checking}
-          className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] disabled:opacity-50"
+          className="btn-soft rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] disabled:opacity-50"
         >
           {checking ? "A verificar…" : "Verificar agora"}
         </button>
@@ -301,7 +301,7 @@ export default function BotsClient({
           <button
             type="button"
             onClick={askPerm}
-            className="rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18]"
+            className="btn-soft rounded-lg border border-white/[0.09] px-4 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18]"
           >
             Ativar notificações
           </button>
@@ -345,7 +345,7 @@ export default function BotsClient({
               const pass = passing[b.id];
               const rows = diag[b.id] ?? [];
               return (
-                <div key={b.id} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+                <div key={b.id} className="card-row rounded-xl px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-neutral-100">
@@ -378,14 +378,14 @@ export default function BotsClient({
                         setEditing(b);
                         setFormOpen(true);
                       }}
-                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
+                      className="btn-soft rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
                     >
                       Editar
                     </button>
                     <button
                       type="button"
                       onClick={() => toggleBotAction(b.id, !b.enabled)}
-                      className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
+                      className="btn-soft rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
                     >
                       {b.enabled ? "Pausar" : "Ativar"}
                     </button>
@@ -448,7 +448,7 @@ export default function BotsClient({
               onClick={() => {
                 if (all.length > 0 && confirm("Limpar todos os alertas?")) clearAlertsAction();
               }}
-              className="rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
+              className="btn-soft rounded-lg border border-white/[0.09] px-3 py-1.5 text-xs text-neutral-300 hover:border-white/[0.18]"
             >
               Limpar
             </button>

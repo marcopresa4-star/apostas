@@ -99,7 +99,7 @@ export default async function EstatisticasPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
+      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 text-sm text-neutral-500">
         Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
         enfrentassem.
@@ -121,7 +121,7 @@ export default async function EstatisticasPage({
         />
         <button
           type="submit"
-          className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500"
+          className="btn-glow shrink-0 px-4 py-2"
         >
           Analisar
         </button>
@@ -203,7 +203,7 @@ async function RecentAnalyses({ userId }: { userId: string }) {
             <Link
               key={`${g.league}|${g.home}|${g.away}`}
               href={href}
-              className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 transition hover:border-white/[0.15]"
+              className="card-row rounded-xl px-3 py-2 transition hover:border-white/[0.15]"
             >
               <p className="text-sm font-medium text-neutral-100">
                 {g.home} <span className="text-neutral-500">vs</span> {g.away}

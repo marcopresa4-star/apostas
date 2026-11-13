@@ -73,7 +73,7 @@ export default async function ValuePage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">💎 <span className="title-glow">Value Bets</span></h1>
+      <h1 className="hero-title mb-3">💎 <span className="title-glow">Value Bets</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Compara a odd da casa com a probabilidade do modelo: só aparece onde a odd paga acima do justo (valor
         esperado positivo). Valor não é garantia — é vantagem a longo prazo. Gere a banca com responsabilidade.

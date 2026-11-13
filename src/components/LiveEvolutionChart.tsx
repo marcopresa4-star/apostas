@@ -716,7 +716,7 @@ export default function LiveEvolutionChart({
               setFormSet(new Set(ALL));
               setFormOpen(true);
             }}
-            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+            className="btn-glow px-3 py-1.5 text-xs"
           >
             + Novo filtro
           </button>
@@ -767,7 +767,7 @@ export default function LiveEvolutionChart({
                   type="button"
                   onClick={saveForm}
                   disabled={formName.trim() === "" || formSet.size === 0}
-                  className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                  className="btn-glow px-3 py-1 text-xs disabled:opacity-50"
                 >
                   Guardar
                 </button>

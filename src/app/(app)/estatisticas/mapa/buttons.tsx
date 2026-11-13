@@ -70,7 +70,7 @@ export function AutoMapAllButton() {  const [isPending, startTransition] = useTr
             router.refresh();
           })
         }
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+        className="btn-glow px-4 py-2 text-sm disabled:opacity-60"
       >
         {isPending ? "A mapear… (pode demorar um minuto)" : "Mapear todas automaticamente"}
       </button>
@@ -102,7 +102,7 @@ export function AlignTeamsButton({ leagueCode }: { leagueCode: string }) {
             router.refresh();
           })
         }
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+        className="btn-glow px-4 py-2 text-sm disabled:opacity-60"
       >
         {isPending ? "A alinhar…" : "Alinhar equipas automaticamente"}
       </button>
@@ -188,7 +188,7 @@ export function BootstrapIntlButton() {
             router.refresh();
           })
         }
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+        className="btn-glow px-4 py-2 text-sm disabled:opacity-60"
       >
         {isPending ? "A ligar seleções… (pode demorar uns minutos)" : "Ligar seleções automaticamente"}
       </button>
@@ -255,7 +255,7 @@ export function AuditIntlButton() {
         {isPending ? "A auditar… (vários minutos)" : "Auditar ligações"}
       </button>
       {rows && (
-        <span className="mt-2 block max-w-3xl rounded-xl border border-white/[0.07] bg-white/[0.03] p-3 text-xs leading-relaxed">
+        <span className="mt-2 block max-w-3xl card-row rounded-xl p-3 text-xs leading-relaxed">
           {rows.length === 0 ? (
             <span className="text-emerald-400">Nenhuma ligação suspeita: tudo a seleções principais.</span>
           ) : (
@@ -300,7 +300,7 @@ export function AutoAlignAllTeamsButton() {
             router.refresh();
           })
         }
-        className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-60"
+        className="btn-glow px-4 py-2 text-sm disabled:opacity-60"
       >
         {isPending ? "A alinhar tudo… (pode demorar vários minutos)" : "Alinhar equipas de todas as ligas"}
       </button>

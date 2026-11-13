@@ -34,7 +34,7 @@ const NAV: NavEntry[] = [
     href: "/",
     label: "Jogos",
     icon: "🏠",
-    chip: "bg-emerald-500/15 text-emerald-400",
+    chip: "bg-emerald-500/25 text-emerald-400",
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
     adminOnly: true,
   },
@@ -43,7 +43,7 @@ const NAV: NavEntry[] = [
     id: "est",
     label: "Estatísticas",
     icon: "🧮",
-    chip: "bg-emerald-500/15 text-emerald-400",
+    chip: "bg-emerald-500/25 text-emerald-400",
     active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
     adminOnly: true,
     items: [
@@ -60,7 +60,7 @@ const NAV: NavEntry[] = [
     href: "/estatisticas/ao-vivo",
     label: "Ao vivo agora",
     icon: "🔴",
-    chip: "bg-red-500/15 text-red-400",
+    chip: "bg-red-500/25 text-red-400",
     active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
     adminOnly: true,
   },
@@ -69,7 +69,7 @@ const NAV: NavEntry[] = [
     href: "/feed",
     label: "Em direto",
     icon: "📡",
-    chip: "bg-red-500/15 text-red-400",
+    chip: "bg-red-500/25 text-red-400",
     active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
     adminOnly: true,
   },
@@ -78,7 +78,7 @@ const NAV: NavEntry[] = [
     id: "fer",
     label: "Ferramentas",
     icon: "🛠️",
-    chip: "bg-sky-500/15 text-sky-400",
+    chip: "bg-sky-500/25 text-sky-400",
     active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
     adminOnly: true,
     items: [
@@ -95,7 +95,7 @@ const NAV: NavEntry[] = [
     id: "def",
     label: "Definições",
     icon: "⚙️",
-    chip: "bg-neutral-500/15 text-neutral-400",
+    chip: "bg-neutral-500/25 text-neutral-400",
     active: "bg-gradient-to-r from-neutral-600 to-neutral-500 shadow-lg shadow-neutral-600/30",
     adminOnly: true,
     items: [
@@ -108,7 +108,7 @@ const NAV: NavEntry[] = [
     href: "/vista",
     label: "Vista Dinâmica",
     icon: "◧",
-    chip: "bg-violet-500/15 text-violet-300",
+    chip: "bg-violet-500/25 text-violet-300",
     active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
     adminOnly: true,
   },
@@ -185,15 +185,15 @@ export default function Sidebar({
 
   const visible = NAV.filter((item) => isAdmin || !item.adminOnly);
   const pill =
-    "flex shrink-0 items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium whitespace-nowrap transition";
+    "flex shrink-0 items-center gap-2 rounded-full border border-transparent py-1 pl-1.5 pr-3.5 text-sm font-semibold whitespace-nowrap transition hover:border-white/10";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#060a11]/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#060a11]/70 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.8)] backdrop-blur-2xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-emerald-400/40 after:to-transparent">
       <div className="mx-auto flex h-14 w-full max-w-[96rem] items-center gap-3 px-4">
         <Link href="/" className="group flex shrink-0 items-center gap-2.5 text-lg font-semibold text-neutral-100">
           <span
             aria-hidden
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-sm shadow-lg shadow-emerald-600/25 transition-transform group-hover:scale-105"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-sm shadow-lg shadow-emerald-500/40 ring-1 ring-white/20 transition-transform group-hover:scale-110 group-hover:rotate-[-8deg]"
           >
             ⚽
           </span>
@@ -213,7 +213,7 @@ export default function Sidebar({
                     active ? `${item.active} text-white` : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
-                  <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs ${active ? "bg-white/15" : item.chip}`}>
+                  <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] ring-1 ring-white/10 ${active ? "bg-white/15" : item.chip}`}>
                     {item.icon}
                   </span>
                   {item.label}
@@ -237,7 +237,7 @@ export default function Sidebar({
                       : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                   }`}
                 >
-                  <span aria-hidden className={`flex h-6 w-6 items-center justify-center rounded-lg text-xs ${active || isOpen ? "bg-white/15" : item.chip}`}>
+                  <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] ring-1 ring-white/10 ${active || isOpen ? "bg-white/15" : item.chip}`}>
                     {item.icon}
                   </span>
                   {item.label}
@@ -245,7 +245,7 @@ export default function Sidebar({
                 </button>
                 {isOpen && pos && (
                   <div
-                    className="fixed z-50 w-60 overflow-hidden rounded-xl border border-white/[0.09] bg-[#0a0f18]/95 py-1 shadow-2xl backdrop-blur-xl"
+                    className="pop-in fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/[0.1] bg-[#0a0f18]/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl"
                     style={{ left: pos.left, top: pos.top }}
                   >
                     {item.items.map((s) => {
@@ -254,7 +254,7 @@ export default function Sidebar({
                         <Link
                           key={s.href}
                           href={s.href}
-                          className={`flex items-center gap-2.5 px-3 py-2 text-sm transition ${
+                          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
                             sub ? "bg-emerald-500/15 font-medium text-emerald-300" : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
                           }`}
                         >

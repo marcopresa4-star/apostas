@@ -1088,8 +1088,8 @@ export default function SofaScoreWidget({
             : state.raw.statusText || "";
 
   return (
-    <div className="w-full overflow-hidden glass">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-white/[0.07] bg-gradient-to-b from-neutral-800/50 to-transparent px-4 py-2.5">
+    <div className="w-full overflow-hidden glass hover:-translate-y-0.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-white/[0.07] bg-gradient-to-b from-emerald-500/[0.08] via-white/[0.03] to-transparent px-4 py-3">
         <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
           {homeName}
           {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
@@ -1124,7 +1124,7 @@ export default function SofaScoreWidget({
               }`}
             >
               {state?.phase === "live" && (
-                <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+                <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
               )}
               {phase}
             </span>
@@ -1200,7 +1200,7 @@ export default function SofaScoreWidget({
           </button>
           {state?.phase === "live" && (
             <span className="pointer-events-none absolute top-2 left-2 flex items-center gap-1.5 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-red-300 ring-1 ring-red-500/40 backdrop-blur-sm">
-              <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+              <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)]" />
               EM DIRETO{state.minute !== null && state.minute !== undefined ? ` · ${state.minute}'` : ""}
             </span>
           )}

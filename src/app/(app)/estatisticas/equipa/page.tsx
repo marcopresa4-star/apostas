@@ -60,7 +60,7 @@ export default async function EquipaPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🔍 <span className="title-glow">Análise Equipa</span></h1>
+      <h1 className="hero-title mb-3">🔍 <span className="title-glow">Análise Equipa</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Escolhe uma equipa das ligas mapeadas e vê a época, a forma e quando marca e sofre.
       </p>

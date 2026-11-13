@@ -43,7 +43,7 @@ export default function FeedAdd({ count }: { count: number }) {
           type="submit"
           disabled={busy || count >= FEED_MAX}
           title={count >= FEED_MAX ? `Máximo de ${FEED_MAX} jogos` : "Adicionar ao direto"}
-          className="shrink-0 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
+          className="btn-glow shrink-0 px-4 py-2 disabled:opacity-50"
         >
           {busy ? "…" : "Acompanhar"}
         </button>

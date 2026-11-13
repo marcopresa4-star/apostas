@@ -73,7 +73,7 @@ export default async function MapaPage({
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🧮 <span className="title-glow">Estatísticas</span></h1>
+      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Mapeamento SofaScore (fase 1): dizer onde vive cada liga no SofaScore para o histórico vir de lá em vez dos
         ficheiros. {mapped} de {leagues.length} ligas mapeadas. Precisa da migração 0033 e do scraper ligado.
@@ -119,7 +119,7 @@ export default async function MapaPage({
               </option>
             ))}
           </select>
-          <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
+          <button type="submit" className="btn-glow px-4 py-2">
             Procurar
           </button>
         </div>
@@ -235,7 +235,7 @@ export default async function MapaPage({
                   </option>
                 ))}
               </select>
-              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
+              <button type="submit" className="btn-glow px-4 py-2">
                 Procurar
               </button>
             </div>
@@ -323,7 +323,7 @@ export default async function MapaPage({
                   </option>
                 ))}
               </select>
-              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition hover:bg-emerald-500">
+              <button type="submit" className="btn-glow px-4 py-2">
                 Procurar
               </button>
             </div>

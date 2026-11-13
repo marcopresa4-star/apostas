@@ -79,7 +79,7 @@ export default function LiveTeamsForm({
           </div>
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-500"
+            className="btn-glow px-4 py-2"
           >
             Usar estas equipas
           </button>

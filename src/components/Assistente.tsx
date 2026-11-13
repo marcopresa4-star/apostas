@@ -141,7 +141,7 @@ export default function Assistente() {
                             <Link
                               key={l.href}
                               href={l.href}
-                              className="rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-500"
+                              className="btn-glow rounded-full px-2.5 py-1 text-xs"
                             >
                               {l.label}
                             </Link>
@@ -171,7 +171,7 @@ export default function Assistente() {
             <button
               type="submit"
               disabled={aCarregar}
-              className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              className="btn-glow shrink-0 px-3 py-2 text-sm disabled:opacity-50"
             >
               ➤
             </button>

@@ -100,7 +100,7 @@ export default function VistaClient() {
             setRight(left);
           }}
           title="Trocar os painéis"
-          className="rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] hover:text-white"
+          className="btn-soft rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-sm text-neutral-300 transition hover:border-white/[0.18] hover:text-white"
         >
           ⇄
         </button>

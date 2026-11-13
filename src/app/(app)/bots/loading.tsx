@@ -2,7 +2,7 @@
 export default function Loading() {
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🤖 <span className="title-glow">Bots</span></h1>
+      <h1 className="hero-title mb-3">🤖 <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl animate-pulse text-sm text-neutral-500">A carregar os bots…</p>
       <div className="animate-pulse space-y-4">
         <div className="h-12 glass" />

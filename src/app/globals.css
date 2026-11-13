@@ -5,6 +5,16 @@
   --foreground: #ededed;
 }
 
+/* Cooler, brighter neutrals: body copy and captions were too dim on the dark base. */
+@theme {
+  --color-neutral-100: #f1f5fb;
+  --color-neutral-200: #dde4f0;
+  --color-neutral-300: #bcc6d8;
+  --color-neutral-400: #98a5bd;
+  --color-neutral-500: #7d8aa3;
+  --color-neutral-600: #56627a;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -29,9 +39,98 @@ body::before {
   z-index: -10;
   pointer-events: none;
   background:
-    radial-gradient(56rem 30rem at 12% -8%, rgba(16, 185, 129, 0.09), transparent 62%),
-    radial-gradient(48rem 28rem at 88% -12%, rgba(56, 130, 246, 0.07), transparent 60%),
-    radial-gradient(64rem 40rem at 50% 118%, rgba(16, 185, 129, 0.05), transparent 65%);
+    radial-gradient(60rem 32rem at 10% -10%, rgba(16, 185, 129, 0.14), transparent 62%),
+    radial-gradient(52rem 30rem at 92% -14%, rgba(56, 130, 246, 0.12), transparent 60%),
+    radial-gradient(40rem 26rem at 78% 55%, rgba(139, 92, 246, 0.05), transparent 65%),
+    radial-gradient(64rem 40rem at 50% 118%, rgba(16, 185, 129, 0.08), transparent 65%);
+  animation: aurora-drift 22s ease-in-out infinite alternate;
+}
+
+/* Fine dot grid fading out downwards: gives depth without noise. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -9;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 26px 26px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+}
+
+@keyframes aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(0, -1.5%, 0) scale(1.06);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Every page eases in instead of popping. */
+main {
+  animation: page-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Sensible global polish for native controls (kept in the base layer so any
+   utility class on a component still wins). */
+@layer base {
+  button:not(:disabled),
+  a,
+  select,
+  summary {
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease,
+      box-shadow 0.18s ease,
+      transform 0.18s ease,
+      opacity 0.18s ease;
+  }
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+  input,
+  select,
+  textarea {
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(255, 255, 255, 0.28);
+  }
+  h1 {
+    letter-spacing: -0.02em;
+  }
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+  tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.025);
+  }
 }
 
 /* The one card treatment used across the app: slightly translucent panels
@@ -45,6 +144,14 @@ body::before {
     0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
     0 12px 32px -16px rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(14px);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+.glass:hover {
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 40px -16px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(16, 185, 129, 0.04);
 }
 
 /* Same panel, livelier: for the highlighted pieces (pinned live cards). */
@@ -153,4 +260,170 @@ body::before {
 .score-pop {
   display: inline-block;
   animation: score-pop 0.45s ease-out;
+}
+
+/* Page-level hero heading used by the main screens. */
+.hero-title {
+  position: relative;
+  font-size: 2.25rem;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.hero-underline {
+  display: block;
+  width: 3.5rem;
+  height: 3px;
+  margin-top: 0.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #34d399, #22d3ee);
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.6);
+}
+
+/* Primary call-to-action button. */
+.btn-glow {
+  background: linear-gradient(135deg, #10b981, #0d9488);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.25) inset,
+    0 10px 24px -10px rgba(16, 185, 129, 0.7);
+}
+.btn-glow:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.3) inset,
+    0 14px 30px -10px rgba(16, 185, 129, 0.85);
+}
+
+/* Dropdown pop-in. */
+.pop-in {
+  animation: pop-in 0.16s ease-out both;
+  transform-origin: top left;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Subtle pulse for "live" markers. */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Soft glow behind every page title. */
+.hero-title::before {
+  content: "";
+  position: absolute;
+  left: -2rem;
+  top: -1.2rem;
+  width: 22rem;
+  height: 6rem;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(16, 185, 129, 0.22), transparent);
+  filter: blur(8px);
+  pointer-events: none;
+}
+.hero-underline {
+  width: 4.5rem;
+  height: 4px;
+}
+
+/* Cards get a gradient hairline (emerald -> blue) instead of a flat grey edge. */
+.glass,
+.glass-accent {
+  position: relative;
+}
+.glass::before,
+.glass-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(145deg, rgba(52, 211, 153, 0.35), rgba(255, 255, 255, 0.05) 35%, rgba(255, 255, 255, 0.03) 65%, rgba(96, 165, 250, 0.3));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.55;
+  transition: opacity 0.25s ease;
+}
+.glass:hover::before,
+.glass-accent::before {
+  opacity: 1;
+}
+.glass {
+  background:
+    radial-gradient(22rem 10rem at 0% 0%, rgba(16, 185, 129, 0.06), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+}
+
+/* A list row inside a panel: accent bar on the left that lights up on hover. */
+.card-row {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+.card-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #34d399, #22d3ee);
+  opacity: 0.35;
+  transition: opacity 0.2s ease, top 0.2s ease, bottom 0.2s ease;
+}
+.card-row:hover {
+  transform: translateX(2px);
+  border-color: rgba(52, 211, 153, 0.3);
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.09), rgba(255, 255, 255, 0.025));
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.8);
+}
+.card-row:hover::before {
+  opacity: 1;
+  top: 8%;
+  bottom: 8%;
+}
+
+/* Secondary button. */
+.btn-soft {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
+}
+.btn-soft:hover:not(:disabled) {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.05));
+  color: #fff;
+  box-shadow: 0 8px 20px -10px rgba(16, 185, 129, 0.6);
+}
+
+/* Section headings inside panels. */
+h2 {
+  letter-spacing: -0.01em;
+}
+
+/* Native selects: custom arrow and a richer surface. */
+select {
+  color-scheme: dark;
 }

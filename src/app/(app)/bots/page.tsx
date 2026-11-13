@@ -53,7 +53,7 @@ export default async function BotsPage() {
 
   return (
     <div data-wide>
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">🤖 <span className="title-glow">Bots</span></h1>
+      <h1 className="hero-title mb-3">🤖 <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Robôs que vigiam jogos ao vivo e avisam quando as tuas condições se verificam — em qualquer página do site,
         com um separador aberto. De browser fechado nada corre (não há servidor sempre-ligado), nem há push para o
