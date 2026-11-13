@@ -1,3 +1,4 @@
+import { Sparkline } from "./ui";
 import type { Rating } from "@/lib/standings";
 import type { FormGame, StandingRow } from "@/lib/standings";
 
@@ -7,6 +8,12 @@ const CHIP = { V: "bg-emerald-600", E: "bg-neutral-600", D: "bg-red-600" } as co
 // Attack above 1 is good, defence below 1 is good (it is what the team concedes).
 const attackColor = (a: number) => (a >= 1.1 ? "text-emerald-400" : a <= 0.9 ? "text-red-400" : "text-neutral-300");
 const defenseColor = (d: number) => (d <= 0.9 ? "text-emerald-400" : d >= 1.1 ? "text-red-400" : "text-neutral-300");
+
+// Running points over the last games (oldest first), for the trend line.
+const trend = (form: FormGame[]): number[] => {
+  let pts = 0;
+  return [0, ...[...form].sort((a, b) => a.date.localeCompare(b.date)).map((g) => (pts += g.result === "V" ? 3 : g.result === "E" ? 1 : 0))];
+};
 
 const shortDate = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "2-digit" });
@@ -72,6 +79,7 @@ export default function StandingsTable({
             <th className="px-2 py-2 text-right font-semibold">DG</th>
             <th className="px-2 py-2 text-right font-semibold">Pts</th>
             <th className="px-2 py-2 text-left font-semibold">Forma</th>
+            <th className="px-2 py-2 text-left font-semibold" title="Pontos acumulados nos últimos jogos">Tendência</th>
             <th className="px-2 py-2 text-right font-semibold" title="Golos que marca, contra a média da liga (1,00)">
               Ataque
             </th>
@@ -97,7 +105,11 @@ export default function StandingsTable({
                     : ""
               }
             >
-              <td className="px-2 py-2 text-neutral-500">{i + 1}</td>
+              <td className="px-2 py-2">
+                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${i === 0 ? "bg-amber-400/20 text-amber-300" : i === 1 ? "bg-neutral-300/15 text-neutral-200" : i === 2 ? "bg-orange-500/15 text-orange-300" : "text-neutral-500"}`}>
+                  {i + 1}
+                </span>
+              </td>
               <td className="px-2 py-2 font-medium text-neutral-100">
                 {s.team}
                 {side && (
@@ -125,6 +137,9 @@ export default function StandingsTable({
                     <FormChip key={`${game.date}-${game.opponent}`} game={game} team={s.team} below={i < 4} />
                   ))}
                 </div>
+              </td>
+              <td className="px-2 py-2">
+                <Sparkline values={trend(s.form)} />
               </td>
               <td className={`px-2 py-2 text-right font-medium ${attackColor(r.attack)}`}>{num(r.attack)}</td>
               <td className={`px-2 py-2 text-right font-medium ${defenseColor(r.defense)}`}>{num(r.defense)}</td>

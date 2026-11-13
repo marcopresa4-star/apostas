@@ -5,6 +5,9 @@ import Assistente from "@/components/Assistente";
 import BotsWatcher from "@/components/BotsWatcher";
 import BotToasts from "@/components/BotToasts";
 import FeedWatcher from "@/components/FeedWatcher";
+import Spotlight from "@/components/Spotlight";
+import CommandPalette from "@/components/CommandPalette";
+import MobileNav from "@/components/MobileNav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -14,17 +17,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isAdmin = await getIsAdmin();
 
   return (
-    <div className="min-h-screen">
+    <div className="shell-pad min-h-screen">
       <Sidebar userEmail={user?.email ?? null} isAdmin={isAdmin} />
       <div className="flex min-h-screen flex-col">
         {/* A page holding a wide table marks itself with data-wide to get more room. */}
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-7 has-[[data-wide]]:max-w-[96rem]">{children}</main>
+        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-7 pb-24 lg:px-8 lg:py-9 lg:pb-9 has-[[data-wide]]:max-w-[96rem]">{children}</main>
       </div>
       {/* The global watcher polls on every page; with no enabled bots the
           check answers empty immediately, so no per-navigation flag needed. */}
       <BotsWatcher />
       <BotToasts />
       <FeedWatcher />
+      <Spotlight />
+      <CommandPalette />
+      <MobileNav />
       <Assistente />
     </div>
   );

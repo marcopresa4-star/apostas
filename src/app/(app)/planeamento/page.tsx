@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import type { LiveTableDef } from "@/lib/planeamento";
 import PlaneamentoClient from "@/components/PlaneamentoClient";
+import Icon from "@/components/Icon";
 
 // PRO page: user-defined pattern tables over the mapped leagues' games on the
 // chosen day (yesterday/today/tomorrow, today by default), to prepare the live
@@ -55,7 +56,7 @@ export default async function PlaneamentoPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🗂️ <span className="title-glow">Planeamento Live</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="plan" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Planeamento Live</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Tabelas com os jogos que encaixam nos teus filtros — para preparar o live. Escolhe o dia (ontem, hoje ou
         amanhã); cada tabela fica só com os jogos desse dia que cumprem o padrão.

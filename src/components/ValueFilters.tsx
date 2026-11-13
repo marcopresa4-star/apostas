@@ -80,7 +80,7 @@ export default function ValueFilters({
   };
 
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const chip =
     "inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.07] px-2.5 py-1.5 text-xs text-neutral-300 transition hover:border-white/[0.15]";
   const toggle = (list: string[], v: string, set: (l: string[]) => void) =>

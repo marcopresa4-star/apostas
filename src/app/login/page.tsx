@@ -9,8 +9,10 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState(signIn, initialState);
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="glass-accent w-full max-w-sm p-8 shadow-2xl shadow-emerald-900/20">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <div aria-hidden className="hero-orb hero-orb-a" />
+      <div aria-hidden className="hero-orb hero-orb-b" />
+      <div className="glass-accent float-slow relative w-full max-w-sm p-8 shadow-2xl shadow-emerald-900/20">
         <span
           aria-hidden
           className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 text-2xl shadow-lg shadow-emerald-500/40 ring-1 ring-white/20"

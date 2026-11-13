@@ -6,6 +6,7 @@
 import { leagueRates, type PlayedMatch, type Prediction } from "@/lib/footballModel";
 import { baseRates } from "@/lib/recommendation";
 import { formatOdd } from "@/lib/multiples";
+import { ProbBar } from "./ui";
 
 const pct1 = (p: number): string => `${(p * 100).toFixed(1).replace(".", ",")}%`;
 const pp = (p: number, base: number): string => {
@@ -98,6 +99,14 @@ export default function ForecastDashboard({
     <div className="space-y-4">
       <div className="glass p-4">
         <Title>Resultado do jogo (1X2)</Title>
+        <ProbBar
+          className="mb-4"
+          slices={[
+            { label: "Casa", value: ft.home, color: "bg-emerald-400", text: "text-emerald-300" },
+            { label: "Empate", value: ft.draw, color: "bg-neutral-400", text: "text-neutral-300" },
+            { label: "Fora", value: ft.away, color: "bg-sky-400", text: "text-sky-300" },
+          ]}
+        />
         <div className="grid grid-cols-3 gap-2 text-center">
           {(
             [

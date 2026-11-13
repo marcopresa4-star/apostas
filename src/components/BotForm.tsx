@@ -506,7 +506,7 @@ export default function BotForm({
 
   const field = "w-full rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 py-2 text-neutral-100 outline-none focus:border-emerald-500";
   const pill = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   // Section 1 ("Onde e quando") uses the mock's sky accent.
   const pillSky = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-sky-500/50 bg-sky-500/15 text-sky-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;

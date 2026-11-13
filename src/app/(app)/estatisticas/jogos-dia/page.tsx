@@ -9,6 +9,7 @@ import DayFilters from "@/components/DayFilters";
 import DayMatrix from "@/components/DayMatrix";
 import DayDetail from "@/components/DayDetail";
 import { first } from "@/lib/searchParams";
+import Icon from "@/components/Icon";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const shift = (date: string, days: number): string => {
@@ -51,7 +52,7 @@ export default async function JogosDiaPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os jogos do dia das ligas mapeadas. Quando um jogo está a decorrer, aparece o minuto e abre direto na
         calculadora live.

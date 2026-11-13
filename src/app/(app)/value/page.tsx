@@ -16,6 +16,8 @@ import { loadAutoTune } from "@/lib/autoTune";
 import { first } from "@/lib/searchParams";
 import ValueFilters from "@/components/ValueFilters";
 import { DEFAULT_VALUE_MARKETS, VALUE_MARKETS, VALUE_MARKET_KEYS } from "@/lib/valueMarkets";
+import Icon from "@/components/Icon";
+import { Badge, CountUp, Crest, Empty, Ring } from "@/components/ui";
 
 // Club leagues only: internationals have no pre-match odds flow.
 const marketByKey = new Map(VALUE_MARKETS.map((m) => [m.key, m.label]));
@@ -73,7 +75,7 @@ export default async function ValuePage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">💎 <span className="title-glow">Value Bets</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="gem" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Value Bets</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Compara a odd da casa com a probabilidade do modelo: só aparece onde a odd paga acima do justo (valor
         esperado positivo). Valor não é garantia — é vantagem a longo prazo. Gere a banca com responsabilidade.
@@ -88,9 +90,12 @@ export default async function ValuePage({
         <Suspense
           key={`${ligas.join(",")}|${mercados.join(",")}|${edgeMin}|${oddMax ?? "x"}|${conf}|${datas}`}
           fallback={
-            <p className="max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
-              A analisar os jogos… (a primeira vez demora minutos: é uma leitura de odds por jogo)
-            </p>
+            <div className="space-y-3">
+              <p className="text-center text-sm text-neutral-400">A analisar os jogos… (a primeira vez demora minutos: é uma leitura de odds por jogo)</p>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="skeleton h-40" />
+              ))}
+            </div>
           }
         >
           <ValueResults ligas={ligas} mercados={mercados} edgeMin={edgeMin} oddMax={oddMax} conf={conf} datas={datas} userId={user?.id ?? null} />
@@ -258,11 +263,11 @@ async function ValueResults({
     <div>
       <div className="mb-4 grid grid-cols-3 gap-3">
         <div className="glass p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-400">{picks.length}</p>
+          <p className="font-display text-3xl font-extrabold text-emerald-400"><CountUp value={picks.length} /></p>
           <p className="text-[11px] uppercase tracking-wide text-neutral-500">value bets</p>
         </div>
         <div className="glass p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-400">{picks.length > 0 ? `+${Math.round(avgEdge * 100)}%` : "—"}</p>
+          <p className="font-display text-3xl font-extrabold text-emerald-400">{picks.length > 0 ? <>+<CountUp value={avgEdge * 100} suffix="%" /></> : "—"}</p>
           <p className="text-[11px] uppercase tracking-wide text-neutral-500">edge médio</p>
         </div>
         <div className="glass p-4 text-center">
@@ -272,58 +277,64 @@ async function ValueResults({
       </div>
 
       {picks.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
-          Sem valor com estes filtros: {fixturesTotal} jogos no período, {oddsTotal} com odds reais. Alarga as datas,
-          baixa o edge ou inclui mais ligas.
-        </p>
+        <Empty icon={<Icon name="gem" className="h-7 w-7" />} title="Sem valor com estes filtros">
+          {fixturesTotal} jogos no período, {oddsTotal} com odds reais. Alarga as datas, baixa o edge ou inclui mais ligas.
+        </Empty>
       ) : (
         <div className="space-y-3">
           {picks.map((p) => (
             <div key={`${p.league}|${p.home}|${p.away}|${p.market}`} className="glass p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-100">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="flex shrink-0 -space-x-2">
+                  <Crest name={p.home} size={34} />
+                  <Crest name={p.away} size={34} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-neutral-100">
                     {p.home} <span className="font-normal text-neutral-500">vs</span> {p.away}
                   </p>
                   <p className="text-[11px] text-neutral-500">
                     {p.leagueLabel} · {dayMonth(p.date)}
                     {p.time ? ` às ${p.time.slice(0, 5)}` : ""} ·{" "}
-                    <span className="text-emerald-400">
+                    <span className={p.games >= SOLID_GAMES ? "text-emerald-400" : "text-amber-300"}>
                       {p.games >= SOLID_GAMES ? "Alta" : "Média"} confiança
                     </span>
                   </p>
                 </div>
-                <p className="text-xl font-bold text-emerald-400">+{Math.round(p.edge * 100)}%</p>
+                <Badge kind="value">
+                  <Icon name="gem" className="h-3 w-3" />+{Math.round(p.edge * 100)}% valor
+                </Badge>
               </div>
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-emerald-500/10 px-3 py-2 ring-1 ring-emerald-500/40">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">Aposta</span>
-                <span className="text-base font-bold text-neutral-100">{p.market}</span>
-                <span className="text-xs tabular-nums text-neutral-400">
-                  à odd {oddText(p.odd)} (justa {oddText(p.fair)})
-                </span>
+              <div className="mt-3 flex flex-wrap items-center gap-4 rounded-xl bg-gradient-to-r from-emerald-500/15 to-transparent px-4 py-3 ring-1 ring-emerald-500/40">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300">Aposta</span>
+                  <p className="font-display text-lg font-bold text-white">{p.market}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase tracking-wider text-neutral-400">odd</span>
+                  <p className="font-display text-3xl font-extrabold tabular-nums leading-none text-emerald-300">{oddText(p.odd)}</p>
+                  <span className="text-[11px] tabular-nums text-neutral-500">justa {oddText(p.fair)}</span>
+                </div>
+                <Ring value={p.p * 100} size={58} color="#34d399" label={pct(p.p)} />
               </div>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs tabular-nums">
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs tabular-nums">
                 <div>
-                  <p className="text-neutral-500">Modelo {pct(p.p)}</p>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-800">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, p.p * 100)}%` }} />
+                  <p className="mb-1 flex justify-between text-neutral-400"><span>Modelo</span><b className="text-emerald-300">{pct(p.p)}</b></p>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div className="bar-grow h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, p.p * 100)}%` }} />
                   </div>
                 </div>
                 <div>
-                  <p className="text-neutral-500">Casa {pct(1 / p.odd)}</p>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-neutral-800">
-                    <div className="h-full rounded-full bg-red-500/80" style={{ width: `${Math.min(100, (1 / p.odd) * 100)}%` }} />
+                  <p className="mb-1 flex justify-between text-neutral-400"><span>Casa</span><b className="text-red-300">{pct(1 / p.odd)}</b></p>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div className="bar-grow h-full rounded-full bg-red-400/80" style={{ width: `${Math.min(100, (1 / p.odd) * 100)}%` }} />
                   </div>
                 </div>
-                <div>
-                  <p className="text-neutral-100">Odd {oddText(p.odd)}</p>
-                  <p className="text-neutral-500">justa {oddText(p.fair)}</p>
-                </div>
               </div>
-              {p.why && <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">Porquê: {p.why}</p>}
+              {p.why && <p className="mt-3 text-[11px] leading-relaxed text-neutral-500">Porquê: {p.why}</p>}
               <Link
                 href={`/estatisticas?${new URLSearchParams({ liga: p.league, casa: p.home, fora: p.away })}`}
-                className="mt-2 inline-block text-xs font-medium text-emerald-400 hover:underline"
+                className="btn-soft mt-3 inline-block rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-emerald-300"
               >
                 Analisar no Comparar →
               </Link>

@@ -20,6 +20,7 @@ import LiveTeamsForm from "@/components/LiveTeamsForm";
 import LiveCalculator from "@/components/LiveCalculator";
 import LiveSavedGames from "@/components/LiveSavedGames";
 import Link from "next/link";
+import Icon from "@/components/Icon";
 
 // What a typical league scores when no teams are chosen, and how its goals split
 // around half time.
@@ -293,7 +294,7 @@ export default async function LivePage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Um jogo a decorrer: cola o link do jogo no SofaScore (lido pelo scraper local, de minuto a minuto) ou escolhe um
         dos teus jogos, e vê o que ainda pode acontecer, com a odd justa para comparares com a odd live da

@@ -1,8 +1,9 @@
+import Icon from "@/components/Icon";
 // Instant shell while the Bots page renders (first dev compile or slow reads).
 export default function Loading() {
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🤖 <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="bot" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl animate-pulse text-sm text-neutral-500">A carregar os bots…</p>
       <div className="animate-pulse space-y-4">
         <div className="h-12 glass" />

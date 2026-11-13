@@ -14,6 +14,7 @@ import { Suspense } from "react";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import SofaLiveTable, { type SofaBoardDetail, type SofaBoardRings, type SofaBoardStats } from "@/components/SofaLiveTable";
 import AoVivoFollow from "@/components/AoVivoFollow";
+import Icon from "@/components/Icon";
 
 const obj = (x: unknown): Record<string, unknown> | null =>
   typeof x === "object" && x !== null && !Array.isArray(x) ? (x as Record<string, unknown>) : null;
@@ -177,7 +178,7 @@ export default async function AoVivoPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os jogos em direto agora nas tuas ligas mapeadas — e qualquer jogo estrelado ou que sigas pelo link do SofaScore
         (cola lá em baixo) — via SofaScore. Ligas fora do mapa não aparecem: o mundo tem 500+ em direto nas horas de

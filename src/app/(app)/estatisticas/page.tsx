@@ -38,6 +38,7 @@ import { first, todayISO as todayOf } from "@/lib/searchParams";
 import { ADJUST_KEYS, adjustFromParams } from "@/lib/adjustments";
 import { loadAutoTune } from "@/lib/autoTune";
 import { WEIGHT_KEYS, isNeutralW, predictWeighted, weightsFromParams, type ModelWeights, type TeamStyle, type WeightsCtx } from "@/lib/modelWeights";
+import Icon from "@/components/Icon";
 
 const DAY_MS = 86_400_000;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -99,7 +100,7 @@ export default async function EstatisticasPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 text-sm text-neutral-500">
         Escolhe duas equipas da mesma liga e vê como têm jogado e a probabilidade de cada resultado se se
         enfrentassem.

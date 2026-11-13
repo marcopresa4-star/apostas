@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import BotsClient, { type BotRow, type AlertRow } from "@/components/BotsClient";
 import { goalsNeutral } from "@/lib/bots";
+import Icon from "@/components/Icon";
 
 export default async function BotsPage() {
   await requireAdmin();
@@ -53,7 +54,7 @@ export default async function BotsPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🤖 <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="bot" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Bots</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Robôs que vigiam jogos ao vivo e avisam quando as tuas condições se verificam — em qualquer página do site,
         com um separador aberto. De browser fechado nada corre (não há servidor sempre-ligado), nem há push para o

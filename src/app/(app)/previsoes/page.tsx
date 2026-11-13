@@ -10,6 +10,8 @@ import { predict, leagueRates } from "@/lib/footballModel";
 import { baseRates, candidatesFor, MIN_GAMES } from "@/lib/recommendation";
 import { loadAutoTune } from "@/lib/autoTune";
 import { first } from "@/lib/searchParams";
+import Icon from "@/components/Icon";
+import { Badge, Crest, Empty, Ring } from "@/components/ui";
 
 // The most probable outcome of each market, for today's games, mapped
 // leagues only. No odds involved: pure model probability ranking. Club
@@ -83,7 +85,7 @@ export default async function PrevisoesPage({
       key={label}
       href={href}
       className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-        on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"
+        on ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"
       }`}
     >
       {label}
@@ -92,7 +94,7 @@ export default async function PrevisoesPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🔮 <span className="title-glow">Previsões do dia</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="sparkle" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Previsões do dia</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         O que é mais provável acontecer hoje, mercado a mercado · {dayLabel}
       </p>
@@ -107,9 +109,11 @@ export default async function PrevisoesPage({
       <Suspense
         key={`${today}|${cat.id}|${market.key}`}
         fallback={
-          <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
-            A calcular as probabilidades de hoje…
-          </p>
+          <div className="space-y-2.5">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="skeleton h-[4.5rem]" />
+            ))}
+          </div>
         }
       >
         <PrevisoesBoard today={today} now={now} marketKey={market.key} marketLabel={market.label} />
@@ -211,43 +215,50 @@ async function PrevisoesBoard({
 
   if (ranked.length === 0) {
     return (
-      <div className="glass px-4 py-12 text-center">
-        <p className="text-3xl">⭐</p>
-        <p className="mt-2 text-sm font-semibold text-neutral-200">Sem jogos por começar hoje nas ligas mapeadas</p>
-        <p className="mt-1 text-xs text-neutral-500">
-          {gamesTotal > 0
-            ? `${gamesTotal} jogos sem dados suficientes para o modelo (5+ jogos por equipa).`
-            : "Volta amanhã ou vê os próximos dias nos Jogos por dia."}
-        </p>
-      </div>
+      <Empty icon={<Icon name="sparkle" className="h-7 w-7" />} title="Sem jogos por começar hoje nas ligas mapeadas">
+        {gamesTotal > 0
+          ? `${gamesTotal} jogos sem dados suficientes para o modelo (5+ jogos por equipa).`
+          : "Volta amanhã ou vê os próximos dias nos Jogos por dia."}
+      </Empty>
     );
   }
 
   return (
     <div className="space-y-2.5 xl:grid xl:grid-cols-2 xl:items-start xl:gap-3 xl:space-y-0">
-      {ranked.map((r, i) => (
-        <div key={`${r.league}|${r.home}|${r.away}|${r.title}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 glass px-4 py-3">
-          <span className="w-7 shrink-0 text-lg font-bold tabular-nums text-neutral-600">{i + 1}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium text-neutral-100">
-              {r.home} <span className="font-normal text-neutral-500">vs</span> {r.away}
+      {ranked.map((r, i) => {
+        const medal = i === 0 ? "from-amber-300 to-amber-600 text-amber-950" : i === 1 ? "from-neutral-200 to-neutral-400 text-neutral-900" : i === 2 ? "from-orange-300 to-orange-600 text-orange-950" : "from-white/10 to-white/5 text-neutral-400";
+        return (
+          <div key={`${r.league}|${r.home}|${r.away}|${r.title}`} className="glass flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br font-display text-base font-extrabold tabular-nums ${medal}`}>{i + 1}</span>
+            <span className="flex shrink-0 -space-x-2">
+              <Crest name={r.home} size={30} />
+              <Crest name={r.away} size={30} />
             </span>
-            <span className="block text-[11px] text-neutral-500">
-              {r.leagueLabel}{r.time ? ` · ${r.time.slice(0, 5)}` : ""} · {r.title}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-neutral-100">
+                {r.home} <span className="font-normal text-neutral-500">vs</span> {r.away}
+              </span>
+              <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-500">
+                {r.leagueLabel}{r.time ? ` · ${r.time.slice(0, 5)}` : ""}
+                <Badge kind="neutral">{r.title}</Badge>
+              </span>
             </span>
-          </span>
-          <span className="shrink-0 text-right">
-            <span className="block text-lg font-bold tabular-nums text-emerald-300">{pct(r.p)}</span>
-            <span className="block text-[11px] text-neutral-500">justa {oddText(r.fair)}</span>
-          </span>
-          <Link
-            href={`/estatisticas?${new URLSearchParams({ liga: r.league, casa: r.home, fora: r.away })}`}
-            className="shrink-0 text-xs font-medium text-emerald-400 hover:underline"
-          >
-            Analisar →
-          </Link>
-        </div>
-      ))}
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="text-right">
+                <span className="block text-[10px] uppercase tracking-wider text-neutral-500">odd justa</span>
+                <span className="block font-display text-lg font-bold tabular-nums text-neutral-100">{oddText(r.fair)}</span>
+              </span>
+              <Ring value={r.p * 100} size={52} color={r.p >= 0.7 ? "#34d399" : r.p >= 0.55 ? "#fbbf24" : "#94a3b8"} />
+            </span>
+            <Link
+              href={`/estatisticas?${new URLSearchParams({ liga: r.league, casa: r.home, fora: r.away })}`}
+              className="btn-soft shrink-0 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-emerald-300"
+            >
+              Analisar →
+            </Link>
+          </div>
+        );
+      })}
       <p className="text-[11px] text-neutral-500">
         {marketLabel}: os {TOP_N} mais prováveis de hoje, só ligas mapeadas, equipas com 5+ jogos. Sem odds — pura probabilidade do modelo.
       </p>

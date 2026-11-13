@@ -5,6 +5,7 @@ import { loadSofaLeague } from "@/lib/sofaLeague";
 import { loadSofaInternational } from "@/lib/sofaIntl";
 import { settleWon } from "@/lib/bets";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
+import Icon from "@/components/Icon";
 
 interface Row {
   league: string;
@@ -93,7 +94,7 @@ export default async function CalibracaoPage() {
   if (error) {
     return (
       <div>
-        <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+        <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
         <EstatisticasTabs />
         <p className="max-w-4xl rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Não consegui ler as sugestões registadas ({error.message}). Se a tabela ainda não existe, corre a migração 0038 no Supabase.
@@ -133,7 +134,7 @@ export default async function CalibracaoPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Acerto real das sugestões do Comparar: o que o modelo disse contra o que aconteceu, por família de mercado.
       </p>

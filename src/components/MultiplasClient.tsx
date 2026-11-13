@@ -308,7 +308,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                 onClick={() => toggleLiga(l.code)}
                 className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
                   ligas.includes(l.code)
-                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                    ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]"
                     : "border-white/[0.07] text-neutral-500"
                 }`}
               >
@@ -330,7 +330,7 @@ export default function MultiplasClient({ leagues, today }: { leagues: { code: s
                   type="button"
                   onClick={() => setFamField(f.id, "on", !(fam[f.id]?.on ?? false))}
                   className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
-                    fam[f.id]?.on ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300" : "border-white/[0.07] text-neutral-500"
+                    fam[f.id]?.on ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]" : "border-white/[0.07] text-neutral-500"
                   }`}
                 >
                   {f.label}

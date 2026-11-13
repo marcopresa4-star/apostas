@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { createClient } from "@/lib/supabase/server";
 import LiveWidgetsPanel from "@/components/LiveWidgetsPanel";
 import UnfavButton from "@/components/UnfavButton";
+import HomeHero from "@/components/HomeHero";
 
 // The Dashboard is only the live board now: games you added to follow (their
 // widget shows up at kickoff time) plus games already live. Bets, analysis
@@ -29,13 +30,7 @@ export default async function DashboardPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title">
-        ⚽ <span className="title-glow">Jogos</span>
-        <span className="hero-underline" />
-      </h1>
-      <p className="mb-5 mt-3 max-w-4xl text-sm text-neutral-400">
-        Jogos para acompanhar em direto: adiciona-os e o widget aparece aqui à hora do jogo.
-      </p>
+      <HomeHero following={(favs ?? []).length} watching={(watchedMatches ?? []).length} />
 
       {(favs ?? []).length > 0 && (
         <div className="glass mb-4 max-w-4xl p-4">

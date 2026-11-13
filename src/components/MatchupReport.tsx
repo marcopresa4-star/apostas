@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Fragment } from "react";
+import { ProbBar } from "./ui";
 import OddChecker, { type OddMarket } from "./OddChecker";
 import CalibrationLogger from "./CalibrationLogger";
 import MultipleBuilder from "./MultipleBuilder";
@@ -142,6 +143,14 @@ function SummaryBlock({ title, summary }: { title: string; summary: Summary | nu
       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
         {title} · {summary.games} {summary.games === 1 ? "jogo" : "jogos"}
       </p>
+      <ProbBar
+        className="mb-2"
+        slices={[
+          { label: "V", value: summary.wins, color: "bg-emerald-500", text: "text-emerald-300" },
+          { label: "E", value: summary.draws, color: "bg-neutral-500", text: "text-neutral-300" },
+          { label: "D", value: summary.losses, color: "bg-red-500", text: "text-red-300" },
+        ]}
+      />
       <div className="space-y-0.5">
         <Stat label="V / E / D" value={`${summary.wins} / ${summary.draws} / ${summary.losses}`} />
         <Stat label="Golos marcados / jogo" value={dot(summary.gfPerGame)} />
@@ -476,25 +485,34 @@ export function GoalTimingCard({
         <p className={`mb-1.5 truncate text-xs font-medium ${color}`}>
           {team} <span className="font-normal text-neutral-500">· {t.games} jogos</span>
         </p>
-        <div className="space-y-1.5">
-          {PERIODS.map((label, i) => (
-            <div key={label}>
-              <p className="mb-0.5 text-[10px] font-semibold text-neutral-500">{label}</p>
-              {(
-                [
-                  ["G.Marc", t.scored[i], "bg-emerald-500/80"],
-                  ["G.Sofr", t.conceded[i], "bg-red-500/80"],
-                ] as const
-              ).map(([kind, n, bar]) => (
-                <div key={kind} className="flex items-center gap-1.5">
-                  <span className="w-11 shrink-0 text-[10px] text-neutral-500">{kind}</span>
-                  <span className="w-3 shrink-0 text-right text-[11px] font-medium text-neutral-200">{n}</span>
-                  <div className="h-1.5 min-w-0 flex-1">
-                    {n > 0 && <div className={`h-full rounded-full ${bar}`} style={{ width: `${(n / max) * 100}%` }} />}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="grid grid-cols-[3rem_repeat(6,minmax(0,1fr))] items-center gap-1">
+          <span />
+          {PERIODS.map((label) => (
+            <span key={label} className="truncate text-center text-[9px] font-semibold text-neutral-500">{label}</span>
+          ))}
+          {(
+            [
+              ["Marcou", t.scored, "52, 211, 153"],
+              ["Sofreu", t.conceded, "248, 113, 113"],
+            ] as const
+          ).map(([kind, arr, rgb]) => (
+            <Fragment key={kind}>
+              <span className="text-[10px] text-neutral-500">{kind}</span>
+              {PERIODS.map((label, i) => {
+                const n = arr[i];
+                const a = n === 0 ? 0.04 : 0.15 + 0.7 * (n / max);
+                return (
+                  <span
+                    key={label}
+                    title={`${kind} ${n} (${label})`}
+                    className="flex h-9 items-center justify-center rounded-md text-xs font-bold tabular-nums text-white transition hover:scale-110"
+                    style={{ background: `rgba(${rgb}, ${a})`, boxShadow: n === max ? `0 0 14px rgba(${rgb}, 0.5)` : undefined }}
+                  >
+                    {n}
+                  </span>
+                );
+              })}
+            </Fragment>
           ))}
         </div>
       </div>
@@ -503,7 +521,7 @@ export function GoalTimingCard({
   return (
     <div className={CARD}>
       <h3 className="mb-2 text-sm font-semibold text-neutral-300">Momento dos golos (por 15&apos;)</h3>
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 xl:flex-row">
         {timing.home && column(home, timing.home, "text-emerald-300")}
         {timing.away && column(away, timing.away, "text-sky-300")}
       </div>

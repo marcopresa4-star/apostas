@@ -19,6 +19,7 @@ import CheckedProfit from "./profit";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import RoundTable, { type RoundRow } from "@/components/RoundTable";
+import Icon from "@/components/Icon";
 
 const MAX_ROUNDS = 6;
 
@@ -46,7 +47,7 @@ export default async function JornadaPage({
 
   return (
     <div>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 text-sm text-neutral-500">
         Os próximos jogos de uma liga, cada um com a probabilidade de cada resultado e a aposta que o modelo sugeriria.
       </p>

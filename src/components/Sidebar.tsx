@@ -2,128 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { signOut } from "@/app/(app)/actions";
+import Icon from "@/components/Icon";
+import { useHtmlAttr } from "@/components/ui";
+import { NAV_GROUPS } from "@/lib/nav";
+import { toggleNavMode, toggleTheme } from "@/lib/prefs";
 
-interface NavLink {
-  kind: "link";
-  href: string;
-  label: string;
-  icon: string;
-  chip: string;
-  active: string;
-  adminOnly: boolean;
-}
-
-interface NavMenu {
-  kind: "menu";
-  id: string;
-  label: string;
-  icon: string;
-  chip: string;
-  active: string;
-  adminOnly: boolean;
-  items: { href: string; label: string; icon: string }[];
-}
-
-type NavEntry = NavLink | NavMenu;
-
-const NAV: NavEntry[] = [
-  {
-    kind: "link",
-    href: "/",
-    label: "Jogos",
-    icon: "🏠",
-    chip: "bg-emerald-500/25 text-emerald-400",
-    active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
-    adminOnly: true,
-  },
-  {
-    kind: "menu",
-    id: "est",
-    label: "Estatísticas",
-    icon: "🧮",
-    chip: "bg-emerald-500/25 text-emerald-400",
-    active: "bg-gradient-to-r from-emerald-600 to-emerald-500 shadow-lg shadow-emerald-600/30",
-    adminOnly: true,
-    items: [
-      { href: "/estatisticas", label: "Comparar equipas", icon: "⚖️" },
-      { href: "/estatisticas/equipa", label: "Análise equipa", icon: "🔍" },
-      { href: "/estatisticas/jogos-dia", label: "Jogos por dia", icon: "📅" },
-      { href: "/estatisticas/jornada", label: "Jogos da jornada", icon: "🗓️" },
-      { href: "/estatisticas/live", label: "Calculadora live", icon: "🧮" },
-      { href: "/estatisticas/classificacao", label: "Classificação e força", icon: "📊" },
-    ],
-  },
-  {
-    kind: "link",
-    href: "/estatisticas/ao-vivo",
-    label: "Ao vivo agora",
-    icon: "🔴",
-    chip: "bg-red-500/25 text-red-400",
-    active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
-    adminOnly: true,
-  },
-  {
-    kind: "link",
-    href: "/feed",
-    label: "Em direto",
-    icon: "📡",
-    chip: "bg-red-500/25 text-red-400",
-    active: "bg-gradient-to-r from-red-600 to-red-500 shadow-lg shadow-red-600/30",
-    adminOnly: true,
-  },
-  {
-    kind: "menu",
-    id: "fer",
-    label: "Ferramentas",
-    icon: "🛠️",
-    chip: "bg-sky-500/25 text-sky-400",
-    active: "bg-gradient-to-r from-sky-600 to-sky-500 shadow-lg shadow-sky-600/30",
-    adminOnly: true,
-    items: [
-      { href: "/bots", label: "Bots", icon: "🤖" },
-      { href: "/planeamento", label: "Planeamento Live", icon: "🗂️" },
-      { href: "/notas", label: "Notas", icon: "📝" },
-      { href: "/value", label: "Value Bets", icon: "💎" },
-      { href: "/previsoes", label: "Previsões do dia", icon: "🔮" },
-      { href: "/multiplas", label: "Múltiplas", icon: "🎲" },
-    ],
-  },
-  {
-    kind: "menu",
-    id: "def",
-    label: "Definições",
-    icon: "⚙️",
-    chip: "bg-neutral-500/25 text-neutral-400",
-    active: "bg-gradient-to-r from-neutral-600 to-neutral-500 shadow-lg shadow-neutral-600/30",
-    adminOnly: true,
-    items: [
-      { href: "/estatisticas/calibracao", label: "Calibração", icon: "🎯" },
-      { href: "/estatisticas/mapa", label: "Mapa SofaScore", icon: "🗺️" },
-    ],
-  },
-  {
-    kind: "link",
-    href: "/vista",
-    label: "Vista Dinâmica",
-    icon: "◧",
-    chip: "bg-violet-500/25 text-violet-300",
-    active: "bg-gradient-to-r from-violet-600 to-violet-500 shadow-lg shadow-violet-600/30",
-    adminOnly: true,
-  },
-];
-
-function isActivePath(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-// Menu children have no sub-routes: exact match avoids lighting the parent
-// on sibling pages that share the prefix (e.g. /estatisticas/ao-vivo).
-function isActiveChild(pathname: string, href: string) {
-  return pathname === href;
-}
+// Every link is a leaf (no sub-routes), so an exact match is enough and avoids
+// lighting "/estatisticas" on its sibling pages.
+const isActive = (pathname: string, href: string) => pathname === href;
 
 export default function Sidebar({
   userEmail,
@@ -133,162 +21,212 @@ export default function Sidebar({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState<string | null>(null);
-  // Embedded panels (Vista Dinâmica iframes) hide the sign-out button: the
-  // top-level tab owns the session. Post-mount so hydration matches.
-  const [embed, setEmbed] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const theme = useHtmlAttr("theme");
+  // Embedded panels (Vista Dinâmica iframes) drop the whole chrome: the
+  // top-level tab owns navigation and the session. Server snapshot is false so
+  // hydration matches.
+  const embed = useSyncExternalStore(
+    () => () => {},
+    () => {
+      try {
+        return new URLSearchParams(window.location.search).get("embed") === "1";
+      } catch {
+        return false;
+      }
+    },
+    () => false,
+  );
   useEffect(() => {
-    try {
-      setEmbed(new URLSearchParams(window.location.search).get("embed") === "1");
-    } catch {
-      // No URL access: show everything.
-    }
-  }, []);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-  const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  // A new page always closes the menu.
-  useEffect(() => {
-    setOpen(null);
-  }, [pathname]);
+    if (embed) document.documentElement.dataset.embed = "1";
+  }, [embed]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") setOpen(null);
+      if (e.key === "Escape") setDrawer(false);
     };
+    const open = (): void => setDrawer(true);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-  // The nav scrolls horizontally: an absolutely-positioned panel would be
-  // clipped, so dropdowns are viewport-fixed from the button rect and close
-  // on any scroll.
-  useEffect(() => {
-    if (open === null) return;
-    const close = (): void => setOpen(null);
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
+    window.addEventListener("apostas:drawer", open);
     return () => {
-      window.removeEventListener("scroll", close, true);
-      window.removeEventListener("resize", close);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("apostas:drawer", open);
     };
-  }, [open ]);
-  const toggle = (id: string): void => {
-    if (open === id) {
-      setOpen(null);
-      return;
-    }
-    const el = btnRefs.current[id];
-    if (el) {
-      const r = el.getBoundingClientRect();
-      setPos({ left: Math.max(8, r.left), top: r.bottom + 4 });
-    }
-    setOpen(id);
-  };
+  }, []);
 
-  const visible = NAV.filter((item) => isAdmin || !item.adminOnly);
-  const pill =
-    "flex shrink-0 items-center gap-2 rounded-full border border-transparent py-1 pl-1.5 pr-3.5 text-sm font-semibold whitespace-nowrap transition hover:border-white/10";
+  if (!isAdmin || embed) return null;
+
+  const initial = (userEmail ?? "?").charAt(0).toUpperCase();
+  const light = theme === "light";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[#060a11]/70 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.8)] backdrop-blur-2xl after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-gradient-to-r after:from-transparent after:via-emerald-400/40 after:to-transparent">
-      <div className="mx-auto flex h-14 w-full max-w-[96rem] items-center gap-3 px-4">
-        <Link href="/" className="group flex shrink-0 items-center gap-2.5 text-lg font-semibold text-neutral-100">
-          <span
-            aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-sm shadow-lg shadow-emerald-500/40 ring-1 ring-white/20 transition-transform group-hover:scale-110 group-hover:rotate-[-8deg]"
-          >
-            ⚽
+    <>
+      {/* Mobile top bar */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-white/[0.06] bg-[#060a11]/80 px-4 backdrop-blur-2xl lg:hidden">
+        <button
+          type="button"
+          aria-label="Abrir menu"
+          aria-expanded={drawer}
+          onClick={() => setDrawer(true)}
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]"
+        >
+          <Icon name="menu" />
+        </button>
+        <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold">
+          <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-white">
+            <Icon name="ball" className="h-4 w-4" />
           </span>
-          <span className="hidden whitespace-nowrap sm:inline">
-            <span className="title-glow font-bold">Apostas</span>
-          </span>
+          <span className="title-glow">Apostas</span>
         </Link>
-        <nav className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {visible.map((item) => {
-            if (item.kind === "link") {
-              const active = isActivePath(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`${pill} ${
-                    active ? `${item.active} text-white` : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] ring-1 ring-white/10 ${active ? "bg-white/15" : item.chip}`}>
-                    {item.icon}
-                  </span>
-                  {item.label}
-                </Link>
-              );
-            }
-            const active = item.items.some((s) => isActiveChild(pathname, s.href));
-            const isOpen = open === item.id;
-            return (
-              <div key={item.id} className="relative shrink-0">
-                <button
-                  ref={(el) => {
-                    btnRefs.current[item.id] = el;
-                  }}
-                  type="button"
-                  onClick={() => toggle(item.id)}
-                  aria-expanded={isOpen}
-                  className={`${pill} ${
-                    active || isOpen
-                      ? `${item.active} text-white`
-                      : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  <span aria-hidden className={`flex h-7 w-7 items-center justify-center rounded-full text-[13px] ring-1 ring-white/10 ${active || isOpen ? "bg-white/15" : item.chip}`}>
-                    {item.icon}
-                  </span>
-                  {item.label}
-                  <span aria-hidden className={`text-[10px] transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
-                </button>
-                {isOpen && pos && (
-                  <div
-                    className="pop-in fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/[0.1] bg-[#0a0f18]/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl"
-                    style={{ left: pos.left, top: pos.top }}
-                  >
-                    {item.items.map((s) => {
-                      const sub = isActiveChild(pathname, s.href);
-                      return (
-                        <Link
-                          key={s.href}
-                          href={s.href}
-                          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
-                            sub ? "bg-emerald-500/15 font-medium text-emerald-300" : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+        <button
+          type="button"
+          aria-label="Pesquisar"
+          onClick={() => window.dispatchEvent(new Event("apostas:palette"))}
+          className="ml-auto mr-14 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]"
+        >
+          <Icon name="search" className="h-4 w-4" />
+        </button>
+      </header>
+
+      {drawer && (
+        <button
+          aria-label="Fechar menu"
+          className="fixed inset-0 z-40 cursor-default bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setDrawer(false)}
+        />
+      )}
+
+      <aside
+        className={`side fixed inset-y-0 left-0 z-50 flex flex-col border-r border-white/[0.07] bg-[#050810]/90 shadow-[20px_0_60px_-30px_rgba(0,0,0,0.9)] backdrop-blur-2xl transition-[transform,width] duration-300 ease-out lg:translate-x-0 ${
+          drawer ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-emerald-400/50 via-transparent to-sky-400/40" />
+
+        <div className="rail-center flex h-16 shrink-0 items-center justify-between px-5">
+          <Link href="/" className="group flex items-center gap-3">
+            <span
+              aria-hidden
+              className="logo-pulse flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-300 via-emerald-500 to-teal-700 text-white ring-1 ring-white/25 transition-transform group-hover:rotate-[-10deg] group-hover:scale-110"
+            >
+              <Icon name="ball" className="h-6 w-6" />
+            </span>
+            <span className="rail-hide leading-none">
+              <span className="title-glow block font-display text-xl font-bold tracking-tight">Apostas</span>
+              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">Centro de análise</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setDrawer(false)}
+            className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/10 lg:hidden"
+          >
+            <Icon name="x" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("apostas:palette"))}
+            title="Pesquisar (Ctrl/⌘ K)"
+            className="rail-center flex w-full items-center gap-2.5 rounded-xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-left text-[13px] text-neutral-400 hover:border-emerald-400/40 hover:text-white"
+          >
+            <Icon name="search" className="h-4 w-4 shrink-0" />
+            <span className="rail-hide flex-1">Pesquisar…</span>
+            <kbd className="rail-hide rounded-md border border-white/10 bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">⌘K</kbd>
+          </button>
+        </div>
+
+        <nav className="hover-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-3 pb-4 pt-1">
+          {NAV_GROUPS.map((g) => (
+            <div key={g.title}>
+              <p className="rail-hide mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{g.title}</p>
+              <span aria-hidden className="rail-only mx-3 mb-1.5 block h-px bg-white/10" />
+              <ul className="space-y-0.5">
+                {g.items.map((it) => {
+                  const active = isActive(pathname, it.href);
+                  return (
+                    <li key={it.href}>
+                      <Link
+                        href={it.href}
+                        title={it.label}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => setDrawer(false)}
+                        className={`rail-center group relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2 text-[13.5px] font-medium ${
+                          active ? "text-white" : "text-neutral-400 hover:text-white"
+                        }`}
+                      >
+                        {active && (
+                          <>
+                            <span aria-hidden className={`absolute inset-0 bg-gradient-to-r ${g.tone}`} />
+                            <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-gradient-to-b from-emerald-300 to-cyan-400 shadow-[0_0_12px_rgba(52,211,153,0.9)]" />
+                          </>
+                        )}
+                        <span aria-hidden className="absolute inset-0 rounded-xl bg-white/0 transition group-hover:bg-white/[0.05]" />
+                        <span
+                          aria-hidden
+                          className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1 transition group-hover:scale-110 ${
+                            active ? "bg-white/15 text-emerald-200 ring-white/25" : "bg-white/[0.04] ring-white/[0.08]"
                           }`}
                         >
-                          <span aria-hidden className="text-sm">{s.icon}</span>
-                          {s.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                          <Icon name={it.icon} className="h-[18px] w-[18px]" />
+                          {it.live && (
+                            <span className="absolute -right-0.5 -top-0.5 flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+                            </span>
+                          )}
+                        </span>
+                        <span className="rail-hide relative">{it.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
-        {open !== null && (
-          <button aria-label="Fechar menu" className="fixed inset-0 z-20 cursor-default" onClick={() => setOpen(null)} />
-        )}
-        {userEmail && (
-          <p className="hidden max-w-48 truncate text-xs text-neutral-500 lg:block" title={userEmail}>
-            {userEmail}
-          </p>
-        )}
-        {!embed && (
-          <form action={signOut}>
+
+        <div className="shrink-0 space-y-2 border-t border-white/[0.07] p-3">
+          <div className="rail-col flex items-center gap-1.5">
             <button
-              type="submit"
-              title="Sair"
-              className="shrink-0 rounded-xl px-3 py-1.5 text-sm text-neutral-400 transition hover:bg-red-950/40 hover:text-red-300"
+              type="button"
+              onClick={toggleTheme}
+              title={light ? "Tema escuro" : "Tema claro"}
+              className="flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] text-xs text-neutral-300 hover:border-amber-300/40 hover:text-white"
             >
-              🚪 <span className="hidden sm:inline">Sair</span>
+              <Icon name={light ? "moon" : "sun"} className="h-4 w-4" />
+              <span className="rail-hide">{light ? "Escuro" : "Claro"}</span>
             </button>
-          </form>
-        )}
-      </div>
-    </header>
+            <button
+              type="button"
+              onClick={toggleNavMode}
+              title="Recolher / expandir o menu"
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.04] text-neutral-300 hover:border-emerald-400/40 hover:text-white lg:flex"
+            >
+              <Icon name="panel" className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="glass-sm rail-center flex items-center gap-3 p-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-sky-500 text-sm font-bold text-white ring-2 ring-white/20">
+              {initial}
+            </span>
+            <p className="rail-hide min-w-0 flex-1 truncate text-xs text-neutral-300" title={userEmail ?? ""}>
+              {userEmail ?? "Sem sessão"}
+            </p>
+            <form action={signOut} className="rail-hide">
+              <button
+                type="submit"
+                title="Sair"
+                className="rounded-lg p-1.5 text-neutral-400 hover:bg-red-950/50 hover:text-red-300"
+              >
+                <Icon name="logout" className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

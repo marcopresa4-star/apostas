@@ -1,5 +1,6 @@
 "use client";
 
+import { Crest } from "@/components/ui";
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { removeWatchedMatch } from "@/app/(app)/actions";
 import type { LiveGameState } from "@/lib/sportscoreLive";
@@ -860,6 +861,52 @@ export function MomentumChart({
 
 const INCIDENT_ICON = { goal: "⚽", red: "🟥", yellow: "🟨", sub: "🔄", info: "·" } as const;
 
+// Goal moment: when the score changes, the card glows and a banner drops in
+// (both fade out by themselves, so no timers). The first score seen is not a goal.
+function GoalFlash({ score }: { score: string | null }) {
+  const [seen, setSeen] = useState(score);
+  const [n, setN] = useState(0);
+  if (seen !== score) {
+    setSeen(score);
+    if (seen !== null && score !== null) setN((k) => k + 1);
+  }
+  if (n === 0) return null;
+  return (
+    <div key={n} aria-hidden>
+      <span className="goal-glow" />
+      <span className="goal-banner">GOLO</span>
+    </div>
+  );
+}
+
+// Dots on a 0–90' line: goals, cards and subs from the recent incidents.
+function Timeline({ incidents, homeName, awayName }: { incidents: Incident[]; homeName: string; awayName: string }) {
+  const marks = incidents.filter((i) => i.kind === "goal" || i.kind === "red" || i.kind === "yellow");
+  if (marks.length === 0) return null;
+  const colour = (k: Incident["kind"]): string =>
+    k === "goal" ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" : k === "red" ? "bg-red-500" : "bg-amber-300";
+  return (
+    <div className="px-4 pb-3 pt-2">
+      <div className="relative h-8">
+        <span aria-hidden className="absolute left-0 right-0 top-1/2 h-px bg-white/15" />
+        {[0, 45, 90].map((m) => (
+          <span key={m} className="absolute top-1/2 -translate-x-1/2 translate-y-2 text-[9px] text-neutral-600" style={{ left: `${(m / 90) * 100}%` }}>
+            {m}&apos;
+          </span>
+        ))}
+        {marks.map((m, k) => (
+          <span
+            key={`${m.minute}-${k}`}
+            title={`${m.minute}' ${m.text} · ${m.home ? homeName : awayName}`}
+            className={`tl-dot absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-[#0a0f18] ${colour(m.kind)}`}
+            style={{ left: `${Math.min(100, (m.minute / 90) * 100)}%`, top: m.home ? "25%" : "75%" }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Live 2D match tracker from SofaScore (attack momentum / live map), the same
 // frame the SofaScore match page itself embeds:
 //   https://www.sofascore.com/api/v1/event/{id}/live-match-tracker/en/invert-teams/false
@@ -1088,15 +1135,23 @@ export default function SofaScoreWidget({
             : state.raw.statusText || "";
 
   return (
-    <div className="w-full overflow-hidden glass hover:-translate-y-0.5">
+    <div
+      className={`w-full overflow-hidden glass hover:-translate-y-0.5 ${
+        state?.phase === "live" ? "game-live" : state?.phase === "halftime" ? "game-half" : state?.phase === "upcoming" ? "game-upcoming" : ""
+      }`}
+    >
+      <GoalFlash score={score} />
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-white/[0.07] bg-gradient-to-b from-emerald-500/[0.08] via-white/[0.03] to-transparent px-4 py-3">
-        <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
-          {homeName}
-          {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
-        </p>
+        <div className="flex min-w-0 items-center justify-end gap-2.5">
+          <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
+            {homeName}
+            {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
+          </p>
+          <Crest name={homeName} size={38} teamId={state?.homeId} />
+        </div>
         <div className="flex flex-col items-center px-1">
           {score !== null ? (
-            <span key={score} className="score-pop text-2xl font-extrabold tabular-nums text-neutral-50">
+            <span key={score} className="score-pop font-display text-4xl font-extrabold tabular-nums tracking-tight text-neutral-50 drop-shadow-[0_0_14px_rgba(255,255,255,0.25)]">
               {score}
             </span>
           ) : (
@@ -1108,7 +1163,8 @@ export default function SofaScoreWidget({
             </span>
           )}
         </div>
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Crest name={awayName} size={38} teamId={state?.awayId} />
           <p className="min-w-0 flex-1 truncate text-sm font-semibold text-red-200">
             {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="mr-1 text-xs">🟥</span>}
             {awayName}
@@ -1131,6 +1187,16 @@ export default function SofaScoreWidget({
           )}
         </div>
       </div>
+
+      {hasXg && (
+        <div className="px-4 pt-2.5" title="Quota de xG de cada equipa">
+          <div className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full bg-white/[0.06]">
+            <div className="bar-grow h-full bg-sky-400" style={{ width: `${(xgTotal(true) / ((xgTotal(true) + xgTotal(false)) || 1)) * 100}%` }} />
+            <div className="bar-grow h-full bg-red-400" style={{ width: `${(xgTotal(false) / ((xgTotal(true) + xgTotal(false)) || 1)) * 100}%` }} />
+          </div>
+        </div>
+      )}
+      <Timeline incidents={recent} homeName={homeName} awayName={awayName} />
 
       {state && (state.phase === "live" || state.phase === "halftime") && (
         <GoalAlert

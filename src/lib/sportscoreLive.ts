@@ -18,6 +18,9 @@ export interface LiveGameState {
   yellows: { home: number; away: number };
   homeName: string;
   awayName: string;
+  // SofaScore team ids (for the club badges), when the source gives them.
+  homeId?: number;
+  awayId?: number;
   // When the data of this game was last refreshed (ms), if the API says.
   updatedAt: number | null;
   // The minute of the latest incident (goal, card, substitution): the game is at

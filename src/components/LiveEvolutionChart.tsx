@@ -742,7 +742,7 @@ export default function LiveEvolutionChart({
                           onClick={() => toggleForm(d.id)}
                           className={`rounded-full border px-2 py-0.5 text-[11px] transition ${
                             formSet.has(d.id)
-                              ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
+                              ? "border-emerald-400/60 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-emerald-200 shadow-[0_0_18px_-4px_rgba(52,211,153,0.6)]"
                               : "border-white/[0.07] text-neutral-500"
                           }`}
                         >

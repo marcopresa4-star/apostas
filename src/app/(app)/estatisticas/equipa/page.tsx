@@ -12,6 +12,7 @@ import EstatisticasTabs from "@/components/EstatisticasTabs";
 import TeamSearch from "@/components/TeamSearch";
 import { TeamForm } from "@/components/RecentForm";
 import { GoalTimingCard, VenueGoalsCard } from "@/components/MatchupReport";
+import Icon from "@/components/Icon";
 
 async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
@@ -60,7 +61,7 @@ export default async function EquipaPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🔍 <span className="title-glow">Análise Equipa</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="search" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Análise Equipa</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Escolhe uma equipa das ligas mapeadas e vê a época, a forma e quando marca e sofre.
       </p>

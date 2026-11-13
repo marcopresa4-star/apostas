@@ -96,12 +96,12 @@ export default function Assistente() {
         type="button"
         onClick={() => setAberto((a) => !a)}
         aria-label="Assistente"
-        className="flex h-11 w-11 items-center justify-center rounded-full border border-emerald-700/60 bg-neutral-900 text-lg shadow-lg shadow-black/50 transition hover:border-emerald-500"
+        className="logo-pulse flex h-11 w-11 items-center justify-center rounded-full border border-emerald-400/50 bg-gradient-to-br from-emerald-500/30 to-sky-500/20 text-lg text-emerald-100 shadow-lg shadow-black/50 backdrop-blur-md transition hover:scale-110 hover:border-emerald-300"
       >
         {aberto ? "✕" : "◔"}
       </button>
       {aberto && (
-        <div className="mt-2 flex max-h-[75vh] w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-white/[0.04] shadow-2xl shadow-black/60">
+        <div className="mt-2 flex max-h-[75vh] w-[min(92vw,24rem)] flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0a0f18]/90 shadow-2xl shadow-black/60 backdrop-blur-2xl">
           <p className="border-b border-white/[0.07] px-4 py-2.5 text-[13px] font-semibold text-neutral-200">
             Assistente <span className="font-normal text-neutral-500">· jogos e modelo</span>
           </p>

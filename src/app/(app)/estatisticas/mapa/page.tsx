@@ -9,6 +9,7 @@ import { AlignTeamsButton, AuditIntlButton, AutoAlignAllTeamsButton, AutoMapAllB
 import {
   testSofaLeagueAction,
 } from "./actions";
+import Icon from "@/components/Icon";
 
 // Phase 1 of "SofaScore only": teach the app where each league lives on
 // SofaScore (uniqueTournament id). Nothing here feeds the model tabs yet —
@@ -73,7 +74,7 @@ export default async function MapaPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Mapeamento SofaScore (fase 1): dizer onde vive cada liga no SofaScore para o histórico vir de lá em vez dos
         ficheiros. {mapped} de {leagues.length} ligas mapeadas. Precisa da migração 0033 e do scraper ligado.

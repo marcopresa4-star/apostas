@@ -1,6 +1,7 @@
 import { requireAdmin } from "@/lib/requireAdmin";
 import { createClient } from "@/lib/supabase/server";
 import NotasClient from "@/components/NotasClient";
+import Icon from "@/components/Icon";
 
 // Notas (Ferramentas): one free-text pad per user, autosaved to user_notes.
 // Just notes — no board, no drawings.
@@ -22,7 +23,7 @@ export default async function NotasPage() {
   }
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">📝 <span className="title-glow">Notas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="note" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Notas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Bloco de notas para jogos a seguir, ideias de apostas e lembretes. Guarda sozinho enquanto escreves — sem
         quadro táctico, só notas.

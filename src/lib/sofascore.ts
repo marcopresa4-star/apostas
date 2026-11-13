@@ -268,6 +268,8 @@ export function parseSofascoreEvent(
     yellows,
     homeName: str(obj(event.homeTeam)?.name),
     awayName: str(obj(event.awayTeam)?.name),
+    homeId: num(obj(event.homeTeam)?.id) ?? undefined,
+    awayId: num(obj(event.awayTeam)?.id) ?? undefined,
     updatedAt,
     lastIncident,
     // Match statistics live in a separate endpoint (/statistics) and are not

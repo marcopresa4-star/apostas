@@ -12,6 +12,7 @@ import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import StandingsTable, { type StandingsLine } from "@/components/StandingsTable";
+import Icon from "@/components/Icon";
 
 export default async function ClassificacaoPage({
   searchParams,
@@ -130,7 +131,7 @@ export default async function ClassificacaoPage({
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🧮 <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 text-sm text-neutral-500">
         A classificação da época e a força de cada equipa a marcar e a defender, calculadas a partir dos resultados.
       </p>

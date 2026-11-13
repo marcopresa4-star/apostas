@@ -3,6 +3,7 @@ import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import MultiplasClient from "@/components/MultiplasClient";
+import Icon from "@/components/Icon";
 
 export default async function MultiplasPage() {
   await requireAdmin();
@@ -21,7 +22,7 @@ export default async function MultiplasPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">🎲 <span className="title-glow">Múltiplas</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="dice" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Múltiplas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Gerador de acumuladas para as tuas ligas mapeadas: escolhe dias, ligas, tipos de aposta com intervalo de odd
         e quantidade de jogos. Só entram pernas com odd real da casa, escolhidas por valor (modelo vs casa), uma por

@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/requireAdmin";
 import { createClient } from "@/lib/supabase/server";
 import FeedCard from "@/components/FeedCard";
 import FeedAdd from "@/components/FeedAdd";
+import Icon from "@/components/Icon";
 
 export interface FeedRow {
   id: string;
@@ -30,7 +31,7 @@ export default async function FeedPage() {
 
   return (
     <div data-wide>
-      <h1 className="hero-title mb-3">📡 <span className="title-glow">Em direto</span><span className="hero-underline" /></h1>
+      <h1 className="hero-title mb-3"><Icon name="broadcast" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Em direto</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Os teus jogos com gráfico de evolução, resultado e minuto. Adiciona antes do apito inicial — ou envia um jogo
         do Ao vivo agora com o botão <span className="text-sky-300">📡 Em direto</span> — a captura começa sozinha e
