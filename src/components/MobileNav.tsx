@@ -22,14 +22,14 @@ export default function MobileNav() {
           <span className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-500 to-rose-700 text-white shadow-[0_10px_30px_-6px_rgba(239,68,68,0.8)] ring-4 ring-[#050810] ${active ? "scale-105" : ""}`}>
             <Icon name={t.icon} className="h-6 w-6" />
           </span>
-          <span className="text-[10px] font-semibold text-red-300">{t.label}</span>
+          <span className="text-xs font-semibold text-red-300">{t.label}</span>
         </Link>
       );
     }
     return (
       <Link key={t.href} href={t.href} className={`flex flex-1 flex-col items-center gap-1 py-1 ${active ? "text-emerald-300" : "text-neutral-400"}`}>
         <Icon name={t.icon} className="h-5 w-5" />
-        <span className="text-[10px] font-medium">{t.label}</span>
+        <span className="text-xs font-medium">{t.label}</span>
       </Link>
     );
   };
@@ -45,7 +45,7 @@ export default function MobileNav() {
         className="flex flex-1 flex-col items-center gap-1 py-1 text-neutral-400"
       >
         <Icon name="menu" className="h-5 w-5" />
-        <span className="text-[10px] font-medium">Menu</span>
+        <span className="text-xs font-medium">Menu</span>
       </button>
     </nav>
   );

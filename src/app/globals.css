@@ -44,7 +44,6 @@ body::before {
     radial-gradient(52rem 30rem at 92% -14%, rgba(56, 130, 246, 0.12), transparent 60%),
     radial-gradient(40rem 26rem at 78% 55%, rgba(139, 92, 246, 0.05), transparent 65%),
     radial-gradient(64rem 40rem at 50% 118%, rgba(16, 185, 129, 0.08), transparent 65%);
-  animation: aurora-drift 22s ease-in-out infinite alternate;
 }
 
 /* Fine dot grid fading out downwards: gives depth without noise. */
@@ -54,7 +53,7 @@ body::after {
   inset: 0;
   z-index: -9;
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 26px 26px;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
   mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
@@ -144,8 +143,7 @@ main {
   box-shadow:
     0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
     0 12px 32px -16px rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(14px);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 .glass:hover {
   border-color: rgba(255, 255, 255, 0.13);
@@ -323,27 +321,16 @@ main {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 }
 
-/* Soft glow behind every page title. */
-.hero-title::before {
-  content: "";
-  position: absolute;
-  left: -2rem;
-  top: -1.2rem;
-  width: 22rem;
-  height: 6rem;
-  z-index: -1;
-  background: radial-gradient(closest-side, rgba(16, 185, 129, 0.22), transparent);
-  filter: blur(8px);
-  pointer-events: none;
-}
 .hero-underline {
-  width: 4.5rem;
-  height: 4px;
+  width: 3rem;
+  height: 3px;
+  box-shadow: none;
 }
 
 /* Cards get a gradient hairline (emerald -> blue) instead of a flat grey edge. */
@@ -359,21 +346,23 @@ main {
   border-radius: inherit;
   padding: 1px;
   pointer-events: none;
-  background: linear-gradient(145deg, rgba(52, 211, 153, 0.35), rgba(255, 255, 255, 0.05) 35%, rgba(255, 255, 255, 0.03) 65%, rgba(96, 165, 250, 0.3));
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04) 40%, rgba(255, 255, 255, 0.03) 70%, rgba(255, 255, 255, 0.1));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  opacity: 0.55;
+  opacity: 0.6;
   transition: opacity 0.25s ease;
 }
-.glass:hover::before,
+.glass:hover::before {
+  opacity: 1;
+}
 .glass-accent::before {
   opacity: 1;
+  background: linear-gradient(145deg, rgba(52, 211, 153, 0.5), rgba(255, 255, 255, 0.05) 40%, rgba(255, 255, 255, 0.03) 70%, rgba(96, 165, 250, 0.35));
 }
 .glass {
   background:
-    radial-gradient(22rem 10rem at 0% 0%, rgba(16, 185, 129, 0.06), transparent 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
 }
 
 /* A list row inside a panel: accent bar on the left that lights up on hover. */
@@ -435,7 +424,12 @@ h1, h2, .font-display {
   font-family: var(--font-display);
 }
 .hero-title {
-  font-size: 2.75rem;
+  font-size: 1.875rem;
+}
+@media (min-width: 640px) {
+  .hero-title {
+    font-size: 2.25rem;
+  }
 }
 
 /* Embedded panels (Vista Dinâmica) drop the sidebar gutter. */
@@ -445,7 +439,7 @@ html[data-embed="1"] .app-shell {
 
 /* Brand mark breathes. */
 .logo-pulse {
-  animation: logo-pulse 3.2s ease-in-out infinite;
+  box-shadow: 0 8px 24px -6px rgba(16, 185, 129, 0.6);
 }
 @keyframes logo-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.45), 0 8px 24px -6px rgba(16, 185, 129, 0.6); }
@@ -453,8 +447,6 @@ html[data-embed="1"] .app-shell {
 }
 
 /* Cursor spotlight on cards (position set by <Spotlight />). */
-.glass::after,
-.glass-accent::after,
 .tile::after {
   content: "";
   position: absolute;
@@ -465,13 +457,8 @@ html[data-embed="1"] .app-shell {
   background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(52, 211, 153, 0.13), transparent 65%);
   transition: opacity 0.3s ease;
 }
-.glass:hover::after,
-.glass-accent:hover::after,
 .tile:hover::after {
   opacity: 1;
-}
-.glass:hover {
-  transform: translateY(-2px);
 }
 
 /* Small interactive tiles (stats, shortcuts). */
@@ -518,7 +505,6 @@ a.tile:hover {
   left: -6rem;
   top: -9rem;
   background: #10b981;
-  animation: orb-a 14s ease-in-out infinite alternate;
 }
 .hero-orb-b {
   width: 20rem;
@@ -526,7 +512,6 @@ a.tile:hover {
   right: -5rem;
   bottom: -10rem;
   background: #3b82f6;
-  animation: orb-b 17s ease-in-out infinite alternate;
 }
 @keyframes orb-a {
   to { transform: translate(8rem, 4rem) scale(1.2); }
@@ -537,7 +522,7 @@ a.tile:hover {
 
 /* Page content cascades in, block by block. */
 main > div > * {
-  animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 main > div > *:nth-child(2) { animation-delay: 0.06s; }
 main > div > *:nth-child(3) { animation-delay: 0.12s; }
@@ -545,7 +530,7 @@ main > div > *:nth-child(4) { animation-delay: 0.18s; }
 main > div > *:nth-child(5) { animation-delay: 0.24s; }
 main > div > *:nth-child(n + 6) { animation-delay: 0.3s; }
 @keyframes rise {
-  from { opacity: 0; transform: translateY(18px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -661,7 +646,7 @@ html[data-theme="light"] .btn-glow {
   from { stroke-dasharray: 0 100; }
 }
 .badge-glow {
-  animation: badge-glow 2.4s ease-in-out infinite;
+  box-shadow: 0 0 10px 0 rgba(52, 211, 153, 0.3);
 }
 @keyframes badge-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
@@ -670,7 +655,7 @@ html[data-theme="light"] .btn-glow {
 
 /* Tables: quieter header, zebra rows, rounded scroll boxes. */
 thead th {
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -812,11 +797,13 @@ input[type="range"] {
 }
 
 /* Small text was too small and too dim on the dark base. */
-.text-\[9px\] { font-size: 10px; }
-.text-\[10px\] { font-size: 11px; }
+.text-\[8px\],
+.text-\[9px\],
+.text-\[10px\],
 .text-\[11px\] { font-size: 12px; }
-.text-neutral-600 { color: #6b7894; }
-.text-neutral-500 { color: #8693ac; }
+.text-neutral-700 { color: #6b7894; }
+.text-neutral-600 { color: #7f8ba3; }
+.text-neutral-500 { color: #96a3bb; }
 
 /* Empty-state orb drifts gently. */
 .empty-orb {
@@ -826,4 +813,69 @@ input[type="range"] {
 /* Text links inside panels glow a little on hover. */
 a:hover {
   text-decoration-color: currentColor;
+}
+
+
+/* ───────────── v6: calmer, readable, one colour language ─────────────
+
+   Colour means one thing everywhere:
+     emerald = value / win / active      red   = live / loss / risk
+     amber   = followed / attention      sky   = information / neutral
+   Glow is kept for the few things that matter: live games, value bets and
+   goals. Everything else is a flat, quiet panel. */
+
+/* Touch: comfortable targets and no iOS zoom-on-focus on phones/tablets. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  button[class*="px-"][class*="py-"],
+  a.btn-soft,
+  a.btn-glow {
+    min-height: 40px;
+  }
+}
+
+/* Wide tables never push the page sideways on a phone. */
+main table {
+  max-width: 100%;
+}
+
+/* Compact home header. */
+.home-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+.chip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #dde4f0;
+}
+.chip-link:hover {
+  border-color: rgba(125, 211, 252, 0.45);
+  background: rgba(56, 189, 248, 0.08);
+  color: #fff;
+}
+
+/* Table emphasis: the one column that answers the question (probability,
+   odd, edge) is bigger and brighter than the supporting columns. */
+.col-key {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5fb;
 }

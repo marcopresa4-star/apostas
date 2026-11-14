@@ -27,7 +27,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: "Estatísticas",
-    tone: "from-cyan-500/30 via-cyan-500/10 to-transparent",
+    tone: "from-sky-500/30 via-sky-500/10 to-transparent",
     items: [
       { href: "/estatisticas", label: "Comparar equipas", icon: "scale" },
       { href: "/estatisticas/equipa", label: "Análise equipa", icon: "search" },
@@ -39,7 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: "Ferramentas",
-    tone: "from-violet-500/30 via-violet-500/10 to-transparent",
+    tone: "from-sky-500/30 via-sky-500/10 to-transparent",
     items: [
       { href: "/bots", label: "Bots", icon: "bot" },
       { href: "/planeamento", label: "Planeamento Live", icon: "plan" },

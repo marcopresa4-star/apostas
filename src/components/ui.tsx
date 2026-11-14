@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 // Live view of a data-* attribute on <html> (theme, nav mode).
@@ -179,18 +180,40 @@ export function Crest({ name, size = 28, teamId }: { name: string; size?: number
 }
 
 // Shared "nothing here" panel.
-export function Empty({ icon, title, children }: { icon: React.ReactNode; title: string; children?: React.ReactNode }) {
+export function Empty({
+  icon,
+  title,
+  children,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children?: React.ReactNode;
+  action?: { label: string; href?: string; onClick?: () => void };
+}) {
   return (
     <div className="glass flex flex-col items-center px-6 py-12 text-center">
       <span className="empty-orb mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30">
         {icon}
       </span>
       <p className="font-display text-base font-semibold text-neutral-100">{title}</p>
-      {children && <p className="mt-1.5 max-w-md text-xs leading-relaxed text-neutral-400">{children}</p>}
+      {children && <p className="mt-1.5 max-w-md text-sm leading-relaxed text-neutral-400">{children}</p>}
+      {action &&
+        (action.href ? (
+          <Link href={action.href} className="btn-glow mt-5 inline-flex min-h-10 items-center rounded-xl px-5 py-2 text-sm">
+            {action.label}
+          </Link>
+        ) : (
+          <button type="button" onClick={action.onClick} className="btn-glow mt-5 inline-flex min-h-10 items-center rounded-xl px-5 py-2 text-sm">
+            {action.label}
+          </button>
+        ))}
     </div>
   );
 }
 
+// Colour language (see globals.css v6): emerald = value/win/active, red = live/
+// loss/risk, amber = followed/attention, sky = information.
 const BADGE = {
   value: "bg-emerald-400/15 text-emerald-300 ring-emerald-400/40 badge-glow",
   win: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",

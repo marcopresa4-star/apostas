@@ -843,7 +843,7 @@ export default function SofaLiveTable({
                           })
                         }
                         title={expandedLineups.has(g.id) ? "Esconder onzes" : "Ver onzes no relvado"}
-                        className="shrink-0 text-xs font-medium text-violet-300 hover:underline"
+                        className="shrink-0 text-xs font-medium text-sky-300 hover:underline"
                       >
                         {expandedLineups.has(g.id) ? "Esconder ▲" : "Onzes ▼"}
                       </button>

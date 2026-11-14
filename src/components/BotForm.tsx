@@ -513,9 +513,9 @@ export default function BotForm({
   // «Odd pré-jogo» cards use the mock's pink accent.
   const pillPink = (on: boolean) =>
     `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-fuchsia-500/50 bg-fuchsia-500/15 text-fuchsia-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
-  // «Ao vivo» (secção 4) uses the mock's violet accent.
+  // «Ao vivo» (secção 4) uses the mock's sky accent.
   const pillViolet = (on: boolean) =>
-    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-violet-500/60 bg-violet-500/15 text-violet-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
+    `inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-sky-500/60 bg-sky-500/15 text-sky-300" : "border-white/[0.07] text-neutral-400 hover:border-white/[0.15] hover:text-neutral-200"}`;
   const marketLabel = BOT_MARKETS.find((m) => m.key === d.market)?.label ?? d.market;
   const scoreLabel = BOT_SCORES.find((s) => s.key === d.score)?.label ?? d.score;
   // Resumo values (sidebar).
@@ -1114,14 +1114,14 @@ export default function BotForm({
                     <div
                       key={row.id}
                       className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 transition ${
-                        on ? "border-violet-500/40 bg-violet-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"
+                        on ? "border-sky-500/40 bg-sky-500/[0.06]" : "border-white/[0.07] bg-white/[0.03]"
                       }`}
                     >
                       <button
                         type="button"
                         onClick={() => toggleRow(row)}
                         aria-pressed={on}
-                        className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-violet-600" : "bg-white/[0.09]"}`}
+                        className={`relative h-5 w-9 shrink-0 rounded-full transition ${on ? "bg-sky-600" : "bg-white/[0.09]"}`}
                       >
                         <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
                       </button>
@@ -1135,7 +1135,7 @@ export default function BotForm({
                               onClick={() => setRowSide(row, s)}
                               className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition ${
                                 (d.statSides[row.id] ?? "home") === s
-                                  ? "bg-violet-500/25 text-violet-300"
+                                  ? "bg-sky-500/25 text-sky-300"
                                   : "text-neutral-500 hover:text-neutral-300"
                               }`}
                             >
@@ -1148,7 +1148,7 @@ export default function BotForm({
                         <select
                           value={d.statWindows[row.id] ?? 10}
                           onChange={(e) => setRowWindow(row, Number(e.target.value))}
-                          className="shrink-0 rounded-lg border border-white/[0.09] bg-white/[0.03] px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-violet-500"
+                          className="shrink-0 rounded-lg border border-white/[0.09] bg-white/[0.03] px-1.5 py-1 text-[10px] text-neutral-300 outline-none focus:border-sky-500"
                         >
                           {[5, 10, 15].map((m) => (
                             <option key={m} value={m}>
@@ -1159,14 +1159,14 @@ export default function BotForm({
                       )}
                       {on ? (
                         <span className="flex shrink-0 items-center gap-1 text-xs">
-                          <span className="text-violet-400">≥</span>
+                          <span className="text-sky-400">≥</span>
                           <input
                             type="number"
                             min={0}
                             max={200}
                             value={d.stats[key]}
                             onChange={(e) => set("stats", { ...d.stats, [key]: Number(e.target.value) })}
-                            className="w-11 rounded-md border border-violet-700/60 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-medium text-violet-300 outline-none"
+                            className="w-11 rounded-md border border-sky-700/60 bg-neutral-900 px-1 py-0.5 text-right text-[11px] font-medium text-sky-300 outline-none"
                           />
                           {row.unit && <span className="text-[10px] text-neutral-500">{row.unit}</span>}
                         </span>

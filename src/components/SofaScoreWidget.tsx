@@ -1136,14 +1136,14 @@ export default function SofaScoreWidget({
 
   return (
     <div
-      className={`w-full overflow-hidden glass hover:-translate-y-0.5 ${
+      className={`w-full overflow-hidden glass ${
         state?.phase === "live" ? "game-live" : state?.phase === "halftime" ? "game-half" : state?.phase === "upcoming" ? "game-upcoming" : ""
       }`}
     >
       <GoalFlash score={score} />
       <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-white/[0.07] bg-gradient-to-b from-emerald-500/[0.08] via-white/[0.03] to-transparent px-4 py-3">
         <div className="flex min-w-0 items-center justify-end gap-2.5">
-          <p className="min-w-0 truncate text-right text-sm font-semibold text-sky-200">
+          <p className="min-w-0 truncate text-right text-base font-bold text-sky-200 sm:text-lg">
             {homeName}
             {state && state.reds.home > 0 && <span aria-label={`${state.reds.home} vermelho`} className="ml-1 text-xs">🟥</span>}
           </p>
@@ -1165,7 +1165,7 @@ export default function SofaScoreWidget({
         </div>
         <div className="flex min-w-0 items-center gap-2.5">
           <Crest name={awayName} size={38} teamId={state?.awayId} />
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-red-200">
+          <p className="min-w-0 flex-1 truncate text-base font-bold text-red-200 sm:text-lg">
             {state && state.reds.away > 0 && <span aria-label={`${state.reds.away} vermelho`} className="mr-1 text-xs">🟥</span>}
             {awayName}
           </p>

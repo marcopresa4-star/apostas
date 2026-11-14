@@ -33,10 +33,10 @@ export default async function ResumoPage() {
   const botsPct = nBots === 0 ? 0 : (nBotsOn / nBots) * 100;
 
   const links: { href: string; icon: IconName; title: string; text: string; tone: string }[] = [
-    { href: "/previsoes", icon: "sparkle", title: "Previsões do dia", text: "Os resultados mais prováveis de hoje", tone: "from-violet-500/30" },
+    { href: "/previsoes", icon: "sparkle", title: "Previsões do dia", text: "Os resultados mais prováveis de hoje", tone: "from-sky-500/30" },
     { href: "/value", icon: "gem", title: "Value Bets", text: "Odds que pagam acima do risco", tone: "from-emerald-500/30" },
-    { href: "/estatisticas/jogos-dia", icon: "calendar", title: "Jogos por dia", text: "O calendário completo", tone: "from-cyan-500/30" },
-    { href: "/bots", icon: "bot", title: "Bots", text: "Alertas automáticos", tone: "from-amber-500/30" },
+    { href: "/estatisticas/jogos-dia", icon: "calendar", title: "Jogos por dia", text: "O calendário completo", tone: "from-sky-500/30" },
+    { href: "/bots", icon: "bot", title: "Bots", text: "Alertas automáticos", tone: "from-sky-500/30" },
   ];
 
   return (
@@ -57,7 +57,7 @@ export default async function ResumoPage() {
         </div>
         <div className="tile rounded-2xl p-5">
           <p className="text-[11px] uppercase tracking-wider text-neutral-400">Em acompanhamento</p>
-          <p className="mt-2 font-display text-5xl font-extrabold text-emerald-300">
+          <p className="mt-2 font-display text-5xl font-extrabold text-sky-300">
             <CountUp value={nWatched} />
           </p>
           <p className="mt-1 text-xs text-neutral-500">widgets no ecrã inicial</p>
@@ -65,12 +65,12 @@ export default async function ResumoPage() {
         <div className="tile flex items-center justify-between rounded-2xl p-5">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-neutral-400">Bots ativos</p>
-            <p className="mt-2 font-display text-5xl font-extrabold text-sky-300">
+            <p className="mt-2 font-display text-5xl font-extrabold text-emerald-300">
               <CountUp value={nBotsOn} />
               <span className="text-2xl text-neutral-500">/{nBots}</span>
             </p>
           </div>
-          <Ring value={botsPct} size={72} color="#38bdf8" />
+          <Ring value={botsPct} size={72} color="#34d399" />
         </div>
       </div>
 
@@ -83,7 +83,7 @@ export default async function ResumoPage() {
           <p className="text-sm text-neutral-500">Ainda não estás a seguir nenhum jogo. Adiciona-os em “Ao vivo agora”.</p>
         ) : (
           <ul className="grid gap-2 md:grid-cols-2">
-            {(favs ?? []).map((f) => {
+            {(favs ?? []).slice(0, 4).map((f) => {
               const g = f as { event_id?: unknown; home?: unknown; away?: unknown; tournament?: unknown };
               if (typeof g.event_id !== "number") return null;
               const home = typeof g.home === "string" ? g.home : "";
@@ -102,6 +102,11 @@ export default async function ResumoPage() {
               );
             })}
           </ul>
+        )}
+        {nFavs > 4 && (
+          <Link href="/" className="mt-3 inline-block text-xs font-medium text-sky-300 hover:underline">
+            Ver todos os {nFavs} na página inicial →
+          </Link>
         )}
       </div>
 

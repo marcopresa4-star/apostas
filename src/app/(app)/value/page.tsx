@@ -277,7 +277,7 @@ async function ValueResults({
       </div>
 
       {picks.length === 0 ? (
-        <Empty icon={<Icon name="gem" className="h-7 w-7" />} title="Sem valor com estes filtros">
+        <Empty icon={<Icon name="gem" className="h-7 w-7" />} title="Sem valor com estes filtros" action={{ label: "Ver jogos por dia", href: "/estatisticas/jogos-dia" }}>
           {fixturesTotal} jogos no período, {oddsTotal} com odds reais. Alarga as datas, baixa o edge ou inclui mais ligas.
         </Empty>
       ) : (
@@ -290,10 +290,10 @@ async function ValueResults({
                   <Crest name={p.away} size={34} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-neutral-100">
+                  <p className="truncate font-display text-base font-bold text-white">
                     {p.home} <span className="font-normal text-neutral-500">vs</span> {p.away}
                   </p>
-                  <p className="text-[11px] text-neutral-500">
+                  <p className="text-xs text-neutral-400">
                     {p.leagueLabel} · {dayMonth(p.date)}
                     {p.time ? ` às ${p.time.slice(0, 5)}` : ""} ·{" "}
                     <span className={p.games >= SOLID_GAMES ? "text-emerald-400" : "text-amber-300"}>

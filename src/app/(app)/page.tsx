@@ -32,9 +32,11 @@ export default async function DashboardPage() {
     <div data-wide>
       <HomeHero following={(favs ?? []).length} watching={(watchedMatches ?? []).length} />
 
+      <LiveWidgetsPanel watched={watchedMatches ?? []} />
+
       {(favs ?? []).length > 0 && (
         <div className="glass mb-4 max-w-4xl p-4">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">
             A seguir ★ · afixam sozinhos no Ao vivo ao apito
           </p>
           <div className="space-y-1.5">
@@ -59,8 +61,6 @@ export default async function DashboardPage() {
           </div>
         </div>
       )}
-
-      <LiveWidgetsPanel watched={watchedMatches ?? []} />
     </div>
   );
 }

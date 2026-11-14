@@ -6,6 +6,8 @@ import { parseSofascoreId } from "@/lib/sofascore";
 import type { LiveGameState } from "@/lib/sportscoreLive";
 import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
 import { addWatchedMatch, removeWatchedMatch } from "@/app/(app)/actions";
+import { Empty } from "./ui";
+import Icon from "./Icon";
 import SofaScoreWidget, { ALERTS_KEY, alertsOn } from "./SofaScoreWidget";
 
 interface WatchedMatch {
@@ -235,6 +237,16 @@ export default function LiveWidgetsPanel({ watched }: { watched: WatchedMatch[] 
           )}
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         </div>
+      )}
+
+      {watched.length === 0 && !open && (
+        <Empty
+          icon={<Icon name="live" className="h-7 w-7" />}
+          title="Nenhum jogo em acompanhamento"
+          action={{ label: "+ Adicionar jogo", onClick: () => setOpen(true) }}
+        >
+          Cola o link de um jogo do SofaScore. O widget fica aqui e atualiza sozinho.
+        </Empty>
       )}
 
       {watched.length > 0 && (

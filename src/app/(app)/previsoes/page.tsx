@@ -215,7 +215,7 @@ async function PrevisoesBoard({
 
   if (ranked.length === 0) {
     return (
-      <Empty icon={<Icon name="sparkle" className="h-7 w-7" />} title="Sem jogos por começar hoje nas ligas mapeadas">
+      <Empty icon={<Icon name="sparkle" className="h-7 w-7" />} title="Sem jogos por começar hoje nas ligas mapeadas" action={{ label: "Ver jogos por dia", href: "/estatisticas/jogos-dia" }}>
         {gamesTotal > 0
           ? `${gamesTotal} jogos sem dados suficientes para o modelo (5+ jogos por equipa).`
           : "Volta amanhã ou vê os próximos dias nos Jogos por dia."}
