@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/requireAdmin";
+import Link from "next/link";
 import { LEAGUES, isInternational, loadLeague } from "@/lib/footballData";
 import { first } from "@/lib/searchParams";
 import { slugify } from "@/lib/slugify";
@@ -71,16 +72,41 @@ export default async function MapaPage({
   const field =
     "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
   const mapped = maps.length;
+  // National sides are a separate list (one link per team, no league id), so
+  // the count shows here without loading every team map.
+  const intlCount = user
+    ? ((
+        await supabase
+          .from("sofascore_maps")
+          .select("name_key", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("kind", "team")
+          .like("name_key", "int:%")
+      ).count ?? 0)
+    : 0;
+  const tabOn = "rounded-full border border-emerald-500/60 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200";
+  const tabOff = "rounded-full border border-white/[0.09] px-3 py-1.5 text-xs font-medium text-neutral-400 transition hover:border-emerald-500/60 hover:text-neutral-100";
 
   return (
     <div data-wide>
       <h1 className="hero-title mb-3"><Icon name="calc" className="mr-2 inline-block h-8 w-8 -translate-y-0.5 text-emerald-300" /> <span className="title-glow">Estatísticas</span><span className="hero-underline" /></h1>
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Mapeamento SofaScore (fase 1): dizer onde vive cada liga no SofaScore para o histórico vir de lá em vez dos
-        ficheiros. {mapped} de {leagues.length} ligas mapeadas. Precisa da migração 0033 e do scraper ligado.
+        ficheiros. {mapped} de {leagues.length} ligas de clubes mapeadas; as competições de seleções (Liga das Nações,
+        Europeus, Mundiais) ligam-se à parte, em <span className="text-neutral-300">Seleções</span>. Precisa da
+        migração 0033 e do scraper ligado.
       </p>
 
       <EstatisticasTabs />
+
+      <div className="mb-4 flex max-w-4xl flex-wrap gap-2">
+        <Link href="/estatisticas/mapa" className={selecoes ? tabOff : tabOn}>
+          Ligas de clubes · {mapped}/{leagues.length}
+        </Link>
+        <Link href="/estatisticas/mapa?selecoes=1" className={selecoes ? tabOn : tabOff}>
+          Seleções · {intlCount} ligadas
+        </Link>
+      </div>
 
       <div className="mb-4 max-w-4xl glass p-5">
         <div className="flex flex-wrap gap-2">
@@ -291,12 +317,6 @@ export default async function MapaPage({
           </div>
         </section>
       )}
-
-      <div className="mt-6 max-w-4xl">
-        <a href={selecoes ? "/estatisticas/mapa" : "/estatisticas/mapa?selecoes=1"} className="text-sm font-semibold text-neutral-200 hover:underline">
-          {selecoes ? "Seleções · fechar" : `Seleções (${intlMaps.length} ligadas)`}
-        </a>
-      </div>
 
       {selecoes && (
         <section className="mt-2 max-w-4xl">

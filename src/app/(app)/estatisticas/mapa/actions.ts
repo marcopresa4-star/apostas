@@ -114,13 +114,17 @@ export async function autoMapAllAction(): Promise<{
 }> {
   const { supabase, user } = await authed();
   const { LEAGUES } = await import("@/lib/footballData");
-  const existing = new Set((await loadMaps(supabase, user.id, "tournament")).map((m) => m.name_key));
+  const existingMaps = await loadMaps(supabase, user.id, "tournament");
+  const existing = new Set(existingMaps.map((m) => m.name_key));
+  // One SofaScore competition per league: without this, "Série B" can be
+  // saved on top of the first division's id.
+  const used = new Set(existingMaps.map((m) => m.sofascore_id));
   const mapped: { code: string; label: string; name: string; alternatives: number }[] = [];
   const skipped: { code: string; label: string }[] = [];
   for (const league of LEAGUES) {
     if (league.code.startsWith("int.") || existing.has(league.code)) continue;
     try {
-      const suggestion = await suggestTournament(league.label as string);
+      const suggestion = await suggestTournament(league.label as string, used);
       if (!suggestion) {
         skipped.push({ code: league.code, label: league.label as string });
         continue;
@@ -139,6 +143,7 @@ export async function autoMapAllAction(): Promise<{
       if (error) skipped.push({ code: league.code, label: league.label as string });
       else {
         existing.add(league.code);
+        used.add(suggestion.pick.uniqueId!);
         mapped.push({ code: league.code, label: league.label as string, name: suggestion.pick.name, alternatives: suggestion.alternatives });
       }
     } catch {

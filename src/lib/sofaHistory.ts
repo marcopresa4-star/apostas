@@ -11,6 +11,7 @@ import { tokens } from "./teamNames";
 import { sofaRaw, ScraperOffline } from "./sofaRaw";
 import { incidentIsGoal, matchGoals, parseSofascoreLiveList, type SofaLiveEntry } from "./sofascore";
 import { cacheGet, cacheGetAny, cacheGetMeta, cacheSet, DAY_MS, HOUR_MS, type StaleTracker } from "./sofaCache";
+import { pickTournament } from "./tournamentPick";
 export type { StaleTracker } from "./sofaCache";
 
 type Json = Record<string, unknown>;
@@ -222,31 +223,19 @@ const COUNTRY_CATEGORY: Record<string, string> = {
 // One-shot guess for a "Country · Competition" label: search the competition,
 // keep the country's, take the most followed. Returns the pick plus how many
 // same-country alternatives existed (1 = unambiguous).
+// `exclude` keeps two local leagues from sharing one SofaScore competition.
 export async function suggestTournament(
-  label: string
+  label: string,
+  exclude?: Set<number>
 ): Promise<{ pick: SofaCandidate; alternatives: number } | null> {
   const [country, comp] = label.split("·").map((s) => s.trim());
   const category = COUNTRY_CATEGORY[country ?? ""];
   if (!category || !comp) return null;
   const cands = (await searchTournaments(comp)).filter(
-    (c) => c.uniqueId !== null && c.category === category
+    (c) => c.uniqueId !== null && c.category === category && !exclude?.has(c.uniqueId)
   );
-  if (cands.length === 0) return null;
-  // Prefer names that actually contain the query words ("Série B" must win
-  // over the far more followed "Brasileirão Betano", the first division).
-  const words = comp.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 1);
-  const scored = cands.map((c) => ({
-    c,
-    overlap: words.filter((w) => c.name.toLowerCase().includes(w)).length,
-  }));
-  const withWords = scored.filter((s) => s.overlap > 0);
-  const pool = (withWords.length > 0 ? withWords : scored.map((s) => ({ ...s, overlap: 0 }))).sort(
-    (a, b) => b.overlap - a.overlap || b.c.userCount - a.c.userCount
-  );
-  const top = pool[0];
-  // An obscure competition nobody follows is probably the wrong one.
-  if (top.c.userCount < 1000) return null;
-  return { pick: top.c, alternatives: cands.length };
+  const pick = pickTournament(comp, cands);
+  return pick ? { pick, alternatives: cands.length } : null;
 }
 
 // ---------------------------------------------------------------------------
