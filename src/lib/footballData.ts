@@ -80,6 +80,9 @@ export const LEAGUES = [
 
 // National teams instead of a league: their own model, no calendar and no table.
 export const isInternational = (code: string): boolean => code.startsWith("int.");
+// "int.1" is the files' bucket of every national side, not a competition of
+// its own: it has no SofaScore tournament, so day boards leave it out.
+export const isIntlCompetition = (code: string): boolean => isInternational(code) && code !== "int.1";
 
 // Leagues the calendar project (openfootball) does not have at all: they are
 // read from football-data.co.uk only.

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import FavoriteButton from "@/components/FavoriteButton";
-import { LEAGUES } from "@/lib/footballData";
+import { LEAGUES, isInternational, isIntlCompetition } from "@/lib/footballData";
 import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonRecentLite, tournamentLiveFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
@@ -104,7 +104,8 @@ export default async function DayMatrix({
   const favIds = new Set((favRows ?? []).map((r) => (r as { event_id?: unknown }).event_id).filter((n): n is number => typeof n === "number"));
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const leagues = LEAGUES.filter((l) => {
-    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (!codes.has(l.code)) return false;
+    if (isInternational(l.code) && !isIntlCompetition(l.code)) return false;
     if (ligaSel && l.code !== ligaSel) return false;
     if (pais && countryOf(l.label as string) !== pais) return false;
     return true;
@@ -112,7 +113,7 @@ export default async function DayMatrix({
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
   const now = new Date();
 
-  const cacheKey = `daymatrix:v3:${day}|${pais}|${ligaSel}`;
+  const cacheKey = `daymatrix:v4:${day}|${pais}|${ligaSel}`;
   const meta = refresh ? null : await cacheGetAny(supabase, user.id, cacheKey).catch(() => null);
   const age = meta ? now.getTime() - meta.fetchedAt : Infinity;
   let table: MatrixLeague[] = [];

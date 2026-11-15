@@ -3,7 +3,7 @@ import { Suspense, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import FavoriteButton from "@/components/FavoriteButton";
-import { LEAGUES } from "@/lib/footballData";
+import { LEAGUES, isInternational, isIntlCompetition } from "@/lib/footballData";
 import { loadMaps, linkLocalName, fetchLiveEntries, seasonUpcomingExtra, seasonRecentLite, tournamentLiveFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { loadSofaLeague } from "@/lib/sofaLeague";
 import { fetchSofaLiveNow } from "@/lib/sofaBoard";
@@ -173,13 +173,14 @@ export async function computeDayDetail(
   const codes = new Set(maps.map((m) => m.name_key));
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const leagues = LEAGUES.filter((l) => {
-    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (!codes.has(l.code)) return false;
+    if (isInternational(l.code) && !isIntlCompetition(l.code)) return false;
     if (ligaSel && l.code !== ligaSel) return false;
     if (pais && countryOf(l.label as string) !== pais) return false;
     return true;
   });
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
-  const key = `daydetail:v5:${day}|${pais}|${ligaSel}`;
+  const key = `daydetail:v6:${day}|${pais}|${ligaSel}`;
   const teamMaps = await loadMaps(supabase, userId, "team").catch(() => []);
   const toLocal = new Map(teamMaps.filter((m) => m.local_name).map((m) => [m.name, m.local_name]));
   const convert = (name: string): string => toLocal.get(name) ?? linkLocalName(teamMaps, name) ?? name;
@@ -320,7 +321,7 @@ export function prewarmDayDetail(
   pais: string,
   ligaSel: string
 ): void {
-  const key = `daydetail:v5:${day}|${pais}|${ligaSel}`;
+  const key = `daydetail:v6:${day}|${pais}|${ligaSel}`;
   const run = async (): Promise<void> => {
     const meta = await cacheGetAny(supabase, userId, key).catch(() => null);
     if (meta && Date.now() - meta.fetchedAt < HOUR_MS / 2) return;
@@ -360,14 +361,15 @@ export default async function DayDetail({
   const favIds = new Set((favRows ?? []).map((r) => (r as { event_id?: unknown }).event_id).filter((n): n is number => typeof n === "number"));
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const leagues = LEAGUES.filter((l) => {
-    if (!codes.has(l.code) || l.code.startsWith("int.")) return false;
+    if (!codes.has(l.code)) return false;
+    if (isInternational(l.code) && !isIntlCompetition(l.code)) return false;
     if (ligaSel && l.code !== ligaSel) return false;
     if (pais && countryOf(l.label as string) !== pais) return false;
     return true;
   });
   const labelOf = (code: string): string => leagues.find((l) => l.code === code)?.label ?? code;
 
-  const cacheKey = `daydetail:v5:${day}|${pais}|${ligaSel}`;
+  const cacheKey = `daydetail:v6:${day}|${pais}|${ligaSel}`;
   const meta = refresh ? null : await cacheGetAny(supabase, user.id, cacheKey).catch(() => null);
   const age = meta ? Date.now() - meta.fetchedAt : Infinity;
   let table: DetailLeague[] = [];

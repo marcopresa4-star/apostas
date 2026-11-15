@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES } from "@/lib/footballData";
+import { LEAGUES, isInternational, isIntlCompetition } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps } from "@/lib/sofaHistory";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
@@ -45,7 +45,11 @@ export default async function JogosDiaPage({
   } = await supabase.auth.getUser();
   const maps = user ? await loadMaps(supabase, user.id, "tournament").catch(() => []) : [];
   const codes = new Set(maps.map((m) => m.name_key));
-  const leagues = LEAGUES.filter((l) => codes.has(l.code) && !l.code.startsWith("int."));
+  // Club leagues plus competitions of national sides (Nations League): both
+  // live on a SofaScore tournament, so both can list the day's games.
+  const leagues = LEAGUES.filter(
+    (l) => codes.has(l.code) && (!isInternational(l.code) || isIntlCompetition(l.code))
+  );
   const countryOf = (label: string): string => label.split("·")[0]?.trim() ?? label;
   const countries = [...new Set(leagues.map((l) => countryOf(l.label as string)))].sort((a, b) => a.localeCompare(b));
   const filterLeagues = leagues.map((l) => ({ code: l.code, label: l.label as string, country: countryOf(l.label as string) }));
