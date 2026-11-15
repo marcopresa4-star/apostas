@@ -57,6 +57,9 @@ export default function Sidebar({
 
   const initial = (userEmail ?? "?").charAt(0).toUpperCase();
   const light = theme === "light";
+  const natal = theme === "natal";
+  // The button shows what the NEXT click gives: dark → light → natal → dark.
+  const next = light ? { label: "Natal", icon: "tree" as const } : natal ? { label: "Escuro", icon: "moon" as const } : { label: "Claro", icon: "sun" as const };
 
   return (
     <>
@@ -72,10 +75,9 @@ export default function Sidebar({
           <Icon name="menu" />
         </button>
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold">
-          <span aria-hidden className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-white">
-            <Icon name="ball" className="h-4 w-4" />
-          </span>
-          <span className="title-glow">Apostas</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/conde-icon.png" alt="" aria-hidden className="h-8 w-8 rounded-lg object-cover" />
+          <span className="title-glow">Conde Analysis</span>
         </Link>
         <button
           type="button"
@@ -104,15 +106,15 @@ export default function Sidebar({
 
         <div className="rail-center flex h-16 shrink-0 items-center justify-between px-5">
           <Link href="/" className="group flex items-center gap-3">
-            <span
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/conde-icon.png"
+              alt=""
               aria-hidden
-              className="logo-pulse flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-300 via-emerald-500 to-teal-700 text-white ring-1 ring-white/25 transition-transform group-hover:rotate-[-10deg] group-hover:scale-110"
-            >
-              <Icon name="ball" className="h-6 w-6" />
-            </span>
+              className="h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br from-red-500/25 to-emerald-500/15 object-cover ring-1 ring-white/25 transition-transform group-hover:rotate-[-8deg] group-hover:scale-110"
+            />
             <span className="rail-hide leading-none">
-              <span className="title-glow block font-display text-xl font-bold tracking-tight">Apostas</span>
-              <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">Centro de análise</span>
+              <span className="title-glow block font-display text-xl font-bold tracking-tight">Conde Analysis</span>
             </span>
           </Link>
           <button
@@ -193,11 +195,11 @@ export default function Sidebar({
             <button
               type="button"
               onClick={toggleTheme}
-              title={light ? "Tema escuro" : "Tema claro"}
+              title={`Mudar para tema ${next.label.toLowerCase()}`}
               className="flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] text-xs text-neutral-300 hover:border-amber-300/40 hover:text-white"
             >
-              <Icon name={light ? "moon" : "sun"} className="h-4 w-4" />
-              <span className="rail-hide">{light ? "Escuro" : "Claro"}</span>
+              <Icon name={next.icon} className="h-4 w-4" />
+              <span className="rail-hide">{next.label}</span>
             </button>
             <button
               type="button"

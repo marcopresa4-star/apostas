@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Apostas",
+  title: "Conde Analysis",
   description: "Registo pessoal de apostas desportivas",
 };
 

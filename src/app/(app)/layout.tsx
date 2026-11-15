@@ -7,6 +7,7 @@ import BotToasts from "@/components/BotToasts";
 import FeedWatcher from "@/components/FeedWatcher";
 import Spotlight from "@/components/Spotlight";
 import CommandPalette from "@/components/CommandPalette";
+import Snowfall from "@/components/Snowfall";
 import MobileNav from "@/components/MobileNav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommandPalette />
       <MobileNav />
       <Assistente />
+      <Snowfall />
     </div>
   );
 }

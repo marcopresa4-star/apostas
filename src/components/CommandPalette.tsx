@@ -19,7 +19,7 @@ const ENTRIES: Entry[] = [
   ...NAV_GROUPS.flatMap((g) =>
     g.items.map<Entry>((it) => ({ label: it.label, hint: g.title, icon: it.icon, run: (go) => go(it.href) })),
   ),
-  { label: "Alternar tema claro/escuro", hint: "Ação", icon: "sun", run: () => toggleTheme() },
+  { label: "Mudar tema (escuro / claro / natalício)", hint: "Ação", icon: "sun", run: () => toggleTheme() },
   { label: "Recolher / expandir o menu", hint: "Ação", icon: "panel", run: () => toggleNavMode() },
 ];
 
