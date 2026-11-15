@@ -40,6 +40,14 @@ export default async function MapaPage({
   const maps = user ? await loadMaps(supabase, user.id, "tournament") : [];
   const byCode = new Map(maps.map((m) => [m.name_key, m]));
   const leagues = LEAGUES.filter((l) => !isInternational(l.code));
+  // Competitions for national teams (Nations League, Euros, World Cup) get
+  // their own list: same mapping shape, but the model reads them from the
+  // team links below, not from this id. "int.1" is the files' bucket of every
+  // national side, not a competition, so it is left out.
+  const intlComps = LEAGUES.filter((l) => isInternational(l.code) && l.code !== "int.1");
+  const mapped = maps.filter((m) => !isInternational(m.name_key)).length;
+  const intlMapped = intlComps.filter((l) => byCode.has(l.code)).length;
+  const compOptions = selecoes ? intlComps : leagues;
 
   const results = q ? await searchTournaments(q).catch(() => []) : [];
   const test = testar && byCode.has(testar) ? await testSofaLeagueAction(testar) : null;
@@ -71,7 +79,6 @@ export default async function MapaPage({
 
   const field =
     "w-full rounded-lg border border-white/[0.09] bg-white/[0.04] px-3 py-2 text-neutral-100 outline-none transition-colors focus:border-emerald-500";
-  const mapped = maps.length;
   // National sides are a separate list (one link per team, no league id), so
   // the count shows here without loading every team map.
   const intlCount = user
@@ -93,8 +100,8 @@ export default async function MapaPage({
       <p className="mb-4 max-w-4xl text-sm text-neutral-500">
         Mapeamento SofaScore (fase 1): dizer onde vive cada liga no SofaScore para o histórico vir de lá em vez dos
         ficheiros. {mapped} de {leagues.length} ligas de clubes mapeadas; as competições de seleções (Liga das Nações,
-        Europeus, Mundiais) ligam-se à parte, em <span className="text-neutral-300">Seleções</span>. Precisa da
-        migração 0033 e do scraper ligado.
+        Europeus, Mundiais) e as seleções em si vivem na aba <span className="text-neutral-300">Seleções</span>. Precisa
+        da migração 0033 e do scraper ligado.
       </p>
 
       <EstatisticasTabs />
@@ -104,21 +111,23 @@ export default async function MapaPage({
           Ligas de clubes · {mapped}/{leagues.length}
         </Link>
         <Link href="/estatisticas/mapa?selecoes=1" className={selecoes ? tabOn : tabOff}>
-          Seleções · {intlCount} ligadas
+          Seleções · {intlCount} seleções · {intlMapped}/{intlComps.length} competições
         </Link>
       </div>
 
-      <div className="mb-4 max-w-4xl glass p-5">
-        <div className="flex flex-wrap gap-2">
-          {mapped < leagues.length && <AutoMapAllButton />}
-          {mapped > 0 && <AutoAlignAllTeamsButton />}
-        </div>
+      {!selecoes && (
+        <div className="mb-4 max-w-4xl glass p-5">
+          <div className="flex flex-wrap gap-2">
+            {mapped < leagues.length && <AutoMapAllButton />}
+            {mapped > 0 && <AutoAlignAllTeamsButton />}
+          </div>
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
             Uma vez por liga, fica guardado. O mapeamento adivinha a competição de cada país pela mais seguida; o
             alinhamento liga as grafias das equipas. Revê as tabelas depois e usa Testar para confirmar — o que ficar
             por fazer faz-se à mão.
           </p>
         </div>
+      )}
 
       {test && test.ok && (
         <div className="mb-4 max-w-4xl rounded-2xl border border-emerald-800/50 bg-emerald-950/20 p-5">
@@ -136,11 +145,18 @@ export default async function MapaPage({
       )}
 
       <form method="get" action="/estatisticas/mapa" className="mb-4 max-w-4xl glass p-5 shadow-sm">
+        {selecoes && <input type="hidden" name="selecoes" value="1" />}
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_16rem_auto]">
-          <input type="text" name="q" defaultValue={q} placeholder="Procurar competição no SofaScore (ex: Liga Portugal)" className={field} />
+          <input
+            type="text"
+            name="q"
+            defaultValue={q}
+            placeholder={selecoes ? "Procurar competição de seleções (ex: Nations League)" : "Procurar competição no SofaScore (ex: Liga Portugal)"}
+            className={field}
+          />
           <select name="liga" defaultValue={liga} className={field}>
-            <option value="">Para a liga…</option>
-            {leagues.map((l) => (
+            <option value="">{selecoes ? "Para a competição…" : "Para a liga…"}</option>
+            {compOptions.map((l) => (
               <option key={l.code} value={l.code}>
                 {l.label}
               </option>
@@ -169,69 +185,72 @@ export default async function MapaPage({
               {liga && r.uniqueId ? (
                 <SaveMapButton leagueCode={liga} candidate={r} />
               ) : (
-                <p className="text-[11px] text-neutral-600">Escolhe a liga em cima para mapear.</p>
+                <p className="text-[11px] text-neutral-600">
+                  {selecoes ? "Escolhe a competição em cima para mapear." : "Escolhe a liga em cima para mapear."}
+                </p>
               )}
             </div>
           ))}
         </div>
       )}
 
-      <div className="max-w-4xl max-h-[75vh] overflow-auto glass">
-        <table className="w-full min-w-[40rem] text-sm">
-          <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
-            <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
-              <th className="px-3 py-2 font-semibold">Liga</th>
-              <th className="px-3 py-2 font-semibold">SofaScore</th>
-              <th className="px-3 py-2 text-right font-semibold"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/[0.05]">
-            {leagues.map((l) => {
-              const m = byCode.get(l.code);
-              return (
-                <tr key={l.code} className="transition-colors hover:bg-white/[0.06]/40">
-                  <td className="px-3 py-2.5 text-neutral-200">{l.label}</td>
-                  <td className="px-3 py-2.5 text-xs text-neutral-400">
-                    {m ? (
-                      <>
-                        <span className="font-medium text-emerald-400">{m.name}</span> · id {m.sofascore_id}
-                      </>
-                    ) : (
-                      <span className="text-neutral-600">por mapear</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <div className="flex justify-end gap-3">
-                      {m && (
+      {!selecoes && (
+        <div className="max-w-4xl max-h-[75vh] overflow-auto glass">
+          <table className="w-full min-w-[40rem] text-sm">
+            <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
+              <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
+                <th className="px-3 py-2 font-semibold">Liga</th>
+                <th className="px-3 py-2 font-semibold">SofaScore</th>
+                <th className="px-3 py-2 text-right font-semibold"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.05]">
+              {leagues.map((l) => {
+                const m = byCode.get(l.code);
+                return (
+                  <tr key={l.code} className="transition-colors hover:bg-white/[0.06]/40">
+                    <td className="px-3 py-2.5 text-neutral-200">{l.label}</td>
+                    <td className="px-3 py-2.5 text-xs text-neutral-400">
+                      {m ? (
                         <>
-                          <a
-                            href={`/estatisticas/mapa?${new URLSearchParams({ testar: l.code })}`}
-                            className="text-xs font-medium text-emerald-400 hover:underline"
-                          >
-                            Testar
-                          </a>
-                          <a
-                            href={`/estatisticas/mapa?${new URLSearchParams({ equipas: l.code })}`}
-                            className="text-xs font-medium text-sky-400 hover:underline"
-                          >
-                            Equipas
-                          </a>
-                          <DeleteMapButton leagueCode={l.code} />
+                          <span className="font-medium text-emerald-400">{m.name}</span> · id {m.sofascore_id}
                         </>
+                      ) : (
+                        <span className="text-neutral-600">por mapear</span>
                       )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <div className="flex justify-end gap-3">
+                        {m && (
+                          <>
+                            <a
+                              href={`/estatisticas/mapa?${new URLSearchParams({ testar: l.code })}`}
+                              className="text-xs font-medium text-emerald-400 hover:underline"
+                            >
+                              Testar
+                            </a>
+                            <a
+                              href={`/estatisticas/mapa?${new URLSearchParams({ equipas: l.code })}`}
+                              className="text-xs font-medium text-sky-400 hover:underline"
+                            >
+                              Equipas
+                            </a>
+                            <DeleteMapButton leagueCode={l.code} />
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <p className="mt-3 max-w-4xl text-[11px] leading-relaxed text-neutral-600">
         “Testar” lê as épocas, as jornadas da época atual e os jogos terminados através do scraper (lento à primeira,
-        instantâneo depois, por causa da cache). As seleções ficam para depois: ainda não há mapeamento de torneios de
-        seleções.
+        instantâneo depois, por causa da cache).{selecoes ? " O id de uma competição de seleções serve para a identificar no SofaScore; o histórico lê-se dos jogos das seleções ligadas em baixo." : ""}
       </p>
 
       {teamsLeague && (
@@ -320,6 +339,54 @@ export default async function MapaPage({
 
       {selecoes && (
         <section className="mt-2 max-w-4xl">
+          <h2 className="mb-2 text-sm font-semibold text-neutral-200">Competições de seleções</h2>
+          <div className="mb-3 max-h-[40vh] overflow-auto glass">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead className="sticky top-0 z-10 bg-neutral-900 shadow-[0_1px_0_0_#27272a]">
+                <tr className="border-b border-white/[0.07] text-left text-[11px] uppercase tracking-wide text-neutral-500">
+                  <th className="px-3 py-2 font-semibold">Competição</th>
+                  <th className="px-3 py-2 font-semibold">SofaScore</th>
+                  <th className="px-3 py-2 text-right font-semibold"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.05]">
+                {intlComps.map((l) => {
+                  const m = byCode.get(l.code);
+                  return (
+                    <tr key={l.code} className="transition-colors hover:bg-white/[0.06]/40">
+                      <td className="px-3 py-2.5 text-neutral-200">{l.label}</td>
+                      <td className="px-3 py-2.5 text-xs text-neutral-400">
+                        {m ? (
+                          <>
+                            <span className="font-medium text-emerald-400">{m.name}</span> · id {m.sofascore_id}
+                          </>
+                        ) : (
+                          <span className="text-neutral-600">por mapear</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="flex justify-end gap-3">
+                          {m && (
+                            <>
+                              <a
+                                href={`/estatisticas/mapa?${new URLSearchParams({ testar: l.code, selecoes: "1" })}`}
+                                className="text-xs font-medium text-emerald-400 hover:underline"
+                              >
+                                Testar
+                              </a>
+                              <DeleteMapButton leagueCode={l.code} />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <h2 className="mb-2 text-sm font-semibold text-neutral-200">Seleções</h2>
           <div className="mb-3 glass p-5">
             <div className="flex flex-wrap gap-2">
               <BootstrapIntlButton />
