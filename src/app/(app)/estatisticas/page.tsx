@@ -138,11 +138,23 @@ export default async function EstatisticasPage({
 
       {league && !useSofa && !useSofaIntl && (
         <p className="mb-3 rounded-xl border border-dashed border-white/[0.07] px-4 py-3 text-xs leading-relaxed text-neutral-400">
-          Sem dados desta liga no SofaScore.{" "}
-          <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
-            Mapear no Mapa SofaScore
-          </Link>
-          .
+          {international ? (
+            <>
+              As seleções ainda não estão ligadas ao SofaScore.{" "}
+              <Link href="/estatisticas/mapa?selecoes=1" className="font-medium text-emerald-400 hover:underline">
+                Ligar seleções no Mapa
+              </Link>{" "}
+              (um clique liga todas; depois esta liga fica disponível).
+            </>
+          ) : (
+            <>
+              Sem dados desta liga no SofaScore.{" "}
+              <Link href="/estatisticas/mapa" className="font-medium text-emerald-400 hover:underline">
+                Mapear no Mapa SofaScore
+              </Link>
+              .
+            </>
+          )}
         </p>
       )}
 
@@ -610,7 +622,7 @@ async function CompararBody({
         neutral={neutral}
       />
 
-      {league && data === null && (
+      {league && data === null && (useSofa || useSofaIntl) && (
         <p className="mt-4 rounded-lg bg-red-950 px-4 py-3 text-sm text-red-300">
           Não foi possível carregar os dados desta liga. Tenta outra vez daqui a pouco.
         </p>
