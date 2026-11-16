@@ -30,6 +30,7 @@ import {
   type SofaMap,
   type SofaSeason,
   type SlimEvent,
+  type SofaMatchCounts,
   type StaleTracker,
 } from "./sofaHistory";
 import { sofaRaw } from "./sofaRaw";
@@ -684,8 +685,17 @@ export async function teamCornersCards(
     games.splice(limit);
   }
   if (games.length === 0) return null;
-  const reads = await Promise.all(
-    games.map((g) => eventCornersCards(supabase, userId, g.id, tracker).catch(() => null))
+  // Two teams are read at once on the comparison page (up to 20 games), so the
+  // scrapes go in small batches instead of all at once.
+  const reads: (SofaMatchCounts | null)[] = new Array(games.length).fill(null);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(4, games.length) }, async () => {
+      while (next < games.length) {
+        const i = next++;
+        reads[i] = await eventCornersCards(supabase, userId, games[i].id, tracker).catch(() => null);
+      }
+    })
   );
   const out: TeamCountsSummary = {
     games: 0,

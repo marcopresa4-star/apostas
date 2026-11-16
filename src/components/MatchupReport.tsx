@@ -16,7 +16,7 @@ import H2HPatternCard from "./H2HPatternCard";
 import type { StandingsLine } from "./StandingsTable";
 import VenueStandings from "./VenueStandings";
 import { buildStandings, buildVenueStandings, formOf, ratings, venueRatings } from "@/lib/standings";
-import type { GoalTiming, OfficialStanding } from "@/lib/sofaLeague";
+import type { GoalTiming, OfficialStanding, TeamCountsSummary } from "@/lib/sofaLeague";
 import { h2hPattern } from "@/lib/headToHeadPattern";
 import { formatOdd } from "@/lib/multiples";
 import {
@@ -527,6 +527,69 @@ export function GoalTimingCard({
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
         Os períodos 31–45 e 76&apos;–fim incluem os descontos. Só contam jogos da liga com dados de incidentes.
+      </p>
+    </div>
+  );
+}
+
+// Corners and yellow cards over each side's last league games, at full time and
+// in the first half: what the team did and what the opponent did in the same
+// games. Profile only — it never feeds the model or the calibration.
+export function CornersCardsCard({
+  home,
+  away,
+  counts,
+}: {
+  home: string;
+  away: string;
+  counts: { home: TeamCountsSummary | null; away: TeamCountsSummary | null };
+}) {
+  const per = (total: number, games: number): string =>
+    games > 0 ? (total / games).toFixed(2).replace(".", ",") : "—";
+  const block = (team: string, c: TeamCountsSummary, color: string) => {
+    const rows: [string, number, number][] = [
+      ["Cantos", c.cornersFor, c.cornersAgainst],
+      ["Cantos · 1.ª parte", c.cornersHtFor, c.cornersHtAgainst],
+      ["Amarelos", c.yellowsFor, c.yellowsAgainst],
+      ["Amarelos · 1.ª parte", c.yellowsHtFor, c.yellowsHtAgainst],
+    ];
+    return (
+      <div className="min-w-0 flex-1">
+        <p className={`mb-1.5 truncate text-xs font-medium ${color}`}>
+          {team} <span className="font-normal text-neutral-500">· {c.games} jogos</span>
+        </p>
+        <table className="w-full text-left text-sm">
+          <thead className="text-[10px] uppercase tracking-wide text-neutral-500">
+            <tr>
+              <th className="py-1 pr-3 font-medium"> </th>
+              <th className="w-20 py-1 pr-3 text-right font-medium">Feitos</th>
+              <th className="w-20 py-1 text-right font-medium">Sofridos</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.06]">
+            {rows.map(([label, made, suffered]) => (
+              <tr key={label}>
+                <td className="py-1 pr-3 text-neutral-400">{label}</td>
+                <td className="py-1 pr-3 text-right font-medium tabular-nums text-neutral-100">{per(made, c.games)}</td>
+                <td className="py-1 text-right tabular-nums text-neutral-300">{per(suffered, c.games)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+  return (
+    <div className={CARD}>
+      <h3 className="mb-2 text-sm font-semibold text-neutral-300">Cantos e cartões · últimos jogos</h3>
+      <div className="flex flex-col gap-4 xl:flex-row">
+        {counts.home && block(home, counts.home, "text-emerald-300")}
+        {counts.away && block(away, counts.away, "text-sky-300")}
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
+        Média por jogo na liga. «Sofridos» são os do adversário nesses jogos; a 1.ª parte inclui os descontos. Jogos sem
+        ficha de estatísticas ficam fora da amostra. Cantos e cartões são perfil, não previsão: não entram no modelo nem
+        na calibração.
       </p>
     </div>
   );
@@ -1311,6 +1374,7 @@ export default function MatchupReport({
   notes,
   venueWeight,
   timing,
+  counts,
   realByKey,
   realOpenByKey,
   tables,
@@ -1347,6 +1411,8 @@ export default function MatchupReport({
   venueWeight: number;
   // Goal timing per 15' of each side (last games with incident data), or null.
   timing?: { home: GoalTiming | null; away: GoalTiming | null } | null;
+  // Corners and yellow cards of each side over its last league games.
+  counts?: { home: TeamCountsSummary | null; away: TeamCountsSummary | null } | null;
   // The bookmaker's real odds by model key, when this exact game is priced.
   realByKey?: Record<string, number>;
   // Self-tuning from the calibration log (null until 50 decided picks per
@@ -1686,6 +1752,10 @@ export default function MatchupReport({
 
       {timing && (timing.home || timing.away) && (
         <GoalTimingCard home={home} away={away} timing={timing} />
+      )}
+
+      {counts && (counts.home || counts.away) && (
+        <CornersCardsCard home={home} away={away} counts={counts} />
       )}
 
       <VenueGoalsCard

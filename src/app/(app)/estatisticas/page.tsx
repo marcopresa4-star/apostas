@@ -20,7 +20,15 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   await Promise.all(workers);
   return out;
 }
-import { loadSofaLeague, teamGoalTiming, fixtureEventId, type GoalTiming, type OfficialStanding } from "@/lib/sofaLeague";
+import {
+  loadSofaLeague,
+  teamCornersCards,
+  teamGoalTiming,
+  fixtureEventId,
+  type GoalTiming,
+  type OfficialStanding,
+  type TeamCountsSummary,
+} from "@/lib/sofaLeague";
 import { eventOdds } from "@/lib/sofaOdds";
 import { findRealOdd, oddsKeyFor } from "@/lib/oddsParse";
 import { AH_ALL_LINES } from "@/lib/recommendation";
@@ -418,16 +426,6 @@ async function CompararBody({
     if (lastCasa && (!autoRest.home || lastCasa.date > autoRest.home.date)) autoRest.home = lastCasa;
     if (lastFora && (!autoRest.away || lastFora.date > autoRest.away.date)) autoRest.away = lastFora;
   }
-  // Goal timing per 15' from the last games with incident data (cached): when
-  // each side scores and concedes. Independent of the rest-days above.
-  let timing: { home: GoalTiming | null; away: GoalTiming | null } | null = null;
-  if (useSofa && data && userId && casa && fora) {
-    const [timingCasa, timingFora] = await Promise.all([
-      teamGoalTiming(supabase, userId, liga, casa).catch(() => null),
-      teamGoalTiming(supabase, userId, liga, fora).catch(() => null),
-    ]);
-    if (timingCasa || timingFora) timing = { home: timingCasa, away: timingFora };
-  }
   // Real odds for this exact fixture, when the bookmakers price it (usually
   // from a few days out): the calendar carries the SofaScore event id. Clubs
   // read it off their fixture; national sides look the pairing up in the
@@ -503,12 +501,20 @@ async function CompararBody({
     const fx = (matchDate ? same.find((g) => g.date === matchDate) : undefined) ?? same[0] ?? null;
     if (fx) await fillRealOdds(userId, fx.id);
   }
+  // Profile of each side over its last league games: goal timing per 15' (when
+  // it scores and concedes) and corners/cards (full time and first half).
+  // Cached per game; corners/cards never feed the model, only the report.
+  let timing: { home: GoalTiming | null; away: GoalTiming | null } | null = null;
+  let counts: { home: TeamCountsSummary | null; away: TeamCountsSummary | null } | null = null;
   if (useSofa && data && userId && casa && fora) {
-    const [timingCasa, timingFora] = await Promise.all([
+    const [timingCasa, timingFora, countsCasa, countsFora] = await Promise.all([
       teamGoalTiming(supabase, userId, liga, casa).catch(() => null),
       teamGoalTiming(supabase, userId, liga, fora).catch(() => null),
+      teamCornersCards(supabase, userId, liga, casa).catch(() => null),
+      teamCornersCards(supabase, userId, liga, fora).catch(() => null),
     ]);
     if (timingCasa || timingFora) timing = { home: timingCasa, away: timingFora };
+    if (countsCasa || countsFora) counts = { home: countsCasa, away: countsFora };
   }
   const adjust = {
     home: { ...typedAdjust.home, restDays: typedAdjust.home.restDays ?? autoRest.home?.days ?? null },
@@ -660,6 +666,7 @@ async function CompararBody({
           notes={notes}
           venueWeight={weights.venue / 100}
           timing={timing}
+          counts={counts}
           realByKey={realByKey}
           realOpenByKey={realOpenByKey}
           tables={sofaTables.length > 0 ? sofaTables : undefined}
