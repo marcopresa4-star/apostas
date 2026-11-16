@@ -764,6 +764,92 @@ export async function seasonFixtures(
     .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`));
 }
 
+// Corners and yellow cards of one finished event, full time and first half,
+// per side. They only exist in the event's statistics (one read per game,
+// cached 30 days); the season fixtures list carries no such counts.
+export interface SofaMatchCounts {
+  corners: [number, number];
+  cornersHt: [number, number] | null;
+  yellows: [number, number] | null;
+  yellowsHt: [number, number] | null;
+}
+
+const countOf = (v: unknown): number | null => {
+  if (typeof v === "number" && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === "string") {
+    const m = v.trim().match(/^-?\d+/);
+    if (m) return Number(m[0]);
+  }
+  return null;
+};
+
+// "Match overview" of one period -> { "Corner kicks": [home, away], ... }.
+// Percentages and "12/21 (57%)" style values never reach the two names we
+// read, so a plain leading integer is all the parsing needed.
+const periodItems = (body: unknown, period: string): Record<string, [number | null, number | null]> | null => {
+  const list = obj(body)?.statistics;
+  if (!Array.isArray(list)) return null;
+  const block = list.flatMap((s) => (obj(s) ? [obj(s)!] : [])).find((s) => str(s.period) === period);
+  if (!block) return null;
+  const groups = Array.isArray(block.groups) ? block.groups : [];
+  const overview = groups
+    .flatMap((g) => (obj(g) ? [obj(g)!] : []))
+    .find((g) => str(g.groupName) === "Match overview");
+  if (!overview) return null;
+  const items = Array.isArray(overview.statisticsItems) ? overview.statisticsItems : [];
+  const out: Record<string, [number | null, number | null]> = {};
+  for (const item of items) {
+    const e = obj(item);
+    const name = e ? str(e.name) : "";
+    if (!e || !name) continue;
+    out[name] = [countOf(e.home), countOf(e.away)];
+  }
+  return out;
+};
+
+export async function eventCornersCards(
+  supabase: SupabaseClient,
+  userId: string,
+  eventId: number,
+  tracker?: StaleTracker
+): Promise<SofaMatchCounts | null> {
+  const key = `counts:${eventId}`;
+  const data = await cachedRead<{ counts: SofaMatchCounts | null }>(
+    supabase,
+    userId,
+    key,
+    30 * DAY_MS,
+    async () => {
+      let body: unknown;
+      try {
+        body = await sofaRaw<unknown>(`/event/${eventId}/statistics`);
+      } catch (err) {
+        if (err instanceof ScraperOffline) throw err;
+        return null;
+      }
+      const all = periodItems(body, "ALL");
+      const corners = all?.["Corner kicks"] ?? [null, null];
+      // Without full-time corners the game is left out (no fake zeroes).
+      if (corners[0] === null || corners[1] === null) return { counts: null };
+      const first = periodItems(body, "1ST");
+      const pair = (v: [number | null, number | null] | undefined): [number, number] | null =>
+        v && v[0] !== null && v[1] !== null ? [v[0], v[1]] : null;
+      return {
+        counts: {
+          corners: [corners[0], corners[1]],
+          cornersHt: pair(first?.["Corner kicks"]),
+          yellows: pair(all?.["Yellow cards"]),
+          yellowsHt: pair(first?.["Yellow cards"]),
+        },
+      };
+    },
+    tracker,
+    (v): boolean =>
+      !!v && typeof v === "object" && !Array.isArray(v) && "counts" in (v as Record<string, unknown>)
+  );
+  return data?.counts ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Standings rows (phase-2 pilot input)
 // ---------------------------------------------------------------------------

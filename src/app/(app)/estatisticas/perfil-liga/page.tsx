@@ -27,6 +27,7 @@ import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import LeagueGoalMinutes, { computeSeasonGoalMinutes } from "@/components/LeagueGoalMinutes";
+import LeagueCornersCards, { computeSeasonCounts } from "@/components/LeagueCornersCards";
 import BuildCompareButton from "./buttons";
 import Icon from "@/components/Icon";
 
@@ -153,6 +154,7 @@ export default async function PerfilLigaPage({
   const params = await searchParams;
   const liga = first(params.liga);
   const wantsMinutes = first(params.minutos) === "1";
+  const wantsCounts = first(params.cantos) === "1";
   const sortKey = compareSort(first(params.ordem));
   // Club leagues plus mapped competitions of national sides (Nations League):
   // the same market frequencies apply, they just have no table of their own.
@@ -210,6 +212,9 @@ export default async function PerfilLigaPage({
   const minutesHref = league
     ? `/estatisticas/perfil-liga?${new URLSearchParams({ liga: league.code, minutos: "1" })}`
     : "#";
+  const countsHref = league
+    ? `/estatisticas/perfil-liga?${new URLSearchParams({ liga: league.code, cantos: "1" })}`
+    : "#";
 
   return (
     <div data-wide>
@@ -228,7 +233,10 @@ export default async function PerfilLigaPage({
         leagues={LEAGUES.filter((l) => selectable(l.code))}
         liga={league?.code ?? ""}
         action="/estatisticas/perfil-liga"
-        keep={wantsMinutes ? { minutos: "1" } : {}}
+        keep={{
+          ...(wantsMinutes ? { minutos: "1" } : {}),
+          ...(wantsCounts ? { cantos: "1" } : {}),
+        }}
       />
 
       {league && isInternational(league.code) && (
@@ -432,10 +440,44 @@ export default async function PerfilLigaPage({
             </section>
           )}
 
+          {league && seasonId !== null && (
+            <section>
+              {!wantsCounts ? (
+                <div className="rounded-xl border border-dashed border-white/[0.07] px-4 py-6 text-center">
+                  <p className="mb-1 text-sm text-neutral-300">Cantos e cartões</p>
+                  <p className="mb-3 text-xs text-neutral-500">
+                    Cantos e amarelos por jogo, ao intervalo e por equipa, lidos da ficha de cada jogo. A primeira
+                    leitura lê um jogo de cada vez; depois fica em cache.
+                  </p>
+                  <Link href={countsHref} className="btn-glow inline-block px-3 py-1.5 text-sm">
+                    Calcular cantos e cartões
+                  </Link>
+                </div>
+              ) : (
+                <Suspense
+                  key={`counts:${league.code}:${seasonId}`}
+                  fallback={
+                    <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
+                      A ler cantos e cartões ({rates.games} jogos, um de cada vez)… depois fica em cache.
+                    </p>
+                  }
+                >
+                  <CountsSection
+                    code={league.code}
+                    uniqueId={tournamentMap!.sofascore_id}
+                    seasonId={seasonId}
+                    userId={user!.id}
+                  />
+                </Suspense>
+              )}
+            </section>
+          )}
+
           <div className="space-y-1.5 text-xs leading-relaxed text-neutral-500">
             <p>
-              Tudo aqui vem dos jogos já terminados desta época (resultado e intervalo). Sem cantos e cartões: o
-              histórico não os traz. Sem odds reais: a odd justa é só 1 ÷ frequência.
+              Tudo aqui vem dos jogos já terminados desta época (resultado e intervalo). Cantos e cartões ficam na
+              secção própria, porque obrigam a ler a ficha de cada jogo. Sem odds reais: a odd justa é só 1 ÷
+              frequência.
             </p>
             <p>Linhas esbatidas: menos de 5 jogos — amostra frágil.</p>
           </div>
@@ -560,6 +602,29 @@ export default async function PerfilLigaPage({
       </section>
     </div>
   );
+}
+
+async function CountsSection({
+  code,
+  uniqueId,
+  seasonId,
+  userId,
+}: {
+  code: string;
+  uniqueId: number;
+  seasonId: number;
+  userId: string;
+}) {
+  const supabase = await createClient();
+  const data = await computeSeasonCounts(supabase, userId, code, uniqueId, seasonId);
+  if (data.games === 0) {
+    return (
+      <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-8 text-center text-sm text-neutral-500">
+        Sem estatísticas de cantos e cartões nos jogos desta época.
+      </p>
+    );
+  }
+  return <LeagueCornersCards data={data} />;
 }
 
 async function GoalMinutesSection({
