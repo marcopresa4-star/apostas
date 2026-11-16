@@ -97,7 +97,7 @@ export default function ForecastDashboard({
 
   return (
     <div className="space-y-4">
-      <div className="glass p-4">
+      <div className="glass-strong p-4">
         <Title>Resultado do jogo (1X2)</Title>
         <ProbBar
           className="mb-4"

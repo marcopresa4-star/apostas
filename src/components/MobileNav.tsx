@@ -27,7 +27,7 @@ export default function MobileNav() {
       );
     }
     return (
-      <Link key={t.href} href={t.href} className={`flex flex-1 flex-col items-center gap-1 py-1 ${active ? "text-emerald-300" : "text-neutral-400"}`}>
+      <Link key={t.href} href={t.href} className={`flex flex-1 flex-col items-center gap-1 py-1 ${active ? "text-sky-300" : "text-neutral-400"}`}>
         <Icon name={t.icon} className="h-5 w-5" />
         <span className="text-xs font-medium">{t.label}</span>
       </Link>

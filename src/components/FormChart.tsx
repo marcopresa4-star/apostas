@@ -6,8 +6,8 @@ import type { TeamGame } from "@/lib/footballModel";
 // readers, and are not the result colours used by the chips above).
 const MAX_GAMES = 12;
 const PLOT_PX = 96;
-const SCORED = "bg-[#3987e5]";
-const CONCEDED = "bg-[#d95926]";
+const SCORED = "bg-[#3987e5]"; // = CHART.scored
+const CONCEDED = "bg-[#d95926]"; // = CHART.conceded
 
 const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 const dot = (n: number) => n.toFixed(1).replace(".", ",");

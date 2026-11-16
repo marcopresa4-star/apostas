@@ -9,6 +9,7 @@ import { addLiveToFeedAction } from "@/app/(app)/feed/actions";
 import { FEED_MAX } from "@/lib/feed";
 import PinnedLiveStats from "./PinnedLiveStats";
 import PinnedMiniTable from "./PinnedMiniTable";
+import { Flash } from "./ui";
 import PinnedLineups from "./PinnedLineups";
 import { moveKey, sortByOrder, type Move } from "@/lib/widgetOrder";
 
@@ -664,13 +665,13 @@ export default function SofaLiveTable({
             <td className="px-3 py-3">{f ? <Form form={f.home} /> : <span className="text-neutral-700">—</span>}</td>
             <td className="px-3 py-3">{f ? <Form form={f.away} /> : <span className="text-neutral-700">—</span>}</td>
             <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-              {d?.odds ? d.odds.home.toFixed(2).replace(".", ",") : "—"}
+              {d?.odds ? <Flash value={d.odds.home}>{d.odds.home.toFixed(2).replace(".", ",")}</Flash> : "—"}
             </td>
             <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-              {d?.odds ? d.odds.draw.toFixed(2).replace(".", ",") : "—"}
+              {d?.odds ? <Flash value={d.odds.draw}>{d.odds.draw.toFixed(2).replace(".", ",")}</Flash> : "—"}
             </td>
             <td className="px-3 py-3 text-center text-xs tabular-nums text-neutral-300">
-              {d?.odds ? d.odds.away.toFixed(2).replace(".", ",") : "—"}
+              {d?.odds ? <Flash value={d.odds.away}>{d.odds.away.toFixed(2).replace(".", ",")}</Flash> : "—"}
             </td>
           </>
         )}

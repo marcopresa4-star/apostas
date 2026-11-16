@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CHART } from "@/lib/chartTheme";
 
 // Live evolution chart for one synced game: one snapshot per minute poll
 // (score, cards, cumulative stats, accumulated xG), drawn as history. The
@@ -478,23 +479,23 @@ export default function LiveEvolutionChart({
                   x2={W - PADR}
                   y1={PADT + f * (H - PADT - PADB)}
                   y2={PADT + f * (H - PADT - PADB)}
-                  stroke="#27272a"
+                  stroke={CHART.grid}
                   strokeWidth="1"
                 />
               ))}
-              <text x={PADL} y={13} fontSize="9" fill="#737373">
+              <text x={PADL} y={13} fontSize="10" fill={CHART.axis}>
                 Quantidade
               </text>
-              <text x={W - PADR} y={13} textAnchor="end" fontSize="9" fill="#737373">
+              <text x={W - PADR} y={13} textAnchor="end" fontSize="10" fill={CHART.axis}>
                 % modelo
               </text>
-              <text x={PADL - 6} y={H - 8} textAnchor="end" fontSize="9" fill="#737373">
+              <text x={PADL - 6} y={H - 8} textAnchor="end" fontSize="10" fill={CHART.axis}>
                 min
               </text>
               {showInt && (
                 <>
-                  <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke="#52525b" strokeWidth="1" strokeDasharray="3 3" />
-                  <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="9" fill="#71717a">
+                  <line x1={x(45)} x2={x(45)} y1={PADT} y2={H - PADB} stroke={CHART.ref} strokeWidth="1" strokeDasharray="3 3" />
+                  <text x={x(45)} y={yPct(0) - 14} textAnchor="middle" fontSize="10" fill={CHART.axis}>
                     INT
                   </text>
                 </>
@@ -502,20 +503,20 @@ export default function LiveEvolutionChart({
               {[0, 15, 30, 45, 60, 75, 90].map(
                 (t) =>
                   t <= xMax && (
-                    <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="9" fill="#71717a">
+                    <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="10" fill={CHART.axis}>
                       {t}
                     </text>
                   )
               )}
               {[0, 25, 50, 75, 100].map((q) => (
-                <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="9" fill="#71717a">
+                <text key={q} x={W - PADR + 4} y={yPct(q / 100) + 3} fontSize="10" fill={CHART.axis}>
                   {q}
                 </text>
               ))}
               {[0, 0.5, 1].map((f) => {
                 const v = Math.max(1, Math.round(countMax * f));
                 return (
-                  <text key={f} x={PADL - 4} y={yCount(v) + 3} textAnchor="end" fontSize="9" fill="#71717a">
+                  <text key={f} x={PADL - 4} y={yCount(v) + 3} textAnchor="end" fontSize="10" fill={CHART.axis}>
                     {v}
                   </text>
                 );
@@ -546,7 +547,7 @@ export default function LiveEvolutionChart({
                 />
               ))}
               {hov && (
-                <line x1={x(plotMinute(hov))} x2={x(plotMinute(hov))} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.5" />
+                <line x1={x(plotMinute(hov))} x2={x(plotMinute(hov))} y1={PADT} y2={H - PADB} stroke={CHART.cursor} strokeWidth="1" />
               )}
             </svg>
             {hov && hovModel && (

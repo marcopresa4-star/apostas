@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { CHART, TOOLTIP_CLASS } from "@/lib/chartTheme";
 
 // Shared elegant two-series curve: smooth (Catmull-Rom) lines with a soft
 // gradient area, end-of-line labels carrying the last value, a dashed
@@ -109,8 +110,8 @@ export default function CurveChart({
           const v = hi - f * (hi - lo);
           return (
             <g key={f}>
-              <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#262626" strokeWidth="1" />
-              <text x={PADL - 6} y={y(v) + 3} textAnchor="end" fontSize="9" fill="#737373">
+              <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke={CHART.grid} strokeWidth="1" />
+              <text x={PADL - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill={CHART.axis}>
                 {yLabel(v)}
               </text>
             </g>
@@ -118,9 +119,9 @@ export default function CurveChart({
         })}
         {refValue !== undefined && refValue >= lo && refValue <= hi && (
           <g>
-            <line x1={PADL} x2={W - PADR} y1={y(refValue)} y2={y(refValue)} stroke="#525252" strokeWidth="1" strokeDasharray="5 4" opacity="0.8" />
+            <line x1={PADL} x2={W - PADR} y1={y(refValue)} y2={y(refValue)} stroke={CHART.ref} strokeWidth="1" strokeDasharray="5 4" />
             {refLabel && (
-              <text x={W - PADR + 6} y={y(refValue) + 3} fontSize="9" fill="#8a8a8a">
+              <text x={W - PADR + 6} y={y(refValue) + 3} fontSize="10" fill={CHART.axis}>
                 {refLabel}
               </text>
             )}
@@ -137,7 +138,7 @@ export default function CurveChart({
             </g>
           );
         })}
-        {hov !== null && <line x1={x(hov)} x2={x(hov)} y1={PADT} y2={H - PADB} stroke="#fafafa" strokeWidth="1" opacity="0.35" />}
+        {hov !== null && <line x1={x(hov)} x2={x(hov)} y1={PADT} y2={H - PADB} stroke={CHART.cursor} strokeWidth="1" />}
         {series.map((s, si) =>
           s.points.map((p, i) => (
             <circle
@@ -169,7 +170,7 @@ export default function CurveChart({
         ))}
         {dates.map((d, i) =>
           i % Math.ceil(n / 5) === 0 ? (
-            <text key={`${d.date}-${i}`} x={x(i)} y={H - 8} textAnchor="middle" fontSize="9" fill="#737373">
+            <text key={`${d.date}-${i}`} x={x(i)} y={H - 8} textAnchor="middle" fontSize="10" fill={CHART.axis}>
               {dayMonth(d.date)}
             </text>
           ) : null
@@ -179,7 +180,7 @@ export default function CurveChart({
           const dy = close ? (si === 0 ? -8 : 8) : 0;
           return (
             <g key={si}>
-              <circle cx={lastX} cy={y(v)} r="3.5" fill={s.color} stroke="#0a0a0a" strokeWidth="1.5" />
+              <circle cx={lastX} cy={y(v)} r="3.5" fill={s.color} stroke={CHART.dotRing} strokeWidth="1.5" />
               <text x={lastX + 7} y={y(v) + dy + 3.5} fontSize="10.5" fontWeight="600" fill={s.color}>
                 {s.name} · {yLabel(v)}
               </text>
@@ -189,7 +190,7 @@ export default function CurveChart({
       </svg>
       {hov !== null && (
         <div
-          className="pointer-events-none absolute z-10 min-w-44 max-w-60 rounded-lg border border-white/[0.09] bg-white/[0.03]/95 px-3 py-2 text-xs shadow-xl"
+          className={TOOLTIP_CLASS}
           style={{ left: `${Math.min(70, Math.max(0, (x(hov) / W) * 100 - 6))}%`, top: "4%" }}
         >
           <p className="mb-1 font-semibold text-neutral-100">{dayMonth(dates[hov]?.date ?? "")}</p>

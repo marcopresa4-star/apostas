@@ -289,7 +289,8 @@ export default async function LivePage({
 
   // Leagues for the hand picker: mapped clubs plus internationals when linked.
   const intlForm = intlAvailable ? LEAGUES.filter((l) => isInternational(l.code)) : [];
-  const formLeagues = [...mappedLeagues, ...intlForm];
+  // mappedLeagues may already hold an international (e.g. int.nl): keep each code once.
+  const formLeagues = [...mappedLeagues, ...intlForm.filter((l) => !mappedLeagues.some((m) => m.code === l.code))];
   const formTeams = league ? teams : [];
 
   return (

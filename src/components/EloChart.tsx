@@ -2,6 +2,7 @@
 
 import type { EloPoint } from "@/lib/elo";
 import CurveChart from "./CurveChart";
+import { CHART } from "@/lib/chartTheme";
 
 // Elo rating curves of the two sides (last games each): rising means the
 // team has been beating expectations, falling the opposite. Every dot is one
@@ -49,14 +50,14 @@ export default function EloChart({
         series={[
           {
             name: home,
-            color: "#34d399",
-            soft: "#064e3b",
+            color: CHART.home,
+            soft: CHART.homeSoft,
             points: homeCurve.map((p) => ({ value: p.elo, date: p.date, tip: tip(p) })),
           },
           {
             name: away,
-            color: "#38bdf8",
-            soft: "#0c4a6e",
+            color: CHART.away,
+            soft: CHART.awaySoft,
             points: awayCurve.map((p) => ({ value: p.elo, date: p.date, tip: tip(p) })),
           },
         ]}

@@ -193,7 +193,7 @@ export function Empty({
 }) {
   return (
     <div className="glass flex flex-col items-center px-6 py-12 text-center">
-      <span className="empty-orb mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/30">
+      <span className="empty-orb mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-sky-400/10 text-sky-300 ring-1 ring-sky-400/30">
         {icon}
       </span>
       <p className="font-display text-base font-semibold text-neutral-100">{title}</p>
@@ -226,6 +226,50 @@ export function Badge({ kind = "neutral", children }: { kind?: keyof typeof BADG
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ${BADGE[kind]}`}>
       {children}
+    </span>
+  );
+}
+
+// Skeleton blocks shaped like the real content, so loading does not jump.
+export function SkeletonCard({ className = "h-24" }: { className?: string }) {
+  return <div className={`skeleton ${className}`} aria-hidden />;
+}
+
+export function SkeletonRows({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="glass space-y-2 p-4" aria-busy="true" aria-label="A carregar">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3">
+          <div className="skeleton h-8 w-8 !rounded-full" />
+          <div className="skeleton h-4 flex-1" style={{ maxWidth: `${60 + ((i * 17) % 35)}%` }} />
+          <div className="skeleton ml-auto h-4 w-12" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SkeletonChart() {
+  return (
+    <div className="glass p-4" aria-busy="true" aria-label="A carregar gráfico">
+      <div className="skeleton mb-3 h-4 w-48" />
+      <div className="skeleton h-44" />
+    </div>
+  );
+}
+
+// A number that flashes green when it goes up and red when it goes down, so a
+// live change is noticed without staring. Respects reduced motion (CSS).
+export function Flash({ value, children, className = "" }: { value: number; children?: React.ReactNode; className?: string }) {
+  const [prev, setPrev] = useState(value);
+  const [dir, setDir] = useState<"up" | "down" | null>(null);
+  if (value !== prev) {
+    setPrev(value);
+    setDir(value > prev ? "up" : "down");
+  }
+  return (
+    <span key={dir ? `${dir}-${value}` : "idle"} className={`num ${dir ? `flash-${dir}` : ""} ${className}`}>
+      {children ?? value}
     </span>
   );
 }
