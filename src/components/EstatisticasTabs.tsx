@@ -10,6 +10,7 @@ const TABS = [
   { href: "/estatisticas/jornada", label: "Jogos da jornada" },
   { href: "/estatisticas/live", label: "Calculadora live" },
   { href: "/estatisticas/classificacao", label: "Classificação e força" },
+  { href: "/estatisticas/perfil-liga", label: "Perfil da liga" },
 ];
 
 export default function EstatisticasTabs() {
