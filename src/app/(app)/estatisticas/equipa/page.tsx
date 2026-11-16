@@ -5,13 +5,14 @@ import { LEAGUES } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { linkLocalName, loadMaps, seasonTeamNames, tournamentSeasons } from "@/lib/sofaHistory";
 import { slugify } from "@/lib/slugify";
-import { loadSofaLeague, teamGoalTiming } from "@/lib/sofaLeague";
+import { loadSofaLeague, teamCornersCards, teamGoalTiming } from "@/lib/sofaLeague";
 import { gamesOf } from "@/lib/footballModel";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import TeamSearch from "@/components/TeamSearch";
 import { TeamForm } from "@/components/RecentForm";
 import { GoalTimingCard, VenueGoalsCard } from "@/components/MatchupReport";
+import TeamCornersCards from "@/components/TeamCornersCards";
 import Icon from "@/components/Icon";
 
 async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -120,6 +121,7 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
   const losses = tg.length - wins - draws;
   const over = tg.length > 0 ? Math.round((tg.filter((g) => g.gf + g.ga > 2.5).length / tg.length) * 100) : 0;
   const timing = await teamGoalTiming(supabase, userId, league.code, team).catch(() => null);
+  const counts = await teamCornersCards(supabase, userId, league.code, team).catch(() => null);
   const next = data.fixtures
     .filter((f) => (f.team1 === team || f.team2 === team) && !f.ft)
     .sort((a, b) => `${a.date}${a.time ?? ""}`.localeCompare(`${b.date}${b.time ?? ""}`))
@@ -150,6 +152,7 @@ async function EquipaBody({ liga, equipa, userId }: { liga: string; equipa: stri
         <TeamForm team={team} matches={data.matches} />
         <div className="space-y-4">
           <GoalTimingCard home={team} away="" timing={{ home: timing, away: null }} />
+          {counts && <TeamCornersCards team={team} data={counts} />}
           <div className="glass p-4">
             <h3 className="mb-2 text-sm font-semibold text-neutral-300">Próximos jogos</h3>
             {next.length === 0 ? (
