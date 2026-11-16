@@ -14,10 +14,13 @@ import {
   type Predictor,
   type Segment,
 } from "@/lib/leagueProfile";
+import { cacheGetAny } from "@/lib/sofaCache";
+import { COMPARE_SORTS, compareSort, sortSnapshots, type LeagueCompareIndex } from "@/lib/leagueCompare";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
 import LeagueGoalMinutes, { computeSeasonGoalMinutes } from "@/components/LeagueGoalMinutes";
+import BuildCompareButton from "./buttons";
 import Icon from "@/components/Icon";
 
 // What a league really did this season, market by market: real frequencies
@@ -143,6 +146,7 @@ export default async function PerfilLigaPage({
   const params = await searchParams;
   const liga = first(params.liga);
   const wantsMinutes = first(params.minutos) === "1";
+  const sortKey = compareSort(first(params.ordem));
   const league = LEAGUES.find((l) => l.code === liga && !isInternational(l.code)) ?? null;
 
   const supabase = await createClient();
@@ -150,6 +154,8 @@ export default async function PerfilLigaPage({
     data: { user },
   } = await supabase.auth.getUser();
   const maps = user ? await loadMaps(supabase, user.id, "tournament").catch(() => []) : [];
+  const compareHit = user ? await cacheGetAny(supabase, user.id, "leaguecompare:v1").catch(() => null) : null;
+  const compare = (compareHit?.payload as LeagueCompareIndex | undefined) ?? null;
   const tournamentMap = league ? maps.find((m) => m.name_key === league.code) ?? null : null;
 
   let fixtures: SofaFixture[] = [];
@@ -402,6 +408,108 @@ export default async function PerfilLigaPage({
           </div>
         </div>
       )}
+
+      <section className="mt-8 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-neutral-200">Comparador das ligas</h2>
+          <BuildCompareButton hasIndex={compare !== null} />
+        </div>
+        <p className="mb-3 text-xs leading-relaxed text-neutral-500">
+          As mesmas frequências, para todas as ligas mapeadas, lado a lado: onde se marca mais, onde a casa manda mais e
+          onde os golos chegam mais cedo. A primeira construção lê a época inteira de cada liga (uma leitura por
+          jornada), por isso demora minutos; depois fica em cache.
+        </p>
+        {!compare ? (
+          <p className="rounded-lg border border-dashed border-white/[0.07] px-4 py-6 text-center text-sm text-neutral-500">
+            Ainda sem tabela. Carrega em «Calcular todas as ligas» para a construir.
+          </p>
+        ) : (
+          <>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-neutral-500">Ordenar por</span>
+              {COMPARE_SORTS.map((s) => {
+                const href = `/estatisticas/perfil-liga?${new URLSearchParams({
+                  ...(league ? { liga: league.code } : {}),
+                  ordem: s.key,
+                })}`;
+                return (
+                  <Link
+                    key={s.key}
+                    href={href}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                      sortKey === s.key
+                        ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40"
+                        : "bg-neutral-900 text-neutral-400 hover:bg-white/[0.06]"
+                    }`}
+                  >
+                    {s.label}
+                  </Link>
+                );
+              })}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-[11px] uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="py-1.5 pr-3 font-medium">Liga</th>
+                    <th className="py-1.5 pr-3 font-medium">Jogos</th>
+                    <th className="py-1.5 pr-3 font-medium">Golos/jogo</th>
+                    <th className="py-1.5 pr-3 font-medium">Over 2,5</th>
+                    <th className="py-1.5 pr-3 font-medium">Ambas</th>
+                    <th className="py-1.5 pr-3 font-medium">2 partes</th>
+                    <th className="py-1.5 pr-3 font-medium">Casa</th>
+                    <th className="py-1.5 pr-3 font-medium">1.ª parte</th>
+                    <th className="py-1.5 font-medium">Reviravolta</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06]">
+                  {sortSnapshots(compare.rows, sortKey).map((row) => (
+                    <tr key={row.code} className={row.games < 5 ? "text-neutral-500" : ""}>
+                      <td className="py-1.5 pr-3">
+                        <Link
+                          href={`/estatisticas/perfil-liga?${new URLSearchParams({ liga: row.code, ordem: sortKey })}`}
+                          className="text-neutral-200 hover:text-emerald-300"
+                        >
+                          {row.label}
+                        </Link>
+                        <span className="ml-1.5 text-[11px] text-neutral-600">{row.season}</span>
+                      </td>
+                      <td className="py-1.5 pr-3 text-neutral-400">{row.games}</td>
+                      <td className="py-1.5 pr-3 font-medium text-neutral-100">{num(row.rates.perGame)}</td>
+                      <td className="py-1.5 pr-3 text-neutral-200">{pct(row.rates.over25)}</td>
+                      <td className="py-1.5 pr-3 text-neutral-200">{pct(row.rates.btts)}</td>
+                      <td className="py-1.5 pr-3 text-neutral-200">
+                        {row.rates.withHt > 0 ? pct(row.rates.bothHalves) : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-neutral-200">{pct(row.rates.homeWin)}</td>
+                      <td className="py-1.5 pr-3 text-neutral-200">
+                        {row.rates.withHt > 0 ? pct(row.rates.firstHalfGoal) : "—"}
+                      </td>
+                      <td className="py-1.5 text-neutral-300">
+                        {row.rates.withHt > 0 ? pct(row.rates.comeback) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">
+              Tabela de{" "}
+              {new Date(compare.at).toLocaleString("pt-PT", {
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+              . {compare.rows.length} ligas com dados
+              {compare.missing.length > 0 && (
+                <> · {compare.missing.length} sem dados ({compare.missing.map((m) => m.label).join(", ")})</>
+              )}
+              . Linhas esbatidas: menos de 5 jogos.
+            </p>
+          </>
+        )}
+      </section>
     </div>
   );
 }
