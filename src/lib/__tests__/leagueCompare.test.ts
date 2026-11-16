@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareSort, sortSnapshots, type LeagueSnapshot } from "../leagueCompare";
+import { compareSort, leagueRank, sortSnapshots, type LeagueSnapshot } from "../leagueCompare";
 import { marketRates } from "../leagueProfile";
 import type { PlayedMatch } from "../footballModel";
 
@@ -45,5 +45,20 @@ describe("marketRates feeding the comparator", () => {
       { date: "2026-08-02", team1: "C", team2: "D", ft: [0, 0], ht: [0, 0] },
     ];
     expect(marketRates(matches).perGame).toBe(1.5);
+  });
+});
+
+describe("leagueRank", () => {
+  const rows = [snapshot("a", "Alfa", 10, 0.4), snapshot("b", "Beta", 10, 0.6), snapshot("c", "Gama", 10, 0.5)];
+
+  it("puts the biggest first and counts from one", () => {
+    expect(leagueRank(rows, "b", "over25")).toEqual({ rank: 1, total: 3 });
+    expect(leagueRank(rows, "c", "over25")).toEqual({ rank: 2, total: 3 });
+    expect(leagueRank(rows, "a", "over25")).toEqual({ rank: 3, total: 3 });
+  });
+
+  it("ignores leagues without games and unknown codes", () => {
+    expect(leagueRank([...rows, snapshot("d", "Delta", 0, 1)], "b", "over25")).toEqual({ rank: 1, total: 3 });
+    expect(leagueRank(rows, "z", "over25")).toBeNull();
   });
 });

@@ -50,9 +50,11 @@ export default function BuildCompareButton({
         className="btn-glow px-3 py-1.5 text-sm disabled:opacity-60"
       >
         {isPending
-          ? progress && !hasIndex
+          ? progress && progress.rows < progress.total
             ? `A calcular as ligas… ${progress.rows}/${progress.total}`
-            : "A recalcular as ligas…"
+            : hasIndex
+              ? "A recalcular as ligas…"
+              : "A calcular as ligas…"
           : hasIndex
             ? "Recalcular todas as ligas"
             : "Calcular todas as ligas"}

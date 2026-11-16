@@ -51,6 +51,20 @@ export function compareSort(key: string): CompareSortKey {
   return (COMPARE_SORTS.find((s) => s.key === key)?.key ?? "over25") as CompareSortKey;
 }
 
+// Where one league sits among the mapped ones for a metric (1 = most).
+// Leagues without games are left out; ties share the best position.
+export function leagueRank(
+  rows: LeagueSnapshot[],
+  code: string,
+  key: CompareSortKey
+): { rank: number; total: number } | null {
+  const played = rows.filter((r) => r.games > 0);
+  const row = played.find((r) => r.code === code);
+  if (!row) return null;
+  const value = COMPARE_SORTS.find((s) => s.key === key)!.value;
+  return { rank: played.filter((r) => value(r.rates) > value(row.rates)).length + 1, total: played.length };
+}
+
 // Biggest first; leagues with no games go last whatever the key.
 export function sortSnapshots(rows: LeagueSnapshot[], key: CompareSortKey): LeagueSnapshot[] {
   const value = COMPARE_SORTS.find((s) => s.key === key)!.value;

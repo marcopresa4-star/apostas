@@ -15,7 +15,14 @@ import {
   type Segment,
 } from "@/lib/leagueProfile";
 import { cacheGetAny } from "@/lib/sofaCache";
-import { COMPARE_SORTS, compareSort, sortSnapshots, type LeagueCompareIndex } from "@/lib/leagueCompare";
+import {
+  COMPARE_SORTS,
+  compareSort,
+  leagueRank,
+  sortSnapshots,
+  type CompareSortKey,
+  type LeagueCompareIndex,
+} from "@/lib/leagueCompare";
 import { first } from "@/lib/searchParams";
 import EstatisticasTabs from "@/components/EstatisticasTabs";
 import LeaguePicker from "@/components/LeaguePicker";
@@ -189,6 +196,13 @@ export default async function PerfilLigaPage({
   const segments = played.length > 20 ? favouriteSegments(played, predictor) : [];
   const calib = played.length > 20 ? calibration(played, predictor) : [];
   const fragile = rates.games > 0 && rates.games < 5;
+  // Position among the mapped leagues, only once the whole table is built
+  // (a partial one would rank against half the field).
+  const rankFor = (key: CompareSortKey): string | null => {
+    if (!compare || compare.at === 0 || !league) return null;
+    const r = leagueRank(compare.rows, league.code, key);
+    return r ? `${r.rank}.º de ${r.total}` : null;
+  };
 
   const minutesHref = league
     ? `/estatisticas/perfil-liga?${new URLSearchParams({ liga: league.code, minutos: "1" })}`
@@ -250,16 +264,25 @@ export default async function PerfilLigaPage({
               <p className="mt-0.5 text-xs text-neutral-500">
                 {num(rates.homeGoals)} em casa · {num(rates.awayGoals)} fora
               </p>
+              {rankFor("perGame") && (
+                <p className="mt-0.5 text-xs text-emerald-400/80">{rankFor("perGame")} ligas</p>
+              )}
             </div>
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
               <p className="text-xs text-neutral-500">Over 2,5</p>
               <p className="mt-1 text-2xl font-semibold text-neutral-100">{pct(rates.over25)}</p>
               <p className="mt-0.5 text-xs text-neutral-500">odd justa {odd(rates.over25)}</p>
+              {rankFor("over25") && (
+                <p className="mt-0.5 text-xs text-emerald-400/80">{rankFor("over25")} ligas</p>
+              )}
             </div>
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
               <p className="text-xs text-neutral-500">Ambas marcam</p>
               <p className="mt-1 text-2xl font-semibold text-neutral-100">{pct(rates.btts)}</p>
               <p className="mt-0.5 text-xs text-neutral-500">odd justa {odd(rates.btts)}</p>
+              {rankFor("btts") && (
+                <p className="mt-0.5 text-xs text-emerald-400/80">{rankFor("btts")} ligas</p>
+              )}
             </div>
           </div>
 
