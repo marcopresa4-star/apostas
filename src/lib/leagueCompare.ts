@@ -8,13 +8,22 @@ export interface LeagueSnapshot {
   label: string;
   season: string;
   games: number;
+  at: number; // when this row was read (ms)
   rates: MarketRates;
 }
 
 export interface LeagueCompareIndex {
-  at: number; // when the table was last rebuilt (ms)
+  at: number; // when the table was last completed (ms; 0 while partial)
+  total: number; // mapped club leagues
   rows: LeagueSnapshot[];
   missing: { code: string; label: string; error: string }[];
+}
+
+export interface CompareBuildResult {
+  index: LeagueCompareIndex;
+  done: boolean;
+  remaining: number;
+  total: number;
 }
 
 export type CompareSortKey =

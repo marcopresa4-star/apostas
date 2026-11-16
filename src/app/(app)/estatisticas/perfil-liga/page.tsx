@@ -154,7 +154,7 @@ export default async function PerfilLigaPage({
     data: { user },
   } = await supabase.auth.getUser();
   const maps = user ? await loadMaps(supabase, user.id, "tournament").catch(() => []) : [];
-  const compareHit = user ? await cacheGetAny(supabase, user.id, "leaguecompare:v1").catch(() => null) : null;
+  const compareHit = user ? await cacheGetAny(supabase, user.id, "leaguecompare:v2").catch(() => null) : null;
   const compare = (compareHit?.payload as LeagueCompareIndex | undefined) ?? null;
   const tournamentMap = league ? maps.find((m) => m.name_key === league.code) ?? null : null;
 
@@ -412,14 +412,18 @@ export default async function PerfilLigaPage({
       <section className="mt-8 rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-neutral-200">Comparador das ligas</h2>
-          <BuildCompareButton hasIndex={compare !== null} />
+          <BuildCompareButton
+            hasIndex={compare !== null}
+            rows={compare?.rows.length ?? 0}
+            total={compare?.total ?? 0}
+          />
         </div>
         <p className="mb-3 text-xs leading-relaxed text-neutral-500">
           As mesmas frequências, para todas as ligas mapeadas, lado a lado: onde se marca mais, onde a casa manda mais e
-          onde os golos chegam mais cedo. A primeira construção lê a época inteira de cada liga (uma leitura por
-          jornada), por isso demora minutos; depois fica em cache.
+          onde os golos chegam mais cedo. A construção lê a época inteira de cada liga (uma leitura por jornada), por
+          isso avança em lotes de quatro e pode ser retomada; depois fica em cache.
         </p>
-        {!compare ? (
+        {!compare || compare.rows.length === 0 ? (
           <p className="rounded-lg border border-dashed border-white/[0.07] px-4 py-6 text-center text-sm text-neutral-500">
             Ainda sem tabela. Carrega em «Calcular todas as ligas» para a construir.
           </p>
@@ -494,14 +498,25 @@ export default async function PerfilLigaPage({
               </table>
             </div>
             <p className="mt-2 text-xs text-neutral-500">
-              Tabela de{" "}
-              {new Date(compare.at).toLocaleString("pt-PT", {
-                day: "2-digit",
-                month: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-              . {compare.rows.length} ligas com dados
+              {compare.rows.length < compare.total ? (
+                <>
+                  Em construção: {compare.rows.length} de {compare.total} ligas. Carrega outra vez para continuar de
+                  onde ficou.
+                </>
+              ) : compare.at > 0 ? (
+                <>
+                  Tabela de{" "}
+                  {new Date(compare.at).toLocaleString("pt-PT", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                  . {compare.rows.length} ligas com dados
+                </>
+              ) : (
+                <>{compare.rows.length} ligas com dados</>
+              )}
               {compare.missing.length > 0 && (
                 <> · {compare.missing.length} sem dados ({compare.missing.map((m) => m.label).join(", ")})</>
               )}
