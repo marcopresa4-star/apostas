@@ -35,6 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/estatisticas/jornada", label: "Jogos da jornada", icon: "rounds" },
       { href: "/estatisticas/live", label: "Calculadora live", icon: "calc" },
       { href: "/estatisticas/classificacao", label: "Classificação e força", icon: "chart" },
+      { href: "/estatisticas/perfil-liga", label: "Perfil da liga", icon: "chart" },
     ],
   },
   {

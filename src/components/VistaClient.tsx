@@ -10,6 +10,7 @@ const VIEWS: { href: string; label: string }[] = [
   { href: "/estatisticas", label: "Comparar equipas" },
   { href: "/estatisticas/jornada", label: "Jogos da jornada" },
   { href: "/estatisticas/classificacao", label: "Classificação e força" },
+  { href: "/estatisticas/perfil-liga", label: "Perfil da liga" },
   { href: "/value", label: "Value Bets" },
   { href: "/previsoes", label: "Previsões do dia" },
   { href: "/multiplas", label: "Múltiplas" },
