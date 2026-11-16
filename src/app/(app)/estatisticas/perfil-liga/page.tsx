@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { requireAdmin } from "@/lib/requireAdmin";
-import { LEAGUES, isInternational } from "@/lib/footballData";
+import { LEAGUES, isInternational, isIntlCompetition } from "@/lib/footballData";
 import { createClient } from "@/lib/supabase/server";
 import { loadMaps, seasonFixtures, tournamentSeasons, type SofaFixture } from "@/lib/sofaHistory";
 import { predict, type PlayedMatch } from "@/lib/footballModel";
@@ -154,7 +154,10 @@ export default async function PerfilLigaPage({
   const liga = first(params.liga);
   const wantsMinutes = first(params.minutos) === "1";
   const sortKey = compareSort(first(params.ordem));
-  const league = LEAGUES.find((l) => l.code === liga && !isInternational(l.code)) ?? null;
+  // Club leagues plus mapped competitions of national sides (Nations League):
+  // the same market frequencies apply, they just have no table of their own.
+  const selectable = (code: string): boolean => !isInternational(code) || isIntlCompetition(code);
+  const league = LEAGUES.find((l) => l.code === liga && selectable(l.code)) ?? null;
 
   const supabase = await createClient();
   const {
@@ -222,11 +225,18 @@ export default async function PerfilLigaPage({
 
       <EstatisticasTabs />
       <LeaguePicker
-        leagues={LEAGUES.filter((l) => !isInternational(l.code))}
+        leagues={LEAGUES.filter((l) => selectable(l.code))}
         liga={league?.code ?? ""}
         action="/estatisticas/perfil-liga"
         keep={wantsMinutes ? { minutos: "1" } : {}}
       />
+
+      {league && isInternational(league.code) && (
+        <p className="mb-4 max-w-4xl rounded-xl border border-sky-800/40 bg-sky-950/20 px-4 py-3 text-xs leading-relaxed text-neutral-300">
+          Competição de seleções: «casa» e «fora» seguem a ficha do jogo, mesmo quando é em campo neutro. As
+          frequências de golos e de mercados não dependem disso.
+        </p>
+      )}
 
       {league && !tournamentMap && (
         <p className="mb-4 max-w-4xl rounded-xl border border-dashed border-white/[0.07] px-4 py-3 text-xs leading-relaxed text-neutral-400">
