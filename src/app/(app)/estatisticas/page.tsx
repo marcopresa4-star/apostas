@@ -588,7 +588,7 @@ async function CompararBody({
             <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {sofaMeta.games} jogos nos
             últimos 8 anos{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}.
             Campo neutro estimado pelo torneio (sem recinto nos dados). Clubes, olímpicas e regiões ficam de fora sozinhos.
-            {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
+            {sofaMeta.stale && " SofaScore indisponível (scraper desligado ou a recusar leituras) — dados em cache, podem estar desatualizados."}
           </p>
           {sofaMeta.unlinked.length > 0 && (
             <details className="mt-1">
@@ -605,7 +605,7 @@ async function CompararBody({
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos nas últimas 3
           épocas{sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
           {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
-          {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
+          {sofaMeta.stale && " SofaScore indisponível (scraper desligado ou a recusar leituras) — dados em cache, podem estar desatualizados."}
         </p>
       )}
 

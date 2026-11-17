@@ -217,8 +217,9 @@ export default async function AoVivoPage() {
 async function AoVivoBoard() {
   const now = new Date();
   // Live list from SofaScore via the local CloakBrowser scraper. Scraper
-  // offline -> offline: true, and the page says so instead of showing nothing.
-  const { games, offline } = await fetchSofaLiveNow(now.getTime());
+  // offline (or SofaScore refusing its calls) -> offline: true, and the page
+  // says which one instead of blaming the scraper for a Cloudflare 403.
+  const { games, offline, state: liveState, hint: liveHint } = await fetchSofaLiveNow(now.getTime());
 
   const supabase = await createClient();
   const {
@@ -335,7 +336,9 @@ async function AoVivoBoard() {
       <AoVivoFollow chips={watched.map((w) => ({ id: w.rowId, label: w.label }))} />
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-neutral-400">
-          {offline ? (
+          {liveState === "blocked" ? (
+            "SofaScore a recusar as leituras"
+          ) : offline ? (
             "Scraper SofaScore desligado"
           ) : kept.length < games.length ? (
             <>
@@ -353,7 +356,16 @@ async function AoVivoBoard() {
 
       {statsAviso && <p className="mb-3 text-xs text-sky-300">{statsAviso}</p>}
 
-      {offline ? (
+      {liveState === "blocked" ? (
+        <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/[0.04] px-4 py-10 text-center text-sm text-amber-200/90">
+          <p className="mb-1 font-medium text-amber-200">O SofaScore está a recusar as leituras (Cloudflare).</p>
+          <p className="text-neutral-400">
+            O scraper está ligado, mas a sessão expirou: abre a janela do browser do scraper, resolve o desafio e
+            atualiza esta página.
+          </p>
+          {liveHint && <p className="mt-2 text-xs text-neutral-500">{liveHint}</p>}
+        </div>
+      ) : offline ? (
         <p className="rounded-xl border border-dashed border-white/[0.07] px-4 py-10 text-center text-sm text-neutral-500">
           O scraper local do SofaScore está desligado. Liga-o com <code className="text-neutral-300">cd scraper {"&&"} npm start</code> e
           atualiza — sem ele não há de onde ler o direto.

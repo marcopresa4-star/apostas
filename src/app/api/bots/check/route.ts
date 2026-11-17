@@ -280,7 +280,17 @@ export async function POST() {
   } catch {
     return Response.json({ error: "scraper-offline" }, { status: 503 });
   }
-  if (live.offline) return Response.json({ error: "scraper-offline" }, { status: 503 });
+  if (live.offline) {
+    return Response.json(
+      live.state === "blocked"
+        ? {
+            error: "scraper-blocked",
+            hint: live.hint ?? "Abre a janela do browser do scraper e resolve o desafio Cloudflare.",
+          }
+        : { error: "scraper-offline" },
+      { status: 503 }
+    );
+  }
   // Watched tournaments first: with dozens of live games worldwide, the 12
   // oldest kickoffs would otherwise all be obscure unmapped games and no
   // watched league would ever be checked. No event reads needed for this —

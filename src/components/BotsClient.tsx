@@ -114,6 +114,9 @@ export default function BotsClient({
   const [extra, setExtra] = useState<Fired[]>([]);
   const [checking, setChecking] = useState(false);
   const [offline, setOffline] = useState(false);
+  // The scraper is up but SofaScore refuses it (Cloudflare): different advice
+  // from "ligar o scraper".
+  const [blocked, setBlocked] = useState(false);
   const [lastCheck, setLastCheck] = useState<string | null>(null);
   const [passing, setPassing] = useState<Record<string, { checked: number; passing: number }>>({});
   const [diag, setDiag] = useState<Record<string, DiagRow[]>>({});
@@ -136,10 +139,13 @@ export default function BotsClient({
     try {
       const res = await fetch("/api/bots/check", { method: "POST", cache: "no-store" });
       if (!res.ok) {
+        const why = (await res.json().catch(() => null)) as { error?: unknown } | null;
+        setBlocked(why?.error === "scraper-blocked");
         setOffline(true);
         return;
       }
       setOffline(false);
+      setBlocked(false);
       const body = (await res.json()) as { fired?: Fired[]; stats?: Record<string, { checked: number; passing: number }>; diag?: Record<string, DiagRow[]> };
       if (body.stats) setPassing(body.stats);
       if (body.diag) setDiag(body.diag);
@@ -307,7 +313,13 @@ export default function BotsClient({
           </button>
         )}
         <span className="text-xs text-neutral-500">
-          {offline ? "Scraper desligado." : lastCheck ? `Última verificação ${lastCheck}.` : "Por verificar."}{" "}
+          {blocked
+            ? "SofaScore a recusar leituras — resolve o desafio na janela do scraper."
+            : offline
+              ? "Scraper desligado."
+              : lastCheck
+                ? `Última verificação ${lastCheck}.`
+                : "Por verificar."}{" "}
           {bots.some((b) => b.enabled)
             ? "Vigilância ativa em todas as páginas."
             : "Sem bots ativos: nada a vigiar."}{" "}

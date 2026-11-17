@@ -185,7 +185,7 @@ export default async function ClassificacaoPage({
                 {sofa.seasons.join(" · ")}); último resultado{" "}
                 {sofa.latest ? `${sofa.latest.slice(8, 10)}/${sofa.latest.slice(5, 7)}` : "—"}.
                 Primeira carga demora ~1 min (lê jornada a jornada); depois é cache.
-                {sofa.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
+                {sofa.stale && " SofaScore indisponível (scraper desligado ou a recusar leituras) — dados em cache, podem estar desatualizados."}
               </p>
               {sofa.unlinked.length > 0 && (
                 <p className="mt-1 text-emerald-300/90">

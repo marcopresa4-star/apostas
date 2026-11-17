@@ -14,6 +14,19 @@ export class ScraperOffline extends Error {
   }
 }
 
+// The scraper is running but SofaScore is refusing its calls (Cloudflare 403,
+// clearance expired). Nothing the app can fix: someone has to solve the
+// challenge in the scraper's browser window. Extends ScraperOffline so every
+// caller that already falls back to cache keeps doing it; pages that can tell
+// the difference (Ao vivo) word the notice from this class.
+export class ScraperBlocked extends ScraperOffline {
+  constructor() {
+    super();
+    this.message = "O SofaScore está a recusar leituras (sessão Cloudflare expirada).";
+    this.name = "ScraperBlocked";
+  }
+}
+
 function encodeQuery(params: Record<string, string>): string {
   const q = Object.entries(params)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
@@ -44,6 +57,12 @@ export async function sofaRaw<T = unknown>(
     throw new ScraperOffline();
   }
   if (raw.status === 404) return null;
-  if (!raw.ok) throw new Error(`SofaScore raw ${path} falhou (${raw.status}).`);
+  if (!raw.ok) {
+    if (raw.status === 502) {
+      const body = (await raw.json().catch(() => null)) as { error?: unknown } | null;
+      if (body?.error === "blocked") throw new ScraperBlocked();
+    }
+    throw new Error(`SofaScore raw ${path} falhou (${raw.status}).`);
+  }
   return (await raw.json()) as T;
 }

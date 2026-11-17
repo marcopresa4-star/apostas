@@ -263,7 +263,7 @@ async function JornadaBody({
           <span className="font-medium text-sky-300">Dados SofaScore:</span> {sofaMeta.games} jogos para o modelo
           {sofaMeta.latest ? `, até ${sofaMeta.latest.slice(8, 10)}/${sofaMeta.latest.slice(5, 7)}` : ""}
           {sofaMeta.unlinked.length > 0 ? `. Grafias por ligar no Mapa: ${sofaMeta.unlinked.join(", ")}.` : "."}
-          {sofaMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
+          {sofaMeta.stale && " SofaScore indisponível (scraper desligado ou a recusar leituras) — dados em cache, podem estar desatualizados."}
         </p>
       )}
       {league && data === null && (
@@ -276,7 +276,7 @@ async function JornadaBody({
           <span className="font-medium text-sky-300">Dados SofaScore (seleções):</span> {intlMeta.games} jogos nos
           últimos 8 anos{intlMeta.latest ? `, até ${intlMeta.latest.slice(8, 10)}/${intlMeta.latest.slice(5, 7)}` : ""}.
           Jogos de grupo têm dono da casa.
-          {intlMeta.stale && " Scraper desligado — dados em cache, podem estar desatualizados."}
+          {intlMeta.stale && " SofaScore indisponível (scraper desligado ou a recusar leituras) — dados em cache, podem estar desatualizados."}
         </p>
       )}
 

@@ -384,7 +384,7 @@ export default function PlaneamentoClient({
                   <p className="mt-2 text-[11px] text-neutral-600">
                     {data.semDados > 0 && `${data.semDados} jogo${data.semDados === 1 ? "" : "s"} sem dados avançados ${data.semDados === 1 ? "ficou" : "ficaram"} de fora. `}
                     {data.truncated && "Limite de 40 jogos por análise. "}
-                    {data.stale && "Scraper desligado — dados em cache."}
+                    {data.stale && "SofaScore indisponível — dados em cache."}
                   </p>
                 </>
               )}
