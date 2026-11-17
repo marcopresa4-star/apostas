@@ -17,6 +17,10 @@ export default function BotsWatcher() {
   // stats reads); never stack a new one on top — that piled up overlapping
   // runs and starved every other scraper read (verified Oct 2026: 3min runs).
   const busyRef = useRef(false);
+  // Scraper offline or refusing (503): stop hammering it every minute. Each
+  // call makes the scraper reload its page, so a blocked scraper would keep
+  // retrying forever for nothing. Five minutes, then try again.
+  const backoffRef = useRef(0);
 
   useEffect(() => {
     // Embedded panels (Vista Dinâmica iframes) don't poll: the top-level tab
@@ -28,7 +32,7 @@ export default function BotsWatcher() {
     }
     stopRef.current = false;
     const check = async (): Promise<void> => {
-      if (stopRef.current || busyRef.current) return;
+      if (stopRef.current || busyRef.current || Date.now() < backoffRef.current) return;
       busyRef.current = true;
       try {
         let res: Response;
@@ -42,7 +46,11 @@ export default function BotsWatcher() {
           stopRef.current = true;
           return;
         }
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (res.status === 503) backoffRef.current = Date.now() + 5 * 60_000;
+          return;
+        }
+        backoffRef.current = 0;
         let body: { fired?: { id: string; silent: boolean; text: string; bot_name?: string }[]; games?: number };
         try {
           body = (await res.json()) as typeof body;
