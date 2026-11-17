@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { eventCornersCards, seasonFixtures } from "@/lib/sofaHistory";
-import { cacheGetAny, cacheSet } from "@/lib/sofaCache";
+import { cacheGetAny, cacheSet, HOUR_MS } from "@/lib/sofaCache";
 
 // Corners and yellow cards of a whole season: one statistics read per game, so
 // it only runs when asked (?cantos=1) and the aggregate is cached. Counts
@@ -54,8 +54,16 @@ export async function computeSeasonCounts(
   seasonId: number
 ): Promise<SeasonCounts> {
   const key = `cornercards:v1:${code}:${seasonId}`;
+  // Counts never change, but the season grows: rebuild after 6 h so the new
+  // games join. The per-game statistics stay cached, so the rebuild is cheap.
   const hit = await cacheGetAny(supabase, userId, key).catch(() => null);
-  if (hit?.payload && typeof hit.payload === "object" && Array.isArray((hit.payload as SeasonCounts).teams)) {
+  if (
+    hit &&
+    Date.now() - hit.fetchedAt < 6 * HOUR_MS &&
+    hit.payload &&
+    typeof hit.payload === "object" &&
+    Array.isArray((hit.payload as SeasonCounts).teams)
+  ) {
     return hit.payload as SeasonCounts;
   }
   const today = new Date().toISOString().slice(0, 10);
